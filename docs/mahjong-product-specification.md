@@ -1,8 +1,8 @@
 # Mahjong Product Specification
 
 - Status: Planning-authoritative product baseline
-- Version: 1.1
-- Decision date: 2026-07-17 (v1.0 baseline: 2026-07-13)
+- Version: 1.2
+- Decision date: 2026-07-17 (v1.1: 2026-07-17; v1.0 baseline: 2026-07-13)
 - Source PRD: [Mahjong Game Product Requirement Document.pdf](Mahjong%20Game%20Product%20Requirement%20Document.pdf)
 - Resolved questionnaire: [Mahjong Product Specification Clarification Questionnaire](mahjong-product-spec-clarification-questionnaire.md)
 - Incorporated design review: [Product Design & Specification Review](mahjong-spec-review.md), 2026-07-17
@@ -396,7 +396,9 @@ Both offers and their lapses are recorded in the event log and covered by golden
 | Ranked Full Rotation interception | 5 seconds |
 | Private Full Rotation | Host chooses 12, 15, 20, or 30 seconds; interception is half, rounded up |
 
-The prior "3.0s mask" concept is removed. There is no hidden interval, time bank, or overtime. For each decision, the server calculates one common absolute deadline from the base time plus the largest eligible player's smoothed half-round-trip estimate, capped at 500 ms. The same deadline is sent to every affected client; input closes at that deadline. Animation time before the action is available is not charged.
+The prior "3.0s mask" concept is removed. There is no hidden interval, time bank, or overtime. For each decision, the server calculates one common absolute deadline from the base time plus the largest eligible player's smoothed half-round-trip estimate, capped at 500 ms. The same deadline is sent to every affected client; input closes at that deadline.
+
+Animation time before the action is available is not charged. Mechanically: the deadline clock starts at server dispatch time plus a fixed per-action animation allowance taken from the versioned configuration table, bounded by the standard 600 ms animation budget in Section 9.11. The allowance is identical for every seat and never varies with an individual player's animation-speed or Reduced Motion settings, because the deadline is shared; it is included in the published absolute deadline, and a client that finishes animating early simply gains decision time.
 
 Public timer values are pacing presentation, not rules content: live configuration may adjust them within approved bounds — turn 10 to 30 seconds, interception 5 to 15 seconds — for new matches only, under Section 13.4 approval. An active match keeps the values with which it started. The longer Bamboo interception window exists because claim decisions are the hardest beginner moment.
 
@@ -535,7 +537,7 @@ Only public human Quick Play uses Jade settlement.
 
 The PRD's uncapped Dragon's Den is rejected. Every public table has a finite debit cap.
 
-Version 1 launches with Bamboo Courtyard and Sparrow Pavilion open. Wind and Cloud Lounge and Dragon's Den are fully implemented but ship configured closed, so their queues are never visible dead content. Each opens through audited live configuration when its opening criteria are met: at least 2,000 accounts in good standing meet the tier's minimum balance, and projected queue times for the tier stay within Section 2.5 targets at observed concurrency. Live Operations reviews the criteria at least monthly and records each opening decision. The faucet-to-cap ratio per tier — total daily grant potential versus the per-hand debit cap — is a tracked design parameter.
+Version 1 launches with Bamboo Courtyard and Sparrow Pavilion open. Wind and Cloud Lounge and Dragon's Den are fully implemented but ship configured closed, so their queues are never visible dead content. Each opens through audited live configuration when its opening criteria are met: at least 2,000 accounts in good standing meet the tier's minimum balance, and projected queue times for the tier stay within Section 2.5 targets at observed concurrency. Live Operations reviews the criteria at least monthly and records each opening decision. An account in good standing has no active sanction and is not pending deletion; queue-dodge and abandonment cooldowns do not affect good standing. This definition applies wherever this specification uses the phrase. The faucet-to-cap ratio per tier — total daily grant potential versus the per-hand debit cap — is a tracked design parameter.
 
 Before seating, the server checks the minimum balance and reserves the debit cap. The reserve remains owned by the player but cannot be spent elsewhere until settlement. Balance never becomes negative.
 
@@ -1220,7 +1222,7 @@ The product does not collapse Mahjong into a binary Win/Loss ratio. It shows Win
 
 ### 12.8 Leaderboards
 
-Version 1 has one seasonal Taiwanese Full Rotation rating leaderboard per launch region and one global view. Region is the account's supported country at season start and cannot change during that season; Support may correct a verified region between seasons. Eligibility requires 10 completed rated matches and a linked account in good standing; players still inside the 20-match provisional window are listed with the Provisional label. Sort order is rating, then more rated matches up to 100, then lower abandonment rate, then earlier achievement of the rating.
+Version 1 has one seasonal Taiwanese Full Rotation rating leaderboard per launch region and one global view. Region is the account's supported market, recorded at account creation from the onboarding market declaration and never derived from IP geolocation at read time. Region is pinned at season start and cannot change during that season; Support may correct a verified region between seasons. Eligibility requires 10 completed rated matches and a linked account in good standing; players still inside the 20-match provisional window are listed with the Provisional label. Sort order is rating, then more rated matches up to 100, then lower abandonment rate, then earlier achievement of the rating.
 
 The leaderboard refreshes at least every 15 minutes. It grants profile titles and frames only, never Jade or real-world value. At season end, participants with at least 10 completed rated matches receive the "Seasoned Player" title, the top 10% receive the numbered Season Crest frame, and the top 1% also receive the "Season Champion" title. Rewards are mailed within seven days; the highest earned tier includes lower-tier rewards.
 
@@ -1689,3 +1691,13 @@ Version 1.1 incorporates the 2026-07-17 design review ([mahjong-spec-review.md](
 | No business thesis | Sustainability hypothesis recorded without approving monetization | 2.8 |
 | Accessibility gaps | Mirrored left-handed layout; untimed-queue future scope; separate zh-TW screen-reader audit | 9.3, 9.9 |
 | Roadmap opportunities | Discard puzzle mode, friend spectating, own-match replay, and first Jade sink recorded as prioritized future scope | 2.3, 7.5, 8.6, 8.10 |
+
+### 16.5 Version 1.2 clarifications
+
+Version 1.2 (2026-07-17) applies three clarifications from the technical readiness review ([mahjong-tech-readiness-review.md](mahjong-tech-readiness-review.md)). The rules standard remains Mahjong Taiwanese 16-Tile Rules v1.1; no gameplay behavior changes.
+
+| Clarification | Sections |
+| --- | --- |
+| Animation-allowance mechanism defined for "animation time is not charged": fixed per-action allowance from versioned configuration, identical for all seats, independent of personal animation/Reduced Motion settings | 5.10 |
+| Leaderboard region source defined: onboarding market declaration recorded at account creation, never IP-derived at read time | 12.8 |
+| "Account in good standing" defined: no active sanction and not pending deletion; cooldowns do not affect it; applies specification-wide | 7.1 |

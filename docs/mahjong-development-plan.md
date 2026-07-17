@@ -1,9 +1,9 @@
 # Mahjong — Development Plan
 
-- Source of truth: [`mahjong-product-specification.md`](mahjong-product-specification.md) **v1.1** (2026-07-17). Section references (§) below point at that document.
-- Plan status: Draft for Product Owner / Engineering Lead approval
+- Source of truth: [`mahjong-product-specification.md`](mahjong-product-specification.md) **v1.2** (2026-07-17). Section references (§) below point at that document.
+- Plan status: v1.1 — all planning assumptions and ambiguities resolved via Product Owner interview (Section 1.2)
 - Plan date: 2026-07-17
-- Rule: this plan implements the approved design. It introduces no product changes. Where the spec is silent (technology, staffing, sequencing), decisions here are labeled **[ASSUMPTION]** and need sign-off, not silent acceptance.
+- Rule: this plan implements the approved design. It introduces no product changes. Where the spec is silent (technology, staffing, sequencing), Section 1.2 records the signed-off decisions (D1–D12); two recorded deviations from spec defaults (D5, D6) are flagged there.
 
 ---
 
@@ -21,25 +21,30 @@
 - **External integrations (all thin):** Google/Apple OAuth (V1); transactional email provider for magic link; Web Push (VAPID); optional hosted crash/analytics processor **only after** privacy review (§15.3) — the plan treats it as absent.
 - **Release milestones:** Closed Beta (six weeks, ≥500 invitees, US/Canada-ex-Quebec/Taiwan, en + zh-TW, §15.1) with hard exit gates (§2.5); then Version 1.
 
-### 1.2 Assumptions requiring sign-off
+### 1.2 Resolved planning decisions (Product Owner interview, 2026-07-17)
 
-| # | Assumption | Why | Escalate if wrong |
+The draft plan carried assumptions A1–A7 and five ambiguities. All twelve were resolved in a Product Owner interview on 2026-07-17. These decisions are authoritative for this plan. **[DEVIATION]** marks a recorded deviation from the spec's default posture, accepted by the Product Owner.
+
+| # | Topic | Decision | Plan impact |
 | --- | --- | --- | --- |
-| A1 | **[ASSUMPTION] Stack:** TypeScript monorepo. Client: React + DOM/CSS-first table rendering (WebGL2 effects as an optional layer). Server: Node.js (NestJS or Fastify) modular monolith + separate stateful realtime match service; Postgres; Redis; WebSocket transport. | Shared protocol types end-to-end; DOM-first table makes WCAG 2.2 AA (§9.9) and the mandated Canvas/CSS fallback (§3.2) one codepath instead of two. | If sim throughput (E1.F10, 1M hands/RC) or Hard-AI 250 ms budget (§11.4) misses target in Node, port the rules/AI core to Go/Rust behind the same fixture format — isolate it from day 1 to keep this cheap. |
-| A2 | **[ASSUMPTION] Team:** 6 engineers (2 gameplay/backend, 2 client, 1 platform/DevOps, 1 QA-automation) + part-time PM/UX/loc/Rules Lead. 2-week sprints. | Needed to make the sprint plan concrete. | Re-scale sprint plan linearly; dependency order (Step 4) is capacity-independent and does not change. |
-| A3 | **[ASSUMPTION] Hosting:** one US cloud region at launch (§2.7 US data stores) on managed services (managed Postgres, managed Redis, container platform). Taiwan latency served over backbone; §15.5 measures in-region so this is compliant, but Taiwan RTT must be measured in Phase 0. | Single-region halves ops scope; §15.7 region-failure routing is written as conditional. | If Taiwan p95 misses §15.5 targets in Phase 0 probes, add an APAC match-service region in Phase 5 (tech-debt item TD-3). |
-| A4 | **[ASSUMPTION] Buy-vs-build:** identity (magic link/OAuth), email delivery, and web push use off-the-shelf providers behind our own account model; everything gameplay/economy/matchmaking/analytics is built first-party. A game-backend platform (e.g., AccelByte-class BaaS) was considered and rejected for core loops because the Jade ledger, deterministic rules engine, and claim-privacy protocol are bespoke anyway. | §15.3 forbids third-party analytics SDKs without review; core requirements are custom. | Product Owner may still choose BaaS for friends/leaderboards; the service boundaries in Step 8 keep that swappable. |
-| A5 | Art/audio (tile faces, 3 table themes, frames, music, SFX) are commissioned externally with license documentation (§2.7, §3.4) and delivered by end of Phase 3. | Engineering consumes final assets in Phase 4–5; placeholder art until then. | Beta ship blocker if late — flagged as schedule risk R-S2. |
-| A6 | Trademark-cleared product name arrives before public V1; Beta ships the text title card "Mahjong" (§3.4). | Spec allows it. | None for Beta. |
-| A7 | Legal/counsel review (§15.11), zh-TW localizer + Taiwanese Rules Lead (§1.1, §15.12) are engaged by end of Phase 1. | Rules certification (M1) needs the Rules Lead; Beta needs bilingual parity. | Hard blocker for M1/M5 — risk R-S1. |
+| D1 | Stack | TypeScript client (React, DOM/CSS-first table rendering, WebGL2 effects optional). **Go** for all first-party backend: rules engine, match service, AI, Jade ledger, progression, analytics ingest, T&S tooling. Protocol package is schema-first (JSON Schema/protobuf) with TS + Go codegen. Postgres + Redis stand. | Removes the Node performance-ceiling risk (old TD-7) for the 1M-sim gate and the 250 ms Hard-AI budget. E0.F5 becomes codegen; E1–E6 backend features are Go. |
+| D2 | Team | Solo developer (Product Owner) + AI coding agents. | Phases, dependency order, and milestone gates unchanged. Step 5 "sprints" become sequential work packages (S# = WP#) with no calendar commitment; throughput determines dates. Two-person controls adapted under §2.7's documented multiple-roles allowance — see the Step 16 solo-adaptation note. |
+| D3 | Hosting | US + APAC presence from the start. Authoritative data stores remain US-only (§2.7 requirement); APAC hosts match-service compute for Taiwan-region matches. | Adds a P0 architecture spike: APAC compute with US durable append-before-ack (§15.7) must not break the §15.5 ack targets — regional durable buffer vs synchronous US commit is the design question. AGS region selection feeds this. |
+| D4 | Buy-vs-build | **AccelByte AGS for meta services including matchmaking:** IAM/auth, friends/presence, leaderboards, mail/inbox, remote-config storage, and matchmaking with a custom ruleset (matching/flexing rules). First-party Go keeps: rules engine, match service, Jade ledger, progression, analytics, support/T&S console. | E4/E6/E12/E13/E14 shift from build to integrate (Step 2.2 redrawn). P0 gains an AGS capability-mapping spike (open item 1). AGS itself requires the §15.10 vendor security review and §15.3 privacy/DPA review before Beta (open item 2). |
+| D5 | Art/audio | **[DEVIATION-RISK]** AI-generated, human-curated. Commercial-rights documentation for AI output is legally unsettled; §2.7's license requirement is satisfied via a per-asset provenance log (model, prompt, curation edits) plus counsel review. zh-TW cultural review still applies to all themed content. | Vendor search dropped; provenance-log workflow added; counsel opinion is Beta-entry open item 3; risk R-L1. Fallback for contested assets: licensed marketplace art. |
+| D6 | Rules Lead | **[DEVIATION]** No external Taiwanese Rules Lead at M1. The Product Owner holds the Rules Lead role (allowed by §2.7 with documented conflict). M1 certification = AI-assisted cross-checking of the Tai table and golden cases against GameTower and reference sources; fluent Taiwanese players recruited from the Beta cohort validate scoring during Beta. | Rules-interpretation risk shifts into Beta, where §2.5's 14-day zero-S0/S1 gate still protects exit. R-T2 severity raised; a structured Beta rules-validation program is added to the Beta sprints. |
+| D7 | Beta invites | Personal network + Mahjong communities (Discord, Reddit, PTT, Dcard), self-managed through the invite-code tool (E16.F6). | The 500-player three-market gate stays but is at-risk (R-D1); Taiwan reach needs deliberate PTT/Dcard outreach; the recorded fallback is a §2.5 gate renegotiation, which is a Product Owner spec decision. |
+| D8 | Email auth | Custom magic-link token service — 15-minute single-use links, rate-limited — exchanging into AGS IAM sessions via headless/custom auth. Preserves §10.2's no-password rule. | E4.F3 scoped as AGS integration + a small Go token service; on the security-review checklist. |
+| D9 | Test devices | Phased: desktop browsers + iPad now; physical phones (iPhone + Android) acquired **before Beta hardening (WP15)** because the §16.1 iOS interruption matrix, the 360 px validation gate, and the §15.6 battery/thermal soak require them. | TD-11 records the deferral with its hard trigger. Until WP15, phone coverage is emulator/BrowserStack-only and R-T1 remains unverified. |
+| D10 | Good standing | "Account in good standing" = no active sanction and not pending deletion. Cooldowns (queue-dodge, abandonment) do **not** break good standing. | Absorbed into spec v1.2 (§7.1, applies specification-wide). |
+| D11 | Season anchor | Season 1 starts 00:00 UTC on V1 launch day. | Season config staged in WP23 locks to the launch date. |
+| D12 | Product name | Beta ships the "Mahjong" text title card; trademark-cleared name before public V1 (§3.4). | None for Beta. |
 
-### 1.3 Ambiguities found while planning (need answers, not assumptions)
+### 1.3 Remaining open items (spikes and reviews, not decisions)
 
-1. **Email provider + magic-link UX details** (link TTL, single-use policy, rate limits) — §10.2/§15.10 give security posture but not parameters. Proposed defaults in E4.F3; Trust/Privacy Lead to approve.
-2. **Beta invite distribution** — §15.14 specs one-use/limited-use codes but not who generates/sends them (mail-merge? partner communities?). Ops decision; tooling in E16.F6 covers generation/redemption only.
-3. **Reference devices** for the §15.6 battery/thermal soak — spec says "selected launch reference devices" but never selects them. Propose: iPhone 12, iPhone 15, Pixel 6a, mid-range iPad; QA lead to confirm.
-4. **Season 1 start date** relative to V1 launch (§12.5 says 12 weeks but not the anchor). Propose: season starts at V1 launch day 00:00 UTC.
-5. **"2,000 accounts in good standing" tier-opening criterion** (§7.1) — needs the precise good-standing definition; propose: no active sanction, not pending-deletion. Product Owner to confirm.
+1. **AGS capability-mapping spike (P0):** confirm per service that AGS semantics meet the spec's contracts — claim/hidden-information boundaries, mail claim idempotency + expiry (§10.9), config audit/approval fit (§13.4), matchmaking ruleset expressiveness for §8.5 (latency banding, dodge cooldowns, block/recent-opponent avoidance), token lifetimes/revocation (§15.10). Any gap falls back to the original first-party design for that service — the Step 2.2 port boundaries exist so this stays cheap.
+2. **AGS vendor review** before Beta entry: §15.10 security review, §15.3 privacy/DPA review, and §2.7 US data-residency confirmation for AGS-held data.
+3. **Counsel opinion on AI-generated asset rights (D5)** before Beta entry.
 
 ---
 
@@ -62,23 +67,23 @@
 
 ### 2.2 Backend services
 
-**[ASSUMPTION]** Modular monolith ("Core API") + two stateful runtimes, one repo. Each module below has its own schema ownership and internal API so it can be split out later without rewrites. Right-sized for 2,500 CCU / 750 concurrent matches (§15.4).
+Per D1/D4: a first-party **Go** core (modular monolith + two stateful runtimes) plus **AccelByte AGS** supplying the meta layer (IAM/auth, friends/presence, leaderboards, mail/inbox, remote-config storage, matchmaking with a custom ruleset). Each first-party module owns its schema and internal API so it can split out later without rewrites; each AGS integration sits behind a thin Go port so a capability gap found in the P0 spike (open item 1) falls back to the original first-party design without redrawing boundaries. Right-sized for 2,500 CCU / 750 concurrent matches (§15.4).
 
 | Service / module | Responsibilities (spec refs) |
 | --- | --- |
 | **Gateway/API edge** | TLS termination, session validation, rate limiting, request logging (§15.10). |
-| **Identity & Session** (module) | Guest device credentials, email magic link, Google/Apple OAuth (V1), account linking rules, 15-min access tokens, rotating refresh sessions, reuse detection, logout-all, suspicious-login handling (§10.1–10.2, §15.10). |
+| **Identity & Session** (AGS IAM + Go magic-link service, D4/D8) | AGS IAM provides accounts, device/guest auth, Google/Apple OAuth (V1), and session tokens. A small Go token service implements the §10.2 magic-link flow (15-min single-use, rate-limited) and exchanges into AGS sessions. Linking rules, token lifetimes, reuse detection, and logout-all semantics (§10.1–10.2, §15.10) are verified against AGS in the P0 spike; gaps get a thin wrapper. |
 | **Player Profile** (module) | Display names + filters, cosmetic equipping, settings sync matrix (§9.10), statistics read model (§12.7), privacy visibility. |
-| **Matchmaking** (module) | Per-lobby and Full Rotation queues, eligibility (balance, linked identity for ranked), region/latency banding, rating bands + expansion, reservation + dodge cooldowns, block/recent-opponent avoidance (§8.5, §10.6, §10.8). |
+| **Matchmaking** (AGS Matchmaking + Go eligibility adapter, D4) | AGS custom ruleset (matching/flexing rules) runs per-lobby and Full Rotation queues with latency/region and rating-band matching. A Go adapter enforces what the ruleset cannot: Jade-reserve eligibility, linked-identity-for-ranked, dodge cooldowns, block/recent-opponent avoidance (§8.5, §10.6, §10.8), then hands formed matches to the Match Service. |
 | **Match Service** (stateful runtime) | One actor per match: wall commit + shuffle, full rules state machine (via Rules Engine lib), shared deadlines, private claim collection, timeouts/auto-actions, AFK takeover, reconnect, emote relay, event-log append-before-ack, snapshots (§5, §8.7, §15.7–15.9). |
 | **Rules Engine** (pure library) | Deterministic state transitions, legal-action derivation, hand evaluation, canonical highest-Tai decomposition, settlement math, Ting/wait computation — no I/O, replayable from events (§5–7, §9.4). Consumed by Match Service, sim harness, support replay tool. |
 | **AI Service** (stateful runtime or module) | Easy/Medium/Hard policies + takeover bot; observation contract enforcement; seeded determinism; 250 ms budget with fallback chain; calibration harness (§11). |
 | **Economy/Ledger** (module) | Double-entry Jade ledger, reserves, settlement posting, grants, welfare, compensations, reversals; idempotency keys; conservation checks; RPO-0 posting (§7, §15.7). |
 | **Progression** (module) | XP events + level curve, achievements (event-log derived, recomputable), daily/weekly missions, Quick Play ladder points (§12.1–12.3, §12.9, §13.3). |
-| **Rating & Leaderboards** (module, V1) | Pairwise Elo, provisional K, floor redistribution, abandonment adjustments, season lifecycle/reset, regional leaderboards, ladder boards (§12.4–12.8). |
-| **Social** (module) | Friends/requests/blocks, Recent Players, presence (Offline/Online/InQueue/InMatch, appear-offline), private room codes + invites (§8.6, §10.6). |
-| **Mail & Notifications** (module) | Mail types, targeting, idempotent claims, expiry; web push (invites, service restoration, reward expiry), quiet hours (§10.9). |
-| **Live Config** (module) | Versioned remote config within hard bounds, feature flags, two-person approval workflow, staging preview, one-action rollback, audit (§13.4). |
+| **Rating & Leaderboards** (Go Elo + AGS leaderboards, V1, D4) | Pairwise Elo, provisional K, floor redistribution, abandonment adjustments, and season lifecycle stay first-party Go (bespoke math, §12.4–12.6); computed ratings and ladder points publish to AGS leaderboards for the regional/global boards (§12.8–12.9). |
+| **Social** (AGS friends/presence + Go extensions, D4) | AGS provides the friends graph, blocks, and presence. Go extensions cover Recent Players, appear-offline and minor-default-invisible rules, spec rate limits, and private room codes/presets where AGS semantics differ (§8.6, §10.6) — verified in the P0 spike. |
+| **Mail & Notifications** (AGS inbox + Go claim layer, D4) | AGS message/inbox delivers mail; a Go claim layer guarantees idempotent claims, per-item Claim All results, and expiry semantics (§10.9) if the P0 spike finds AGS's own guarantees insufficient. Web push (three permitted categories, quiet hours) is first-party. |
+| **Live Config** (Go approval/audit layer over AGS config, D4) | The §13.4 contract — hard bounds, approval workflow, staging preview, one-action rollback, full audit — is first-party Go; AGS remote config may serve as the distribution/storage backend if the spike confirms fit. The approval workflow is never delegated to the vendor console. |
 | **Analytics Ingest** (module) | First-party event endpoint, schema registry + validation, consent gating, pseudonymization, warehouse loader (§15.2–15.3). |
 | **Trust & Safety / Support / Admin** (module + internal UI) | Reports + evidence bundles, sanctions ladder, appeals, anti-abuse signal jobs, Match-ID audit package retrieval, read-only account views, cataloged compensation, invite codes, maintenance banners (§10.8, §15.13–15.14, §15.9). |
 | **Privacy** (module) | Export bundles, deletion with 30-day window, retention jobs, "Deleted Player" masking (§10.4). |
@@ -101,12 +106,12 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E0.F1 | Monorepo + standards | pnpm workspace: `client`, `server`, `match-service`, `rules-engine`, `ai`, `protocol`, `tools`. Lint/format/tsconfig strict, ADR template, CODEOWNERS. | — | S | — | Fresh clone → `pnpm build && pnpm test` green; ADR-0001 records stack (A1). |
+| E0.F1 | Monorepo + standards | Mixed-language monorepo per D1: `client/` (pnpm/TS), `server/` (Go modules: `rulesengine`, `matchservice`, `ai`, `ledger`, `progression`, `agsports`), `protocol/` (JSON Schema/protobuf source + TS/Go codegen), `tools/`. Lint/format strict both languages, ADR template, CODEOWNERS. | — | S | — | Fresh clone → one `make build test` runs both toolchains green; ADR-0001 records the D1 stack decision. |
 | E0.F2 | CI/CD pipeline | Per-PR lint+typecheck+unit; trunk-based; preview deploys; artifact versioning; migration gate. | E0.F1 | M | — | PR-to-preview < 15 min; rollback = one action (§13.4, §15.7). |
 | E0.F3 | Environments + IaC | dev/staging/prod via IaC; managed Postgres/Redis; secrets vault; TLS everywhere. | E0.F2 | M | Cloud account/billing setup lag | `terraform apply` reproduces staging from zero; no secret in repo (§15.10). |
 | E0.F4 | Observability baseline | OTel traces/metrics/logs, dashboards-as-code, alert routing, crash capture (first-party endpoint until a processor passes privacy review §15.3). | E0.F3 | M | — | A traced request spans edge→module→DB; §15.5 latency histograms exist on day 1. |
 | E0.F5 | Protocol package | Shared TS types + JSON schemas for commands, events, errors (stable codes §9.8), analytics events (§15.2). Codegen for docs. | E0.F1 | M | Premature freeze | Breaking change fails CI compat check; every error has a stable code + i18n key. |
-| E0.F6 | Latency probes | Synthetic RTT/jitter probes from US-west + Taiwan vantage points against candidate region (A3). | E0.F3 | S | — | Report vs §15.5 thresholds delivered before Phase 2 exit. |
+| E0.F6 | Latency probes | Synthetic RTT/jitter probes from US-west + Taiwan vantage points against the D3 US and APAC regions, including APAC-compute→US-persistence round trips. | E0.F3 | S | — | Report vs §15.5 thresholds delivered before Phase 2 exit; feeds the D3 durability-design spike. |
 
 ### E1 — Rules Engine (Taiwanese v1.1)
 
@@ -121,7 +126,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 | E1.F7 | Hand evaluation + decomposition | 5 melds + pair detection, Ting/wait-set computation (deduplicated union, §9.4), highest-Tai canonical decomposition with lexicographic tie-break (§6.2). | E1.F1 | L | Performance for wait computation | ≤ 5 ms per evaluation p99 on server hardware; decomposition deterministic across runs/platforms. |
 | E1.F8 | Scoring table | All §6.1 patterns + §6.2 combination/exclusion rules; 69-Tai max fixture; Dealer Tai 1+2k (§5.12). | E1.F7 | L | Rule-interpretation errors | Every §6.1 row has ≥ 1 positive + ≥ 1 negative golden; §6.2 exclusions enumerated as fixtures; Rules Lead sign-off. |
 | E1.F9 | Settlement math | Payer models (discard/Zimo/rob/instant-win), Dealer Tai application, debit cap, largest-remainder proportional allocation, exhaustive-draw/dealer-continuation outcomes incl. k-cap 10 (§5.11, §7.3). | E1.F8 | M | Integer-rounding disputes | All §7.4 worked examples reproduce exactly; conservation property (credits == debits) fuzz-tested; signed-64 only. |
-| E1.F10 | Golden suite + simulator | Fixture format (named cases, versioned), runner in CI, randomized legal-state simulator with invariant checks (no dup tiles, conservation, replay determinism), 1M-hand RC gate with triage tooling (§1.3, §15.9). | E1.F4–F9 | L | CI cost | 500+ named goldens green; 1M sim runs < 60 min on CI hardware (else triggers A1 escape hatch); failure artifact = replayable seed. |
+| E1.F10 | Golden suite + simulator | Fixture format (named cases, versioned), runner in CI, randomized legal-state simulator with invariant checks (no dup tiles, conservation, replay determinism), 1M-hand RC gate with triage tooling (§1.3, §15.9). | E1.F4–F9 | L | CI cost | 500+ named goldens green; 1M sim runs < 60 min on CI hardware; failure artifact = replayable seed. |
 
 ### E2 — Match Runtime
 
@@ -149,9 +154,9 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E4.F1 | Sessions & tokens | 15-min access / rotating refresh (30-day inactivity, 90-day absolute), family revocation on reuse, logout-all, recent-reauth gate for sensitive ops (§15.10). | E0.F3 | M | — | Token reuse triggers family revocation test; sensitive ops 401 without recent auth. |
+| E4.F1 | Sessions & tokens (AGS integration, D4) | Verify and configure AGS IAM against §15.10 — 15-min access / rotating refresh (30-day inactivity, 90-day absolute), family revocation on reuse, logout-all; wrap any gaps in Go; first-party recent-reauth gate for sensitive ops. | E0.F3, P0 spike | M | AGS config gaps | Token-reuse revocation test passes against AGS; sensitive ops 401 without recent auth; spike checklist signed for this service. |
 | E4.F2 | Guest accounts | Device credential issuance/rotation, age gate (month/year, block <13, no retention of full DOB), versioned ToS/Privacy acceptance, storage-persistence warning, 180+30-day inactive deletion job (§10.1, §10.3). | E4.F1 | M | iOS storage eviction | Cleared storage → warned path; underage cannot create persistent account; deletion job idempotent. |
-| E4.F3 | Email magic link (Beta) | Provider integration, single-use 15-min links **[ASSUMPTION — ambiguity #1]**, rate limits, guest→link migration with settings-conflict summary (§9.10, §10.2). | E4.F2 | M | Deliverability | Link flow < 60 s end-to-end in staging; conflict summary shown when established account has values. |
+| E4.F3 | Email magic link (Beta) | Email provider integration, single-use 15-min links per D8 (Go token service exchanging into AGS IAM sessions), rate limits, guest→link migration with settings-conflict summary (§9.10, §10.2). | E4.F2 | M | Deliverability | Link flow < 60 s end-to-end in staging; conflict summary shown when established account has values. |
 | E4.F4 | Google/Apple OAuth (V1) | OAuth flows, established-account collision rule (never auto-merge), unlink guard for last identity (§10.2). | E4.F3 | M | Apple web-auth quirks | Collision chooses established account; last-identity unlink blocked. |
 | E4.F5 | Player identity | Opaque IDs, curated default names, rename 1/30 days, bilingual profanity/impersonation filter, exact-ID search (§10.5). | E4.F2 | M | Filter quality zh-TW | Filter fixture list (both languages) passes; rename cooldown enforced server-side. |
 
@@ -234,7 +239,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E12.F1 | Friends graph + presence | Requests (limits 200/50 pending/20 per day/5 per min), blocks, Recent Players (20, 30-day), presence states + appear-offline, minor default-invisible, In-Match queued invite rule (§10.6). | E4.F3 | L | Presence fan-out | Rate limits server-enforced; blocked users see Offline; presence updates < 5 s. |
+| E12.F1 | Friends graph + presence (AGS integration, D4) | AGS friends/blocks/presence behind a Go port; first-party extensions for the spec deltas: rate limits (200 friends/50 pending/20 per day/5 per min), Recent Players (20, 30-day), appear-offline + minor default-invisible mapping, In-Match queued invite rule (§10.6). | E4.F3, P0 spike | M | AGS semantic gaps | Rate limits server-enforced; blocked users see Offline; presence updates < 5 s; spike checklist signed for this service. |
 | E12.F2 | Private rooms | 6-char codes, invites, host presets (timer/open-hand/bot difficulty), bot fill, rematch-same-seats, no Jade/rating/missions, code expiry (§8.6). | E12.F1, E2.F1, E3.F2 | M | — | Preset isolation verified (no ledger/rating writes); Beta restricts to Quick Play. |
 | E12.F3 | Emotes/phrases content (V1) | 8 emotes + 24 phrases, en/zh-TW localization + cultural review, mute controls (§10.7). | E2.F8 | S | Localization review lead time | Catalog approved by reviewer; mute matrix tested. |
 
@@ -244,13 +249,13 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 | --- | --- | --- | --- | --- | --- | --- |
 | E13.F1 | Pairwise Elo | §12.4 formula, K 40/24, integer largest-remainder zero-sum, 500 floor redistribution, abandonment disciplinary adjustment separate from Elo (§12.6). | E2.F7 | M | Rounding edge cases | All §12.4 worked examples exact; zero-sum property fuzzed; floor cases golden. |
 | E13.F2 | Season lifecycle | 12-week calendar, between-match reset 1500+0.75×(r−1500), tier bands, season checkpoint recompute for cheating removal (§12.5–12.6). | E13.F1, E14.F3 | M | — | Reset never touches active matches; recompute audit-logged. |
-| E13.F3 | Leaderboards | Per-region + global, eligibility 10 matches + linked + good standing, provisional labels, sort tie-breaks, 15-min refresh, season rewards mailing (§12.8), ladder boards (§12.9). | E13.F2, E14.F1 | M | — | Region pinned at season start; deleted players drop at refresh (§10.4). |
+| E13.F3 | Leaderboards (AGS publish, D4) | First-party Go computes eligibility (10 matches + linked + good standing per spec v1.2 §7.1), provisional labels, and sort tie-breaks, then publishes to AGS leaderboards per region + global; 15-min refresh; season rewards mailing (§12.8); ladder boards (§12.9). | E13.F2, E14.F1 | M | — | Region = onboarding market declaration pinned at season start (spec v1.2 §12.8); deleted players drop at refresh (§10.4). |
 
 ### E14 — Mail, Notifications & Live Config
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E14.F1 | Mail system | Types, targeting (no sensitive traits), idempotent claims, Claim All with per-item results, expiry rules (§10.9). | E5.F1 | M | — | Double-claim impossible; expiry honored; policy mail persistent. |
+| E14.F1 | Mail system (AGS inbox + Go claim layer, D4) | AGS inbox for delivery and targeting (no sensitive traits); Go claim layer guarantees idempotent claims, Claim All with per-item results, and expiry rules (§10.9) wherever the spike finds AGS's own guarantees insufficient. | E5.F1, P0 spike | M | — | Double-claim impossible; expiry honored; policy mail persistent. |
 | E14.F2 | Web push + email | VAPID push (3 allowed categories), quiet hours 21:00–09:00 local, minors default-off, installed-PWA education flow (§10.9, §3.2). | E4.F3 | M | iOS push requires install | Quiet-hours suppression tested across timezones; unsubscribe honored. |
 | E14.F3 | Live config + flags | Versioned config schema with hard bounds (immutable list §13.4), two-person approval, staging preview, effective-time scheduling, one-action rollback, full audit (§13.4). | E0.F3 | L | Change-safety | Attempting an out-of-bounds or rules-touching change is rejected; rollback < 1 min; every change has ticket/approver metadata. |
 | E14.F4 | Maintenance & status | Banner service, 24-h notice flow, queue-block 10 min pre-shutdown, known-issues page (§15.7, §15.13). | E14.F3 | S | — | Maintenance drill executes the full sequence. |
@@ -300,7 +305,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | Phase | Content (epic/features) | Exit milestone |
 | --- | --- | --- |
-| **P0** (2 sprints) | E0 all; E17.F1 start; E18.F1 skeleton; hiring/vendor asks (A5, A7); latency probes E0.F6 | **M0 Walking skeleton:** deployed hello-match echo over WS through full pipeline |
+| **P0** (2 sprints) | E0 all; E17.F1 start; E18.F1 skeleton; AGS environment setup + capability-mapping spike (D4, open item 1); APAC-compute/US-data durability spike (D3); latency probes E0.F6 | **M0 Walking skeleton:** deployed hello-match echo over WS through the full pipeline, authenticated via AGS session |
 | **P1** (3 sprints) | E1.F1–F10; E3.F1–F2; E7.F1–F2, E7.F5 in parallel on client | **M1 Rules certified:** 500 goldens + sim invariants green; Rules Lead sign-off; 360 px layout validated |
 | **P2** (2 sprints) | E2.F1–F4; E8.F1–F4 (against staged matches); E3 bots as opponents | **M2 Playable slice:** internal 1-human-3-bot Quick Play hand end-to-end on staging |
 | **P3** (2 sprints) | E4.F1–F3, F5; E5.F1–F3; E6.F1–F3; E2.F5–F6; E8.F5–F6 | **M3 Human loop:** 4 real humans queue Bamboo, play, Jade settles, reconnect works |
@@ -312,7 +317,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 **Why this order minimizes risk and rework:**
 
-1. **The rules engine is the product and its highest defect risk** — it gets the first three sprints, isolated as a pure library so certification (M1) doesn't wait on any infrastructure, and so the A1 language-escape-hatch stays cheap.
+1. **The rules engine is the product and its highest defect risk** — it gets the first three work packages, isolated as a pure Go library so certification (M1) doesn't wait on any infrastructure. Under D6 (no external Rules Lead at M1), the golden suite and reference cross-checks are the certification, which is exactly why they come first.
 2. **Determinism/durability (E2.F1) precedes all features that consume events** — achievements, analytics, replay, anti-cheat all read the event log; building it early prevents the classic retrofit rewrite.
 3. **The ledger arrives with the first human match, not later** — retrofitting double-entry under live balances is the most expensive rework in this codebase; M3 forces it correct while stakes are synthetic.
 4. **Client table starts against staged bot matches (P2)**, decoupling the two hardest workstreams (match runtime, table UX) so they parallelize across the backend and client pairs.
@@ -325,7 +330,7 @@ Parallel workstreams throughout: backend pair (E1→E2→E5/E6), client pair (E7
 
 ## Step 5 — Sprint plan
 
-Detail is full through Beta (S1–S16); V1 sprints (S17–S24) are goal-level by design — they get re-planned against Beta findings, which is the point of running a Beta.
+Per D2 (solo + AI agents), "sprints" are sequential work packages, not calendar commitments — same content, same order, same exit criteria; S# below = WP#. Sign-off sessions previously assigned to specialists collapse into the Step 16 solo-adaptation controls. Detail is full through Beta (S1–S16); V1 packages (S17–S24) are goal-level by design — they get re-planned against Beta findings, which is the point of running a Beta. AGS integration replaces first-party builds inside S8 (identity), S9 (queue), S13 (friends/config), and S23 (leaderboards/mail); their exit criteria are unchanged.
 
 **S1 — "Repo to prod-shaped staging"** — Features: E0.F1–F3. Tasks: workspace scaffold, CI, IaC baseline, secrets vault, standards ADRs. Deliverables: staging env, green pipeline. Testing: pipeline self-test. Risks: cloud account setup delay. Exit: M0 pre-req; any engineer ships a change to staging in < 1 h.
 
@@ -375,7 +380,7 @@ Format: each block is self-contained for handoff. Tasks ≤ 1 day each unless ma
 ### 6.1 E1.F2 — Wall, shuffle, deal
 
 Tasks:
-1. Implement CSPRNG wrapper with injectable seed for tests; forbid `Math.random` repo-wide (lint rule).
+1. Implement CSPRNG wrapper with injectable seed for tests; forbid non-CSPRNG randomness in the rules package (lint/vet rule).
 2. Implement Fisher-Yates over the 144-tile catalog; unit-test uniformity (chi-squared on 1M shuffles, offline job).
 3. Implement 72×2 stack layout and side assignment (E/S/W/N × 18).
 4. Implement dice roll (2d6, both values recorded) and break-point selection: owner `((s−1) mod 4)+1`, count s stacks from owner's right, counterclockwise.
@@ -461,18 +466,20 @@ State-transition sources: match-screen transitions are generated from the E1.F4 
 
 Cross-service defaults (stated once): auth via gateway-validated session token; rate limiting per token + IP with typed 429s; errors use the §9.8 stable-code envelope; metrics = RED + domain counters per §15.5 targets; logs structured, secret/hidden-info-free (§15.10); caching only where noted (correctness beats caching in an economy product); horizontal scale via stateless modules + partitioned Match Service.
 
-### Identity & Session
-Endpoints: `POST /guest`, `POST /auth/magic-link {email}`, `POST /auth/magic-link/verify`, `POST /auth/oauth/{google|apple}` (V1), `POST /auth/refresh`, `POST /auth/logout-all`, `POST /account/link`, `DELETE /account/identity/{id}` (guarded), `GET /account`.
-Data: `account`, `identity(provider, subject, UNIQUE)`, `device_credential`, `refresh_session(family_id, rotated_from)`, `consent_record(version, at)`.
-Validation/security: link-collision rule §10.2; reuse-detection revokes family; recent-reauth for sensitive ops; magic-link single-use TTL; email only for auth/security (§10.9). Scale: stateless; Redis for token denylist.
+### Identity & Session (AGS IAM + Go magic-link service — D4/D8)
+AGS IAM owns guest/device auth, Google/Apple OAuth (V1), session issuance, and refresh lifecycle. First-party Go endpoints: `POST /auth/magic-link {email}` and `POST /auth/magic-link/verify` (single-use hashed tokens exchanged into AGS sessions), consent recording (versioned ToS/Privacy acceptance), the age-gate check at account creation, and `GET /account` aggregation.
+Data (first-party): `account_meta(ags_user_id UNIQUE, market, created_at)`, `consent_record(version, at)`, `magic_link_token(token_hash, expires_at, used_at)`. Core identity, device credentials, and refresh sessions live in AGS.
+Validation/security: link-collision rule §10.2 enforced in the linking flow; §15.10 token lifetimes, reuse/family revocation, and logout-all are verified against AGS configuration in the P0 spike; recent-reauth gate for sensitive ops is first-party; email used only for auth/security (§10.9).
+*Fallback (activated per service only if the P0 spike fails it): the original first-party design — `account`, `identity(provider, subject, UNIQUE)`, `device_credential`, `refresh_session(family_id, rotated_from)` with `POST /guest`, `POST /auth/refresh`, `POST /auth/logout-all`, `POST /account/link`, `DELETE /account/identity/{id}`; stateless with Redis token denylist.*
 
 ### Player Profile
 Endpoints: `GET/PATCH /profile`, `POST /profile/rename` (30-day), `GET /players/{playerId}` (visibility-filtered), `GET/PUT /settings` (matrix-scoped), `GET /stats/{mode}`.
 Data: `profile`, `settings(account_scope jsonb, device_scope client-side)`, `stats_*` read models projected from events. Validation: name normalization + bilingual filter (E4.F5). Caching: public profiles 60 s.
 
 ### Matchmaking
-Endpoints: `POST /queue/{queueId}/enter`, `DELETE /queue`, `POST /reservation/{id}/accept`, WS events for reservation.
-Data: Redis queue sets + `reservation`, `dodge_penalty` in Postgres. Validation: eligibility (balance via Economy, linked-identity for ranked, latency band from client RTT report + server measurement). Metrics: time-in-queue histograms per queue (Beta gate §2.5). Scale: single matcher loop per queue (population makes this trivial); shardable by queue.
+**(AGS Matchmaking + Go eligibility adapter — D4.)** AGS Matchmaking runs the queues with a custom ruleset (region/latency banding, rating bands + expansion). Go adapter endpoints: `POST /queue/{queueId}/enter` (eligibility gate: Jade-reserve pre-check via Economy, linked-identity for ranked, dodge-penalty check), `DELETE /queue`, `POST /reservation/{id}/accept`; reservation events relayed over WS and formed matches handed to the Match Service.
+Data (first-party): `reservation`, `dodge_penalty` in Postgres. Metrics: time-in-queue histograms per queue (Beta gate §2.5), sourced from adapter + AGS telemetry.
+*Fallback: first-party Redis queue sets with a single matcher loop per queue (population makes this trivial; shardable by queue), if the spike finds the ruleset cannot express §8.5 (block/recent-opponent avoidance, dodge cooldowns).*
 
 ### Match Service
 Interface: WS `match.command` (envelope: session, match, actor, expected_version, action_id, idempotency) / `match.event` per-seat streams; internal gRPC/HTTP for orchestration (create from reservation, health, drain).
@@ -489,13 +496,13 @@ Per the WBS rows E11/E13/E12/E14/E15/E16 — each exposes: Progression `GET /mis
 
 ## Step 9 — Database design
 
-**[ASSUMPTION]** Postgres 16, one cluster, schema-per-module; partitioned event tables; PITR + daily encrypted backups (35-day retention, quarterly restore drill §15.7).
+Postgres 16 for first-party Go services (D1); AGS manages its own data stores — US residency confirmed in the vendor review (open item 2). One cluster, schema-per-module; partitioned event tables; PITR + daily encrypted backups (35-day retention, quarterly restore drill §15.7).
 
-Entities (owner → tables): identity → `account, identity, device_credential, refresh_session, consent_record`; profile → `profile, settings, rename_history`; social → `friendship, friend_request, block, recent_player, room`; economy → `ledger_posting, journal, balance, reserve, welfare_claim`; match → `match, match_event (range-partitioned by day, 180-day drop §10.4), match_snapshot, match_summary (player-visible history)`; progression → `xp_event, level_state, achievement_progress, mission_state, ladder_points`; rating → `rating_state, rating_history, season, leaderboard_snapshot`; mail → `mail_item, mail_claim`; config → `config_version, config_change (audit)`; T&S → `report, sanction, appeal, abuse_signal, invite_code`; privacy → `export_job, deletion_request`; analytics → warehouse-side star schema (separate store, pseudonymous IDs only §15.3).
+Entities (owner → tables; per D4, AGS-owned data is **not** duplicated in Postgres — first-party tables reference `ags_user_id`): identity → `account_meta, consent_record, magic_link_token` (core identity/device/refresh sessions live in AGS; fallback tables `account, identity, device_credential, refresh_session` activate only if the P0 spike fails that service); profile → `profile, settings, rename_history`; social → `recent_player, room` (friends/blocks/presence live in AGS; fallback: `friendship, friend_request, block`); economy → `ledger_posting, journal, balance, reserve, welfare_claim`; match → `match, match_event (range-partitioned by day, 180-day drop §10.4), match_snapshot, match_summary (player-visible history)`; progression → `xp_event, level_state, achievement_progress, mission_state, ladder_points`; rating → `rating_state, rating_history, season, leaderboard_snapshot (published to AGS boards)`; mail → `mail_claim` over the AGS inbox (fallback: `mail_item`); config → `config_version, config_change (audit)`; T&S → `report, sanction, appeal, abuse_signal, invite_code`; privacy → `export_job, deletion_request`; analytics → warehouse-side star schema (separate store, pseudonymous IDs only §15.3).
 
-Key relationships: `account 1—n identity/friendship/ledger_posting/…`; `match 1—n match_event/match_summary`; `journal 1—n ledger_posting` (balanced); `season 1—n rating_history/leaderboard_snapshot`.
+Key relationships: `account_meta 1—n ledger_posting/xp_event/match_summary/…` via `ags_user_id`; `match 1—n match_event/match_summary`; `journal 1—n ledger_posting` (balanced); `season 1—n rating_history/leaderboard_snapshot`.
 
-Indexes (beyond PKs/FKs): `ledger_posting(idempotency_key) UNIQUE`, `(account_id, created_at)`, `(match_id)`; `match_event(match_id, seq) UNIQUE`; `match_summary(account_id, ended_at DESC)`; `friend_request(to_account, status)`; `rating_state(region, rating DESC)` partial for eligibles; `mail_item(account_id, expires_at)`; `identity(provider, subject) UNIQUE`.
+Indexes (beyond PKs/FKs): `ledger_posting(idempotency_key) UNIQUE`, `(account_id, created_at)`, `(match_id)`; `match_event(match_id, seq) UNIQUE`; `match_summary(account_id, ended_at DESC)`; `rating_state(region, rating DESC)` partial for eligibles; `account_meta(ags_user_id) UNIQUE`; `magic_link_token(token_hash) UNIQUE`. Fallback-design indexes (`identity(provider, subject) UNIQUE`, `friend_request(to_account, status)`, `mail_item(account_id, expires_at)`) apply only if those tables activate.
 
 Persistence strategy: match hot state in-memory in Match Service actors; durability via event append (sync commit) + snapshots; everything else ordinary transactional. Ledger and match_event tables are append-only (no UPDATE/DELETE grants; retention via partition drop with legal-hold override for T&S cases §10.4).
 
@@ -534,7 +541,7 @@ Migrations: forward-only, expand-migrate-contract pattern; CI gate applies to a 
 | Chaos | kill match nodes, DB failover, backup restore | recovery to identical state; RTO/RPO evidence (§15.7) |
 | Accessibility | axe CI + manual SR (en + zh-TW) + keyboard-only runs | tutorial, match table, claim window under timer; audit for §16.1 |
 | Regression | full suite nightly + per-RC; traceability matrix (E18.F5) | every "must" mapped to ≥ 1 test |
-| Cross-platform | device farm: browser matrix §3.2 + reference devices (ambiguity #3) | iOS interruption matrix (§16.1): call, tab switch, 5-min background, storage eviction, orientation churn |
+| Cross-platform | phased device set per D9: desktop browsers + iPad now, cloud farm for breadth; physical phones acquired before WP15 | iOS interruption matrix (§16.1): call, tab switch, 5-min background, storage eviction, orientation churn — blocked on the phone tier of D9, which is why D9's trigger is hard |
 
 Per-system required cases are enumerated in each WBS acceptance row; QA owns keeping the §16.1 traceability report green.
 
@@ -543,7 +550,7 @@ Per-system required cases are enumerated in each WBS acceptance row; QA owns kee
 ## Step 12 — DevOps plan
 
 - **Repo:** single monorepo (E0.F1 layout); ADRs in `/docs/adr`; golden fixtures in `rules-engine/fixtures` (versioned dirs per rules version).
-- **Branching:** trunk-based; short-lived feature branches; PR review mandatory (2 reviewers for `rules-engine`, `economy`, auth paths — mirrors §13.4 two-person spirit).
+- **Branching:** trunk-based; short-lived feature branches; PR review via AI-agent review on every change; `rules-engine`, `economy`, and auth paths additionally get a cooling-off second self-review before merge (the D2 solo adaptation of the §13.4 two-person spirit).
 - **CI/CD:** PR → lint/typecheck/unit/property; trunk → integration + preview deploy; nightly → e2e + netem + sim (100k); RC → full golden + 1M sim + calibration + load + traceability gates. Deploys: API rolling; Match Service drain-then-replace (no mid-hand kills); client versioned static deploy with SW-driven update prompt ("client update required" = version-mismatch state §9.8).
 - **Feature flags:** server-evaluated via Live Config (E14.F3), client receives resolved flags at bootstrap; V1 features run dark in Beta behind flags.
 - **Environments:** dev (ephemeral per-PR previews), staging (prod-shaped, synthetic load), prod. Config differences only via Live Config + IaC vars.
@@ -574,15 +581,17 @@ Implemented by E14 + E11 + E16; this is the operational readiness list:
 | ID | Shortcut / deferral | Reason | Impact | Priority |
 | --- | --- | --- | --- | --- |
 | TD-1 | Modular monolith instead of microservices | Team size, CCU scale | Later extraction cost if scale 10× | Low |
-| TD-2 | DOM-first rendering; WebGL effects layer deferred | A11y + fallback economics (A1) | Less visual flair at launch; effects layer post-Beta | Low |
-| TD-3 | Single US region; Taiwan on backbone | Ops scope (A3) | Taiwan RTT worse than a local region; §15.5 in-region wording keeps it compliant | Medium — revisit with E0.F6 data + Beta telemetry |
+| TD-2 | DOM-first rendering; WebGL effects layer deferred | A11y + fallback economics (D1) | Less visual flair at launch; effects layer post-Beta | Low |
+| TD-3 | *(Closed by D3: US + APAC compute from the start; cross-region durability is now a P0 design spike, not debt)* | — | — | Closed |
 | TD-4 | First-party crash/analytics only; no hosted processor | §15.3 review not done | More self-managed pipeline ops | Medium |
 | TD-5 | Support console minimal UI polish | Internal tool | Slower support workflows | Low |
 | TD-6 | Anti-abuse signals batch-only (no realtime scoring) | Beta population is small + invite-only | Slower collusion detection | Medium — revisit at V1 |
-| TD-7 | Node rules engine (A1 escape hatch unexercised) | Velocity, shared types | Possible sim/AI perf ceiling | Watch — trigger = E1.F10/E3.F3 benchmarks |
+| TD-7 | *(Closed by D1: Go core removes the sim/AI performance ceiling)* | — | — | Closed |
 | TD-8 | Leaderboard region correction is manual support action | §12.8 allows support correction | Support toil | Low |
 | TD-9 | No public verifiable-shuffle UX (spec-future §15.9) | Spec defers | Trust rests on audit + fairness statement | Deferred by spec |
 | TD-10 | V1-scope items dark-shipped during Beta behind flags | Parallelize | Flag-debt cleanup sprint needed post-V1 | Low |
+| TD-11 | Physical phone testing deferred (D9) | Solo budget/hardware | R-T1 (iOS Safari) unverified until WP15; §16.1 interruption matrix, 360 px on-device gate, and battery/thermal soak all blocked until phones acquired | High — hard trigger before Beta hardening (WP15) |
+| TD-12 | Two-person controls held by one person (D2, under §2.7 allowance) | Solo team | Weaker change-safety on economy/rules paths; compensated by AI review, cooling-off self-review, and the immutable audit log (Step 16 note) | Medium — revisit if the team grows |
 
 ---
 
@@ -590,22 +599,23 @@ Implemented by E14 + E11 + E16; this is the operational readiness list:
 
 | ID | Risk | Type | Prob. | Impact | Mitigation | Owner |
 | --- | --- | --- | --- | --- | --- | --- |
-| R-T1 | iOS Safari lifecycle (sockets, eviction, orientation) degrades UX | Technical | High | High | E7.F3 dedicated hardening, §16.1 interruption matrix, S9/S15 device time, persistent-storage flow | Client lead |
-| R-T2 | Rules-engine correctness defects reach players (S0/S1 gates §2.5) | Technical | Med | Critical | Golden-first development, M1 certification before UI, sim gate, replay viewer, 24 h S0/S1 SLA in Beta | Gameplay lead + Rules Lead |
-| R-T3 | Hard-AI safety prover misses 250 ms budget | Technical | Med | Medium | Prototype in P2 groundwork, fallback chain (§11.4), TD-7 language escape hatch | Gameplay eng 2 |
+| R-T1 | iOS Safari lifecycle (sockets, eviction, orientation) degrades UX — verification further delayed by D9's phone deferral | Technical | High | High | E7.F3 dedicated hardening; §16.1 interruption matrix as soon as phones arrive (WP15 hard trigger, TD-11); emulator/BrowserStack coverage in the interim; persistent-storage flow | Product Owner |
+| R-T2 | Rules-engine correctness defects reach players (S0/S1 gates §2.5) — probability raised by D6 (no external Rules Lead at M1) | Technical | High | Critical | Golden-first development; AI-assisted cross-check vs GameTower/reference sources at M1; sim gate; replay viewer; structured Beta rules-validation program with Taiwanese players; 24 h S0/S1 SLA in Beta | Product Owner (acting Rules Lead, D6) |
+| R-T3 | Hard-AI safety prover misses 250 ms budget | Technical | Low | Medium | Prototype in P2 groundwork; fallback chain (§11.4); Go core (D1) provides headroom | Product Owner |
 | R-T4 | Event-log durability adds latency beyond §15.5 | Technical | Low | High | Measure in S6; batch fsync tuning; local NVMe + sync replication option | Platform |
 | R-T5 | Hidden-info leak via payload or timing | Security | Low | Critical | Single projection egress, leak-scan CI, pen test E17.F3 | Eng Lead |
-| R-D1 | Queue liquidity in Beta off-peak (4-human, no bots, §8.5) | Design | High | Medium | Invite-wave scheduling by timezone, 16-player gate on §2.5 measurement, 90-s offers; product accepts risk per spec | PM |
-| R-S1 | Rules Lead / zh-TW localizer engagement late (A7) | Schedule | Med | High | Contract by end P0; paired fixture sessions scheduled in S5, S11 | PM |
-| R-S2 | Commissioned art/audio late (A5) | Schedule | Med | Medium | Placeholder pipeline until P4; Beta can ship v1 art minimalism (§3.4 text title card) | PM |
+| R-D1 | Beta reach: 500 players across three markets via personal network + communities (D7), plus off-peak queue liquidity (4-human, no bots §8.5) | Design | High | High | Timezone-scheduled invite waves; deliberate PTT/Dcard outreach for Taiwan; scheduled community play sessions; fallback = recorded §2.5 gate renegotiation | Product Owner |
+| R-S1 | zh-TW localization/cultural review capacity — D6 removes the standing expert-review safety net | Schedule | Med | High | Recruit a zh-TW reviewer (community or paid marketplace) before the WP11 string freeze; machine translation stays banned for rules/safety/support strings (§15.12) | Product Owner |
+| R-L1 | AI-generated asset rights insufficiently documentable for §2.7 (D5) | Legal | Med | High | Per-asset provenance log (model, prompt, curation edits); counsel opinion before Beta (open item 3); fallback = licensed marketplace assets for contested slots | Product Owner |
 | R-S3 | Beta exit gates (esp. crash-free 99.5%, queue p50) not met in 6 weeks | Schedule | Med | High | Gates dashboarded from S12; hardening sprints S15–16 before entry; Beta extension is a Product Owner call, planned as option | EM |
 | R-3P1 | Email deliverability (magic link) | 3rd party | Med | Medium | Reputable provider, monitored bounce rates, resend + support path | Platform |
 | R-3P2 | Apple/Google OAuth review friction (V1) | 3rd party | Low | Medium | Start app registrations in P5; magic link is the fallback path | Platform |
-| R-I1 | Single-region outage | Infra | Low | High | §15.7 RTO 60 min runbook, backups, drill E18.F4; multi-region is explicitly conditional in spec | Platform |
+| R-3P3 | AGS capability gaps vs spec contracts (claim privacy, mail idempotency, config audit, matchmaking ruleset expressiveness) or vendor review failure (§15.3, §15.10) | 3rd party | Med | High | P0 capability-mapping spike (open item 1) with per-service first-party fallback behind the Step 2.2 Go ports; vendor security/privacy/residency review before Beta (open item 2) | Product Owner |
+| R-I1 | US data-region outage (single point of truth even with APAC compute, D3) | Infra | Low | High | §15.7 RTO 60 min runbook, backups, drill E18.F4; APAC matches drain gracefully when US persistence is unreachable | Product Owner |
 | R-SEC1 | Admin-tool misuse | Security | Low | High | MFA, RBAC, cataloged actions only, tamper-evident audit (§15.10) | Eng Lead |
-| R-P1 | Legal/privacy review finds Beta blocker (§15.11) | Compliance | Low | High | Counsel engaged P1 (A7); review checklist tracked from P3 | Trust/Privacy Lead |
+| R-P1 | Legal/privacy review finds Beta blocker (§15.11) — scope now includes the AI-asset opinion (D5) and the AGS DPA (open item 2) | Compliance | Med | High | Counsel engaged by end of P1; review checklist tracked from P3; both open items are Beta-entry gates | Product Owner (Trust/Privacy hat) |
 
-Third-party dependency list: email provider, OAuth (Google/Apple), push service (standard Web Push), cloud provider (A3), device farm, external pen-test + WCAG auditors, art/audio vendors, localization vendor. None are runtime-critical to a running match except cloud infrastructure.
+Third-party dependency list: **AccelByte AGS (identity, social, leaderboards, mail, matchmaking — runtime-critical, D4)**, email provider, OAuth (Google/Apple), push service (standard Web Push), cloud provider (D3), cloud device farm, external pen-test + WCAG auditors, zh-TW reviewer (R-S1), counsel for the AI-asset opinion (R-L1). AGS and cloud infrastructure are the two runtime-critical dependencies of a running match.
 
 ---
 
@@ -621,6 +631,8 @@ Third-party dependency list: email provider, OAuth (Google/Apple), push service 
 - **Release Candidate (= M8):** V1 feature list (§2.3) complete; full regression + 1M sim + calibration green; §15.11 legal sign-off; final WCAG audit; V1 load (3× burst 60 min) passed; season-1 content locked; rollback rehearsed on this build.
 - **Production launch (= M9):** RC soaked ≥ 1 week on staging + Beta cohort; go/no-go with Product Owner, Eng Lead, T&S Lead; war-room staffed; §2.5 directional dashboards live; day-2 patch train scheduled.
 
+**Solo adaptation (D2):** every named role above is a hat worn by the Product Owner under §2.7's documented multiple-roles allowance. The spec's two-person approvals (§13.4, §15.10) are compensated by three controls: AI-agent review on every change to rules-engine, economy, and auth paths; a 24-hour cooling-off second self-review before any production economy/rules configuration change; and the immutable audit log. Go/no-go reviews are self-conducted against the written gate checklists and recorded in the repo — the checklists in this document are the reviewer.
+
 ---
 
 ## Step 17 — Deliverables map & post-launch backlog
@@ -634,7 +646,7 @@ This document contains: executive roadmap (Step 4 table), architecture overview 
 4. First Jade sink specification — triggered by §7.5 economy review.
 5. Own-match replay viewer on the internal replay foundation (§8.10).
 6. Upper-tier lobby openings per §7.1 criteria (ops action, not build).
-7. WebGL2 effects layer (TD-2) and APAC region (TD-3) as telemetry warrants.
+7. WebGL2 effects layer (TD-2) as telemetry warrants.
 8. Cosmetic pipeline scale-up per §2.8 hypothesis (content program, not engineering).
 
 **Explicitly not planned (spec non-goals §2.4):** monetization of any kind, native apps, HK/Riichi playable modules (extension contracts honored in E1's module boundaries per §14.1), spectator/replay public features, clubs, tournaments, open chat.
