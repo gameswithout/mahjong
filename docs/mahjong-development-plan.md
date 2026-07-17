@@ -39,10 +39,11 @@ The draft plan carried assumptions A1–A7 and five ambiguities. All twelve were
 | D10 | Good standing | "Account in good standing" = no active sanction and not pending deletion. Cooldowns (queue-dodge, abandonment) do **not** break good standing. | Absorbed into spec v1.2 (§7.1, applies specification-wide). |
 | D11 | Season anchor | Season 1 starts 00:00 UTC on V1 launch day. | Season config staged in WP23 locks to the launch date. |
 | D12 | Product name | Beta ships the "Mahjong" text title card; trademark-cleared name before public V1 (§3.4). | None for Beta. |
+| D13 | AGS-first policy (2026-07-17 directive; supersedes the D4 boundary wherever they differ) | Maximize AGS usage. Resolution ladder for every capability: (1) the AGS purpose-built service; (2) another AGS system that fits; (3) AGS Cloud Save only when no purpose-built service fits; (4) fork/modify a module from the [Extend Apps Directory](https://accelbyte.github.io/extend-apps-directory/); (5) write a new Extend app (Override / Event Handler / Service Extension); (6) self-host first-party only where Extend cannot meet the spec's guarantees — and then only as the documented fallback. | Section 2.2a is the authoritative service mapping and Extend-directory evaluation. The P0 spike scope widens accordingly (Section 1.3 item 1). E2/E5/E6/E11/E13/E15/E16 WBS rows updated. |
 
 ### 1.3 Remaining open items (spikes and reviews, not decisions)
 
-1. **AGS capability-mapping spike (P0):** confirm per service that AGS semantics meet the spec's contracts — claim/hidden-information boundaries, mail claim idempotency + expiry (§10.9), config audit/approval fit (§13.4), matchmaking ruleset expressiveness for §8.5 (latency banding, dodge cooldowns, block/recent-opponent avoidance), token lifetimes/revocation (§15.10). Any gap falls back to the original first-party design for that service — the Step 2.2 port boundaries exist so this stays cheap.
+1. **AGS capability-mapping spike (P0, scope per D13/Section 2.2a):** confirm per service that AGS/Extend semantics meet the spec's contracts. Checklist: claim/hidden-information boundaries; token lifetimes/revocation (§15.10); Legal-service age-gate fit (§10.3); **Extend match-runtime hosting** — command→Lobby-push latency vs §15.5, append-before-ack durability, app-owned storage provisioning (Stash precedent); `extend-core-matchmaker` fork feasibility for §8.5; **Wallet hold/escrow + idempotency** → wallet-as-authority vs journal-authoritative-with-mirror; Achievement recompute/revocation (§12.3); Challenge determinism, claim windows, catalog governance (§13.3) → native vs Challenge Suite fork; Rank Suite fork vs MMR Calculator; Leaderboard 12-week cycles, region boards, provisional labels (§12.8); inbox claim idempotency, per-item Claim All, expiry (§10.9); Game Telemetry field controls + export (§15.3); reporting category/evidence fit (§10.8); deletion/export coverage vs §10.4. Each line gets a written go/fallback verdict; fallbacks are the 2.2/Step 8 first-party designs.
 2. **AGS vendor review** before Beta entry: §15.10 security review, §15.3 privacy/DPA review, and §2.7 US data-residency confirmation for AGS-held data.
 3. **Counsel opinion on AI-generated asset rights (D5)** before Beta entry.
 
@@ -67,7 +68,7 @@ The draft plan carried assumptions A1–A7 and five ambiguities. All twelve were
 
 ### 2.2 Backend services
 
-Per D1/D4: a first-party **Go** core (modular monolith + two stateful runtimes) plus **AccelByte AGS** supplying the meta layer (IAM/auth, friends/presence, leaderboards, mail/inbox, remote-config storage, matchmaking with a custom ruleset). Each first-party module owns its schema and internal API so it can split out later without rewrites; each AGS integration sits behind a thin Go port so a capability gap found in the P0 spike (open item 1) falls back to the original first-party design without redrawing boundaries. Right-sized for 2,500 CCU / 750 concurrent matches (§15.4).
+Per D1/D4: a first-party **Go** core plus **AccelByte AGS** supplying the meta layer. Each first-party module owns its schema and internal API so it can split out later without rewrites; each AGS integration sits behind a thin Go port so a capability gap found in the P0 spike (open item 1) falls back to the original first-party design without redrawing boundaries. Right-sized for 2,500 CCU / 750 concurrent matches (§15.4). **Section 2.2a refines this table under D13 (AGS-first): most "first-party" rows below become AGS-native integrations or Extend apps, and the table's build descriptions serve as each service's documented fallback.**
 
 | Service / module | Responsibilities (spec refs) |
 | --- | --- |
@@ -89,6 +90,55 @@ Per D1/D4: a first-party **Go** core (modular monolith + two stateful runtimes) 
 | **Privacy** (module) | Export bundles, deletion with 30-day window, retention jobs, "Deleted Player" masking (§10.4). |
 
 Cross-cutting: OpenTelemetry tracing/metrics/logs; append-only audit log for admin actions; secrets in managed vault; IaC for all environments.
+
+### 2.2a AGS-first service mapping and Extend directory evaluation (D13)
+
+This subsection is authoritative over the 2.2 table wherever they differ. Rows marked **(spike)** carry a specific verification question in the Section 1.3 item-1 checklist; the 2.2/Step 8 first-party designs are the per-service fallback, activated only on spike failure.
+
+**Capability → AGS/Extend mapping:**
+
+| Capability (spec) | Primary (per D13 ladder) | Extend work | Fallback |
+| --- | --- | --- | --- |
+| Identity, guest, OAuth (§10.1–10.2) | AGS IAM: device-ID guest login, Google/Apple | Magic-link token issuer as a small Service Extension (D8) | First-party auth (Step 8) |
+| Versioned ToS/Privacy consent (§10.3) | AGS Legal (Agreement) service: versioned policy acceptance **(spike: month/year age-gate fit)** | — | `consent_record` table |
+| Settings sync (§9.10) | Typed fields on AGS profile attributes; settings blob in Cloud Save player records (legitimate Cloud Save use — no purpose-built service exists) | — | `settings` table |
+| Match runtime (§5, §15.7–15.8) | **Extend Service Extension hosting the Go match actor + rules engine**: commands via its REST/gRPC API, state push via AGS Lobby notifications with per-seat payloads, AGS Session for membership/lifecycle, app-owned storage for the event log (Stash Service is the directory precedent for Extend apps owning persistence) **(spike: §15.5 latency through the command→push path; append-before-ack durability; storage provisioning model)** | The match service itself is the Extend app | Self-hosted Go match service (original design) — the one capability where the spec's guarantees may force self-hosting |
+| Matchmaking (§8.5) | AGS Matchmaking v2 with a **forked `extend-core-matchmaker` Override** implementing latency banding, rating bands + expansion, and recent-opponent/block avoidance | Fork + modify the Override | AGS ruleset-only, or first-party Redis loop |
+| Queue eligibility (Jade reserve, linked identity, dodge cooldowns) | Cannot precede the queue inside AGS — stays in the Go adapter in front of ticket creation | Adapter may deploy as a Service Extension | Same code, self-hosted |
+| Jade economy (§7) | AGS Platform **Wallet** as the Jade currency ledger — currency config only, no store, no items, non-purchasable (§13.1-compliant) | **New Service Extension `jade-settlement`**: reserves/caps, multi-winner largest-remainder allocation, welfare gating, conservation audit. **(spike: wallet hold/escrow semantics + idempotency decide wallet-as-authority vs first-party-journal-authoritative with wallet as the portal-visible mirror; double-entry, idempotency, and RPO-0 §15.7 are non-negotiable in either shape)** | First-party ledger (Step 6.3) with no wallet |
+| XP + levels (§12.1–12.2) | AGS Statistics (XP stat, level derived); level rewards granted as entitlements | Event Handler consuming match events → stat increments | `xp_event`/`level_state` tables |
+| Achievements (§12.3) | AGS Achievement service, incremental achievements driven by stats **(spike: recompute/revocation contract §12.3)** | Event Handler for the event-log-derived counters AGS stats can't express (streaks, per-hand conditions) | `achievement_progress` table |
+| Missions (§13.3) | AGS Challenge service **(spike: deterministic weekly selection, 7-day claim window, catalog governance)** | **Fork `extend-challenge-suite`** (service-extension + event-handler) if native Challenge falls short | `mission_state` table |
+| Rating + seasons (§12.4–12.6) | **Fork `extend-rank-suite`** (rank-api / rank-manager / rank-stats-listener skeleton): replace its weekly-MMR logic with §12.4 pairwise Elo + §12.5 season lifecycle; `extend-mmr-calculator` is the single-service alternative — the spike picks one | Fork + modify | First-party Go Elo module |
+| Leaderboards + Quick ladder (§12.8–12.9) | AGS Leaderboard with seasonal cycles reading the rating/ladder stats **(spike: 12-week cycle + region boards + provisional labeling fit)** | — | `leaderboard_snapshot` publishing |
+| Cosmetics (§13.2) | AGS Platform entitlements as the grant-only catalog (no store surface); equipped state in profile attributes | — | First-party entitlement table |
+| Mail + reward claims (§10.9) | AGS Lobby notifications / system inbox + reward fulfillment **(spike: idempotent claim, per-item Claim All results, expiry semantics)** | Claim layer as a Service Extension only if inbox semantics are insufficient | `mail_claim` (+`mail_item`) |
+| Web push (§10.9) | First-party VAPID — AGS provides no browser web push | — | — |
+| Live config (§13.4) | First-party approval/audit layer is non-delegable; distribution/storage via Cloud Save **game records** (namespace-global, client-readable — the second legitimate Cloud Save use) | Approval workflow may deploy as an Extend App with UI | Postgres `config_version` |
+| Analytics (§15.2–15.3) | AGS Game Telemetry as the first-party event contract's transport, consent-gated with the field allowlist enforced client-side; warehouse export for funnels/dashboards **(spike: §15.3 field controls, export path; the AGS vendor review covers it as processor)** | Event Handlers on the AGS event bus enrich the warehouse | First-party ingest endpoint |
+| Reports + moderation (§10.8) | AGS player reporting + Admin Portal moderation; sanctions via IAM bans **(spike: category fit, evidence attachment)** | Event Handler assembles the Match-ID evidence slice; game-specific sanctions ladder as a Service Extension | First-party `report`/`sanction` tables |
+| Anti-abuse signals (§10.8, §15.8) | Extend Event Handlers on AGS events (login, match, wallet) feeding the review queue | The signal jobs are Event Handlers | First-party batch jobs |
+| Support console (§15.13) | Admin Portal for account/wallet/ban operations; game-specific tools (deterministic replay viewer, cataloged compensation) as an **Extend App with UI** | New Extend app | First-party console |
+| Privacy export/deletion (§10.4) | AGS account deletion/export APIs for AGS-held data, orchestrated with app-owned stores **(spike: coverage vs §10.4 retention table)** | Orchestrator as a Service Extension | First-party jobs |
+| Client SDK | AGS TypeScript Web SDK for IAM/Lobby/Session/Cloud Save from the PWA; custom transport only for the match command channel | — | Direct REST |
+
+**Extend Apps Directory evaluation (fork-before-build, per D13):**
+
+| Directory app | Pattern | Disposition for this project |
+| --- | --- | --- |
+| Core Matchmaker | Override (Go) | **Fork** — becomes the §8.5 matchmaking logic (see mapping) |
+| Rank Suite (api/manager/stats-listener) | Service Extension + Event Handler (Go) | **Fork** — seasonal-rating skeleton for pairwise Elo (see mapping) |
+| MMR Calculator | Service Extension (Go) | Reference/alternative to Rank Suite — spike picks one |
+| Challenge Suite (service/event-handler/common) | Service Extension + Event Handler (Go) | **Conditional fork** — only if AGS-native Challenge misses §13.3 semantics |
+| PlaytestHub | Service Extension (Go, MIT, self-hosted) | **Deploy/fork for Closed Beta operations** — signups, approval, NDA, surveys (§15.14, D7); in-product invite codes (E16.F6) redeem against its roster |
+| Stash Service + Event Handler | Service Extension + Event Handler (Go) | Not adopted — AGS entitlements cover 30 cosmetics; its repos are the precedent for Extend apps owning persistence (cited by the match-runtime spike) |
+| Tournament System | Service Extension (Go) | Future scope only — tournaments are a §2.4 non-goal for Beta/V1; revisit post-V1 |
+| Moderation Service (Tisane) | Event Handler (C#) | N/A — no free-text chat by design (§10.7) |
+| Discord Integration | Service Extension (Go) | Out of product scope (§15.14); optional Beta-community aid, not planned |
+| Regional Payment Gateway | Service Extension (Go) | **Must not deploy** — payments prohibited (§13.1) |
+| Vivox Auth / EOS Voice | Service Extension | N/A — no voice (§2.4) |
+| EOS Easy Anti-Cheat | Service Extension (Go) | N/A — web client; server authority (§15.8) is the anti-cheat model |
+| Gacha Suite | Sample (Go/Phaser) | N/A — random purchases prohibited (§13.1); its Phaser client is a Web-SDK usage reference only |
 
 ### 2.3 Data flow invariants (enforced by design, tested by E18)
 
@@ -132,7 +182,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E2.F1 | Match actor + event log | One actor per match wrapping E1; append-before-ack durable event log; snapshots ≤ 30 s; crash recovery by replay (§15.7). | E1.F4, E0.F3 | L | Durability vs latency | Kill-9 during play recovers to identical state; ack only after append; command idempotency verified. |
+| E2.F1 | Match actor + event log | One actor per match wrapping E1; append-before-ack durable event log; snapshots ≤ 30 s; crash recovery by replay (§15.7). Hosted as an Extend Service Extension per D13 — commands via its API, per-seat push via Lobby, AGS Session for membership, app-owned storage; self-hosted Go is the fallback if the spike fails §15.5 or durability on Extend. | E1.F4, E0.F3, D13 spike | L | Durability vs latency; Extend hosting limits | Kill-9 during play recovers to identical state; ack only after append; command idempotency verified — on whichever hosting the spike selects. |
 | E2.F2 | Per-seat view projection | Redacted state per seat: own hand, public zones, counts only for others; claim privacy until resolution (§9.5, §15.8). | E2.F1 | M | Leak = critical bug | Hidden-info test suite proves no concealed data in any payload/timing side channel (jitter rule §15.5). |
 | E2.F3 | Deadline engine | Shared absolute deadlines = base + max(smoothed half-RTT, cap 500 ms); per-mode presets (§5.10); animation-time exclusion; server-side enforcement. | E2.F1 | M | Clock skew | Deadline identical for all seats; late input rejected; presets live-configurable within bounds (E14.F3). |
 | E2.F4 | Timeout & takeover | Auto-Pass (no lock) / canonical auto-discard; 3-strike AFK → disclosed Medium takeover; control return on next legal turn (§5.10, §8.7, §11.1). | E2.F3, E3.F2 | M | — | Timeout goldens; takeover badge events emitted; returning player resumes correctly. |
@@ -164,7 +214,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E5.F1 | Double-entry ledger core | Append-only postings (debit+credit pairs), idempotency keys, reason codes, actor/match/rules-version tags, balance materialization, RPO-0 write path (§7.5, §15.7). | E0.F3 | L | Correctness is existential | Concurrent-posting fuzz keeps Σcredits==Σdebits; replaying postings reproduces balances; audit query by match ID. |
+| E5.F1 | Jade ledger core | Per D13: AGS Wallet as the Jade currency ledger plus the `jade-settlement` Extend Service Extension (reserves/caps, allocation, conservation audit); the spike decides wallet-as-authority vs first-party-journal-authoritative with wallet mirror. Double-entry semantics, idempotency keys, reason codes, actor/match/rules-version tags, and the RPO-0 write path (§7.5, §15.7) are mandatory in either shape. | E0.F3, D13 spike | L | Correctness is existential; wallet semantics gaps | Concurrent-posting fuzz keeps Σcredits==Σdebits; replaying postings reproduces balances; audit query by match ID — regardless of authority shape. |
 | E5.F2 | Reserves & settlement posting | Pre-seat balance check + cap reserve, release paths, settlement from E1.F9 output, multi-winner caps, compensating reversals (§7.1–7.3, §8.8). | E5.F1, E1.F9 | M | Orphan reserves | Chaos test: no reserve survives match teardown; §7.4 examples post correctly end-to-end. |
 | E5.F3 | Grants & welfare | Onboarding grants (3,000 + 2,000 once), daily mission grants (via E11), welfare top-up to 1,000 gated on same-day AI hand, 1/UTC-day (§7.5). | E5.F1, E11.F3 | S | — | All grants idempotent by event ID; welfare prerequisite enforced. |
 | E5.F4 | Economy dashboards & tier criteria | Per-tier balance percentiles, faucet-to-cap ratio, inflation by source; tier-opening criteria monitor (2,000 eligible + queue-health projection §7.1); median-balance review trigger (§7.5). | E5.F1, E15.F2 | M | — | Dashboards live in staging with synthetic data; trigger alerts fire in test. |
@@ -173,7 +223,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E6.F1 | Queue core + reservation | Per-lobby queues, 4-human formation, reservation handshake, dodge cooldowns (60 s/5 m/15 m), cancel-free before reservation (§8.5). | E4.F2, E5.F2 | L | Liquidity edge cases | Formation p50 < 30 s with 16 synthetic eligible players (§2.5); dodge escalation persisted 24 h. |
+| E6.F1 | Queue core + reservation | AGS Matchmaking v2 with a forked `extend-core-matchmaker` Override (D13) for per-lobby queues and 4-human formation; Go eligibility adapter in front of ticket creation; reservation handshake, dodge cooldowns (60 s/5 m/15 m), cancel-free before reservation (§8.5). | E4.F2, E5.F2, D13 spike | L | Liquidity edge cases; Override expressiveness | Formation p50 < 30 s with 16 synthetic eligible players (§2.5); dodge escalation persisted 24 h. |
 | E6.F2 | Placement constraints | Region/latency ≤ 150 ms banding, recent-opponent avoidance (3 matches), block avoidance, no-coordinated-friends rule (§8.5, §10.6, §10.8). | E6.F1, E12.F1 | M | Population-permitting fallbacks | Constraint relaxation order deterministic + logged; friends never seated together from public queue when detectable. |
 | E6.F3 | Queue UX contract | 90-second alternative offer (AI practice / lower tier / keep waiting), latency warning > 150 ms, ranked disable > 300 ms/10% loss (§8.5, §15.5). | E6.F1 | S | — | Offer events emitted; take-rate metric wired (§15.2). |
 | E6.F4 | Ranked queue (V1) | Rating bands ±150 +100/20 s, unrestricted at 80 s in-region; linked-identity eligibility gate (§8.5, §12.5). | E6.F1, E13.F1 | M | — | Guests receive typed eligibility error; band expansion telemetry. |
@@ -184,7 +234,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 | --- | --- | --- | --- | --- | --- | --- |
 | E7.F1 | App shell + PWA | Router, layout system, service worker, install prompt, orientation handling (non-blocking overlay §3.2), compatibility check + unsupported-browser state (§9.8). | E0.F5 | M | — | Lighthouse PWA pass; shell ≤ 5 MB compressed; §9.8 states reachable. |
 | E7.F2 | Design system | Tokens (type/spacing/color incl. High Contrast + dark parity), tile component with accessible names, buttons ≥ 44 px, focus system, Reduced Motion switch (§9.9). | E7.F1 | L | 360 px feasibility | Storybook a11y audit clean; tile readable at 32×44 hit-area spec. |
-| E7.F3 | Realtime client | WS lifecycle, RTT estimator, command queue with idempotency, versioned replica sync, resume protocol, degraded-connection indicator (§15.5). | E0.F5, E7.F1 | L | iOS background socket | netem test matrix (drop/latency/jitter) green; resume ≤ 3 s p95 staging. |
+| E7.F3 | Realtime client | AGS TypeScript Web SDK for IAM/Lobby/Session/Cloud Save (D13); Lobby WS lifecycle, RTT estimator, match-command queue with idempotency, versioned replica sync, resume protocol, degraded-connection indicator (§15.5). | E0.F5, E7.F1 | L | iOS background socket | netem test matrix (drop/latency/jitter) green; resume ≤ 3 s p95 staging. |
 | E7.F4 | i18n + a11y runtime | ICU pipeline, en/zh-TW bundles, semantic IDs, live-region announcer, keyboard map, mirrored layout, text scale 200% (§9.3, §9.9, §15.12). | E7.F2 | M | zh-TW screen reader | Axe + manual SR pass on shell in both languages. |
 | E7.F5 | 360×640 match wireframe validation | Build the §9.2 simultaneous-visibility layout as a static prototype; on-device sign-off gate before E8 hardening. | E7.F2 | S | Requirement revision path | UX Lead sign-off recorded, or approved §9.2 revision filed (spec-mandated gate). |
 
@@ -229,10 +279,10 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E11.F1 | XP + levels | §12.1 award table with caps, takeover rule (completion-only if > half hand), level curve, retroactive recompute, level rewards → entitlements (§12.2). | E2.F1, E5.F1 | M | — | Award idempotent by event ID; curve-change recompute test grants but never revokes. |
-| E11.F2 | Achievements (32) | Event-log-derived counters, rules-version aware, recompute on corrections, cheating-revocation path (§12.3). | E11.F1 | M | Counter drift | Replay-from-events equals live counters in property test; all 32 triggers fixture-tested. |
-| E11.F3 | Missions | Daily (3) + weekly (3 deterministic from catalog), 7-day claim window, retired-mission replacement logic, AI-practice-labeled onboarding mission only (§13.3). | E11.F1, E14.F3 | M | — | UTC reset correctness incl. DST-free UTC handling; progress excludes private/AI/voided per §13.3. |
-| E11.F4 | Quick Play ladder (V1) | 3/win + 1/hand, first 10 hands/UTC day, season accrual, guest accrual-hidden-until-link, cosmetic rewards (§12.9). | E11.F1, E13.F2 | M | — | Daily cap boundary tests; reward mailing idempotent. |
+| E11.F1 | XP + levels | AGS Statistics holds the XP stat (D13), fed by an Extend Event Handler applying the §12.1 award table with caps and the takeover rule; level derived from the curve; level rewards granted as AGS entitlements (§12.2); retroactive recompute via event replay. | E2.F1, E5.F1, D13 spike | M | — | Award idempotent by event ID; curve-change recompute test grants but never revokes. |
+| E11.F2 | Achievements (32) | AGS Achievement service for stat-expressible triggers (D13); Extend Event Handler computes the event-log-derived counters (streaks, per-hand conditions) it can't express; rules-version aware; recompute on corrections; cheating-revocation path (§12.3, spike-verified). | E11.F1, D13 spike | M | Counter drift | Replay-from-events equals live counters in property test; all 32 triggers fixture-tested. |
+| E11.F3 | Missions | AGS Challenge service first (D13); fork `extend-challenge-suite` only if the spike finds §13.3 gaps (deterministic weekly selection, 7-day claim window, retired-mission replacement). Daily (3) + weekly (3), AI-practice-labeled onboarding mission only. | E11.F1, E14.F3, D13 spike | M | Native-Challenge fit | UTC reset correctness; progress excludes private/AI/voided per §13.3. |
+| E11.F4 | Quick Play ladder (V1) | Ladder points as an AGS stat with an AGS Leaderboard seasonal cycle (D13): 3/win + 1/hand, first 10 hands/UTC day, guest accrual-hidden-until-link, cosmetic rewards (§12.9). | E11.F1, E13.F2, D13 spike | M | — | Daily cap boundary tests; reward mailing idempotent. |
 | E11.F5 | Cosmetics & entitlements | Catalog (3 faces/3 themes/9 frames/16 titles), equip slots, opponent-visible subset, suppress-opponent-effects, compatibility metadata (§13.2). | E11.F1 | M | — | Tile skins pass a11y checks (§13.2); Reset to Default works. |
 
 ### E12 — Social
@@ -247,7 +297,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E13.F1 | Pairwise Elo | §12.4 formula, K 40/24, integer largest-remainder zero-sum, 500 floor redistribution, abandonment disciplinary adjustment separate from Elo (§12.6). | E2.F7 | M | Rounding edge cases | All §12.4 worked examples exact; zero-sum property fuzzed; floor cases golden. |
+| E13.F1 | Pairwise Elo | Fork `extend-rank-suite` (D13) — rank-api/manager/stats-listener skeleton with its weekly-MMR logic replaced by the §12.4 formula, K 40/24, integer largest-remainder zero-sum, 500 floor redistribution, abandonment adjustment separate from Elo (§12.6); `extend-mmr-calculator` is the single-service alternative if the spike prefers it. | E2.F7, D13 spike | M | Rounding edge cases | All §12.4 worked examples exact; zero-sum property fuzzed; floor cases golden. |
 | E13.F2 | Season lifecycle | 12-week calendar, between-match reset 1500+0.75×(r−1500), tier bands, season checkpoint recompute for cheating removal (§12.5–12.6). | E13.F1, E14.F3 | M | — | Reset never touches active matches; recompute audit-logged. |
 | E13.F3 | Leaderboards (AGS publish, D4) | First-party Go computes eligibility (10 matches + linked + good standing per spec v1.2 §7.1), provisional labels, and sort tie-breaks, then publishes to AGS leaderboards per region + global; 15-min refresh; season rewards mailing (§12.8); ladder boards (§12.9). | E13.F2, E14.F1 | M | — | Region = onboarding market declaration pinned at season start (spec v1.2 §12.8); deleted players drop at refresh (§10.4). |
 
@@ -264,7 +314,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E15.F1 | Event pipeline | First-party ingest endpoint, schema registry (from E0.F5), consent gating (essential vs optional), pseudonymous IDs, field allowlist (no email/IP/DOB/tokens/concealed tiles), warehouse loader (§15.2–15.3). | E0.F4 | L | Privacy correctness | Schema-invalid events rejected; consent-off drops optional events; leak-scan test on event corpus. |
+| E15.F1 | Event pipeline | AGS Game Telemetry as transport (D13) with the E0.F5 schema registry, consent gating (essential vs optional), pseudonymous IDs, client-enforced field allowlist (no email/IP/DOB/tokens/concealed tiles), warehouse export for funnels (§15.2–15.3, spike-verified field controls). | E0.F4, D13 spike | L | Privacy correctness | Schema-invalid events rejected; consent-off drops optional events; leak-scan test on event corpus. |
 | E15.F2 | Dashboards & KPIs | §2.5 gates + §15.2 named dashboards (tutorial funnel, claim-timeout by account age, queue abandonment + 90-s offer take rate, dealer Jade delta, capped-match share, tier balance percentiles) + D1/D7/D30, session length, match duration. | E15.F1 | M | — | Every Beta exit gate (§2.5) has a live query before Beta starts. |
 | E15.F3 | Funnels | load→playable, identity→onboarding, tutorial, queue→match, first-match, repeat, welfare recovery, Full Rotation completion (§15.2). | E15.F1 | S | — | Funnel definitions in code, not ad-hoc SQL. |
 
@@ -272,12 +322,12 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- |
-| E16.F1 | Reporting | Categories, auto-attached evidence (match ID, event slice, versions), 500-char reporter text, receipt IDs, security-queue routing (§10.8). | E2.F1 | M | — | Report bundle contains no other player's concealed data beyond spec. |
+| E16.F1 | Reporting | AGS player reporting + Admin Portal moderation where the spike confirms fit (D13); Extend Event Handler assembles the auto-attached evidence (match ID, event slice, versions); 500-char reporter text, receipt IDs, security-queue routing (§10.8). | E2.F1, D13 spike | M | — | Report bundle contains no other player's concealed data beyond spec. |
 | E16.F2 | Sanctions & appeals | Warn/rename/mute/cooldown/reverse/suspend/ban ladder, evidence-required permanence, 14-day appeals with different reviewer, reporter notices (§10.8). | E16.F1 | M | — | Sanction actions audit-logged; appeal workflow state machine tested. |
 | E16.F3 | Anti-abuse signals | Batch jobs: repeated groups, feeding patterns, shared device/network, timing automation, ledger anomalies, private-room farming; signal → review queue, never auto-permanent (§10.8, §15.8). | E15.F1, E5.F1 | L | False positives | Signals produce ranked review queue with evidence links; no automated permanent action path exists. |
 | E16.F4 | Support console | Search by Match/Player ID/ledger event/receipt; read-only time-boxed account views; cataloged compensation codes with role limits; scoring-dispute escalation; audit package by Match ID (§15.9, §15.13). | E5.F1, E2.F1 | L | Scope creep | No free-form balance edit exists; every action audited; audit package renders a replay of the hand. |
 | E16.F5 | Deterministic replay viewer (internal) | Step through any hand from event log with per-seat visibility toggle — powers rules verification, disputes, anti-cheat (§8.8). | E2.F1, E1.F10 | M | — | Replay of 100 sampled production hands matches recorded results bit-exact. |
-| E16.F6 | Beta invite codes | One-use/limited-use generation, redemption gate, cohort tagging (§15.14). | E4.F2 | S | — | Redemption race-safe; codes revocable. |
+| E16.F6 | Beta invite codes + PlaytestHub | Deploy/fork PlaytestHub (D13) for Beta program operations — signups, approval, NDA, surveys (§15.14, D7); first-party one-use/limited-use codes redeem against its roster, with cohort tagging. | E4.F2 | M | — | Redemption race-safe; codes revocable; PlaytestHub roster is the enrollment source of truth. |
 
 ### E17 — Security & Privacy
 
@@ -330,7 +380,7 @@ Parallel workstreams throughout: backend pair (E1→E2→E5/E6), client pair (E7
 
 ## Step 5 — Sprint plan
 
-Per D2 (solo + AI agents), "sprints" are sequential work packages, not calendar commitments — same content, same order, same exit criteria; S# below = WP#. Sign-off sessions previously assigned to specialists collapse into the Step 16 solo-adaptation controls. Detail is full through Beta (S1–S16); V1 packages (S17–S24) are goal-level by design — they get re-planned against Beta findings, which is the point of running a Beta. AGS integration replaces first-party builds inside S8 (identity), S9 (queue), S13 (friends/config), and S23 (leaderboards/mail); their exit criteria are unchanged.
+Per D2 (solo + AI agents), "sprints" are sequential work packages, not calendar commitments — same content, same order, same exit criteria; S# below = WP#. Sign-off sessions previously assigned to specialists collapse into the Step 16 solo-adaptation controls. Detail is full through Beta (S1–S16); V1 packages (S17–S24) are goal-level by design — they get re-planned against Beta findings, which is the point of running a Beta. Under D13, AGS/Extend integration replaces first-party builds inside S6–S7 (match-runtime hosting on Extend), S8 (IAM + Wallet/jade-settlement), S9 (forked Core Matchmaker), S10–S12 (Statistics/Achievement/Challenge/Game Telemetry), S13 (friends/config), S16 (PlaytestHub for Beta ops), and S20–S23 (Rank Suite fork, Leaderboard cycles, inbox); exit criteria are unchanged — they test spec behavior, not implementation choice.
 
 **S1 — "Repo to prod-shaped staging"** — Features: E0.F1–F3. Tasks: workspace scaffold, CI, IaC baseline, secrets vault, standards ADRs. Deliverables: staging env, green pipeline. Testing: pipeline self-test. Risks: cloud account setup delay. Exit: M0 pre-req; any engineer ships a change to staging in < 1 h.
 
@@ -464,7 +514,7 @@ State-transition sources: match-screen transitions are generated from the E1.F4 
 
 ## Step 8 — Backend development plan
 
-Cross-service defaults (stated once): auth via gateway-validated session token; rate limiting per token + IP with typed 429s; errors use the §9.8 stable-code envelope; metrics = RED + domain counters per §15.5 targets; logs structured, secret/hidden-info-free (§15.10); caching only where noted (correctness beats caching in an economy product); horizontal scale via stateless modules + partitioned Match Service.
+Cross-service defaults (stated once): auth via gateway-validated session token; rate limiting per token + IP with typed 429s; errors use the §9.8 stable-code envelope; metrics = RED + domain counters per §15.5 targets; logs structured, secret/hidden-info-free (§15.10); caching only where noted (correctness beats caching in an economy product); horizontal scale via stateless modules + partitioned Match Service. **D13 note: where Section 2.2a assigns a capability to AGS or an Extend app, the designs below describe the first-party fallback plus whatever custom surface the Extend app still owns; they are not licenses to rebuild what AGS provides.**
 
 ### Identity & Session (AGS IAM + Go magic-link service — D4/D8)
 AGS IAM owns guest/device auth, Google/Apple OAuth (V1), session issuance, and refresh lifecycle. First-party Go endpoints: `POST /auth/magic-link {email}` and `POST /auth/magic-link/verify` (single-use hashed tokens exchanged into AGS sessions), consent recording (versioned ToS/Privacy acceptance), the age-gate check at account creation, and `GET /account` aggregation.
@@ -592,6 +642,7 @@ Implemented by E14 + E11 + E16; this is the operational readiness list:
 | TD-10 | V1-scope items dark-shipped during Beta behind flags | Parallelize | Flag-debt cleanup sprint needed post-V1 | Low |
 | TD-11 | Physical phone testing deferred (D9) | Solo budget/hardware | R-T1 (iOS Safari) unverified until WP15; §16.1 interruption matrix, 360 px on-device gate, and battery/thermal soak all blocked until phones acquired | High — hard trigger before Beta hardening (WP15) |
 | TD-12 | Two-person controls held by one person (D2, under §2.7 allowance) | Solo team | Weaker change-safety on economy/rules paths; compensated by AI review, cooling-off self-review, and the immutable audit log (Step 16 note) | Medium — revisit if the team grows |
+| TD-13 | Deep AGS/Extend coupling across the full meta layer (D13) | Product Owner directive; solo velocity; fork-before-build economics | Platform exit/migration cost concentrates; §15.5/§15.7 guarantees depend on platform behavior verified only by the spike; forked directory modules must track upstream or freeze | Medium — 2.2a fallback column is the exit map; freeze forks at Beta and review upstream drift quarterly |
 
 ---
 
@@ -610,7 +661,7 @@ Implemented by E14 + E11 + E16; this is the operational readiness list:
 | R-S3 | Beta exit gates (esp. crash-free 99.5%, queue p50) not met in 6 weeks | Schedule | Med | High | Gates dashboarded from S12; hardening sprints S15–16 before entry; Beta extension is a Product Owner call, planned as option | EM |
 | R-3P1 | Email deliverability (magic link) | 3rd party | Med | Medium | Reputable provider, monitored bounce rates, resend + support path | Platform |
 | R-3P2 | Apple/Google OAuth review friction (V1) | 3rd party | Low | Medium | Start app registrations in P5; magic link is the fallback path | Platform |
-| R-3P3 | AGS capability gaps vs spec contracts (claim privacy, mail idempotency, config audit, matchmaking ruleset expressiveness) or vendor review failure (§15.3, §15.10) | 3rd party | Med | High | P0 capability-mapping spike (open item 1) with per-service first-party fallback behind the Step 2.2 Go ports; vendor security/privacy/residency review before Beta (open item 2) | Product Owner |
+| R-3P3 | AGS/Extend capability gaps across the widened D13 surface — wallet reserve semantics, Extend hosting latency/durability for the match runtime, inbox claim idempotency, Challenge determinism, telemetry privacy controls — or vendor review failure (§15.3, §15.10) | 3rd party | High | High | P0 capability-mapping spike (open item 1) with a written go/fallback verdict per line; per-service first-party fallbacks behind the 2.2a ports; the match runtime keeps self-hosting as a first-class fallback because §15.5/§15.7 are non-negotiable; vendor security/privacy/residency review before Beta (open item 2) | Product Owner |
 | R-I1 | US data-region outage (single point of truth even with APAC compute, D3) | Infra | Low | High | §15.7 RTO 60 min runbook, backups, drill E18.F4; APAC matches drain gracefully when US persistence is unreachable | Product Owner |
 | R-SEC1 | Admin-tool misuse | Security | Low | High | MFA, RBAC, cataloged actions only, tamper-evident audit (§15.10) | Eng Lead |
 | R-P1 | Legal/privacy review finds Beta blocker (§15.11) — scope now includes the AI-asset opinion (D5) and the AGS DPA (open item 2) | Compliance | Med | High | Counsel engaged by end of P1; review checklist tracked from P3; both open items are Beta-entry gates | Product Owner (Trust/Privacy hat) |
