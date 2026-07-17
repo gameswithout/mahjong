@@ -1,12 +1,13 @@
 # Mahjong Product Specification
 
 - Status: Planning-authoritative product baseline
-- Version: 1.0
-- Decision date: 2026-07-13
+- Version: 1.1
+- Decision date: 2026-07-17 (v1.0 baseline: 2026-07-13)
 - Source PRD: [Mahjong Game Product Requirement Document.pdf](Mahjong%20Game%20Product%20Requirement%20Document.pdf)
 - Resolved questionnaire: [Mahjong Product Specification Clarification Questionnaire](mahjong-product-spec-clarification-questionnaire.md)
+- Incorporated design review: [Product Design & Specification Review](mahjong-spec-review.md), 2026-07-17
 
-This document resolves the 151 clarification questions raised against the source PRD. It defines what the product must do and the acceptance bar for it. It intentionally does not define implementation tasks, architecture diagrams, staffing, estimates, sequencing, or a development plan.
+This document resolves the 151 clarification questions raised against the source PRD. It defines what the product must do and the acceptance bar for it. It intentionally does not define implementation tasks, architecture diagrams, staffing, estimates, sequencing, or a development plan. Version 1.1 additionally incorporates every accepted finding from the 2026-07-17 design review; Section 16.4 registers each change.
 
 ## 1. Decision status, authority, and source precedence
 
@@ -40,7 +41,7 @@ When sources conflict, use this order:
 4. The GameTower Taiwanese 16-tile scoring reference for terminology and pattern intent.
 5. External references and customary play.
 
-Taiwanese Mahjong has substantial house-rule variation. Therefore, the product ships a named house standard: **Mahjong Taiwanese 16-Tile Rules v1.0**. The standard is fully defined here rather than claiming to represent every Taiwanese table.
+Taiwanese Mahjong has substantial house-rule variation. Therefore, the product ships a named house standard: **Mahjong Taiwanese 16-Tile Rules v1.1**. The standard is fully defined here rather than claiming to represent every Taiwanese table.
 
 Future references are:
 
@@ -57,7 +58,7 @@ Before a public Beta build is accepted, the Rules Lead must approve:
 
 - a human-readable English and Traditional Chinese rulebook;
 - the complete Tai table in Section 7;
-- at least 500 named golden cases, including every positive pattern, every exclusion, every claim-priority combination, all dealer outcomes, all cap cases, and every abnormal termination;
+- at least 500 named golden cases, including every positive pattern, every exclusion, every claim-priority combination, all dealer outcomes, all cap cases, every abnormal termination, timeout-selected Pass interaction with the discard-Win lock, Eight Flowers and Heavenly Hand offer/lapse mechanics, final-drawable-tile wins from both the front and the back of the deque, and a Kong declared at the exhaustion boundary;
 - at least one million randomized legal-state simulations with no tile duplication, illegal state transition, Jade-conservation failure, or deterministic replay mismatch;
 - worked examples for every public UI formula.
 
@@ -94,16 +95,18 @@ The primary audience is adults and teens age 13 or older who know some Mahjong o
 | AI Practice | Easy, Medium, Hard | Same | Ruleset-specific AI |
 | Quick Play | Public human and AI practice | Public human and AI practice | Additional queues |
 | Full Rotation | Internal-only validation | Public ranked and private | Tournament formats |
-| Identity | Guest account | Guest, email magic link, Google, Apple | Additional providers |
-| Lobby tiers and Jade | Bamboo public; other tiers test-configurable | All four public tiers | Rebalancing only |
+| Identity | Guest, email magic link | Guest, email magic link, Google, Apple | Additional providers |
+| Lobby tiers and Jade | Bamboo public; other tiers test-configurable | Bamboo and Sparrow public; upper tiers ship closed until Section 7.1 opening criteria are met | Upper-tier opening and rebalancing |
 | Account XP | Minimal tracked implementation | Levels, achievements, cosmetics | Prestige |
 | Rating | Internal test data only | Full Rotation public rating | Ruleset-specific ratings |
-| Friends/private rooms | Not present | Present | Clubs |
-| Fixed emotes | Not present | Eight positive preset emotes | Additional curated emotes |
+| Quick Play seasonal ladder | Not present | Present, Section 12.9 | Rebalancing only |
+| Friends/private rooms | Present; private rooms are Quick Play only | Present, including private Full Rotation | Clubs |
+| Fixed emotes | Not present | Eight positive preset emotes and a 24-phrase curated palette | Additional curated emotes and phrases |
 | Mail/live configuration | Maintenance notices only | Mail, missions, banners, remote lobby configuration | Rich events |
 | Store, premium currency, ads, paid pass | Absent | Absent | Requires a separately approved monetization specification |
 | Ticketed tournaments or real-world prizes | Absent | Absent | Requires separate legal and product approval |
-| Spectator and player-facing replay | Absent | Absent | Future |
+| Spectator and player-facing replay | Absent | Absent | Friend spectating in private rooms first, then own-match replay |
+| Discard puzzle mode | Absent | Absent | First post-launch candidate, built on tutorial fixtures |
 | Native iOS/Android/desktop apps | Absent | Absent | Future |
 | Hong Kong and Riichi | Extension contracts only | Extension contracts only | Separate products/modules |
 | Mainland China release | Absent | Absent | Separate publishing path |
@@ -144,6 +147,8 @@ Beta is successful only when all mandatory conditions are met:
 
 Directional health targets, not hard launch gates, are Day-1 retention of 30%, Day-7 retention of 12%, Day-30 retention of 5%, and median Quick Play session length of 8 to 15 minutes.
 
+Because email magic link, friends, and private rooms are present in Closed Beta, these retention readings are measured with the social loop and account recovery available; a guest-only Beta without social features would understate them.
+
 ### 2.6 Reference products and quality bar
 
 Reference products establish interaction and presentation quality only. They do not override the rules, scope, economy, safety, or acceptance requirements in this specification.
@@ -171,6 +176,17 @@ The detailed development plan must respect these fixed constraints:
 - No fixed launch date, staffing level, or spending ceiling was supplied. A development plan must expose estimates, assumptions, staffing options, dependencies, and scope tradeoffs instead of inventing one as a requirement.
 - The accountable roles in Section 1.1 must be assigned before their approval gates, but one person may hold multiple roles if conflicts of interest are documented and Product Owner remains the tie-breaker.
 
+### 2.8 Business context and sustainability hypothesis
+
+The product is a deliberate audience-building and franchise investment, not a near-term revenue product. To keep later commercial decisions from fighting the product identity, the working hypothesis is recorded now:
+
+- If monetization is ever approved, the only models compatible with Sections 2.1 and 13.1 are direct cosmetic purchase and/or a cosmetic-only season pass, with gameplay currency permanently non-purchasable and no paid advantage.
+- Cosmetic production capacity is therefore the long-lead prerequisite for any future revenue; the Section 13.2 catalog and Section 13.5 cadence are sized to grow rather than restart from zero.
+- The Section 15 service levels are funded as a strategic cost. If funding changes, service levels are re-scoped through an explicit product decision, never silently degraded.
+- The no-purchase, no-pressure identity is itself a marketable asset and must not be undermined by placeholder commerce, dormant payment code, or store UI.
+
+This section records a hypothesis and its planning consequences. It is not a monetization approval, which still requires the separate specification described in Section 13.1.
+
 ## 3. Platforms, markets, localization, and brand
 
 Resolves: PLT-01 through PLT-07.
@@ -192,6 +208,8 @@ The game requires a network connection. Tutorial and AI Practice are also online
 The support policy covers the current and previous major release at launch time for Chrome, Safari, Edge, and Firefox on desktop; Safari on iOS/iPadOS 17 or later; and Chrome on Android 12 or later. Minimum viewport is 360 by 640 CSS pixels. Minimum device memory target is 4 GB. WebGL 2 is preferred but gameplay must have a Canvas/CSS reduced-effects fallback.
 
 Menus work in portrait and landscape. An active match requires landscape at widths below 768 CSS pixels and provides an orientation prompt. Tablet and desktop match layouts are responsive landscape layouts.
+
+Because iOS Safari cannot lock orientation, suspends background tabs aggressively, and may evict site storage, the client must: request persistent storage where supported and surface the Guest data-loss warning when persistence is not granted; harden connection resume against background suspension to meet the Section 15.6 foreground-resume target; present the orientation prompt as a non-blocking overlay rather than a modal loop; and explain installed-PWA requirements before offering web push. Acceptance includes the iOS interruption matrix in Section 16.1.
 
 ### 3.3 Markets and languages
 
@@ -253,7 +271,7 @@ English treats Jade as a mass noun: "1 Jade" and "500 Jade," never "Jades." Trad
 
 The PRD phrase "four rounds, East/South/West/North" is replaced. East, South, West, and North are seat winds within the single East round. Quick Play does not produce a four-place rating result. Full Rotation final placement updates rating.
 
-## 5. Mahjong Taiwanese 16-Tile Rules v1.0
+## 5. Mahjong Taiwanese 16-Tile Rules v1.1
 
 Resolves: TWN-01 through TWN-20.
 
@@ -290,7 +308,7 @@ The server independently rolls two six-sided dice and records both values. With 
 
 The already uniform shuffle determines fairness; the dice determine only its recorded cyclic break. A skipped or visually abbreviated setup must produce the identical deque. Normal draws remove from the deque front. Replacements remove from its back.
 
-The deal uses four passes. On each pass, East, South, West, and North receive four front tiles in turn; then East receives one final front tile. This leaves 16 tiles per non-dealer and 17 for East before Flower replacement. Flower and Kong replacements remove a tile from the back. The hand becomes exhaustible when exactly 16 tiles remain in the wall deque; those 16 tiles are not drawn. If a mandatory replacement would be required at that boundary, the hand ends as an exhaustive draw.
+The deal uses four passes. On each pass, East, South, West, and North receive four front tiles in turn; then East receives one final front tile. This leaves 16 tiles per non-dealer and 17 for East before Flower replacement. Flower and Kong replacements remove a tile from the back. The hand becomes exhaustible when exactly 16 tiles remain in the wall deque; those 16 tiles are not drawn. If a mandatory replacement would be required at that boundary, the hand ends as an exhaustive draw. A Kong completed at that boundary stands as a completed meld for statistics, achievements, and XP even though its replacement draw, and any win from it, can no longer occur.
 
 ### 5.3 Flower and Season replacement
 
@@ -302,7 +320,7 @@ Replacement is mandatory and server-controlled. The only user setting is animati
 
 A normal winning hand has 17 effective tiles arranged as five melds plus one pair. A meld is a Chow, Pong, or Kong; a Kong counts as one meld despite containing four physical tiles.
 
-The only non-structural instant win is Eight Flowers, declared when one player has all eight Flower/Season tiles. Seven pairs, eight pairs, Thirteen Orphans, knitted hands, and other exceptional geometries are not legal in v1.0.
+The only non-structural instant win is Eight Flowers, declared when one player has all eight Flower/Season tiles. Seven pairs, eight pairs, Thirteen Orphans, knitted hands, and other exceptional geometries are not legal in v1.1.
 
 Every structurally valid hand can win because Base Win supplies 1 Tai. There is no separate minimum-Tai gate.
 
@@ -312,7 +330,7 @@ Only the next player in counterclockwise turn order may Chow the most recent dis
 
 ### 5.6 Pong
 
-Any non-discarding player holding two matching tiles may Pong the most recent discard. The player exposes the pair plus the claimed tile, becomes active, and must discard. If more than one Pong/Kong request survives higher-priority wins, the eligible claimant closest to the discarder in counterclockwise turn order receives the tile.
+Any non-discarding player holding two matching tiles may Pong the most recent discard. The player exposes the pair plus the claimed tile, becomes active, and must discard. If more than one Pong/Kong request survives higher-priority wins, the eligible claimant closest to the discarder in counterclockwise turn order receives the tile. With four copies per tile, two simultaneous Pong or Kong claims on one discard are arithmetically impossible; the proximity rule is retained as a defensive server invariant, and QA must not treat it as a constructible scenario.
 
 Declining a Pong does not create a future lock; the player may claim a later copy.
 
@@ -340,6 +358,8 @@ Claims are collected privately. No response is revealed until all eligible playe
 
 A player who deliberately passes a legal discard Win cannot win from another discard until completing their next personal draw-and-discard cycle. Zimo remains legal during that period. This temporary lock is shown in the UI and event log.
 
+Only an explicit player-submitted Pass, or an explicit revision to Pass, is deliberate. A Pass selected by the server because of a timeout or disconnection never creates this lock; it punishes connectivity, not strategy, and is recorded with a distinct reason code. This distinction is a mandatory golden case.
+
 ### 5.9 Special win events
 
 The following events exist and score as Section 6.1 defines:
@@ -354,7 +374,14 @@ The following events exist and score as Section 6.1 defines:
 
 Initial Flower replacement completes before structural special-win evaluation. Eight Flowers is checked first. East then receives Heavenly Hand for a structurally complete hand before any player action; initial replacement does not disqualify it, but Heavenly Hand does not also receive Zimo or Win After Replacement. A non-dealer whose first front draw is a Flower may complete Earthly Hand on its chained replacement and also receive Win After Replacement.
 
-The final drawable tile may be discarded and claimed normally, but a Win from that discard receives no last-tile event Tai. Seven Flowers Rob One, human-hand variants, wins by robbing a concealed Kong, and other unlisted events are not supported. There are no deal-in responsibility, pao, or redirected-liability rules.
+The final drawable tile is the tile whose removal from either end of the wall deque leaves exactly the 16-tile reserve. A winning front draw of that tile scores Last Tile Zimo. A winning replacement draw of that tile scores both Win After Replacement and Last Tile Zimo. The final drawable tile may also be discarded and claimed normally, but a Win from that discard receives no last-tile event Tai. Seven Flowers Rob One, human-hand variants, wins by robbing a concealed Kong, and other unlisted events are not supported. There are no deal-in responsibility, pao, or redirected-liability rules.
+
+Special wins are offered, never auto-declared:
+
+- **Eight Flowers offer:** when a player's eighth bonus tile is exposed, the server offers Eight Flowers as an explicit Win action — during initial replacement, immediately after that player's replacement sequence completes and before the next seat's replacement begins; during play, within the player's own turn before their discard. A Pass or timeout does not forfeit the win: while the player holds all eight exposed bonus tiles, the offer reappears at the start of each of that player's turns, after draw and mandatory replacement and before discard. A turn timeout follows the normal auto-discard rule and never auto-declares.
+- **Heavenly Hand offer:** after initial replacement completes, if East is structurally complete, the server offers Win in East's first turn action set before any discard. If East passes or times out, the Heavenly Hand opportunity lapses permanently; East may still win later under normal rules. Declining it creates no Section 5.8 lock because it is not a discard win.
+
+Both offers and their lapses are recorded in the event log and covered by golden cases.
 
 ### 5.10 Action timing
 
@@ -363,16 +390,19 @@ The final drawable tile may be discarded and claimed normally, but a Win from th
 | Tutorial | No timer |
 | AI Practice | No timer by default; optional 30-second training timer |
 | Public Quick Play draw/discard | 15 seconds |
-| Public Quick Play interception | 7 seconds |
+| Public Quick Play interception, Bamboo Courtyard | 10 seconds |
+| Public Quick Play interception, other lobbies | 7 seconds |
 | Ranked Full Rotation draw/discard | 12 seconds |
 | Ranked Full Rotation interception | 5 seconds |
 | Private Full Rotation | Host chooses 12, 15, 20, or 30 seconds; interception is half, rounded up |
 
 The prior "3.0s mask" concept is removed. There is no hidden interval, time bank, or overtime. For each decision, the server calculates one common absolute deadline from the base time plus the largest eligible player's smoothed half-round-trip estimate, capped at 500 ms. The same deadline is sent to every affected client; input closes at that deadline. Animation time before the action is available is not charged.
 
+Public timer values are pacing presentation, not rules content: live configuration may adjust them within approved bounds — turn 10 to 30 seconds, interception 5 to 15 seconds — for new matches only, under Section 13.4 approval. An active match keeps the values with which it started. The longer Bamboo interception window exists because claim decisions are the hardest beginner moment.
+
 The local timer always shows a number and a shrinking shape. At 3 seconds it changes from neutral to amber, announces "3 seconds" to assistive technology, and may play one optional tick/haptic cue; at 1 second it changes to red and repeats the non-color cue. Opponent turns show "Thinking" and the shared countdown without exposing which interception choices exist. Claim windows show only the local player's legal choices. Audio and haptics are never the sole warning.
 
-On a claim timeout, the server selects Pass. On a turn timeout, it discards the most recently drawn playable tile; if none is distinguishable after a claim, it discards the rightmost tile in the server's canonical sorted hand. The server never auto-declares Win.
+On a claim timeout, the server selects Pass; a timeout Pass never creates the Section 5.8 discard-Win lock. On a turn timeout, it discards the most recently drawn playable tile; if none is distinguishable after a claim, it discards the rightmost tile in the server's canonical sorted hand. The server never auto-declares Win.
 
 Three consecutive player-action timeouts mark the player AFK and activate a disclosed takeover bot for the rest of the hand. Reconnection may restore control at the next legal personal turn.
 
@@ -392,7 +422,9 @@ Only the dealer's Ting status affects an exhaustive-draw continuation. Other pla
 | Player disconnect/timeout with a valid terminal result | Use the applicable row above | Use the applicable row above |
 | Administrative void, accepted impossible state, or server interruption | Replay with same East | Keep existing k; do not increment |
 
-There are no rules-based abortive draws, Chombo continuations, or four-Kong aborts in v1.0.
+Rotating when East is among multiple winners of the same discard differs from tables that continue the dealer whenever the dealer wins at all. The Rulebook must call out this divergence, and the recorded Rules Lead and zh-TW expert approval covers it.
+
+There are no rules-based abortive draws, Chombo continuations, or four-Kong aborts in v1.1.
 
 The maximum continuation count is ten. After the hand played at k = 10, dealer rotates regardless of outcome.
 
@@ -419,7 +451,7 @@ The client displays only legal Chow, Pong, Kong, and Win actions calculated by t
 | Four or five Kongs | Continue normally while replacements remain; no abortive draw |
 | Player disconnect, timeout, or quit | Follow Section 8.7; it is not a Mahjong foul |
 
-Repeated malicious commands trigger anti-cheat review. No ordinary player receives a Chombo-style balance penalty in v1.0.
+Repeated malicious commands trigger anti-cheat review. No ordinary player receives a Chombo-style balance penalty in v1.1.
 
 ## 6. Scoring patterns
 
@@ -458,7 +490,7 @@ All legal wins receive Base Win. Pattern values are additive subject to Section 
 | Big Three Dragons | 8 | Three Dragon Pongs/Kongs; exclusive with Small Three Dragons |
 | Small Four Winds | 8 | Three Wind Pongs/Kongs plus Wind pair; exclusive with Big Four Winds |
 | Big Four Winds | 16 | Four Wind Pongs/Kongs; exclusive with Small Four Winds |
-| Last Tile Zimo | 1 | Zimo on the final drawable tile before the 16-tile reserve |
+| Last Tile Zimo | 1 | Zimo on the final drawable tile as defined in Section 5.9, from a front or replacement draw; stacks with Win After Replacement when both apply |
 | Win After Replacement | 1 | Zimo on a Kong or Flower replacement draw |
 | Robbing an Added Kong | 1 | Win by robbing an added Kong |
 | Eight Flowers | 8 | Instant win after collecting all eight bonus tiles |
@@ -472,7 +504,7 @@ All legal wins receive Base Win. Pattern values are additive subject to Section 
 - Three, Four, and Five Concealed Pongs are one progression; only the highest applies.
 - Half Flush, Full Flush, and All Honors are mutually exclusive.
 - Small and Big versions of the same Dragon/Wind family are mutually exclusive.
-- All Chows has the restrictions in the table and cannot stack with Zimo, Single Wait, No Honors or Flowers, or any Kong/Pong pattern because its own definition excludes those states.
+- All Chows has the restrictions in the table and cannot stack with Zimo, Single Wait, or any Kong/Pong pattern because its own definition excludes those states. An All Chows hand necessarily also satisfies No Honors or Flowers; to avoid scoring one constraint twice, the two patterns do not stack, and the server awards the hand as All Chows.
 - Fully Exposed does not stack with Single Wait.
 - A Dragon or Wind set can score its set Tai in addition to larger Dragon/Wind patterns.
 - Kong Tai can stack with concealed-Pong progressions, All Pongs, and suit patterns.
@@ -483,7 +515,7 @@ All legal wins receive Base Win. Pattern values are additive subject to Section 
 - Heavenly Hand does not stack with Zimo, Concealed Zimo, Single Wait, or Win After Replacement. It may stack with Concealed and valid structural, set, suit, and Flower patterns.
 - If a hand has multiple legal decompositions, the server chooses the decomposition producing the highest raw Tai. If tied, it chooses the lexicographically lowest canonical decomposition so replay is deterministic.
 - Raw Tai is never reduced by a lobby cap. The cap applies only to Jade transfer.
-- The maximum raw Tai under v1.0 is 69: Base Win 1 + Heavenly Hand 24 + Concealed 1 + Five Concealed Pongs 8 + All Pongs 4 + All Honors 8 + Big Four Winds 16 + one Dragon Set 1 + Seat Wind Set 1 + Prevailing Wind Set 1 + at most 4 Flower Tai. This maximum is a mandatory golden fixture. At k = 10, the maximum effective payment value is 90 Tai after the separate 21 Dealer Tai.
+- The maximum raw Tai under v1.1 is 69: Base Win 1 + Heavenly Hand 24 + Concealed 1 + Five Concealed Pongs 8 + All Pongs 4 + All Honors 8 + Big Four Winds 16 + one Dragon Set 1 + Seat Wind Set 1 + Prevailing Wind Set 1 + at most 4 Flower Tai. This maximum is a mandatory golden fixture. At k = 10, the maximum effective payment value is 90 Tai after the separate 21 Dealer Tai.
 - Tai and Jade calculations use signed 64-bit integer arithmetic. No floating point or currency fraction is used; only proportional cap allocation can round, using the stated largest-remainder rule.
 
 ## 7. Jade settlement and lobby economy
@@ -503,6 +535,8 @@ Only public human Quick Play uses Jade settlement.
 
 The PRD's uncapped Dragon's Den is rejected. Every public table has a finite debit cap.
 
+Version 1 launches with Bamboo Courtyard and Sparrow Pavilion open. Wind and Cloud Lounge and Dragon's Den are fully implemented but ship configured closed, so their queues are never visible dead content. Each opens through audited live configuration when its opening criteria are met: at least 2,000 accounts in good standing meet the tier's minimum balance, and projected queue times for the tier stay within Section 2.5 targets at observed concurrency. Live Operations reviews the criteria at least monthly and records each opening decision. The faucet-to-cap ratio per tier — total daily grant potential versus the per-hand debit cap — is a tracked design parameter.
+
 Before seating, the server checks the minimum balance and reserves the debit cap. The reserve remains owned by the player but cannot be spent elsewhere until settlement. Balance never becomes negative.
 
 Full Rotation, AI Practice, Tutorial, and private rooms do not transfer Jade. Full Rotation uses table points only for placement.
@@ -521,7 +555,7 @@ For one winner-payer relationship:
 
 **Raw payment = Stake per Tai x (winner raw Tai + applicable Dealer Tai)**
 
-Dealer Tai applies if the winner is dealer or the payer is dealer. It applies once, even when both are dealer-impossible roles.
+Dealer Tai applies if the winner is dealer or the payer is dealer. It is applied at most once per winner-payer relationship; because the winner and the payer of one relationship can never both be the dealer, no relationship ever applies it twice.
 
 - On a discard Win, the discarder is the only payer.
 - On Zimo, each of the three opponents is a payer.
@@ -549,7 +583,7 @@ Additional mandatory examples are:
 3. A non-dealer Zimo hand has Base Win, Zimo, one Matching Flower, and one Exposed Kong: 4 raw Tai. At k = 0, the dealer pays 5 effective Tai and the other two opponents pay 4 each. Bamboo transfer is 50 + 40 + 40 = 130 Jade. Kongs never create a separate immediate payment.
 4. A non-dealer Eight Flowers win is 15 raw Tai. At k = 0, the dealer pays 16 effective Tai and the other two opponents pay 15 each. Bamboo transfer is 160 + 150 + 150 = 460 Jade.
 5. Dragon's Den, one payer's uncapped raw amount is 450,000 Jade: debit is capped at 300,000 and the winner receives 300,000 from that payer.
-6. Maximum v1.0 hand: a dealer at k = 10 has 69 raw Tai plus 21 Dealer Tai. In Dragon's Den each payer's raw 900,000-Jade obligation is capped to 300,000; the winner receives 900,000 total.
+6. Maximum v1.1 hand: a dealer at k = 10 has 69 raw Tai plus 21 Dealer Tai. In Dragon's Den each payer's raw 900,000-Jade obligation is capped to 300,000; the winner receives 900,000 total.
 7. Bamboo, two discard winners have uncapped claims of 200 and 150 against the discarder cap of 300: proportional largest-remainder allocation pays 171 and 129 Jade. Winner seat order breaks only an exactly equal remainder.
 8. A Zimo payer cap is independent for each opponent. A multiple-winner cap applies to the one discarder across all winning claims; no other player's reserve subsidizes that payer.
 9. Exhaustive draw, administrative void, Tutorial, AI Practice, private room, or Full Rotation produces zero Jade transfer. Full Rotation uses the separate table-point formula in Section 8.4.
@@ -576,7 +610,7 @@ Jade cannot be purchased, converted from another currency, gifted, traded, trans
 
 All grants, reserves, settlements, reversals, and support adjustments are server-authoritative double-entry ledger events with an idempotency key, reason code, actor, rules version, match ID where applicable, and immutable audit record.
 
-The economy is an access/recovery loop, not a scarce store of value. Settlement must have exactly zero net issuance. Product health targets are at least 95% of weekly active accounts eligible for Bamboo, fewer than 10% using welfare in a week, and no valid account permanently unable to play. There is no stable-money-supply or deflation target; grant-driven balance inflation is measured by source, median, and percentile. Tuning may change future grants or lobby gates prospectively through audited configuration, but may not claw back, expire, or devalue an existing balance.
+The economy is an access/recovery loop, not a scarce store of value. Settlement must have exactly zero net issuance. Product health targets are at least 95% of weekly active accounts eligible for Bamboo, fewer than 10% using welfare in a week, and no valid account permanently unable to play. There is no stable-money-supply or deflation target; grant-driven balance inflation is measured by source, median, and percentile on a per-tier balance-percentile dashboard that is an acceptance deliverable. A formal economy review is triggered when the median active-account balance exceeds the Wind and Cloud Lounge minimum, or when an upper tier meets its Section 7.1 opening criteria; that review decides prospective tuning and whether a first Jade sink must be specified before tier gates lose meaning. Tuning may change future grants or lobby gates prospectively through audited configuration, but may not claw back, expire, or devalue an existing balance.
 
 ## 8. Modes, matchmaking, and match lifecycle
 
@@ -635,11 +669,13 @@ Quick Play is exactly one hand:
 - profile hand statistics and eligible XP;
 - target duration of 8 to 15 minutes.
 
-Quick Play has no 1st-through-4th placement and no placement tie-breaker; a hand can have zero, one, two, or three winners. The result screen shows winner(s), raw Tai, Dealer Tai, each ledger transfer, XP, and applicable mission progress. "Play Again" returns the player to a fresh queue; it does not preserve opponents or seats.
+Quick Play has no 1st-through-4th placement and no placement tie-breaker; a hand can have zero, one, two, or three winners. It contributes to the Quick Play seasonal ladder in Section 12.9 but never to Elo rating. The result screen shows winner(s), raw Tai, Dealer Tai, each ledger transfer, XP, applicable mission progress, ladder points, an Add Friend action for eligible opponents per Section 10.6, and the result-card export in Section 8.10. "Play Again" returns the player to a fresh queue; it does not preserve opponents or seats.
+
+Because dealer assignment in a one-hand mode is a pure variance injection, the dealer versus non-dealer net Jade delta is a mandatory telemetry dashboard; a sustained material imbalance triggers a product review of dealer assignment in Quick Play.
 
 ### 8.4 Full Rotation
 
-Full Rotation is one East round in which every player is scheduled to become dealer once, subject to continuations and the 60-minute match limit. At 60 minutes, the current hand finishes and the match ends even if the base rotation is incomplete. Target duration is 30 to 45 minutes.
+Full Rotation is one East round in which every player is scheduled to become dealer once, subject to continuations and the 60-minute match limit. At 60 minutes, the current hand finishes and the match ends even if the base rotation is incomplete. Target duration is 30 to 45 minutes. A match ended by the limit before every player has dealt is structurally asymmetric; the share of ranked matches ended by the limit is a mandatory telemetry metric, and a season in which it exceeds 5% triggers a pacing review.
 
 All players start at 0 table points. For each winner-payer relationship, table-point transfer equals winner raw Tai plus applicable Dealer Tai, following the same payer and multiple-winner rules as Jade but with no cap and no stake multiplier. Table points may be negative and are not an account currency.
 
@@ -668,7 +704,7 @@ Public queues require four humans and never fill or backfill with bots. At 90 se
 
 ### 8.6 Private rooms and friends
 
-Version 1 private rooms support:
+Private rooms are present in Closed Beta (Quick Play only) and Version 1 (Quick Play and Full Rotation) and support:
 
 - a six-character join code and direct friend invitation;
 - four human seats, with disclosed bots allowed in empty seats;
@@ -678,18 +714,20 @@ Version 1 private rooms support:
 - Easy/Medium/Hard bot selection;
 - rematch with the same seats.
 
-Initial seats and dealer are server-randomized; the host cannot assign or swap them. Spectators are not supported. Private rooms do not support Jade, rating, public leaderboards, public statistics, achievements, daily missions, or configurable scoring/house rules. They use the same immutable rules version as public play. Room codes expire when the room closes and are not user-named.
+Initial seats and dealer are server-randomized; the host cannot assign or swap them. Spectators are not supported; friend-only spectating in private rooms is the recorded first step of future spectator scope. Private rooms do not support Jade, rating, public leaderboards, public statistics, achievements, daily missions, or configurable scoring/house rules. They use the same immutable rules version as public play. Room codes expire when the room closes and are not user-named.
 
 ### 8.7 Disconnect, reconnect, AFK, and quit
 
 The authoritative match continues during disconnection. The reconnect contract is:
 
 - client displays Reconnecting immediately;
-- server retains the seat for 60 seconds;
+- server retains the seat for 90 seconds in Quick Play and private rooms and 60 seconds in ranked Full Rotation, sized to real mobile interruptions;
 - current decisions time out normally;
 - after three consecutive action timeouts, a disclosed Medium takeover bot acts for the remainder of the hand;
 - a returning player regains control at the next legal personal turn;
 - hidden state is sent only after session re-authentication and state-version validation.
+
+A linked account may resume its active match from a different device after full re-authentication; the previous device's match session is revoked at that moment. Guest accounts remain bound to their single device credential.
 
 In Quick Play, absence through hand end records a disconnect and the result, Jade, XP, and statistics still apply.
 
@@ -715,7 +753,7 @@ Player-facing spectator and replay features are not in Beta or Version 1. The se
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Tutorial | No | No | 500 once for complete or intentional skip | No | Onboarding only | No; onboarding state is private | No |
 | AI Practice | No | No | 25/hand, 200/day cap | No | Only an explicitly labeled onboarding task; completes welfare prerequisite | No | No |
-| Public Quick Play | Transfer settlement | No | Completion and action XP | Yes | Yes | Quick Play section | No |
+| Public Quick Play | Transfer settlement | No | Completion and action XP | Yes | Yes | Quick Play section | Seasonal Quick Play ladder |
 | Public Full Rotation | No | Once at completed match end | Hand and placement XP | Yes | Yes | Full Rotation section | Seasonal rating |
 | Private Quick/Full | No | No | 25/completed match, 200/day cap | No | No | No | No |
 | Tournament | Not in scope | Not in scope | Not in scope | Not in scope | Not in scope | Not in scope | Not in scope |
@@ -725,7 +763,7 @@ Player-facing spectator and replay features are not in Beta or Version 1. The se
 
 Beta shows the most recent 20 public Quick Play summaries. Version 1 shows the most recent 50 public matches, filterable by Quick Play and Full Rotation. Each summary contains date, mode, rules version, participants, terminal outcome, the user's seat/dealer state, Tai and pattern lines for winner(s), final transfers/table points, XP, rating delta where applicable, and Match ID.
 
-History never reveals another player's concealed hand beyond the required dealer Ting reveal. It has no turn-by-turn playback, share link, spectator view, streamer overlay, or downloadable seed. Account export can include the user's full retained summary history; raw event retention follows Section 10.4.
+History never reveals another player's concealed hand beyond the required dealer Ting reveal. It has no turn-by-turn playback, in-game share link, spectator view, streamer overlay, or downloadable seed. The result screen and each history summary offer a local result-card image export of the tally sheet; the card contains no join link, seed, hidden information, or another player's private data. Player-facing replay of the player's own matches is the recorded future path and will be built on the internal event replay. Account export can include the user's full retained summary history; raw event retention follows Section 10.4.
 
 ## 9. User experience, assists, and accessibility
 
@@ -736,6 +774,7 @@ Resolves: UX-01 through UX-14.
 Beta signed-in navigation contains:
 
 - Play: Quick Play and AI Practice;
+- Friends and Private Room (Quick Play);
 - Learn: Tutorial and Rulebook;
 - Profile: name, level placeholder, basic history;
 - Settings;
@@ -743,8 +782,7 @@ Beta signed-in navigation contains:
 
 Version 1 adds:
 
-- Full Rotation;
-- Friends and Private Room;
+- Full Rotation, including private Full Rotation rooms;
 - Progression, achievements, cosmetics, and statistics;
 - Mail and Announcements.
 
@@ -756,11 +794,11 @@ The match is a fixed, responsive 2D top-down/oblique table. The local concealed 
 
 The local player is always rendered at the bottom, regardless of logical seat. The other seats are remapped around the screen while retaining counterclockwise turn order and explicit wind labels. The local hand is the largest tile treatment; exposed melds are second; opponent hands and the decorative wall are smallest.
 
-The wall is shown as four abbreviated two-high sides whose depletion is derived from the canonical deque. On compact layouts it may collapse to a wall outline plus front/back depletion and the exact drawable count. It never reveals tile identities. The camera is fixed. Players cannot rotate or zoom the table, but a setting can enlarge the local hand and action row. Tile identity, claim source, most recent discard, active player, dealer, seat wind, continuation count, countdown, and all legal actions must remain visible without opening another panel at every supported match viewport.
+The wall is shown as four abbreviated two-high sides whose depletion is derived from the canonical deque. On compact layouts it may collapse to a wall outline plus front/back depletion and the exact drawable count. It never reveals tile identities. The camera is fixed. Players cannot rotate or zoom the table, but a setting can enlarge the local hand and action row. Tile identity, claim source, most recent discard, active player, dealer, seat wind, continuation count, countdown, and all legal actions must remain visible without opening another panel at every supported match viewport. This simultaneous-visibility requirement must be validated with wireframes and on-device tests at the 360 by 640 CSS pixel landscape minimum before UI implementation is accepted; if it cannot be met there, the UX Lead records an approved revision of this requirement rather than letting the layout silently drop elements.
 
 ### 9.3 Input and sorting
 
-On touch, first tap selects and raises a tile; second tap or upward drag confirms discard. On mouse, click selects and double-click confirms; drag is optional. Keyboard supports arrow navigation, Enter to select/confirm, Escape to cancel, and number-key action shortcuts when they do not conflict with text input.
+On touch, first tap selects and raises a tile; second tap or upward drag confirms discard. On mouse, click selects and double-click confirms; drag is optional. Keyboard supports arrow navigation, Enter to select/confirm, Escape to cancel, and number-key action shortcuts when they do not conflict with text input. A mirrored left-handed layout option places the action row and confirmation controls on the left; every gesture and shortcut has an equivalent in both layouts.
 
 The discard action can be cancelled until the client submits it. After server acknowledgement it is final.
 
@@ -816,7 +854,8 @@ The hand result presents, in order:
 6. stake, raw payments, caps, and final transfers for Quick Play, or table-point transfers for Full Rotation;
 7. dealer continuation/rotation;
 8. XP, achievements, missions, and rating where applicable;
-9. Match ID, rules version, Report, Play Again/Continue, and Return.
+9. Add Friend for eligible opponents and the Section 8.10 result-card image export;
+10. Match ID, rules version, Report, Play Again/Continue, and Return.
 
 After a hand, all concealed hands remain private except the dealer reveal required for a Ting exhaustive draw. Opponent hands are not exposed for curiosity.
 
@@ -847,7 +886,7 @@ The web interface targets WCAG 2.2 AA wherever the criterion applies to an inter
 - visible timer cues and optional haptic cues;
 - Tutorial usable with keyboard, screen reader, Reduced Motion, and no timer.
 
-Ranked timers are not extended per user setting because opponents require one shared deadline. AI Practice and private-room presets provide slower alternatives.
+Ranked timers are not extended per user setting because opponents require one shared deadline. AI Practice and private-room presets provide slower alternatives, and an untimed unranked human queue is recorded as explicit future scope for players who cannot use shared deadlines. The mirrored left-handed layout in Section 9.3 is an accessibility requirement, not a cosmetic option. The zh-TW screen-reader experience, including accessible tile names in Traditional Chinese, is audited separately from the English pass.
 
 ### 9.10 Settings persistence
 
@@ -880,13 +919,13 @@ Resolves: ACC-01 through ACC-12.
 
 ### 10.1 Guest accounts
 
-A Guest account is a server record authenticated by a revocable device credential. It can use Tutorial, AI Practice, public Quick Play, Jade, XP, and in Beta all available features. Version 1 guests cannot add friends, create private rooms, use cross-device recovery, or change devices without linking.
+A Guest account is a server record authenticated by a revocable device credential. It can use Tutorial, AI Practice, public Quick Play, Jade, and XP. In both Beta and Version 1, guests cannot add friends, create private rooms, enter the public ranked Full Rotation queue, use cross-device recovery, or change devices without linking. Ranked play requires a linked identity in good standing (Section 12.5).
 
 Guests complete the same age confirmation and versioned Terms/Privacy acceptance before play. They can receive in-product maintenance, policy, and support mail but cannot receive email or web push. Purchases do not exist. Clearing browser storage loses the local credential but does not immediately delete server data. A Guest warning explains the risk. Guest accounts inactive for 180 days are deleted after a 30-day pending-deletion period.
 
 ### 10.2 Linking and sign-in
 
-Closed Beta supports Guest identity only. Version 1 supports:
+Closed Beta supports Guest identity and email magic link; magic link in Beta protects accounts against browser-storage loss and enables friends and private rooms. Version 1 supports:
 
 - email magic link;
 - Google sign-in;
@@ -939,7 +978,7 @@ Presence values are Offline, Online, In Queue, and In Match. Away is not a separ
 
 ### 10.7 Communication
 
-There is no text chat, voice chat, direct message, custom room name, image sharing, or user-authored status. Version 1 offers eight localized, positive preset emotes such as Hello, Good game, Nice hand, and Thanks. Emotes are rate-limited to one every five seconds, can be muted globally or per player, and are disabled for blocked players.
+There is no text chat, voice chat, direct message, custom room name, image sharing, or user-authored status. Version 1 offers eight localized, positive preset emotes such as Hello, Good game, Nice hand, and Thanks, plus a curated palette of 24 localized, positive or neutral table phrases such as "That was close" and "Lucky draw." Phrases are fixed strings from a reviewed catalog; there is no free text, and the zh-TW versions are localized through the Section 15.12 process, not transliterated. Emotes and phrases share one rate limit of one every five seconds, can be muted globally or per player, and are disabled for blocked players.
 
 ### 10.8 Reporting and enforcement
 
@@ -994,7 +1033,7 @@ They may not inspect opponent hands, unrevealed wall order, future random values
 
 All difficulties immediately expose mandatory Flowers, always declare a legal Win, and otherwise Pass when a claim does not satisfy their row. Discard selection considers every legal discard. Easy samples with a strong bias toward isolated tiles; Medium optimizes effective visible draws; Hard compares expected table-point gain/loss, including dealer relationship, continuation, remaining wall, and cap/table-point context. No bot waits beyond its reaction interval to gain timing advantage.
 
-"100% safe" means the public-state solver proves that no assignment of still-unseen tiles consistent with the rules could make the candidate discard complete any currently eligible opponent hand. A current temporary discard-Win lock is part of that proof. An opponent's own prior discard does not create permanent safety in Taiwanese v1.0, and a merely exhausted-looking tile is not called safe if the candidate itself could be claimed. All non-proven tiles retain non-zero risk. Hard may fold when an opponent is visibly Ting/high-value, fewer than 24 drawable tiles remain, and preserving expected loss is better than hand completion.
+"100% safe" means the public-state solver proves that no assignment of still-unseen tiles consistent with the rules could make the candidate discard complete any currently eligible opponent hand. A current temporary discard-Win lock is part of that proof. An opponent's own prior discard does not create permanent safety in Taiwanese v1.1, and a merely exhausted-looking tile is not called safe if the candidate itself could be claimed. All non-proven tiles retain non-zero risk. Hard may fold when an opponent is visibly Ting/high-value, fewer than 24 drawable tiles remain, and preserving expected loss is better than hand completion.
 
 ### 11.4 Strength and reproducibility
 
@@ -1085,10 +1124,30 @@ All achievements are visible, account-wide, non-repeatable, and require eligible
 | Four Winds | Win with Big Four Winds | 1,500 XP, Four Winds frame |
 | Full Rotation Regular | Complete 10 public Full Rotation matches | 750 XP |
 | Clean Defense | Complete a Full Rotation without dealing into a Win | 1,000 XP, "Clean Defender" title |
+| High Value | Win with at least 5 raw Tai | 300 XP |
+| Master Craft | Win with at least 10 raw Tai | 750 XP |
+| Kong Robber | Win by Robbing an Added Kong | 500 XP |
+| Replacement Artist | Win with Win After Replacement | 300 XP |
+| Last Chance | Win with Last Tile Zimo | 500 XP |
+| Quiet Strength | Win with Concealed Zimo | 300 XP |
+| Three of a Mind | Win with Three Concealed Pongs or a higher concealed-Pong tier | 500 XP |
+| Half and Half | Win with Half Flush | 300 XP |
+| Garden Party | Win with Complete Seasons or Complete Flowers | 500 XP |
+| Honor Guard | Win with All Honors | 1,000 XP, "Honored" title |
+| Eightfold Bloom | Win with Eight Flowers | 1,500 XP, "Eightfold" title |
+| Self Reliant II | Win by Zimo 50 times | 750 XP |
+| Claim Scholar | Complete 250 Chow or Pong claims | 500 XP |
+| Kong Master | Complete 100 legal Kongs | 750 XP |
+| Ready Veteran | Reach Ting in 500 completed public hands | 1,000 XP |
+| Hundred Hands | Complete 100 public hands | 500 XP |
+| Centurion of the Table | Complete 500 public hands | 1,000 XP, "Centurion" title |
+| Rotation Master | Complete 50 public Full Rotation matches | 1,000 XP |
+| Podium Regular | Finish 1st in 10 public Full Rotation matches | 750 XP |
+| Stone Wall | Reach a no-deal-in streak of 10 eligible public hands | 500 XP |
 
 Achievement counters are event-log derived and rules-version aware. Corrected historical events update counters; revoked cheating results are removed.
 
-There are no hidden or tiered launch achievements. The UI shows exact current/target progress for count achievements and a localized requirement/reward description for every achievement. English and zh-TW ship together. Rules changes may recalculate a counter only from retained canonical events; an already granted cosmetic is never revoked for an ordinary rules correction.
+There are no hidden launch achievements, and every numbered progression (for example Self Reliant and Self Reliant II) is fully visible. Every trigger is derivable from the retained event log and the Section 12.7 statistics definitions. The UI shows exact current/target progress for count achievements and a localized requirement/reward description for every achievement. English and zh-TW ship together. Rules changes may recalculate a counter only from retained canonical events; an already granted cosmetic is never revoked for an ordinary rules correction.
 
 ### 12.4 Rating algorithm
 
@@ -1116,8 +1175,9 @@ If an ordinary negative delta would cross the 500 floor, that player's loss is r
 
 ### 12.5 Rating lifecycle
 
+- Public ranked Full Rotation requires a linked, non-Guest identity in good standing; free disposable guest accounts cannot enter ranked queues.
 - Starting rating: 1500.
-- First 20 matches: Provisional; rating is visible with a Provisional label and excluded from Top leaderboards.
+- First 20 matches: Provisional; rating is visible with a Provisional label, and leaderboard rows for provisional players carry the same label.
 - Rating floor: 500.
 - Display precision: whole rating points only.
 - No inactivity decay.
@@ -1128,7 +1188,7 @@ If an ordinary negative delta would cross the 500 floor, that player's loss is r
 
 Matchmaking uses the current pre-match rating. A season reset occurs between matches only.
 
-There are no separate placement matches or hidden uncertainty value. The first-20 K factor is the provisional acceleration. Multi-account/device signals, impossible improvement, collusion, and repeated opponent patterns enter anti-abuse review; rating, cosmetics, or history cannot transfer between established accounts. This is the current smurf-mitigation contract.
+There are no separate placement matches or hidden uncertainty value. The first-20 K factor is the provisional acceleration. Multi-account/device signals, impossible improvement, collusion, and repeated opponent patterns enter anti-abuse review; rating, cosmetics, or history cannot transfer between established accounts. Together with the linked-identity requirement for ranked play, this is the current smurf-mitigation contract.
 
 ### 12.6 Abnormal rating results
 
@@ -1160,9 +1220,20 @@ The product does not collapse Mahjong into a binary Win/Loss ratio. It shows Win
 
 ### 12.8 Leaderboards
 
-Version 1 has one seasonal Taiwanese Full Rotation rating leaderboard per launch region and one global view. Region is the account's supported country at season start and cannot change during that season; Support may correct a verified region between seasons. Eligibility requires 20 completed rated matches and an account in good standing. Sort order is rating, then more rated matches up to 100, then lower abandonment rate, then earlier achievement of the rating.
+Version 1 has one seasonal Taiwanese Full Rotation rating leaderboard per launch region and one global view. Region is the account's supported country at season start and cannot change during that season; Support may correct a verified region between seasons. Eligibility requires 10 completed rated matches and a linked account in good standing; players still inside the 20-match provisional window are listed with the Provisional label. Sort order is rating, then more rated matches up to 100, then lower abandonment rate, then earlier achievement of the rating.
 
-The leaderboard refreshes at least every 15 minutes. It grants profile titles and frames only, never Jade or real-world value. At season end, 20-match participants receive the "Seasoned Player" title, the top 10% receive the numbered Season Crest frame, and the top 1% also receive the "Season Champion" title. Rewards are mailed within seven days; the highest earned tier includes lower-tier rewards.
+The leaderboard refreshes at least every 15 minutes. It grants profile titles and frames only, never Jade or real-world value. At season end, participants with at least 10 completed rated matches receive the "Seasoned Player" title, the top 10% receive the numbered Season Crest frame, and the top 1% also receive the "Season Champion" title. Rewards are mailed within seven days; the highest earned tier includes lower-tier rewards.
+
+### 12.9 Quick Play seasonal ladder
+
+The Quick Play ladder gives the high-volume, short-session mode a seasonal goal without touching Elo, matchmaking, or Jade.
+
+- Seasons share the 12-week ranked calendar.
+- Ladder points accrue only in public human Quick Play: 3 points per hand won plus 1 point per completed hand, counted for at most the first 10 completed public Quick Play hands each UTC day.
+- Points never affect matchmaking, Jade settlement, rating, or lobby eligibility, and are not a currency.
+- Per-region and global ladder leaderboards refresh on the Section 12.8 cadence. Listing requires a linked account in good standing; guest accounts accrue points that become visible after linking.
+- Season rewards are cosmetic only and are mailed on the Section 12.8 schedule: at least 150 ladder points earns the "Quick Study" title; the top 10% per region earns the numbered Quick Crest frame. The higher tier includes the lower-tier reward.
+- Ladder points from voided hands or sanctioned abuse are removed by the same event-log recomputation contract as achievements.
 
 ## 13. Monetization, missions, live operations, and content
 
@@ -1193,13 +1264,15 @@ Version 1 cosmetics are permanent, account-bound entitlements:
 | --- | --- |
 | Tile face, one equipped | Classic Ivory, High Contrast, Jade |
 | Table theme, one equipped | Classic Green, Tea House, Night Market |
-| Avatar frame, one equipped | None, Bamboo, Jade Ring, Tea Blossom, Pure Hand, Four Winds, Master, numbered Season Crest |
-| Title, one equipped | Mahjong Player, Student, First Victory, Steady Hand, Wall Reader, Table Veteran, Mahjong Master, Pong Specialist, Dragon Caller, Clean Defender, Seasoned Player, Season Champion |
-| Emote visual style, one equipped | Default styling for the eight approved preset emote meanings; no alternate paid styles at launch |
+| Avatar frame, one equipped | None, Bamboo, Jade Ring, Tea Blossom, Pure Hand, Four Winds, Master, numbered Season Crest, numbered Quick Crest |
+| Title, one equipped | Mahjong Player, Student, First Victory, Steady Hand, Wall Reader, Table Veteran, Mahjong Master, Pong Specialist, Dragon Caller, Clean Defender, Seasoned Player, Season Champion, Honored, Eightfold, Centurion, Quick Study |
+| Emote visual style, one equipped | Default styling for the eight approved preset emote meanings and the 24-phrase palette; no alternate paid styles at launch |
 
 Tile faces and table themes are local-only presentation choices. Frames, titles, and the selected preset-emote styling are visible to opponents, subject to their suppress-opponent-effects setting. Every item has a preview and Reset to Default action. There are no gameplay animations, music packs, voice packs, random entitlements, duplicates, consumables, trading, gifting, expiry, or inventory capacity.
 
 Cosmetics are earned through levels, achievements, or seasons. Every tile skin must preserve standard symbols, accessible names, contrast, size, and color-independent identity. Cosmetics work across Quick, Full Rotation, AI, and private modes. A future ruleset can use an item only when its compatibility metadata confirms that every required tile/symbol exists; otherwise the UI equips that ruleset's default without unequipping the account choice.
+
+Cosmetic production capacity is the long-lead prerequisite for the Section 2.8 monetization hypothesis; the catalog and the Section 13.5 cadence are sized to grow rather than restart if that hypothesis is ever approved.
 
 ### 13.3 Daily and weekly missions
 
@@ -1223,6 +1296,8 @@ Authorized Live Operations roles may remotely configure:
 
 - lobby open/closed state, minimum balance, stake, and debit cap;
 - queue region routing and rating expansion bands;
+- public timer presets within the Section 5.10 approved bounds, new matches only;
+- queue-offer thresholds such as the 90-second alternative offer;
 - XP and welfare grants within approved bounds;
 - mission catalog, dates, and rewards;
 - announcement banners and mail;
@@ -1244,7 +1319,7 @@ Ranked seasons last 12 weeks. The sustainable Version 1 cadence is:
 - one refreshed weekly mission catalog;
 - maintenance and rulebook notes as needed.
 
-Seasonal content is additive and may be delayed without blocking core play. No event may change rules, settlement, or public matchmaking without a separately versioned requirement. Lunar New Year and Mid-Autumn content requires review by a fluent zh-TW cultural reviewer. Music and art licenses must permit global web distribution for the product's lifetime.
+Seasonal content is additive and may be delayed without blocking core play. No event may change rules, settlement, or public matchmaking without a separately versioned requirement. Lunar New Year and Mid-Autumn are anchor moments for the core audience: each receives, at minimum, a themed table accent or frame, an event mission set drawn from the reviewed catalog, and a reviewed announcement treatment, all inside the standard content-lock lead times. Their content requires review by a fluent zh-TW cultural reviewer. Music and art licenses must permit global web distribution for the product's lifetime.
 
 The Live Operations Lead owns the calendar and release checklist. Source copy, reward IDs, and art must be content-locked at least 15 business days before activation; English/zh-TW localization and cultural review receive at least 10 business days. If an asset or translation misses approval, the team delays or omits that content and uses the evergreen mission catalog; it does not ship untranslated, unreviewed, or substitute scarcity content.
 
@@ -1329,7 +1404,7 @@ Resolves: OPS-01 through OPS-15.
 
 Beta is a six-week, invite-only web test for at least 500 unique players in the United States, Canada excluding Quebec, and Taiwan. It supports English and Traditional Chinese on the device/browser matrix in Section 3.
 
-Required Beta capabilities are Tutorial, AI Practice, public human Bamboo Quick Play, Guest accounts, Jade ledger, basic XP tracking, Rulebook, Settings, accessibility, Feedback, support Match IDs, analytics, live maintenance notices, and operations/admin access needed to run the test. Other Jade tiers may be enabled for controlled economy tests but are not a public Beta promise.
+Required Beta capabilities are Tutorial, AI Practice, public human Bamboo Quick Play, Guest accounts, email magic link, friends, private Quick Play rooms, Jade ledger, basic XP tracking, Rulebook, Settings, accessibility, Feedback, support Match IDs, analytics, live maintenance notices, and operations/admin access needed to run the test. Other Jade tiers may be enabled for controlled economy tests but are not a public Beta promise.
 
 Experiments may change onboarding copy, UI placement, and non-economic visual presentation. They may not change rules, shuffle, timers, hidden information, settlement, welfare, rating, or reward values without a versioned product decision.
 
@@ -1353,7 +1428,9 @@ The minimum event model includes:
 
 Core funnels are load-to-playable, identity-to-onboarding, tutorial completion, queue-to-match, first-match completion, repeat play, welfare recovery, and Full Rotation completion. Product analytics must use event schemas and reason codes, not parse display text.
 
-The Closed Beta minimum is the subset above for capabilities actually shipped in Section 15.1: load/consent, Guest, onboarding/tutorial, Bamboo lobby/queue, every game transition, reconnect/quit, scoring/dealer, Jade ledger, basic XP, feedback, reliability, and errors. Version 1 adds identity-link, Full Rotation/rating, progression, friends/private rooms, mail, safety, and leaderboard events. Store, purchase, ad, and tournament events do not exist.
+The Closed Beta minimum is the subset above for capabilities actually shipped in Section 15.1: load/consent, Guest and magic-link identity, onboarding/tutorial, Bamboo lobby/queue, every game transition, reconnect/quit, scoring/dealer, Jade ledger, basic XP, friends/private rooms, feedback, reliability, and errors. Version 1 adds the remaining identity providers, Full Rotation/rating, progression, Quick Play ladder, mail, safety, and leaderboard events. Store, purchase, ad, and tournament events do not exist.
+
+Named health dashboards, required as acceptance deliverables, include: tutorial step-level funnel; claim-window timeout rate segmented by account age; queue-abandonment rate and the take-rate of the 90-second alternative offer; dealer versus non-dealer net Jade delta in Quick Play; the 60-minute capped-match share in ranked Full Rotation; and per-tier Jade balance percentiles with faucet-to-cap ratios.
 
 ### 15.3 Analytics consent and privacy
 
@@ -1408,7 +1485,8 @@ Targets on the minimum device matrix are:
 - gameplay network traffic below 5 MB per player-hour after required assets, excluding an explicit user-requested export;
 - no sustained thermal-throttling state in a 60-minute reference-device soak and no more than 10% battery use in a 30-minute Wi-Fi match at 50% screen brightness on the selected launch reference devices;
 - no unbounded battery/network activity while backgrounded;
-- foreground resume to synchronized state within 5 seconds p95;
+- foreground resume to synchronized state within 5 seconds p95, verified against the iOS interruption matrix in Section 16.1;
+- persistent-storage request where the browser supports it, with the Guest data-loss warning surfaced when persistence is not granted;
 - crash-free sessions at least 99.5% Beta and 99.8% Version 1.
 
 When backgrounded, rendering and audio stop, no local timer assumption is made, and only platform-permitted connection/notification work remains. Reduced Effects lowers animation density, shadow quality, and background motion without changing rules, timers, or tile readability.
@@ -1512,7 +1590,7 @@ Closed Beta requires:
 - opt-in research contact consent;
 - public privacy, terms, community, and known-issues pages.
 
-Beta does not require tournament administration, live spectating, replay links, creator accounts, streamer overlays, referrals, promotional carousel, or public leaderboard. Version 1 adds the rating leaderboard and friends but still excludes the other items.
+Beta does not require tournament administration, live spectating, replay links, creator accounts, streamer overlays, referrals, promotional carousel, or public leaderboard. Version 1 adds the rating and Quick Play ladder leaderboards; friends are already present in Beta. The other items remain excluded.
 
 Community moderation requirements are limited to curated names/catalog content, exact-ID friends, preset emotes, reports, blocks, sanctions, and appeals in Section 10. There is no external forum, Discord, creator community, or user-content moderation commitment in the product scope.
 
@@ -1528,7 +1606,8 @@ Mandatory acceptance evidence before public release includes:
 - requirements-to-test traceability for every "must" statement;
 - English and zh-TW content parity;
 - WCAG 2.2 AA audit plus documented game-specific exceptions;
-- supported-device/browser pass;
+- supported-device/browser pass, including an iOS Safari interruption matrix: incoming call, tab switch, five-minute background, storage-pressure eviction, and orientation churn, each followed by resume to synchronized state within target;
+- wireframe and on-device validation of the Section 9.2 simultaneous-visibility requirement at 360 by 640 CSS pixels landscape;
 - load and soak tests at Section 15.4 burst targets;
 - latency, reconnect, recovery, and rollback tests;
 - ledger conservation and idempotency tests;
@@ -1543,7 +1622,7 @@ Mandatory acceptance evidence before public release includes:
 | --- | --- |
 | Broad live service versus web prototype | Beta and Version 1 matrix in Section 2.3; paid/live-service expansion deferred |
 | "Four rounds" terminology | Full Rotation is one East round with four base dealer seats |
-| No Taiwanese authority | Product-owned v1.0 rules, GameTower reference, Rules Lead, and golden suite |
+| No Taiwanese authority | Product-owned v1.1 rules, GameTower reference, Rules Lead, and golden suite |
 | Exponential dealer scaling | Additive Dealer Tai = 1 + 2k, maximum k = 10 |
 | "Tilted draw" | Typo; exhaustive draw uses dealer Ting rule |
 | Flower automation toggle | Replacement mandatory; only animation speed is configurable |
@@ -1577,3 +1656,36 @@ Every clarification ID has a final disposition:
 | OPS-01 through OPS-15 | Sections 15 and 16 | Resolved |
 
 No questionnaire item remains open. Future and non-goal decisions are deliberate scope answers, not unresolved requirements.
+
+### 16.4 Version 1.1 review-incorporation register
+
+Version 1.1 incorporates the 2026-07-17 design review ([mahjong-spec-review.md](mahjong-spec-review.md)). Rules-affecting changes bump the named house standard to Mahjong Taiwanese 16-Tile Rules v1.1; no public match was played under v1.0, so no migration is needed.
+
+| Review finding | Decision | Sections |
+| --- | --- | --- |
+| Timeout-Pass vs discard-Win lock | Server-selected Pass never creates the lock; mandatory golden case | 5.8, 5.10, 1.3 |
+| Eight Flowers / Heavenly Hand declaration undefined | Explicit offer, re-offer, and lapse mechanics defined; server still never auto-declares | 5.9, 1.3 |
+| "Final drawable tile" vs back-of-wall draws | Defined as either-end removal reaching the reserve; final replacement draw stacks Win After Replacement and Last Tile Zimo | 5.9, 6.1 |
+| Kong at exhaustion boundary | Counts as a completed meld for statistics, achievements, and XP | 5.2 |
+| All Chows / No Honors rationale backwards | Wording corrected; non-stacking retained as anti-double-count | 6.2 |
+| Dealer among multiple winners rotates | Retained with mandatory Rulebook divergence callout and expert sign-off | 5.11 |
+| Pong/Kong proximity rule unconstructible | Marked as defensive server invariant | 5.6 |
+| "Dealer-impossible roles" wording | Rewritten plainly | 7.3 |
+| Guests could enter ranked | Ranked Full Rotation requires a linked identity in good standing | 10.1, 12.5 |
+| 20-match leaderboard gate too high | Reduced to 10 with Provisional labeling; season rewards follow | 12.5, 12.8 |
+| Upper lobbies dead content for years | Wind and Cloud and Dragon's Den ship closed behind population/queue-health opening criteria | 7.1, 2.3 |
+| Quick Play had no progression hook | Seasonal Quick Play ladder with cosmetic rewards | 12.9, 8.3, 8.9, 13.2, 2.3 |
+| Beta lacked social and durable identity | Email magic link, friends, and private Quick Play rooms move into Closed Beta; retention gates annotated | 2.3, 2.5, 8.6, 9.1, 10.1, 10.2, 15.1, 15.2, 15.14 |
+| 7-second claim window punishes beginners | Bamboo interception window 10 seconds; public timers live-configurable within approved bounds | 5.10, 13.4 |
+| iOS Safari/PWA lifecycle risk | Hardening requirements plus interruption acceptance matrix | 3.2, 15.6, 16.1 |
+| 360 px layout feasibility unproven | Wireframe and on-device validation gate before UI implementation | 9.2, 16.1 |
+| Endgame too shallow | Achievement catalog expanded from 12 to 32; three new titles | 12.3, 13.2 |
+| Sociality too thin for the audience | 24-phrase curated palette; Add Friend on the result screen; result-card image export | 10.7, 9.7, 8.3, 8.10 |
+| 60-second seat retention too short on mobile | 90 seconds for Quick Play and private rooms; second-device resume defined for linked accounts | 8.7 |
+| Cultural moments underused | Lunar New Year and Mid-Autumn anchor events with missions and cosmetics | 13.5 |
+| Faucet-only inflation unbounded | Economy review triggers, per-tier balance dashboards, faucet-to-cap tracking | 7.5, 7.1, 15.2 |
+| Capped ranked matches asymmetric | Telemetry with a 5% seasonal review trigger | 8.4 |
+| Quick Play dealer variance unmeasured | Mandatory dealer-delta telemetry dashboard | 8.3, 15.2 |
+| No business thesis | Sustainability hypothesis recorded without approving monetization | 2.8 |
+| Accessibility gaps | Mirrored left-handed layout; untimed-queue future scope; separate zh-TW screen-reader audit | 9.3, 9.9 |
+| Roadmap opportunities | Discard puzzle mode, friend spectating, own-match replay, and first Jade sink recorded as prioritized future scope | 2.3, 7.5, 8.6, 8.10 |
