@@ -89,7 +89,7 @@ export const mockMatchTableState: MatchTableState = {
   claimSource: "E",
   countdownSeconds: 7,
   countdownTotalSeconds: 15,
-  legalActions: ["Pass", "Chow", "Pong", "Win"],
+  legalActions: ["Pass", "Chow", "Pong", "Win"].map((label) => ({ id: label, label })),
 };
 
 // A second scenario exercising the timer's urgent state (<=3s) and a
@@ -98,5 +98,5 @@ export const mockMatchTableState: MatchTableState = {
 export const mockMatchTableUrgentState: MatchTableState = {
   ...mockMatchTableState,
   countdownSeconds: 2,
-  legalActions: ["Pass"],
+  legalActions: [{ id: "Pass", label: "Pass" }],
 };

@@ -16,18 +16,50 @@ type SeatView struct {
 	ActiveSeat   Seat           `json:"active_seat"`
 	OwnHand      []Tile         `json:"own_hand"`
 	OwnExposed   []Tile         `json:"own_exposed"`
+	OwnMelds     []Meld         `json:"own_melds,omitempty"`
 	Players      []PlayerView   `json:"players"`
 	Wall         WallView       `json:"wall"`
-	LastDiscard  *Discard       `json:"last_discard,omitempty"`
-	Claim        *SeatClaimView `json:"claim,omitempty"`
-	WinLocked    bool           `json:"win_locked,omitempty"`
+	// Discards is the full public discard pile for every seat, chronological
+	// by Sequence (§9.2's per-seat discard grids) — every discard is public
+	// information in this ruleset, so no redaction is needed here.
+	Discards    []Discard      `json:"discards,omitempty"`
+	LastDiscard *Discard       `json:"last_discard,omitempty"`
+	Claim       *SeatClaimView `json:"claim,omitempty"`
+	WinLocked   bool           `json:"win_locked,omitempty"`
+	// TurnDeadline is the active seat's §5.10 draw/discard decision
+	// deadline, formatted the same way Claim.Deadline is. Only meaningful
+	// while Phase is awaiting_draw or awaiting_discard — a stale value
+	// while the engine is in another phase must not be treated as live
+	// (mirrors TurnEngine.TurnDeadline's own doc comment).
+	TurnDeadline string `json:"turn_deadline,omitempty"`
 }
 
 type PlayerView struct {
-	Seat      Seat   `json:"seat"`
-	HandCount int    `json:"hand_count"`
-	Exposed   []Tile `json:"exposed,omitempty"`
-	MeldCount int    `json:"meld_count,omitempty"`
+	Seat      Seat       `json:"seat"`
+	HandCount int        `json:"hand_count"`
+	Exposed   []Tile     `json:"exposed,omitempty"`
+	MeldCount int        `json:"meld_count,omitempty"`
+	Melds     []MeldView `json:"melds,omitempty"`
+}
+
+// MeldView is a redacted projection of a Meld for a seat other than its
+// owner: Tiles is present for every exposed (Pong/Chow/added- or
+// claimed-Kong) meld, but omitted for a concealed Kong — a concealed
+// meld's tile identities remain hidden from opponents until revealed at
+// showdown, matching real play (a concealed Kong shows face-down to
+// everyone but its owner).
+type MeldView struct {
+	Type      MeldType `json:"type"`
+	Tiles     []Tile   `json:"tiles,omitempty"`
+	Concealed bool     `json:"concealed,omitempty"`
+}
+
+func meldView(meld Meld, owner bool) MeldView {
+	view := MeldView{Type: meld.Type, Concealed: meld.Concealed}
+	if owner || !meld.Concealed {
+		view.Tiles = append([]Tile(nil), meld.Tiles...)
+	}
+	return view
 }
 
 type WallView struct {
@@ -46,6 +78,56 @@ type SeatClaimView struct {
 	Deadline     string         `json:"deadline"`
 	Eligible     []Seat         `json:"eligible"`
 	OwnResponse  *ClaimResponse `json:"own_response,omitempty"`
+	// Options is the requesting seat's own legal claim responses (E8.F3:
+	// "no legality computed client-side" — the browser must be told which
+	// actions are legal, not infer them from its own hand). Absent
+	// (zero-value) when the seat is not itself eligible for this window.
+	Options ClaimOptionsView `json:"options"`
+}
+
+// ClaimOptionsView is one seat's legal responses to a pending discard, per
+// the same legality the engine itself enforces in SubmitClaim.
+type ClaimOptionsView struct {
+	CanWin   bool        `json:"can_win,omitempty"`
+	CanPong  bool        `json:"can_pong,omitempty"`
+	CanKong  bool        `json:"can_kong,omitempty"`
+	ChowSets [][2]string `json:"chow_sets,omitempty"`
+}
+
+// claimOptionsFor computes seat's legal responses to discard, reusing the
+// same canPong/canKong/winValidator legality SubmitClaim itself checks —
+// there is deliberately no separate/looser client-facing notion of
+// legality here.
+func (e *TurnEngine) claimOptionsFor(seat Seat, discard Discard) ClaimOptionsView {
+	options := ClaimOptionsView{
+		CanWin:  !e.winLocks[seat] && e.winValidator != nil && e.winValidator(e.Deal, seat, discard.Tile),
+		CanPong: e.canPong(seat, discard.Tile, nil),
+		CanKong: e.canKong(seat, discard.Tile, nil),
+	}
+	if discard.Tile.IsNumbered() && seat == nextSeat(discard.Seat) {
+		player, err := e.player(seat)
+		if err == nil {
+			find := func(rank int) *Tile {
+				if rank < 1 || rank > 9 {
+					return nil
+				}
+				for index := range player.Hand {
+					if player.Hand[index].Kind == discard.Tile.Kind && int(player.Hand[index].Rank) == rank {
+						return &player.Hand[index]
+					}
+				}
+				return nil
+			}
+			rank := int(discard.Tile.Rank)
+			for _, pair := range [][2]int{{rank - 2, rank - 1}, {rank - 1, rank + 1}, {rank + 1, rank + 2}} {
+				first, second := find(pair[0]), find(pair[1])
+				if first != nil && second != nil {
+					options.ChowSets = append(options.ChowSets, [2]string{first.ID, second.ID})
+				}
+			}
+		}
+	}
+	return options
 }
 
 var ErrProjectionSeat = errors.New("projection seat is unknown")
@@ -67,24 +149,33 @@ func (e *TurnEngine) ProjectSeat(matchID string, seat Seat) (SeatView, error) {
 		OwnHand:      append([]Tile(nil), player.Hand...),
 		OwnExposed:   append([]Tile(nil), player.Exposed...),
 		Players:      make([]PlayerView, 0, len(e.Deal.Players)),
+		Discards:     append([]Discard(nil), e.discards...),
 		Wall: WallView{
 			Remaining:         e.Deal.Wall.Remaining(),
 			DrawableRemaining: e.Deal.Wall.DrawableRemaining(),
 			ReserveRemaining:  e.Deal.Wall.ReserveRemaining(),
 		},
 		WinLocked: e.winLocks[seat],
+		OwnMelds:  append([]Meld(nil), player.Melds...),
+	}
+	if e.TurnDeadline != nil {
+		view.TurnDeadline = e.TurnDeadline.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 	}
 	for _, candidate := range e.Deal.Players {
+		owner := candidate.Seat == seat
 		playerView := PlayerView{
 			Seat:      candidate.Seat,
 			HandCount: len(candidate.Hand),
 			MeldCount: len(candidate.Melds),
 			Exposed:   append([]Tile(nil), candidate.Exposed...),
 		}
-		if candidate.Seat == seat {
+		if owner {
 			// OwnExposed is the canonical copy; keep the per-player field public
 			// for consumers that render all four boards from one array.
 			playerView.Exposed = append([]Tile(nil), candidate.Exposed...)
+		}
+		for _, meld := range candidate.Melds {
+			playerView.Melds = append(playerView.Melds, meldView(meld, owner))
 		}
 		view.Players = append(view.Players, playerView)
 	}
@@ -105,6 +196,9 @@ func (e *TurnEngine) ProjectSeat(matchID string, seat Seat) (SeatView, error) {
 			copy := response
 			copy.TileIDs = append([]string(nil), response.TileIDs...)
 			view.Claim.OwnResponse = &copy
+		}
+		if containsSeat(claim.Eligible, seat) {
+			view.Claim.Options = e.claimOptionsFor(seat, claim.Discard)
 		}
 	}
 	return view, nil

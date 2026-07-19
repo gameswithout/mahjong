@@ -285,20 +285,12 @@ h1 {
   margin: 0.9rem 0 0.45rem;
 }
 
-.runtime-hand {
-  display: grid;
-  gap: 0.35rem;
-  grid-template-columns: repeat(auto-fit, minmax(5.25rem, 1fr));
-}
-
-.runtime-tile {
-  background: #f7f4ee;
-  border: 2px solid #c7aa68;
-  border-radius: 0.55rem;
-  color: #211c2c;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.67rem;
-  min-height: 44px;
-  overflow-wrap: anywhere;
-  padding: 0.4rem;
+.match-table-frame {
+  /* §9.2's validated minimum (E7.F5); MatchTable itself fills this
+     container (height: 100%), so the frame is what actually sizes it here. */
+  height: 360px;
+  margin: 0.75rem 0;
+  min-width: 640px;
+  overflow-x: auto;
+  width: 100%;
 }

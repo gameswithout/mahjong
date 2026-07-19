@@ -67,6 +67,17 @@ export interface ClaimResponse {
   deliberate?: boolean;
 }
 
+// ClaimOptionsView is the requesting seat's own legal claim responses,
+// computed server-side (E8.F3: "no legality computed client-side" — the
+// browser is told which actions are legal, never left to infer them from
+// its own hand).
+export interface ClaimOptionsView {
+  can_win?: boolean;
+  can_pong?: boolean;
+  can_kong?: boolean;
+  chow_sets?: [string, string][];
+}
+
 export interface SeatClaimView {
   action_id: string;
   state_version: number;
@@ -74,6 +85,19 @@ export interface SeatClaimView {
   deadline: string;
   eligible: MahjongSeat[];
   own_response?: ClaimResponse;
+  options: ClaimOptionsView;
+}
+
+export type MeldType = "chow" | "pong" | "kong";
+
+// MeldView mirrors rulesengine.MeldView: Tiles is present for the meld's
+// owner and for any exposed (non-concealed) meld, but omitted for another
+// seat's concealed Kong — a concealed meld's tile identities stay hidden
+// from opponents until revealed, matching real play.
+export interface MeldView {
+  type: MeldType;
+  tiles?: MahjongTile[];
+  concealed?: boolean;
 }
 
 export interface PlayerView {
@@ -81,6 +105,7 @@ export interface PlayerView {
   hand_count: number;
   exposed?: MahjongTile[];
   meld_count?: number;
+  melds?: MeldView[];
 }
 
 export interface SeatView {
@@ -91,15 +116,22 @@ export interface SeatView {
   active_seat: MahjongSeat;
   own_hand: MahjongTile[];
   own_exposed: MahjongTile[];
+  own_melds?: MeldView[];
   players: PlayerView[];
   wall: {
     remaining: number;
     drawable_remaining: number;
     reserve_remaining: number;
   };
+  // discards is the full public discard pile for every seat, chronological
+  // by sequence — every discard is public information in this ruleset.
+  discards?: PublicDiscard[];
   last_discard?: PublicDiscard;
   claim?: SeatClaimView;
   win_locked?: boolean;
+  // turn_deadline is only meaningful while phase is awaiting_draw or
+  // awaiting_discard.
+  turn_deadline?: string;
 }
 
 export interface MatchJoinRequest {

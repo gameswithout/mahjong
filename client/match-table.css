@@ -365,6 +365,41 @@ body {
   min-width: 32px;
 }
 
+.local-hand-tile-button {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.local-hand-tile-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.local-hand-tile-selected {
+  background: rgba(242, 198, 109, 0.35);
+  box-shadow: 0 0 0 2px #f2c66d inset;
+}
+
+.local-hand-tile-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.discard-confirm-row {
+  display: flex;
+  justify-content: center;
+  padding: 1px 0;
+}
+
+.local-draw-button {
+  margin-left: 4px;
+}
+
 .action-row {
   align-items: center;
   display: flex;

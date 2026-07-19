@@ -16,6 +16,10 @@ export interface WireMeld {
   type: "chow" | "pong" | "kong";
   tiles: WireTile[];
   concealed?: boolean;
+  // tileCount is set instead of populating tiles when concealed is true
+  // and the tile identities are not visible to the viewer (another seat's
+  // concealed Kong) — rendered as face-down placeholders.
+  tileCount?: number;
 }
 
 export interface SeatState {
@@ -35,6 +39,16 @@ export interface WallState {
   reserveRemaining: number;
 }
 
+// MatchAction is one legal-action button (§9.4/E8.F3). onClick is omitted
+// for the E7.F5 static wireframe/mock data, where buttons render but do
+// nothing; E8's live adapter always supplies one.
+export interface MatchAction {
+  id: string;
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
 export interface MatchTableState {
   localSeat: SeatId;
   prevailingWind: SeatId;
@@ -45,7 +59,7 @@ export interface MatchTableState {
   claimSource: SeatId | null;
   countdownSeconds: number;
   countdownTotalSeconds: number;
-  legalActions: string[];
+  legalActions: MatchAction[];
 }
 
 const SUIT_GLYPHS: Record<string, string> = {

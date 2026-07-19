@@ -1,4 +1,4 @@
-import type { MatchTableState, SeatId, SeatState, WireMeld, WireTile } from "./matchTableTypes";
+import type { MatchAction, MatchTableState, SeatId, SeatState, WireMeld, WireTile } from "./matchTableTypes";
 import { windName } from "./matchTableTypes";
 
 // §9.2 static wireframe: proves every simultaneous-visibility element
@@ -34,6 +34,19 @@ function Tile({ t, size = "md", faceDown = false }: { t: WireTile; size?: "sm" |
 }
 
 function MeldGroup({ meld }: { meld: WireMeld }) {
+  // A concealed meld belonging to another seat arrives with no tile
+  // identities (server-redacted) — render face-down placeholders instead
+  // of leaking nothing-to-leak but also not falsely claiming zero tiles.
+  if (meld.concealed && meld.tiles.length === 0) {
+    const count = meld.tileCount ?? 4;
+    return (
+      <span className="meld" aria-label={`concealed ${meld.type}, ${count} tiles`}>
+        {Array.from({ length: count }).map((_, index) => (
+          <Tile key={index} t={{ id: `${meld.id}-back-${index}`, glyph: "", label: "concealed tile" }} size="sm" faceDown />
+        ))}
+      </span>
+    );
+  }
   return (
     <span className="meld" aria-label={`${meld.concealed ? "concealed " : ""}${meld.type} of ${meld.tiles.map((item) => item.label).join(", ")}`}>
       {meld.tiles.map((item) => (
@@ -146,13 +159,45 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
   );
 }
 
-function LocalSeat({ state, lastDiscardTileId }: { state: SeatState; lastDiscardTileId?: string }) {
+function LocalSeat({
+  state,
+  lastDiscardTileId,
+  selectable,
+  selectedTileId,
+  onSelectTile,
+  onConfirmDiscard,
+  discardPending,
+  canDraw,
+  onDraw,
+  drawPending,
+}: {
+  state: SeatState;
+  lastDiscardTileId?: string;
+  selectable?: boolean;
+  selectedTileId?: string | null;
+  onSelectTile?: (tileId: string) => void;
+  onConfirmDiscard?: () => void;
+  discardPending?: boolean;
+  canDraw?: boolean;
+  onDraw?: () => void;
+  drawPending?: boolean;
+}) {
   return (
     <section className="seat seat-bottom local-seat" aria-label="Your seat">
       <header className="seat-header">
         <span className="wind-badge">{windName(state.wind).slice(0, 1)}</span>
         {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
         <span className="local-label">You</span>
+        {canDraw ? (
+          <button
+            type="button"
+            className="action-button action-draw local-draw-button"
+            onClick={onDraw}
+            disabled={drawPending}
+          >
+            {drawPending ? "Drawing…" : "Draw"}
+          </button>
+        ) : null}
       </header>
       {state.melds.length > 0 ? (
         <div className="meld-area" aria-label="Your exposed melds">
@@ -163,29 +208,80 @@ function LocalSeat({ state, lastDiscardTileId }: { state: SeatState; lastDiscard
       ) : null}
       <DiscardGrid discards={state.discards} highlightId={lastDiscardTileId} />
       <div className="local-hand" role="list" aria-label="Your hand">
-        {(state.hand ?? []).map((item) => (
-          <span key={item.id} role="listitem" className="local-hand-tile-wrap">
-            <Tile t={item} size="lg" />
-          </span>
-        ))}
+        {(state.hand ?? []).map((item) => {
+          const selected = selectedTileId === item.id;
+          if (!selectable) {
+            return (
+              <span key={item.id} role="listitem" className="local-hand-tile-wrap">
+                <Tile t={item} size="lg" />
+              </span>
+            );
+          }
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="listitem"
+              className={`local-hand-tile-wrap local-hand-tile-button${selected ? " local-hand-tile-selected" : ""}`}
+              aria-pressed={selected}
+              aria-label={selected ? `${item.label}, selected. Activate again or confirm to discard.` : `Select ${item.label} to discard`}
+              disabled={discardPending}
+              onClick={() => onSelectTile?.(item.id)}
+            >
+              <Tile t={item} size="lg" />
+            </button>
+          );
+        })}
       </div>
+      {selectable && selectedTileId ? (
+        <div className="discard-confirm-row">
+          <button
+            type="button"
+            className="action-button action-discard-confirm"
+            onClick={onConfirmDiscard}
+            disabled={discardPending}
+          >
+            {discardPending ? "Discarding…" : "Discard"}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
 
-function ActionRow({ actions }: { actions: string[] }) {
+function ActionRow({ actions }: { actions: MatchAction[] }) {
+  if (actions.length === 0) {
+    return null;
+  }
   return (
     <div className="action-row" role="group" aria-label="Legal actions">
       {actions.map((action) => (
-        <button key={action} type="button" className={`action-button action-${action.toLowerCase()}`}>
-          {action}
+        <button
+          key={action.id}
+          type="button"
+          className={`action-button action-${action.id.toLowerCase()}`}
+          onClick={action.onClick}
+          disabled={action.disabled}
+        >
+          {action.label}
         </button>
       ))}
     </div>
   );
 }
 
-export function MatchTable({ state }: { state: MatchTableState }) {
+export interface MatchTableInteraction {
+  canDiscard?: boolean;
+  selectedTileId?: string | null;
+  onSelectTile?: (tileId: string) => void;
+  onConfirmDiscard?: () => void;
+  discardPending?: boolean;
+  canDraw?: boolean;
+  onDraw?: () => void;
+  drawPending?: boolean;
+}
+
+export function MatchTable({ state, interaction }: { state: MatchTableState; interaction?: MatchTableInteraction }) {
   const slots = remapSeats(state.localSeat);
   const local = state.seats[state.localSeat];
   const lastDiscardTileId = state.lastDiscard?.tile.id;
@@ -217,7 +313,18 @@ export function MatchTable({ state }: { state: MatchTableState }) {
         lastDiscardTileId={state.lastDiscard?.seat === slots.right ? lastDiscardTileId : undefined}
         claimSource={state.claimSource}
       />
-      <LocalSeat state={local} lastDiscardTileId={state.lastDiscard?.seat === state.localSeat ? lastDiscardTileId : undefined} />
+      <LocalSeat
+        state={local}
+        lastDiscardTileId={state.lastDiscard?.seat === state.localSeat ? lastDiscardTileId : undefined}
+        selectable={interaction?.canDiscard}
+        selectedTileId={interaction?.selectedTileId}
+        onSelectTile={interaction?.onSelectTile}
+        onConfirmDiscard={interaction?.onConfirmDiscard}
+        discardPending={interaction?.discardPending}
+        canDraw={interaction?.canDraw}
+        onDraw={interaction?.onDraw}
+        drawPending={interaction?.drawPending}
+      />
       <ActionRow actions={state.legalActions} />
     </div>
   );

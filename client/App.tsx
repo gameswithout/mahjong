@@ -23,8 +23,11 @@ import {
   MatchRuntimeError,
   type MatchRuntimeConnection,
 } from "./match-runtime";
-import type { MatchCommandRequest, MahjongTile, SeatView } from "../protocol/envelope";
+import type { ClaimType, MatchCommandRequest, SeatView } from "../protocol/envelope";
+import { MatchTable } from "./MatchTable";
+import { seatViewToMatchTableState } from "./matchTableAdapter";
 import "./styles.css";
+import "./match-table.css";
 
 type LobbyStatus = "connecting" | "connected" | "reconnecting";
 
@@ -102,6 +105,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [matchmakingState, setMatchmakingState] = useState<MatchmakingState>({ status: "idle" });
   const [matchRuntimeState, setMatchRuntimeState] = useState<MatchRuntimeState>({ status: "idle" });
   const [joinSessionId, setJoinSessionId] = useState("");
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const lobbyRef = useRef<LobbyConnection | null>(null);
   const matchRuntimeRef = useRef<MatchRuntimeConnection | null>(null);
   const matchRuntimeMatchIdRef = useRef<string | null>(null);
@@ -229,6 +234,58 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       window.clearInterval(interval);
     };
   }, [activeTicketId, matchmakingState.status]);
+
+  const matchRuntimeJoined = matchRuntimeState.status === "joined";
+
+  // The §5.10/§9.4 countdown is a pure function of (deadline, now); ticking
+  // a render clock while a hand is live is enough to keep it accurate
+  // without the server pushing per-second updates.
+  useEffect(() => {
+    if (!matchRuntimeJoined) {
+      return;
+    }
+    const interval = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [matchRuntimeJoined]);
+
+  // driveLocked (both match runtimes) is lazy — it only advances an overdue
+  // deadline when some client's request touches the match. Polling keeps
+  // this seat's own view fresh (an opponent's auto-discard, a takeover
+  // move, a resolved claim window) even when this player is not otherwise
+  // acting, matching what another seat's own polling would already do for
+  // them.
+  useEffect(() => {
+    if (!matchRuntimeJoined) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      try {
+        matchRuntimeRef.current?.sync();
+      } catch {
+        // onError already routes connection failures into matchRuntimeState.
+      }
+    }, 4000);
+    return () => window.clearInterval(interval);
+  }, [matchRuntimeJoined]);
+
+  // A tile selected for discard stops being valid the moment the turn
+  // moves on (our own confirmed discard, a claim stealing it, a timeout).
+  useEffect(() => {
+    if (matchRuntimeState.status !== "joined") {
+      setSelectedTileId(null);
+      return;
+    }
+    const canDiscard =
+      matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
+      matchRuntimeState.view.phase === "awaiting_discard";
+    if (!canDiscard) {
+      setSelectedTileId(null);
+      return;
+    }
+    setSelectedTileId((current) =>
+      current && matchRuntimeState.view.own_hand.some((item) => item.id === current) ? current : null,
+    );
+  }, [matchRuntimeState]);
 
   async function signInAsGuest() {
     sessionRequestRef.current += 1;
@@ -668,33 +725,56 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     });
   }
 
-  function discardTile(tile: MahjongTile) {
-    if (matchRuntimeState.status !== "joined") {
+  // Select/confirm discard (E8.F2, §9.3/§9.6): clicking a hand tile only
+  // selects it; discarding is a separate, explicit confirm so a misclick
+  // is free to undo (select a different tile, or the same one again to
+  // deselect) any time before the confirm button is actually pressed.
+  function selectHandTile(tileId: string) {
+    setSelectedTileId((current) => (current === tileId ? null : tileId));
+  }
+
+  function confirmDiscard() {
+    if (matchRuntimeState.status !== "joined" || !selectedTileId) {
       return;
     }
     sendMatchCommand({
       type: "discard",
       expected_version: matchRuntimeState.view.state_version,
-      tile_id: tile.id,
+      tile_id: selectedTileId,
     });
+    setSelectedTileId(null);
   }
 
-  function passClaim() {
+  // dispatchClaimAction sends whichever legal claim response the match
+  // table's action row was clicked for. Every id it can be called with
+  // traces back to a ClaimOptionsView the server computed (E8.F3: "no
+  // legality computed client-side") via matchTableAdapter's
+  // claimLegalActions, not anything guessed here.
+  function dispatchClaimAction(actionId: string, tileIds?: [string, string]) {
     if (matchRuntimeState.status !== "joined" || !matchRuntimeState.view.claim) {
       return;
     }
     const claim = matchRuntimeState.view.claim;
+    const typeByAction: Record<string, ClaimType> = {
+      win: "win",
+      pong: "pong",
+      kong: "kong",
+      pass: "pass",
+    };
+    const type: ClaimType = actionId.startsWith("chow") ? "chow" : (typeByAction[actionId] ?? "pass");
     sendMatchCommand({
       type: "submit_claim",
       expected_version: matchRuntimeState.view.state_version,
       claim: {
         action_id: claim.action_id,
-        type: "pass",
+        type,
+        tile_ids: tileIds,
         state_version: matchRuntimeState.view.state_version,
-        response_revision: claim.own_response
-          ? claim.own_response.response_revision + 1
-          : 0,
-        deliberate: true,
+        response_revision: claim.own_response ? claim.own_response.response_revision + 1 : 0,
+        // deliberate only matters for Pass — a genuine human Pass on a
+        // legal Win is what creates the §5.8 discard-Win lock; it has no
+        // meaning for Win/Pong/Kong/Chow itself.
+        deliberate: type === "pass",
       },
     });
   }
@@ -937,81 +1017,34 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
                       {matchRuntimeState.status === "joined" && (
                         <div className="runtime-state" role="status" aria-live="polite">
-                          <p className="session-detail">
-                            Seat: {matchRuntimeState.view.seat} · Phase:{" "}
-                            {matchRuntimeState.view.phase}
-                          </p>
-                          <p className="session-detail">
-                            State version: {matchRuntimeState.view.state_version} · Active:{" "}
-                            {matchRuntimeState.view.active_seat}
-                          </p>
-                          <p className="session-detail">
-                            Drawable wall: {matchRuntimeState.view.wall.drawable_remaining} ·
-                            Reserve: {matchRuntimeState.view.wall.reserve_remaining}
-                          </p>
-
-                          {matchRuntimeState.view.active_seat ===
-                            matchRuntimeState.view.seat &&
-                            matchRuntimeState.view.phase === "awaiting_draw" && (
-                              <button
-                                className="primary-action runtime-primary-action"
-                                type="button"
-                                onClick={drawTile}
-                                disabled={matchRuntimeState.commandPending}
-                              >
-                                {matchRuntimeState.commandPending ? "Drawing…" : "Draw tile"}
-                              </button>
-                            )}
-
-                          <p className="runtime-hand-label">
-                            Your concealed hand ({matchRuntimeState.view.own_hand.length})
-                          </p>
-                          <div className="runtime-hand" aria-label="Your concealed hand">
-                            {matchRuntimeState.view.own_hand.map((tile) => {
-                              const canDiscard =
-                                matchRuntimeState.view.active_seat ===
-                                  matchRuntimeState.view.seat &&
-                                matchRuntimeState.view.phase === "awaiting_discard";
-                              return (
-                                <button
-                                  className="runtime-tile"
-                                  type="button"
-                                  key={tile.id}
-                                  onClick={() => discardTile(tile)}
-                                  disabled={!canDiscard || matchRuntimeState.commandPending}
-                                  aria-label={
-                                    canDiscard
-                                      ? `Discard ${tile.id}`
-                                      : `${tile.id}, not currently discardable`
-                                  }
-                                >
-                                  {tile.id}
-                                </button>
-                              );
-                            })}
+                          <div className="match-table-frame">
+                            <MatchTable
+                              state={seatViewToMatchTableState(matchRuntimeState.view, {
+                                now: nowTick,
+                                onClaimAction: dispatchClaimAction,
+                              })}
+                              interaction={{
+                                canDraw:
+                                  matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
+                                  matchRuntimeState.view.phase === "awaiting_draw",
+                                onDraw: drawTile,
+                                drawPending: matchRuntimeState.commandPending,
+                                canDiscard:
+                                  matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
+                                  matchRuntimeState.view.phase === "awaiting_discard",
+                                selectedTileId,
+                                onSelectTile: selectHandTile,
+                                onConfirmDiscard: confirmDiscard,
+                                discardPending: matchRuntimeState.commandPending,
+                              }}
+                            />
                           </div>
 
-                          {matchRuntimeState.view.phase === "claim_window" &&
-                            matchRuntimeState.view.claim?.eligible.includes(
-                              matchRuntimeState.view.seat,
-                            ) &&
-                            !matchRuntimeState.view.claim.own_response && (
-                              <button
-                                className="secondary-action session-action"
-                                type="button"
-                                onClick={passClaim}
-                                disabled={matchRuntimeState.commandPending}
-                              >
-                                {matchRuntimeState.commandPending ? "Passing…" : "Pass claim"}
-                              </button>
-                            )}
-
-                          {matchRuntimeState.view.active_seat !==
-                            matchRuntimeState.view.seat && (
-                              <p className="runtime-message">
-                                Waiting for seat {matchRuntimeState.view.active_seat}.
-                              </p>
-                            )}
+                          {matchRuntimeState.view.active_seat !== matchRuntimeState.view.seat && (
+                            <p className="runtime-message">
+                              Waiting for seat {matchRuntimeState.view.active_seat}.
+                            </p>
+                          )}
 
                           <button
                             className="secondary-action session-action"
