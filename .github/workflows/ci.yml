@@ -1,0 +1,71 @@
+name: CI
+
+# E0.F2: per-PR lint + typecheck + unit tests across every toolchain in the
+# monorepo. Deliberately scoped to the build/verify gate only — preview
+# deploys, the migration gate, and IaC (E0.F3/F6) need an actual
+# hosting/cloud decision this workflow does not make.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-root:
+    name: Go (root module)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - run: go vet ./...
+      # bots is excluded from -race: it is CPU-bound simulation, not
+      # concurrency-sensitive code, and the race detector's overhead there
+      # is ~9x (28s -> 260s) for no correctness signal specific to this
+      # package. The concurrency-relevant packages (server/match etc.)
+      # are covered.
+      - run: go test $(go list ./... | grep -v '/bots$') -race -count=1
+      - run: go test ./bots/... -count=1
+
+  go-match-service:
+    name: Go (mahjong-match-service)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mahjong-match-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mahjong-match-service/go.mod
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./... -race -count=1
+      # This module's Docker image builds with -mod=vendor against a
+      # vendor/ directory that is gitignored and regenerated on demand
+      # (see mahjong-match-service/Dockerfile) — never committed, so
+      # there is nothing to diff for staleness. What CI can and should
+      # catch is a vendor build that would fail outright, e.g. a source
+      # change in the replaced root module (rulesengine/bots) that the
+      # normal (non-vendor) build above wouldn't exercise the same way.
+      - run: go mod vendor
+      - run: go build -mod=vendor ./...
+
+  client:
+    name: Client (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
