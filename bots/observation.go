@@ -20,13 +20,13 @@ const (
 	AIVersion    = "v1.0.0"
 )
 
-// Difficulty selects a bot's decision policy (§11.3). Hard is defined by a
-// later feature (E3.F3) and has no policy implementation here.
+// Difficulty selects a bot's decision policy (§11.3).
 type Difficulty string
 
 const (
 	Easy   Difficulty = "easy"
 	Medium Difficulty = "medium"
+	Hard   Difficulty = "hard"
 )
 
 var (

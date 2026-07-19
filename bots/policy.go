@@ -47,6 +47,8 @@ func reactionRange(difficulty Difficulty) (time.Duration, time.Duration) {
 		return 800 * time.Millisecond, 1800 * time.Millisecond
 	case Medium:
 		return 900 * time.Millisecond, 2000 * time.Millisecond
+	case Hard:
+		return 1000 * time.Millisecond, 2300 * time.Millisecond
 	default:
 		return time.Second, time.Second
 	}
