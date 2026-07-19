@@ -6,6 +6,7 @@ import (
 	"fmt"
 	mathrand "math/rand"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"testing"
 	"time"
@@ -16,6 +17,10 @@ import (
 // replay determinism at the end, and settlement conservation for winning
 // results. The failure artifact is the seed printed by t.Fatalf: re-run with
 // MAHJONG_SIM_SEED=<seed> MAHJONG_SIM_HANDS=1 to replay one hand exactly.
+//
+// The default run (25 hands) is cheap enough for every `go test`. The 1M-hand
+// RC gate is opt-in via MAHJONG_SIM_HANDS and is not run by default — see
+// scripts/run-rc-simulator.sh.
 func TestSimulatorRandomHands(t *testing.T) {
 	baseSeed := uint64(20260718)
 	hands := 25
@@ -33,9 +38,19 @@ func TestSimulatorRandomHands(t *testing.T) {
 		}
 		hands = parsed
 	}
+	if hands > 200 {
+		// Large RC-gate batches are allocation-heavy (hand evaluation search);
+		// a higher GC target trades peak memory for materially less GC churn.
+		// Not deferred/restored: t.Parallel() subtests run after this function
+		// returns, so a deferred restore would fire before they start.
+		debug.SetGCPercent(400)
+	}
 	for offset := 0; offset < hands; offset++ {
 		seed := baseSeed + uint64(offset)
 		t.Run(fmt.Sprintf("seed-%d", seed), func(t *testing.T) {
+			if hands > 200 {
+				t.Parallel()
+			}
 			runSimulatedHand(t, seed)
 		})
 	}
@@ -311,6 +326,17 @@ func chowIDs(player *PlayerState, discard Tile) []string {
 // assertTileConservation verifies that every catalog tile exists exactly once
 // across the wall, hands, melds, exposed bonus tiles, the discard pile, and a
 // winning tile held by the hand result.
+// catalogIDs is computed once; Catalog() rebuilds and re-formats all 144
+// tile IDs on every call, which is too expensive to run on every simulated
+// step across a million-hand batch.
+var catalogIDs = func() map[string]struct{} {
+	ids := make(map[string]struct{}, len(Catalog()))
+	for _, item := range Catalog() {
+		ids[item.ID] = struct{}{}
+	}
+	return ids
+}()
+
 func assertTileConservation(t *testing.T, seed uint64, step int, engine *TurnEngine) {
 	t.Helper()
 	counts := map[string]int{}
@@ -340,13 +366,13 @@ func assertTileConservation(t *testing.T, seed uint64, step int, engine *TurnEng
 		(result.Kind == WinDiscard || result.Kind == WinRob) {
 		counts[result.WinningTileID]++
 	}
-	for _, item := range Catalog() {
-		if counts[item.ID] != 1 {
-			t.Fatalf("seed %d step %d: tile %s counted %d times", seed, step, item.ID, counts[item.ID])
-		}
+	if len(counts) != len(catalogIDs) {
+		t.Fatalf("seed %d step %d: %d distinct tile IDs in play, want %d", seed, step, len(counts), len(catalogIDs))
 	}
-	if extra := len(counts) - len(Catalog()); extra != 0 {
-		t.Fatalf("seed %d step %d: %d unknown tile IDs in play", seed, step, extra)
+	for id := range catalogIDs {
+		if counts[id] != 1 {
+			t.Fatalf("seed %d step %d: tile %s counted %d times", seed, step, id, counts[id])
+		}
 	}
 }
 

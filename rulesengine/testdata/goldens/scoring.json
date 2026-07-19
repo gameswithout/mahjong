@@ -6,70 +6,160 @@
     {
       "name": "maximum-69-heavenly-hand",
       "hand": [
-        "wind-east-1", "wind-east-2", "wind-east-3",
-        "wind-south-1", "wind-south-2", "wind-south-3",
-        "wind-west-1", "wind-west-2", "wind-west-3",
-        "wind-north-1", "wind-north-2", "wind-north-3",
-        "dragon-red-1", "dragon-red-2", "dragon-red-3",
-        "dragon-green-1", "dragon-green-2"
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "wind-south-1",
+        "wind-south-2",
+        "wind-south-3",
+        "wind-west-1",
+        "wind-west-2",
+        "wind-west-3",
+        "wind-north-1",
+        "wind-north-2",
+        "wind-north-3",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-green-1",
+        "dragon-green-2"
       ],
       "melds": [],
-      "flowers": ["flower-spring", "flower-summer", "flower-autumn", "flower-winter", "flower-plum"],
-      "context": {"seat": "E", "heavenly_hand": true},
+      "flowers": [
+        "flower-spring",
+        "flower-summer",
+        "flower-autumn",
+        "flower-winter",
+        "flower-plum"
+      ],
+      "context": {
+        "seat": "E",
+        "heavenly_hand": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 69,
         "patterns": {
+          "All Honors": 8,
+          "All Pongs": 4,
           "Base Win": 1,
-          "Heavenly Hand": 24,
+          "Big Four Winds": 16,
+          "Complete Seasons": 2,
           "Concealed": 1,
           "Five Concealed Pongs": 8,
-          "All Pongs": 4,
-          "All Honors": 8,
-          "Big Four Winds": 16,
-          "Red Dragon Set": 1,
-          "Seat Wind Set": 1,
-          "Prevailing Wind Set": 1,
+          "Heavenly Hand": 24,
           "Matching Flower": 2,
-          "Complete Seasons": 2
+          "Prevailing Wind Set": 1,
+          "Red Dragon Set": 1,
+          "Seat Wind Set": 1
         }
       }
     },
     {
       "name": "all-chows-discard-win",
       "hand": [
-        "characters-1-1", "characters-2-1", "characters-3-1",
-        "characters-4-1", "characters-5-1", "characters-6-1",
-        "bamboo-1-1", "bamboo-2-1", "bamboo-3-1",
-        "bamboo-4-1", "bamboo-5-1", "bamboo-6-1",
-        "dots-1-1", "dots-2-1", "dots-3-1",
-        "dots-5-1", "dots-5-2"
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-5-1",
+        "dots-5-2"
       ],
       "melds": [],
       "flowers": [],
-      "context": {"seat": "S", "discard_win": true},
+      "context": {
+        "seat": "S",
+        "discard_win": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 4,
-        "patterns": {"Base Win": 1, "Concealed": 1, "All Chows": 2}
+        "patterns": {
+          "All Chows": 2,
+          "Base Win": 1,
+          "Concealed": 1
+        }
       }
     },
     {
       "name": "fully-exposed-suppresses-single-wait",
-      "hand": ["dots-5-1", "dots-5-2"],
+      "hand": [
+        "dots-5-1",
+        "dots-5-2"
+      ],
       "melds": [
-        {"type": "pong", "tiles": ["bamboo-1-1", "bamboo-1-2", "bamboo-1-3"], "claimed": true},
-        {"type": "pong", "tiles": ["bamboo-2-1", "bamboo-2-2", "bamboo-2-3"], "claimed": true},
-        {"type": "pong", "tiles": ["bamboo-3-1", "bamboo-3-2", "bamboo-3-3"], "claimed": true},
-        {"type": "pong", "tiles": ["dots-1-1", "dots-1-2", "dots-1-3"], "claimed": true},
-        {"type": "pong", "tiles": ["characters-1-1", "characters-1-2", "characters-1-3"], "claimed": true}
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-1-1",
+            "bamboo-1-2",
+            "bamboo-1-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-2-1",
+            "bamboo-2-2",
+            "bamboo-2-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-3-1",
+            "bamboo-3-2",
+            "bamboo-3-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "dots-1-1",
+            "dots-1-2",
+            "dots-1-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "characters-1-1",
+            "characters-1-2",
+            "characters-1-3"
+          ],
+          "claimed": true
+        }
       ],
       "flowers": [],
-      "context": {"seat": "W", "discard_win": true, "single_wait": true},
+      "context": {
+        "seat": "W",
+        "discard_win": true,
+        "single_wait": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 9,
-        "patterns": {"Base Win": 1, "All Pongs": 4, "Fully Exposed": 2, "No Honors or Flowers": 2}
+        "patterns": {
+          "All Pongs": 4,
+          "Base Win": 1,
+          "Fully Exposed": 2,
+          "No Honors or Flowers": 2
+        }
       }
     },
     {
@@ -77,87 +167,139 @@
       "hand": [],
       "melds": [],
       "flowers": [
-        "flower-spring", "flower-summer", "flower-autumn", "flower-winter",
-        "flower-plum", "flower-orchid", "flower-chrysanthemum", "flower-bamboo"
+        "flower-spring",
+        "flower-summer",
+        "flower-autumn",
+        "flower-winter",
+        "flower-plum",
+        "flower-orchid",
+        "flower-chrysanthemum",
+        "flower-bamboo"
       ],
-      "context": {"seat": "E", "eight_flowers": true},
+      "context": {
+        "seat": "E",
+        "eight_flowers": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 15,
         "patterns": {
           "Base Win": 1,
-          "Eight Flowers": 8,
-          "Matching Flower": 2,
+          "Complete Flowers": 2,
           "Complete Seasons": 2,
-          "Complete Flowers": 2
+          "Eight Flowers": 8,
+          "Matching Flower": 2
         }
       }
     },
     {
       "name": "concealed-zimo-single-wait-three-pongs",
       "hand": [
-        "characters-1-1", "characters-1-2", "characters-1-3",
-        "characters-2-1", "characters-2-2", "characters-2-3",
-        "characters-3-1", "characters-3-2", "characters-3-3",
-        "bamboo-1-1", "bamboo-2-1", "bamboo-3-1",
-        "bamboo-4-1", "bamboo-5-1", "bamboo-6-1",
-        "dots-5-1", "dots-5-2"
+        "characters-1-1",
+        "characters-1-2",
+        "characters-1-3",
+        "characters-2-1",
+        "characters-2-2",
+        "characters-2-3",
+        "characters-3-1",
+        "characters-3-2",
+        "characters-3-3",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-5-1",
+        "dots-5-2"
       ],
       "melds": [],
       "flowers": [],
-      "context": {"seat": "S", "zimo": true, "single_wait": true},
+      "context": {
+        "seat": "S",
+        "zimo": true,
+        "single_wait": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 9,
         "patterns": {
           "Base Win": 1,
           "Concealed Zimo": 3,
+          "No Honors or Flowers": 2,
           "Single Wait": 1,
-          "Three Concealed Pongs": 2,
-          "No Honors or Flowers": 2
+          "Three Concealed Pongs": 2
         }
       }
     },
     {
       "name": "half-flush-zimo-wind-and-dragon-sets",
       "hand": [
-        "wind-east-1", "wind-east-2", "wind-east-3",
-        "dragon-red-1", "dragon-red-2", "dragon-red-3",
-        "characters-1-1", "characters-2-1", "characters-3-1",
-        "characters-4-1", "characters-5-1", "characters-6-1",
-        "characters-9-1", "characters-9-2", "characters-9-3",
-        "characters-8-1", "characters-8-2"
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "characters-9-1",
+        "characters-9-2",
+        "characters-9-3",
+        "characters-8-1",
+        "characters-8-2"
       ],
       "melds": [],
       "flowers": [],
-      "context": {"seat": "E", "zimo": true},
+      "context": {
+        "seat": "E",
+        "zimo": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 13,
         "patterns": {
           "Base Win": 1,
           "Concealed Zimo": 3,
-          "Three Concealed Pongs": 2,
+          "Half Flush": 4,
+          "Prevailing Wind Set": 1,
           "Red Dragon Set": 1,
           "Seat Wind Set": 1,
-          "Prevailing Wind Set": 1,
-          "Half Flush": 4
+          "Three Concealed Pongs": 2
         }
       }
     },
     {
       "name": "full-flush-zimo",
       "hand": [
-        "characters-1-1", "characters-2-1", "characters-3-1",
-        "characters-4-1", "characters-5-1", "characters-6-1",
-        "characters-7-1", "characters-8-1", "characters-9-1",
-        "characters-1-2", "characters-1-3", "characters-1-4",
-        "characters-9-2", "characters-9-3", "characters-9-4",
-        "characters-5-2", "characters-5-3"
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "characters-1-2",
+        "characters-1-3",
+        "characters-1-4",
+        "characters-9-2",
+        "characters-9-3",
+        "characters-9-4",
+        "characters-5-2",
+        "characters-5-3"
       ],
       "melds": [],
       "flowers": [],
-      "context": {"seat": "W", "zimo": true},
+      "context": {
+        "seat": "W",
+        "zimo": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 14,
@@ -172,120 +314,2089 @@
     {
       "name": "big-three-dragons-four-concealed-pongs",
       "hand": [
-        "dragon-red-1", "dragon-red-2", "dragon-red-3",
-        "dragon-green-1", "dragon-green-2", "dragon-green-3",
-        "dragon-white-1", "dragon-white-2", "dragon-white-3",
-        "bamboo-1-1", "bamboo-2-1", "bamboo-3-1",
-        "dots-9-1", "dots-9-2", "dots-9-3",
-        "dots-5-1", "dots-5-2"
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-green-1",
+        "dragon-green-2",
+        "dragon-green-3",
+        "dragon-white-1",
+        "dragon-white-2",
+        "dragon-white-3",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-9-1",
+        "dots-9-2",
+        "dots-9-3",
+        "dots-5-1",
+        "dots-5-2"
       ],
       "melds": [],
       "flowers": [],
-      "context": {"seat": "N", "zimo": true},
+      "context": {
+        "seat": "N",
+        "zimo": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 20,
         "patterns": {
           "Base Win": 1,
-          "Concealed Zimo": 3,
           "Big Three Dragons": 8,
-          "Red Dragon Set": 1,
+          "Concealed Zimo": 3,
+          "Four Concealed Pongs": 5,
           "Green Dragon Set": 1,
-          "White Dragon Set": 1,
-          "Four Concealed Pongs": 5
+          "Red Dragon Set": 1,
+          "White Dragon Set": 1
         }
       }
     },
     {
       "name": "small-four-winds-zimo",
       "hand": [
-        "wind-east-1", "wind-east-2", "wind-east-3",
-        "wind-south-1", "wind-south-2", "wind-south-3",
-        "wind-west-1", "wind-west-2", "wind-west-3",
-        "wind-north-1", "wind-north-2",
-        "characters-1-1", "characters-2-1", "characters-3-1",
-        "dots-5-1", "dots-5-2", "dots-5-3"
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "wind-south-1",
+        "wind-south-2",
+        "wind-south-3",
+        "wind-west-1",
+        "wind-west-2",
+        "wind-west-3",
+        "wind-north-1",
+        "wind-north-2",
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "dots-5-1",
+        "dots-5-2",
+        "dots-5-3"
       ],
       "melds": [],
       "flowers": [],
-      "context": {"seat": "W", "zimo": true},
+      "context": {
+        "seat": "W",
+        "zimo": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 19,
         "patterns": {
           "Base Win": 1,
           "Concealed Zimo": 3,
-          "Small Four Winds": 8,
-          "Seat Wind Set": 1,
+          "Four Concealed Pongs": 5,
           "Prevailing Wind Set": 1,
-          "Four Concealed Pongs": 5
+          "Seat Wind Set": 1,
+          "Small Four Winds": 8
         }
       }
     },
     {
       "name": "win-after-replacement-stacks-last-tile",
       "hand": [
-        "characters-1-1", "characters-1-2", "characters-1-3",
-        "characters-2-1", "characters-2-2", "characters-2-3",
-        "characters-3-1", "characters-3-2", "characters-3-3",
-        "bamboo-1-1", "bamboo-2-1", "bamboo-3-1",
-        "bamboo-4-1", "bamboo-5-1", "bamboo-6-1",
-        "dots-5-1", "dots-5-2"
+        "characters-1-1",
+        "characters-1-2",
+        "characters-1-3",
+        "characters-2-1",
+        "characters-2-2",
+        "characters-2-3",
+        "characters-3-1",
+        "characters-3-2",
+        "characters-3-3",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-5-1",
+        "dots-5-2"
       ],
       "melds": [],
       "flowers": [],
-      "context": {"seat": "S", "zimo": true, "replacement": true, "last_tile": true},
+      "context": {
+        "seat": "S",
+        "zimo": true,
+        "replacement": true,
+        "last_tile": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 10,
         "patterns": {
           "Base Win": 1,
           "Concealed Zimo": 3,
-          "Three Concealed Pongs": 2,
+          "Last Tile Zimo": 1,
           "No Honors or Flowers": 2,
-          "Win After Replacement": 1,
-          "Last Tile Zimo": 1
+          "Three Concealed Pongs": 2,
+          "Win After Replacement": 1
         }
       }
     },
     {
       "name": "robbing-added-kong",
-      "hand": ["characters-5-1", "characters-6-1", "characters-7-4", "dots-5-1", "dots-5-2"],
+      "hand": [
+        "characters-5-1",
+        "characters-6-1",
+        "characters-7-4",
+        "dots-5-1",
+        "dots-5-2"
+      ],
       "melds": [
-        {"type": "pong", "tiles": ["bamboo-1-1", "bamboo-1-2", "bamboo-1-3"], "claimed": true},
-        {"type": "pong", "tiles": ["bamboo-2-1", "bamboo-2-2", "bamboo-2-3"], "claimed": true},
-        {"type": "pong", "tiles": ["bamboo-3-1", "bamboo-3-2", "bamboo-3-3"], "claimed": true},
-        {"type": "pong", "tiles": ["dots-1-1", "dots-1-2", "dots-1-3"], "claimed": true}
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-1-1",
+            "bamboo-1-2",
+            "bamboo-1-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-2-1",
+            "bamboo-2-2",
+            "bamboo-2-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-3-1",
+            "bamboo-3-2",
+            "bamboo-3-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "dots-1-1",
+            "dots-1-2",
+            "dots-1-3"
+          ],
+          "claimed": true
+        }
       ],
       "flowers": [],
-      "context": {"seat": "S", "discard_win": true, "robbed_added_kong": true},
+      "context": {
+        "seat": "S",
+        "discard_win": true,
+        "robbed_added_kong": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 4,
-        "patterns": {"Base Win": 1, "No Honors or Flowers": 2, "Robbing an Added Kong": 1}
+        "patterns": {
+          "Base Win": 1,
+          "No Honors or Flowers": 2,
+          "Robbing an Added Kong": 1
+        }
       }
     },
     {
       "name": "kong-tai-stacks-with-all-pongs",
-      "hand": ["dots-9-1", "dots-9-2", "dots-9-3", "dots-5-1", "dots-5-2"],
+      "hand": [
+        "dots-9-1",
+        "dots-9-2",
+        "dots-9-3",
+        "dots-5-1",
+        "dots-5-2"
+      ],
       "melds": [
-        {"type": "kong", "tiles": ["bamboo-1-1", "bamboo-1-2", "bamboo-1-3", "bamboo-1-4"], "claimed": true},
-        {"type": "kong", "tiles": ["bamboo-2-1", "bamboo-2-2", "bamboo-2-3", "bamboo-2-4"], "added": true},
-        {"type": "kong", "tiles": ["characters-1-1", "characters-1-2", "characters-1-3", "characters-1-4"], "concealed": true},
-        {"type": "pong", "tiles": ["dots-1-1", "dots-1-2", "dots-1-3"], "claimed": true}
+        {
+          "type": "kong",
+          "tiles": [
+            "bamboo-1-1",
+            "bamboo-1-2",
+            "bamboo-1-3",
+            "bamboo-1-4"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "kong",
+          "tiles": [
+            "bamboo-2-1",
+            "bamboo-2-2",
+            "bamboo-2-3",
+            "bamboo-2-4"
+          ],
+          "added": true
+        },
+        {
+          "type": "kong",
+          "tiles": [
+            "characters-1-1",
+            "characters-1-2",
+            "characters-1-3",
+            "characters-1-4"
+          ],
+          "concealed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "dots-1-1",
+            "dots-1-2",
+            "dots-1-3"
+          ],
+          "claimed": true
+        }
       ],
       "flowers": [],
-      "context": {"seat": "N", "zimo": true},
+      "context": {
+        "seat": "N",
+        "zimo": true
+      },
       "expect": {
         "winning": true,
         "raw_tai": 12,
         "patterns": {
-          "Base Win": 1,
-          "Zimo": 1,
-          "Exposed/Added Kong": 2,
-          "Concealed Kong": 2,
           "All Pongs": 4,
+          "Base Win": 1,
+          "Concealed Kong": 2,
+          "Exposed/Added Kong": 2,
+          "No Honors or Flowers": 2,
+          "Zimo": 1
+        }
+      }
+    },
+    {
+      "name": "all-chows-negative-flower-present",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [
+        "flower-plum"
+      ],
+      "context": {
+        "seat": "S",
+        "discard_win": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 2,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed": 1
+        }
+      }
+    },
+    {
+      "name": "all-chows-negative-single-wait",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "discard_win": true,
+        "single_wait": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 5,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed": 1,
+          "No Honors or Flowers": 2,
+          "Single Wait": 1
+        }
+      }
+    },
+    {
+      "name": "all-chows-negative-zimo-not-discard-win",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 6,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
           "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "all-honors",
+      "hand": [
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "wind-south-1",
+        "wind-south-2",
+        "wind-south-3",
+        "wind-west-1",
+        "wind-west-2",
+        "wind-west-3",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-green-1",
+        "dragon-green-2",
+        "dragon-green-3",
+        "dragon-white-1",
+        "dragon-white-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "E",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 32,
+        "patterns": {
+          "All Honors": 8,
+          "All Pongs": 4,
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Five Concealed Pongs": 8,
+          "Green Dragon Set": 1,
+          "Prevailing Wind Set": 1,
+          "Red Dragon Set": 1,
+          "Seat Wind Set": 1,
+          "Small Three Dragons": 4
+        }
+      }
+    },
+    {
+      "name": "all-pongs-mixed-suits",
+      "hand": [
+        "characters-2-1",
+        "characters-2-2",
+        "characters-2-3",
+        "bamboo-3-1",
+        "bamboo-3-2",
+        "bamboo-3-3",
+        "dots-4-1",
+        "dots-4-2",
+        "dots-4-3",
+        "characters-6-1",
+        "characters-6-2",
+        "characters-6-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-5-1",
+            "bamboo-5-2",
+            "bamboo-5-3"
+          ],
+          "claimed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 13,
+        "patterns": {
+          "All Pongs": 4,
+          "Base Win": 1,
+          "Four Concealed Pongs": 5,
+          "No Honors or Flowers": 2,
+          "Zimo": 1
+        }
+      }
+    },
+    {
+      "name": "big-four-winds",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "wind-south-1",
+        "wind-south-2",
+        "wind-south-3",
+        "wind-west-1",
+        "wind-west-2",
+        "wind-west-3",
+        "wind-north-1",
+        "wind-north-2",
+        "wind-north-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "E",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 27,
+        "patterns": {
+          "Base Win": 1,
+          "Big Four Winds": 16,
+          "Concealed Zimo": 3,
+          "Four Concealed Pongs": 5,
+          "Prevailing Wind Set": 1,
+          "Seat Wind Set": 1
+        }
+      }
+    },
+    {
+      "name": "big-three-dragons",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-green-1",
+        "dragon-green-2",
+        "dragon-green-3",
+        "dragon-white-1",
+        "dragon-white-2",
+        "dragon-white-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 17,
+        "patterns": {
+          "Base Win": 1,
+          "Big Three Dragons": 8,
+          "Concealed Zimo": 3,
+          "Green Dragon Set": 1,
+          "Red Dragon Set": 1,
+          "Three Concealed Pongs": 2,
+          "White Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "complete-flowers",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [
+        "flower-plum",
+        "flower-orchid",
+        "flower-chrysanthemum",
+        "flower-bamboo"
+      ],
+      "context": {
+        "seat": "W",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 7,
+        "patterns": {
+          "Base Win": 1,
+          "Complete Flowers": 2,
+          "Concealed Zimo": 3,
+          "Matching Flower": 1
+        }
+      }
+    },
+    {
+      "name": "complete-seasons",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [
+        "flower-spring",
+        "flower-summer",
+        "flower-autumn",
+        "flower-winter"
+      ],
+      "context": {
+        "seat": "N",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 7,
+        "patterns": {
+          "Base Win": 1,
+          "Complete Seasons": 2,
+          "Concealed Zimo": 3,
+          "Matching Flower": 1
+        }
+      }
+    },
+    {
+      "name": "concealed-pongs-below-threshold",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-2-1",
+        "dots-2-2",
+        "dots-2-3",
+        "dots-5-1",
+        "dots-5-2",
+        "dots-5-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 6,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "dragon-set-green-isolated",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dragon-green-1",
+        "dragon-green-2",
+        "dragon-green-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 5,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Green Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "dragon-set-red-isolated",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 5,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Red Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "dragon-set-white-isolated",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dragon-white-1",
+        "dragon-white-2",
+        "dragon-white-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 5,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "White Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "earthly-hand-stacks-with-zimo",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-4-1",
+        "dots-5-1",
+        "dots-6-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true,
+        "earthly_hand": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 22,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Earthly Hand": 16,
+          "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "full-flush-bamboo",
+      "hand": [
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "bamboo-7-1",
+        "bamboo-8-1",
+        "bamboo-9-1",
+        "bamboo-2-2",
+        "bamboo-2-3",
+        "bamboo-2-4",
+        "bamboo-8-2",
+        "bamboo-8-3",
+        "bamboo-8-4",
+        "bamboo-5-2",
+        "bamboo-5-3"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 14,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Full Flush": 8,
+          "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "full-flush-characters",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "characters-2-2",
+        "characters-2-3",
+        "characters-2-4",
+        "characters-8-2",
+        "characters-8-3",
+        "characters-8-4",
+        "characters-5-2",
+        "characters-5-3"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 14,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Full Flush": 8,
+          "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "full-flush-dots",
+      "hand": [
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-4-1",
+        "dots-5-1",
+        "dots-6-1",
+        "dots-7-1",
+        "dots-8-1",
+        "dots-9-1",
+        "dots-2-2",
+        "dots-2-3",
+        "dots-2-4",
+        "dots-8-2",
+        "dots-8-3",
+        "dots-8-4",
+        "dots-5-2",
+        "dots-5-3"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 14,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Full Flush": 8,
+          "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "fully-exposed-negative-one-concealed-meld",
+      "hand": [
+        "dots-5-1",
+        "dots-5-2",
+        "dots-5-3",
+        "characters-9-1",
+        "characters-9-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-1-1",
+            "bamboo-1-2",
+            "bamboo-1-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-2-1",
+            "bamboo-2-2",
+            "bamboo-2-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-3-1",
+            "bamboo-3-2",
+            "bamboo-3-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "dots-1-1",
+            "dots-1-2",
+            "dots-1-3"
+          ],
+          "claimed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "W",
+        "discard_win": true,
+        "single_wait": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 8,
+        "patterns": {
+          "All Pongs": 4,
+          "Base Win": 1,
+          "No Honors or Flowers": 2,
+          "Single Wait": 1
+        }
+      }
+    },
+    {
+      "name": "half-flush-bamboo",
+      "hand": [
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "bamboo-7-1",
+        "bamboo-8-1",
+        "bamboo-9-1",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-green-1",
+        "dragon-green-2",
+        "dragon-green-3",
+        "wind-east-1",
+        "wind-east-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 10,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Green Dragon Set": 1,
+          "Half Flush": 4,
+          "Red Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "half-flush-characters",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-green-1",
+        "dragon-green-2",
+        "dragon-green-3",
+        "wind-east-1",
+        "wind-east-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 10,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Green Dragon Set": 1,
+          "Half Flush": 4,
+          "Red Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "half-flush-dots",
+      "hand": [
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-4-1",
+        "dots-5-1",
+        "dots-6-1",
+        "dots-7-1",
+        "dots-8-1",
+        "dots-9-1",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-green-1",
+        "dragon-green-2",
+        "dragon-green-3",
+        "wind-east-1",
+        "wind-east-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 10,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Green Dragon Set": 1,
+          "Half Flush": 4,
+          "Red Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "heavenly-hand-excludes-zimo-and-single-wait-flags",
+      "hand": [
+        "characters-1-1",
+        "characters-1-2",
+        "characters-1-3",
+        "characters-2-1",
+        "characters-2-2",
+        "characters-2-3",
+        "characters-3-1",
+        "characters-3-2",
+        "characters-3-3",
+        "bamboo-1-1",
+        "bamboo-1-2",
+        "bamboo-1-3",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "E",
+        "zimo": true,
+        "replacement": true,
+        "heavenly_hand": true,
+        "single_wait": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 33,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed": 1,
+          "Four Concealed Pongs": 5,
+          "Heavenly Hand": 24,
+          "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "kong-tai-one-concealed-kong-only",
+      "hand": [
+        "characters-6-1",
+        "characters-7-1",
+        "characters-8-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "bamboo-7-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [
+        {
+          "type": "kong",
+          "tiles": [
+            "characters-2-1",
+            "characters-2-2",
+            "characters-2-3",
+            "characters-2-4"
+          ],
+          "concealed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 8,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Kong": 2,
+          "Concealed Zimo": 3,
+          "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "kong-tai-one-exposed-kong-only",
+      "hand": [
+        "characters-6-1",
+        "characters-7-1",
+        "characters-8-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "bamboo-7-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [
+        {
+          "type": "kong",
+          "tiles": [
+            "characters-2-1",
+            "characters-2-2",
+            "characters-2-3",
+            "characters-2-4"
+          ],
+          "claimed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 5,
+        "patterns": {
+          "Base Win": 1,
+          "Exposed/Added Kong": 1,
+          "No Honors or Flowers": 2,
+          "Zimo": 1
+        }
+      }
+    },
+    {
+      "name": "kong-tai-two-exposed-one-concealed-all-pongs",
+      "hand": [
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [
+        {
+          "type": "kong",
+          "tiles": [
+            "characters-2-1",
+            "characters-2-2",
+            "characters-2-3",
+            "characters-2-4"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "kong",
+          "tiles": [
+            "bamboo-3-1",
+            "bamboo-3-2",
+            "bamboo-3-3",
+            "bamboo-3-4"
+          ],
+          "added": true
+        },
+        {
+          "type": "kong",
+          "tiles": [
+            "dots-4-1",
+            "dots-4-2",
+            "dots-4-3",
+            "dots-4-4"
+          ],
+          "concealed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "characters-6-1",
+            "characters-6-2",
+            "characters-6-3"
+          ],
+          "claimed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "bamboo-7-1",
+            "bamboo-7-2",
+            "bamboo-7-3"
+          ],
+          "claimed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 12,
+        "patterns": {
+          "All Pongs": 4,
+          "Base Win": 1,
+          "Concealed Kong": 2,
+          "Exposed/Added Kong": 2,
+          "No Honors or Flowers": 2,
+          "Zimo": 1
+        }
+      }
+    },
+    {
+      "name": "last-tile-zimo-isolated",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-4-1",
+        "dots-5-1",
+        "dots-6-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true,
+        "last_tile": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 7,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Last Tile Zimo": 1,
+          "No Honors or Flowers": 2
+        }
+      }
+    },
+    {
+      "name": "matching-flowers-east",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [
+        "flower-spring",
+        "flower-plum"
+      ],
+      "context": {
+        "seat": "E",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 6,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Matching Flower": 2
+        }
+      }
+    },
+    {
+      "name": "matching-flowers-north",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [
+        "flower-winter",
+        "flower-bamboo"
+      ],
+      "context": {
+        "seat": "N",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 6,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Matching Flower": 2
+        }
+      }
+    },
+    {
+      "name": "matching-flowers-south",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [
+        "flower-summer",
+        "flower-orchid"
+      ],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 6,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Matching Flower": 2
+        }
+      }
+    },
+    {
+      "name": "matching-flowers-west",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "bamboo-4-1",
+        "bamboo-5-1",
+        "bamboo-6-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [
+        "flower-autumn",
+        "flower-chrysanthemum"
+      ],
+      "context": {
+        "seat": "W",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 6,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Matching Flower": 2
+        }
+      }
+    },
+    {
+      "name": "single-wait-flag-set",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-4-1",
+        "dots-5-1",
+        "dots-6-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "discard_win": true,
+        "single_wait": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 5,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed": 1,
+          "No Honors or Flowers": 2,
+          "Single Wait": 1
+        }
+      }
+    },
+    {
+      "name": "single-wait-flag-unset",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-4-1",
+        "dots-5-1",
+        "dots-6-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "discard_win": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 4,
+        "patterns": {
+          "All Chows": 2,
+          "Base Win": 1,
+          "Concealed": 1
+        }
+      }
+    },
+    {
+      "name": "small-four-winds-pair-east",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "wind-south-1",
+        "wind-south-2",
+        "wind-south-3",
+        "wind-east-1",
+        "wind-east-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "wind-west-1",
+            "wind-west-2",
+            "wind-west-3"
+          ],
+          "concealed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "wind-north-1",
+            "wind-north-2",
+            "wind-north-3"
+          ],
+          "concealed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 15,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Seat Wind Set": 1,
+          "Small Four Winds": 8,
+          "Three Concealed Pongs": 2
+        }
+      }
+    },
+    {
+      "name": "small-four-winds-pair-north",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "wind-north-1",
+        "wind-north-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "wind-south-1",
+            "wind-south-2",
+            "wind-south-3"
+          ],
+          "concealed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "wind-west-1",
+            "wind-west-2",
+            "wind-west-3"
+          ],
+          "concealed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 16,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Prevailing Wind Set": 1,
+          "Seat Wind Set": 1,
+          "Small Four Winds": 8,
+          "Three Concealed Pongs": 2
+        }
+      }
+    },
+    {
+      "name": "small-four-winds-pair-south",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "wind-south-1",
+        "wind-south-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "wind-west-1",
+            "wind-west-2",
+            "wind-west-3"
+          ],
+          "concealed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "wind-north-1",
+            "wind-north-2",
+            "wind-north-3"
+          ],
+          "concealed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 15,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Prevailing Wind Set": 1,
+          "Small Four Winds": 8,
+          "Three Concealed Pongs": 2
+        }
+      }
+    },
+    {
+      "name": "small-four-winds-pair-west",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "wind-west-1",
+        "wind-west-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "wind-south-1",
+            "wind-south-2",
+            "wind-south-3"
+          ],
+          "concealed": true
+        },
+        {
+          "type": "pong",
+          "tiles": [
+            "wind-north-1",
+            "wind-north-2",
+            "wind-north-3"
+          ],
+          "concealed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 16,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Prevailing Wind Set": 1,
+          "Seat Wind Set": 1,
+          "Small Four Winds": 8,
+          "Three Concealed Pongs": 2
+        }
+      }
+    },
+    {
+      "name": "small-three-dragons-green-white-pair-red",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dragon-green-1",
+        "dragon-green-2",
+        "dragon-green-3",
+        "dragon-red-1",
+        "dragon-red-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "dragon-white-1",
+            "dragon-white-2",
+            "dragon-white-3"
+          ],
+          "concealed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 10,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Green Dragon Set": 1,
+          "Small Three Dragons": 4,
+          "White Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "small-three-dragons-red-green-pair-white",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-white-1",
+        "dragon-white-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "dragon-green-1",
+            "dragon-green-2",
+            "dragon-green-3"
+          ],
+          "concealed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 10,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Green Dragon Set": 1,
+          "Red Dragon Set": 1,
+          "Small Three Dragons": 4
+        }
+      }
+    },
+    {
+      "name": "small-three-dragons-red-white-pair-green",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dragon-red-1",
+        "dragon-red-2",
+        "dragon-red-3",
+        "dragon-green-1",
+        "dragon-green-2"
+      ],
+      "melds": [
+        {
+          "type": "pong",
+          "tiles": [
+            "dragon-white-1",
+            "dragon-white-2",
+            "dragon-white-3"
+          ],
+          "concealed": true
+        }
+      ],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 10,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Red Dragon Set": 1,
+          "Small Three Dragons": 4,
+          "White Dragon Set": 1
+        }
+      }
+    },
+    {
+      "name": "win-after-replacement-isolated",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-4-1",
+        "characters-5-1",
+        "characters-6-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "dots-4-1",
+        "dots-5-1",
+        "dots-6-1",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true,
+        "replacement": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 7,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "No Honors or Flowers": 2,
+          "Win After Replacement": 1
+        }
+      }
+    },
+    {
+      "name": "wind-set-prevailing-only",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 5,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Prevailing Wind Set": 1
+        }
+      }
+    },
+    {
+      "name": "wind-set-seat-and-prevailing-stack",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "wind-east-1",
+        "wind-east-2",
+        "wind-east-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "E",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 6,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Prevailing Wind Set": 1,
+          "Seat Wind Set": 1
+        }
+      }
+    },
+    {
+      "name": "wind-set-seat-only",
+      "hand": [
+        "characters-1-1",
+        "characters-2-1",
+        "characters-3-1",
+        "characters-7-1",
+        "characters-8-1",
+        "characters-9-1",
+        "bamboo-1-1",
+        "bamboo-2-1",
+        "bamboo-3-1",
+        "dots-1-1",
+        "dots-2-1",
+        "dots-3-1",
+        "wind-south-1",
+        "wind-south-2",
+        "wind-south-3",
+        "dots-9-1",
+        "dots-9-2"
+      ],
+      "melds": [],
+      "flowers": [],
+      "context": {
+        "seat": "S",
+        "zimo": true
+      },
+      "expect": {
+        "winning": true,
+        "raw_tai": 5,
+        "patterns": {
+          "Base Win": 1,
+          "Concealed Zimo": 3,
+          "Seat Wind Set": 1
         }
       }
     }

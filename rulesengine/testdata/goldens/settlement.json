@@ -4,95 +4,2122 @@
   "settlements": [
     {
       "name": "7.4-base-5tai-bamboo",
-      "tier": "bamboo", "dealer": "E", "continuations": 0,
-      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 5}]},
-      "expect": {"net": {"E": 0, "S": -50, "W": 50, "N": 0}}
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -50,
+          "W": 50
+        }
+      }
     },
     {
       "name": "7.4-base-5tai-sparrow",
-      "tier": "sparrow", "dealer": "E", "continuations": 0,
-      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 5}]},
-      "expect": {"net": {"E": 0, "S": -500, "W": 500, "N": 0}}
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -500,
+          "W": 500
+        }
+      }
     },
     {
       "name": "7.4-base-5tai-windcloud",
-      "tier": "windcloud", "dealer": "E", "continuations": 0,
-      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 5}]},
-      "expect": {"net": {"E": 0, "S": -5000, "W": 5000, "N": 0}}
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -5000,
+          "W": 5000
+        }
+      }
     },
     {
       "name": "7.4-base-5tai-dragons",
-      "tier": "dragons", "dealer": "E", "continuations": 0,
-      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 5}]},
-      "expect": {"net": {"E": 0, "S": -50000, "W": 50000, "N": 0}}
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -50000,
+          "W": 50000
+        }
+      }
     },
     {
       "name": "7.4-ex1-dealer-zimo-k2",
-      "tier": "bamboo", "dealer": "E", "continuations": 2,
-      "result": {"kind": "zimo", "winners": [{"seat": "E", "raw_tai": 5}]},
-      "expect": {"net": {"E": 300, "S": -100, "W": -100, "N": -100}}
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 300,
+          "N": -100,
+          "S": -100,
+          "W": -100
+        }
+      }
     },
     {
       "name": "7.4-ex2-nondealer-zimo-dealer-k2",
-      "tier": "bamboo", "dealer": "E", "continuations": 2,
-      "result": {"kind": "zimo", "winners": [{"seat": "S", "raw_tai": 5}]},
-      "expect": {"net": {"E": -100, "S": 200, "W": -50, "N": -50}}
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -100,
+          "N": -50,
+          "S": 200,
+          "W": -50
+        }
+      }
     },
     {
       "name": "7.4-ex3-kong-tai-settles-at-hand-end",
-      "tier": "bamboo", "dealer": "E", "continuations": 0,
-      "result": {"kind": "zimo", "winners": [{"seat": "S", "raw_tai": 4}]},
-      "expect": {"net": {"E": -50, "S": 130, "W": -40, "N": -40}}
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -50,
+          "N": -40,
+          "S": 130,
+          "W": -40
+        }
+      }
     },
     {
       "name": "7.4-ex4-eight-flowers-three-payers",
-      "tier": "bamboo", "dealer": "E", "continuations": 0,
-      "result": {"kind": "eight_flowers", "winners": [{"seat": "S", "raw_tai": 15}]},
-      "expect": {"net": {"E": -160, "S": 460, "W": -150, "N": -150}}
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "eight_flowers",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 15
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -160,
+          "N": -150,
+          "S": 460,
+          "W": -150
+        }
+      }
     },
     {
       "name": "7.4-ex5-single-payer-cap",
-      "tier": "dragons", "dealer": "E", "continuations": 0,
-      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 45}]},
-      "expect": {"net": {"E": 0, "S": -300000, "W": 300000, "N": 0}}
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 45
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -300000,
+          "W": 300000
+        }
+      }
     },
     {
       "name": "7.4-ex6-ex8-maximum-hand-independent-caps",
-      "tier": "dragons", "dealer": "E", "continuations": 10,
-      "result": {"kind": "zimo", "winners": [{"seat": "E", "raw_tai": 69}]},
-      "expect": {"net": {"E": 900000, "S": -300000, "W": -300000, "N": -300000}}
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 10,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 69
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 900000,
+          "N": -300000,
+          "S": -300000,
+          "W": -300000
+        }
+      }
     },
     {
       "name": "7.4-ex7-largest-remainder-171-129",
-      "tier": "bamboo", "dealer": "E", "continuations": 0,
-      "result": {"kind": "discard", "payer": "N", "winners": [{"seat": "S", "raw_tai": 20}, {"seat": "W", "raw_tai": 15}]},
-      "expect": {"net": {"E": 0, "S": 171, "W": 129, "N": -300}}
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 20
+          },
+          {
+            "seat": "W",
+            "raw_tai": 15
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": -300,
+          "S": 171,
+          "W": 129
+        }
+      }
     },
     {
       "name": "7.4-ex9-exhaustive-draw-zero-transfer",
-      "tier": "bamboo", "dealer": "E", "continuations": 3,
-      "result": {"kind": "exhaustive_draw"},
-      "expect": {"net": {"E": 0, "S": 0, "W": 0, "N": 0}}
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 3,
+      "result": {
+        "kind": "exhaustive_draw"
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": 0,
+          "W": 0
+        }
+      }
     },
     {
       "name": "rob-uses-discard-model-declarer-pays",
-      "tier": "sparrow", "dealer": "S", "continuations": 1,
-      "result": {"kind": "rob", "payer": "S", "winners": [{"seat": "N", "raw_tai": 4}]},
-      "expect": {"net": {"E": 0, "S": -700, "W": 0, "N": 700}}
+      "tier": "sparrow",
+      "dealer": "S",
+      "continuations": 1,
+      "result": {
+        "kind": "rob",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "N",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 700,
+          "S": -700,
+          "W": 0
+        }
+      }
     },
     {
       "name": "heavenly-uses-three-payer-model-with-dealer-winner",
-      "tier": "bamboo", "dealer": "E", "continuations": 0,
-      "result": {"kind": "heavenly", "winners": [{"seat": "E", "raw_tai": 69}]},
-      "expect": {"net": {"E": 900, "S": -300, "W": -300, "N": -300}}
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "heavenly",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 69
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 900,
+          "N": -300,
+          "S": -300,
+          "W": -300
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-winner-bamboo-tai3",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 60,
+          "N": 0,
+          "S": -60,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-winner-bamboo-tai20",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 230,
+          "N": 0,
+          "S": -230,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-winner-sparrow-tai3",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 600,
+          "N": 0,
+          "S": -600,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-winner-sparrow-tai20",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 2300,
+          "N": 0,
+          "S": -2300,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-winner-windcloud-tai3",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 6000,
+          "N": 0,
+          "S": -6000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-winner-windcloud-tai20",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 23000,
+          "N": 0,
+          "S": -23000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-winner-dragons-tai3",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 60000,
+          "N": 0,
+          "S": -60000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-winner-dragons-tai20",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 230000,
+          "N": 0,
+          "S": -230000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-payer-bamboo-tai3",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -60,
+          "N": 0,
+          "S": 60,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-payer-bamboo-tai20",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -230,
+          "N": 0,
+          "S": 230,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-payer-sparrow-tai3",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -600,
+          "N": 0,
+          "S": 600,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-payer-sparrow-tai20",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -2300,
+          "N": 0,
+          "S": 2300,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-payer-windcloud-tai3",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -6000,
+          "N": 0,
+          "S": 6000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-payer-windcloud-tai20",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -23000,
+          "N": 0,
+          "S": 23000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-payer-dragons-tai3",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -60000,
+          "N": 0,
+          "S": 60000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-payer-dragons-tai20",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -230000,
+          "N": 0,
+          "S": 230000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-neither-bamboo-tai3",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -30,
+          "W": 30
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-neither-bamboo-tai20",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -200,
+          "W": 200
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-neither-sparrow-tai3",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -300,
+          "W": 300
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-neither-sparrow-tai20",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -2000,
+          "W": 2000
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-neither-windcloud-tai3",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -3000,
+          "W": 3000
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-neither-windcloud-tai20",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -20000,
+          "W": 20000
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-neither-dragons-tai3",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 3
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -30000,
+          "W": 30000
+        }
+      }
+    },
+    {
+      "name": "discard-dealer-is-neither-dragons-tai20",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "W",
+            "raw_tai": 20
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": 0,
+          "S": -200000,
+          "W": 200000
+        }
+      }
+    },
+    {
+      "name": "rob-dealer-is-declarer-bamboo",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "rob",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 6
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -70,
+          "N": 0,
+          "S": 70,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "rob-non-dealer-declarer-bamboo",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "rob",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 6
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": -60,
+          "S": 60,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "rob-dealer-is-declarer-sparrow",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "rob",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 6
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -700,
+          "N": 0,
+          "S": 700,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "rob-non-dealer-declarer-sparrow",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "rob",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 6
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": -600,
+          "S": 600,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "rob-dealer-is-declarer-windcloud",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "rob",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 6
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -7000,
+          "N": 0,
+          "S": 7000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "rob-non-dealer-declarer-windcloud",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "rob",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 6
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": -6000,
+          "S": 6000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "rob-dealer-is-declarer-dragons",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "rob",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 6
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -70000,
+          "N": 0,
+          "S": 70000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "rob-non-dealer-declarer-dragons",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "rob",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 6
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 0,
+          "N": -60000,
+          "S": 60000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "zimo-dealer-zimo-winner-bamboo-tai4",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 270,
+          "N": -90,
+          "S": -90,
+          "W": -90
+        }
+      }
+    },
+    {
+      "name": "zimo-dealer-zimo-winner-bamboo-tai25",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 25
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 900,
+          "N": -300,
+          "S": -300,
+          "W": -300
+        }
+      }
+    },
+    {
+      "name": "zimo-dealer-zimo-winner-sparrow-tai4",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 2700,
+          "N": -900,
+          "S": -900,
+          "W": -900
+        }
+      }
+    },
+    {
+      "name": "zimo-dealer-zimo-winner-sparrow-tai25",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 25
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 9000,
+          "N": -3000,
+          "S": -3000,
+          "W": -3000
+        }
+      }
+    },
+    {
+      "name": "zimo-dealer-zimo-winner-windcloud-tai4",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 27000,
+          "N": -9000,
+          "S": -9000,
+          "W": -9000
+        }
+      }
+    },
+    {
+      "name": "zimo-dealer-zimo-winner-windcloud-tai25",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 25
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 90000,
+          "N": -30000,
+          "S": -30000,
+          "W": -30000
+        }
+      }
+    },
+    {
+      "name": "zimo-dealer-zimo-winner-dragons-tai4",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 270000,
+          "N": -90000,
+          "S": -90000,
+          "W": -90000
+        }
+      }
+    },
+    {
+      "name": "zimo-dealer-zimo-winner-dragons-tai25",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 25
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 900000,
+          "N": -300000,
+          "S": -300000,
+          "W": -300000
+        }
+      }
+    },
+    {
+      "name": "zimo-non-dealer-zimo-dealer-pays-more-bamboo-tai4",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -90,
+          "N": -40,
+          "S": 170,
+          "W": -40
+        }
+      }
+    },
+    {
+      "name": "zimo-non-dealer-zimo-dealer-pays-more-bamboo-tai25",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 25
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -300,
+          "N": -250,
+          "S": 800,
+          "W": -250
+        }
+      }
+    },
+    {
+      "name": "zimo-non-dealer-zimo-dealer-pays-more-sparrow-tai4",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -900,
+          "N": -400,
+          "S": 1700,
+          "W": -400
+        }
+      }
+    },
+    {
+      "name": "zimo-non-dealer-zimo-dealer-pays-more-sparrow-tai25",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 25
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -3000,
+          "N": -2500,
+          "S": 8000,
+          "W": -2500
+        }
+      }
+    },
+    {
+      "name": "zimo-non-dealer-zimo-dealer-pays-more-windcloud-tai4",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -9000,
+          "N": -4000,
+          "S": 17000,
+          "W": -4000
+        }
+      }
+    },
+    {
+      "name": "zimo-non-dealer-zimo-dealer-pays-more-windcloud-tai25",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 25
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -30000,
+          "N": -25000,
+          "S": 80000,
+          "W": -25000
+        }
+      }
+    },
+    {
+      "name": "zimo-non-dealer-zimo-dealer-pays-more-dragons-tai4",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 4
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -90000,
+          "N": -40000,
+          "S": 170000,
+          "W": -40000
+        }
+      }
+    },
+    {
+      "name": "zimo-non-dealer-zimo-dealer-pays-more-dragons-tai25",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 25
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -300000,
+          "N": -250000,
+          "S": 800000,
+          "W": -250000
+        }
+      }
+    },
+    {
+      "name": "eight-flowers-non-dealer-bamboo",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "eight_flowers",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 15
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -160,
+          "N": -150,
+          "S": 460,
+          "W": -150
+        }
+      }
+    },
+    {
+      "name": "heavenly-dealer-winner-bamboo",
+      "tier": "bamboo",
+      "dealer": "E",
+      "continuations": 3,
+      "result": {
+        "kind": "heavenly",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 30
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 900,
+          "N": -300,
+          "S": -300,
+          "W": -300
+        }
+      }
+    },
+    {
+      "name": "eight-flowers-non-dealer-sparrow",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "eight_flowers",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 15
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -1600,
+          "N": -1500,
+          "S": 4600,
+          "W": -1500
+        }
+      }
+    },
+    {
+      "name": "heavenly-dealer-winner-sparrow",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 3,
+      "result": {
+        "kind": "heavenly",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 30
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 9000,
+          "N": -3000,
+          "S": -3000,
+          "W": -3000
+        }
+      }
+    },
+    {
+      "name": "eight-flowers-non-dealer-windcloud",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "eight_flowers",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 15
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -16000,
+          "N": -15000,
+          "S": 46000,
+          "W": -15000
+        }
+      }
+    },
+    {
+      "name": "heavenly-dealer-winner-windcloud",
+      "tier": "windcloud",
+      "dealer": "E",
+      "continuations": 3,
+      "result": {
+        "kind": "heavenly",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 30
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 90000,
+          "N": -30000,
+          "S": -30000,
+          "W": -30000
+        }
+      }
+    },
+    {
+      "name": "eight-flowers-non-dealer-dragons",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "eight_flowers",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 15
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": -160000,
+          "N": -150000,
+          "S": 460000,
+          "W": -150000
+        }
+      }
+    },
+    {
+      "name": "heavenly-dealer-winner-dragons",
+      "tier": "dragons",
+      "dealer": "E",
+      "continuations": 3,
+      "result": {
+        "kind": "heavenly",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 30
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 900000,
+          "N": -300000,
+          "S": -300000,
+          "W": -300000
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k0",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 600,
+          "N": 0,
+          "S": -600,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k1",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 800,
+          "N": 0,
+          "S": -800,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k2",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 2,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 1000,
+          "N": 0,
+          "S": -1000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k3",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 3,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 1200,
+          "N": 0,
+          "S": -1200,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k4",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 4,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 1400,
+          "N": 0,
+          "S": -1400,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k5",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 5,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 1600,
+          "N": 0,
+          "S": -1600,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k6",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 6,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 1800,
+          "N": 0,
+          "S": -1800,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k7",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 7,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 2000,
+          "N": 0,
+          "S": -2000,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k8",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 8,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 2200,
+          "N": 0,
+          "S": -2200,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k9",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 9,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 2400,
+          "N": 0,
+          "S": -2400,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "dealer-tai-progression-k10",
+      "tier": "sparrow",
+      "dealer": "E",
+      "continuations": 10,
+      "result": {
+        "kind": "discard",
+        "payer": "S",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 2600,
+          "N": 0,
+          "S": -2600,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "three-winners-cap-split-bamboo",
+      "tier": "bamboo",
+      "dealer": "N",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 12
+          },
+          {
+            "seat": "S",
+            "raw_tai": 9
+          },
+          {
+            "seat": "W",
+            "raw_tai": 7
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 126,
+          "N": -300,
+          "S": 97,
+          "W": 77
+        }
+      }
+    },
+    {
+      "name": "two-winners-dealer-payer-cap-split",
+      "tier": "sparrow",
+      "dealer": "N",
+      "continuations": 1,
+      "result": {
+        "kind": "discard",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 30
+          },
+          {
+            "seat": "S",
+            "raw_tai": 18
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 1833,
+          "N": -3000,
+          "S": 1167,
+          "W": 0
+        }
+      }
+    },
+    {
+      "name": "three-winners-no-cap-triggered",
+      "tier": "dragons",
+      "dealer": "N",
+      "continuations": 0,
+      "result": {
+        "kind": "discard",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 2
+          },
+          {
+            "seat": "S",
+            "raw_tai": 1
+          },
+          {
+            "seat": "W",
+            "raw_tai": 1
+          }
+        ]
+      },
+      "expect": {
+        "net": {
+          "E": 30000,
+          "N": -70000,
+          "S": 20000,
+          "W": 20000
+        }
+      }
     }
   ],
   "continuations": [
-    {"name": "dealer-zimo-retains", "dealer": "E", "k": 2, "result": {"kind": "zimo", "winners": [{"seat": "E", "raw_tai": 5}]}, "ting": false, "expect": {"next_dealer": "E", "next_k": 3, "retains": true}},
-    {"name": "nondealer-win-rotates", "dealer": "E", "k": 2, "result": {"kind": "discard", "payer": "E", "winners": [{"seat": "S", "raw_tai": 5}]}, "ting": false, "expect": {"next_dealer": "S", "next_k": 0, "retains": false}},
-    {"name": "shared-discard-rotates", "dealer": "E", "k": 2, "result": {"kind": "discard", "payer": "N", "winners": [{"seat": "E", "raw_tai": 5}, {"seat": "S", "raw_tai": 5}]}, "ting": false, "expect": {"next_dealer": "S", "next_k": 0, "retains": false}},
-    {"name": "exhaustive-ting-retains", "dealer": "W", "k": 4, "result": {"kind": "exhaustive_draw"}, "ting": true, "expect": {"next_dealer": "W", "next_k": 5, "retains": true}},
-    {"name": "exhaustive-not-ting-rotates", "dealer": "W", "k": 4, "result": {"kind": "exhaustive_draw"}, "ting": false, "expect": {"next_dealer": "N", "next_k": 0, "retains": false}},
-    {"name": "k10-rotates-regardless", "dealer": "E", "k": 10, "result": {"kind": "zimo", "winners": [{"seat": "E", "raw_tai": 5}]}, "ting": false, "expect": {"next_dealer": "S", "next_k": 0, "retains": false}}
+    {
+      "name": "dealer-zimo-retains",
+      "dealer": "E",
+      "k": 2,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "ting": false,
+      "expect": {
+        "next_dealer": "E",
+        "next_k": 3,
+        "retains": true
+      }
+    },
+    {
+      "name": "nondealer-win-rotates",
+      "dealer": "E",
+      "k": 2,
+      "result": {
+        "kind": "discard",
+        "payer": "E",
+        "winners": [
+          {
+            "seat": "S",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "ting": false,
+      "expect": {
+        "next_dealer": "S",
+        "next_k": 0,
+        "retains": false
+      }
+    },
+    {
+      "name": "shared-discard-rotates",
+      "dealer": "E",
+      "k": 2,
+      "result": {
+        "kind": "discard",
+        "payer": "N",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          },
+          {
+            "seat": "S",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "ting": false,
+      "expect": {
+        "next_dealer": "S",
+        "next_k": 0,
+        "retains": false
+      }
+    },
+    {
+      "name": "exhaustive-ting-retains",
+      "dealer": "W",
+      "k": 4,
+      "result": {
+        "kind": "exhaustive_draw"
+      },
+      "ting": true,
+      "expect": {
+        "next_dealer": "W",
+        "next_k": 5,
+        "retains": true
+      }
+    },
+    {
+      "name": "exhaustive-not-ting-rotates",
+      "dealer": "W",
+      "k": 4,
+      "result": {
+        "kind": "exhaustive_draw"
+      },
+      "ting": false,
+      "expect": {
+        "next_dealer": "N",
+        "next_k": 0,
+        "retains": false
+      }
+    },
+    {
+      "name": "k10-rotates-regardless",
+      "dealer": "E",
+      "k": 10,
+      "result": {
+        "kind": "zimo",
+        "winners": [
+          {
+            "seat": "E",
+            "raw_tai": 5
+          }
+        ]
+      },
+      "ting": false,
+      "expect": {
+        "next_dealer": "S",
+        "next_k": 0,
+        "retains": false
+      }
+    }
   ]
 }
