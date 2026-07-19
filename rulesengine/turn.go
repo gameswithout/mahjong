@@ -99,10 +99,21 @@ type TurnEngine struct {
 	Version     uint64       `json:"version"`
 	LastDiscard *Discard     `json:"last_discard,omitempty"`
 	Claim       *ClaimWindow `json:"claim,omitempty"`
+	// TurnDeadline is the active seat's combined §5.10 draw/discard
+	// decision deadline. It is only meaningful while Phase is
+	// PhaseAwaitingDraw or PhaseAwaitingDiscard; a stale value while the
+	// engine is in another phase must not be treated as live.
+	TurnDeadline *time.Time `json:"turn_deadline,omitempty"`
 
 	now          func() time.Time
 	winValidator WinValidator
 	winLocks     map[Seat]bool
+
+	// §5.10 deadline engine configuration. deadlineConfig is fixed once
+	// decided for the match's lifetime; networkEstimate is refreshed by the
+	// runtime layer as connection quality changes.
+	deadlineConfig  DeadlineConfig
+	networkEstimate time.Duration
 
 	// Special-win and Kong-flow state (§5.7, §5.9).
 	discards          []Discard
@@ -115,6 +126,10 @@ type TurnEngine struct {
 	rob               *RobWindow
 	lastDraw          *DrawContext
 	result            *HandResult
+
+	// §5.10/§8.7/§11.1 timeout and AFK-takeover tracking.
+	afkStrikes map[Seat]int
+	takenOver  map[Seat]bool
 }
 
 func NewTurnEngine(deal *DealState, now func() time.Time, validators ...WinValidator) (*TurnEngine, error) {
@@ -128,16 +143,147 @@ func NewTurnEngine(deal *DealState, now func() time.Time, validators ...WinValid
 	if len(validators) > 0 && validators[0] != nil {
 		validator = validators[0]
 	}
+	// Public Quick Play (non-Bamboo) is the default deadline preset for any
+	// caller that never explicitly configures one via SetDeadlineConfig, so
+	// every existing NewTurnEngine call site keeps working unchanged.
+	defaultDeadlines, err := NewDeadlineConfig(ContextPublicQuickPlay, false, 0)
+	if err != nil {
+		return nil, err
+	}
 	return &TurnEngine{
-		Deal:         deal,
-		Phase:        PhaseInitialReplacement,
-		ActiveSeat:   East,
-		Version:      1,
-		now:          now,
-		winValidator: validator,
-		winLocks:     map[Seat]bool{},
-		hasDrawn:     map[Seat]bool{},
+		Deal:           deal,
+		Phase:          PhaseInitialReplacement,
+		ActiveSeat:     East,
+		Version:        1,
+		now:            now,
+		winValidator:   validator,
+		winLocks:       map[Seat]bool{},
+		hasDrawn:       map[Seat]bool{},
+		deadlineConfig: defaultDeadlines,
+		afkStrikes:     map[Seat]int{},
+		takenOver:      map[Seat]bool{},
 	}, nil
+}
+
+// SetDeadlineConfig fixes the §5.10 timing preset this match uses for the
+// rest of its lifetime ("An active match keeps the values with which it
+// started"). Callers should set this once, immediately after construction,
+// before any command is applied.
+func (e *TurnEngine) SetDeadlineConfig(cfg DeadlineConfig) {
+	if e == nil {
+		return
+	}
+	e.deadlineConfig = cfg
+}
+
+// SetNetworkEstimate updates the match's current largest-eligible-player
+// smoothed half-RTT estimate, used by every deadline computed after this
+// call. The runtime layer is responsible for measuring and smoothing this
+// value; the engine only ever caps and applies it (§5.10).
+func (e *TurnEngine) SetNetworkEstimate(halfRTT time.Duration) {
+	if e == nil {
+		return
+	}
+	e.networkEstimate = halfRTT
+}
+
+func (e *TurnEngine) setTurnDeadline() {
+	deadline := e.deadlineConfig.TurnDeadline(e.now().UTC(), e.networkEstimate)
+	e.TurnDeadline = deadline
+}
+
+// beginDrawWindow starts a fresh draw/discard decision for the active seat
+// with a new combined §5.10 turn deadline.
+func (e *TurnEngine) beginDrawWindow() {
+	e.Phase = PhaseAwaitingDraw
+	e.setTurnDeadline()
+}
+
+// beginDiscardWindow transitions to the discard decision. freshDeadline
+// starts a brand-new §5.10 turn deadline (a claimed Pong/Chow/Kong skips
+// the draw step and begins a new turn segment for the claimant); otherwise
+// the existing draw-window deadline — already covering this same combined
+// draw+discard budget — is left untouched.
+func (e *TurnEngine) beginDiscardWindow(freshDeadline bool) {
+	e.Phase = PhaseAwaitingDiscard
+	if freshDeadline {
+		e.setTurnDeadline()
+	}
+}
+
+// AFKStrikes returns how many consecutive timeouts seat currently has
+// (§8.7/§11.1). It resets to 0 on that seat's next genuine (non-timeout)
+// action.
+func (e *TurnEngine) AFKStrikes(seat Seat) int {
+	if e == nil {
+		return 0
+	}
+	return e.afkStrikes[seat]
+}
+
+// IsTakenOver reports whether seat is currently under disclosed bot
+// takeover after three consecutive action timeouts (§8.7/§11.1). Unlike
+// AFKStrikes, this does NOT clear on the seat's next explicit action: while
+// under takeover, something (a bot orchestrator) is submitting explicit
+// commands on the seat's behalf every turn, and those must not be
+// mistaken for the human's own return. RestoreControl is the only way to
+// clear it.
+func (e *TurnEngine) IsTakenOver(seat Seat) bool {
+	if e == nil {
+		return false
+	}
+	return e.takenOver[seat]
+}
+
+// RestoreControl clears seat's takeover flag and AFK strike count —
+// "Reconnection may restore control at the next legal personal turn"
+// (§8.7). The engine has no way to distinguish a human's command from a
+// bot orchestrator's command to the same public methods (Discard,
+// SubmitClaim, ...), so restoring control is never an automatic side
+// effect of any regular action; the caller (the match runtime, on
+// detecting the human has actually reconnected/resumed) must call this
+// explicitly.
+func (e *TurnEngine) RestoreControl(seat Seat) {
+	if e == nil {
+		return
+	}
+	if e.afkStrikes == nil {
+		e.afkStrikes = map[Seat]int{}
+	}
+	if e.takenOver == nil {
+		e.takenOver = map[Seat]bool{}
+	}
+	e.afkStrikes[seat] = 0
+	e.takenOver[seat] = false
+}
+
+// recordGenuineAction resets seat's AFK strike count for an explicit,
+// on-time action — whether it came from the human or (while under
+// takeover) a bot orchestrator acting on the seat's behalf. It
+// deliberately does not touch the takeover flag; see RestoreControl.
+func (e *TurnEngine) recordGenuineAction(seat Seat) {
+	if e.afkStrikes == nil {
+		e.afkStrikes = map[Seat]int{}
+	}
+	e.afkStrikes[seat] = 0
+}
+
+// recordTimeout increments seat's consecutive AFK strike count and, on the
+// third consecutive timeout, activates disclosed bot takeover for the rest
+// of the hand (§8.7/§11.1: "Three consecutive player-action timeouts mark
+// the player AFK and activate a disclosed takeover bot for the rest of the
+// hand").
+func (e *TurnEngine) recordTimeout(seat Seat) {
+	if e.afkStrikes == nil {
+		e.afkStrikes = map[Seat]int{}
+	}
+	if e.takenOver == nil {
+		e.takenOver = map[Seat]bool{}
+	}
+	e.afkStrikes[seat]++
+	if e.afkStrikes[seat] >= 3 {
+		e.takenOver[seat] = true
+	}
 }
 
 // BeginInitialReplacement runs the seat-by-seat initial Flower replacement.
@@ -199,7 +345,7 @@ func (e *TurnEngine) Draw(expectedVersion uint64) (DrawResult, error) {
 		e.raiseOffer(OfferEightFlowers, e.ActiveSeat, -1)
 		return result, nil
 	}
-	e.Phase = PhaseAwaitingDiscard
+	e.beginDiscardWindow(false) // continues the same combined draw+discard budget (§5.10)
 	return result, nil
 }
 
@@ -210,6 +356,19 @@ func (e *TurnEngine) Discard(expectedVersion uint64, seat Seat, tileID string) (
 	if expectedVersion != e.Version {
 		return nil, ErrStaleAction
 	}
+	window, err := e.applyDiscard(seat, tileID)
+	if err != nil {
+		return nil, err
+	}
+	e.recordGenuineAction(seat)
+	return window, nil
+}
+
+// applyDiscard performs the tile removal and claim-window setup shared by a
+// genuine player Discard() and the timeout-triggered auto-discard path
+// (AutoDiscardExpiredTurn); AFK bookkeeping differs between those two
+// callers, so it lives in each of them instead of here.
+func (e *TurnEngine) applyDiscard(seat Seat, tileID string) (*ClaimWindow, error) {
 	player, err := e.player(seat)
 	if err != nil {
 		return nil, err
@@ -246,13 +405,104 @@ func (e *TurnEngine) Discard(expectedVersion uint64, seat Seat, tileID string) (
 		ActionID:     fmt.Sprintf("claim-%d", e.Version),
 		StateVersion: e.Version,
 		Discard:      discard,
-		Deadline:     e.now().UTC().Add(10 * time.Second),
+		Deadline:     e.deadlineConfig.interceptDeadlineOrSentinel(e.now().UTC(), e.networkEstimate),
 		Eligible:     eligible,
 		Responses:    map[Seat]ClaimResponse{},
 	}
 	e.Claim = window
 	e.Phase = PhaseClaimWindow
 	return window, nil
+}
+
+// ErrTurnNotExpired indicates AutoDiscardExpiredTurn was called before the
+// current turn deadline has passed; the caller should simply retry later
+// (or after the next real command changes the deadline).
+var ErrTurnNotExpired = errors.New("turn deadline has not passed yet")
+
+// AutoDiscardExpiredTurn implements §5.10's turn-timeout rule: "it discards
+// the most recently drawn playable tile; if none is distinguishable after a
+// claim, it discards the rightmost tile in the server's canonical sorted
+// hand. The server never auto-declares Win." The caller (the match runtime)
+// is responsible for invoking this once TurnDeadline has passed — the
+// engine itself runs no clock or goroutine.
+//
+// If the active seat is still awaiting its draw, the mandatory draw is
+// taken first (with any chained Flower replacement) and the same canonical
+// rule then picks the discard — a turn timeout is one combined draw+discard
+// budget, not two separate ones (§5.10). If a §5.9 offer (Eight Flowers /
+// Heavenly) is pending, it is declined first: "A turn timeout follows the
+// normal auto-discard rule and never auto-declares."
+func (e *TurnEngine) AutoDiscardExpiredTurn(now time.Time) (*ClaimWindow, error) {
+	if e == nil || e.Deal == nil {
+		return nil, ErrTurnState
+	}
+	switch e.Phase {
+	case PhaseAwaitingDraw, PhaseAwaitingDiscard, PhaseOfferPending:
+	default:
+		return nil, ErrTurnState
+	}
+	if e.TurnDeadline == nil || now.Before(*e.TurnDeadline) {
+		return nil, ErrTurnNotExpired
+	}
+	seat := e.ActiveSeat
+
+	if e.Phase == PhaseOfferPending {
+		if e.offer == nil {
+			return nil, ErrTurnState
+		}
+		if _, err := e.applyRespondOffer(e.offer.Seat, false); err != nil {
+			return nil, err
+		}
+	}
+	if e.Phase == PhaseAwaitingDraw {
+		if _, err := e.Draw(e.Version); err != nil && !errors.Is(err, ErrHandComplete) {
+			return nil, err
+		}
+	}
+	if e.Phase != PhaseAwaitingDiscard {
+		// The draw (or a chained Flower replacement inside it) ended the
+		// hand, or raised a fresh §5.9 offer; either way there is no
+		// discard to perform right now, but the timeout still counts.
+		e.recordTimeout(seat)
+		return nil, nil
+	}
+	tileID := e.canonicalTimeoutDiscard(seat)
+	if tileID == "" {
+		return nil, ErrTurnState
+	}
+	window, err := e.applyDiscard(seat, tileID)
+	if err != nil {
+		return nil, err
+	}
+	e.recordTimeout(seat)
+	return window, nil
+}
+
+// canonicalTimeoutDiscard implements §5.10's auto-discard tile selection:
+// the most recently drawn playable tile if there is one, otherwise the
+// rightmost tile in the canonical (ID-sorted) hand — used when "none is
+// distinguishable after a claim" (a claimed Pong/Chow leaves no natural
+// "just drawn" tile, since claims never populate lastDraw).
+func (e *TurnEngine) canonicalTimeoutDiscard(seat Seat) string {
+	player, err := e.player(seat)
+	if err != nil || len(player.Hand) == 0 {
+		return ""
+	}
+	if e.lastDraw != nil && e.lastDraw.Seat == seat {
+		for _, tile := range player.Hand {
+			if tile.ID == e.lastDraw.TileID && !tile.IsFlower() {
+				return tile.ID
+			}
+		}
+	}
+	// player.Hand is kept sorted by ID after every mutation (Deal/Draw/claims
+	// all re-sort), so the last element is the canonical "rightmost" tile.
+	for i := len(player.Hand) - 1; i >= 0; i-- {
+		if !player.Hand[i].IsFlower() {
+			return player.Hand[i].ID
+		}
+	}
+	return ""
 }
 
 func (e *TurnEngine) SubmitClaim(response ClaimResponse) error {
@@ -325,6 +575,17 @@ func (e *TurnEngine) ResolveClaims(expectedVersion uint64) (ClaimResolution, err
 	}
 	if len(window.Responses) != len(window.Eligible) && e.now().UTC().Before(window.Deadline) {
 		return ClaimResolution{}, ErrClaimPending
+	}
+	// §5.10/§8.7 AFK tracking: a seat that responded (even a deliberate
+	// Pass) acted genuinely; a seat with no response by the deadline timed
+	// out. "A timeout Pass never creates the §5.8 discard-Win lock" is
+	// already true here — this only tracks AFK strikes, not win locks.
+	for _, seat := range window.Eligible {
+		if _, responded := window.Responses[seat]; responded {
+			e.recordGenuineAction(seat)
+		} else {
+			e.recordTimeout(seat)
+		}
 	}
 
 	ordered := append([]Seat(nil), window.Eligible...)
@@ -405,7 +666,7 @@ func (e *TurnEngine) ResolveClaims(expectedVersion uint64) (ClaimResolution, err
 	}
 
 	e.ActiveSeat = next
-	e.Phase = PhaseAwaitingDraw
+	e.beginDrawWindow()
 	e.Claim = nil
 	e.Version++
 	resolution.NextSeat = next
@@ -462,6 +723,17 @@ func (e *TurnEngine) Snapshot() TurnSnapshot {
 		snapshot.LastDraw = &draw
 	}
 	snapshot.Result = e.Result()
+	snapshot.TurnDeadline = e.TurnDeadline
+	snapshot.DeadlineConfig = e.deadlineConfig
+	snapshot.NetworkEstimate = e.networkEstimate
+	for _, seat := range seats {
+		if strikes := e.afkStrikes[seat]; strikes > 0 {
+			snapshot.AFKStrikes = append(snapshot.AFKStrikes, SeatStrikes{Seat: seat, Strikes: strikes})
+		}
+		if e.takenOver[seat] {
+			snapshot.TakenOver = append(snapshot.TakenOver, seat)
+		}
+	}
 	return snapshot
 }
 
@@ -482,6 +754,18 @@ type TurnSnapshot struct {
 	Rob               *RobSnapshot   `json:"rob,omitempty"`
 	LastDraw          *DrawContext   `json:"last_draw,omitempty"`
 	Result            *HandResult    `json:"result,omitempty"`
+	TurnDeadline      *time.Time     `json:"turn_deadline,omitempty"`
+	DeadlineConfig    DeadlineConfig `json:"deadline_config"`
+	NetworkEstimate   time.Duration  `json:"network_estimate,omitempty"`
+	AFKStrikes        []SeatStrikes  `json:"afk_strikes,omitempty"`
+	TakenOver         []Seat         `json:"taken_over,omitempty"`
+}
+
+// SeatStrikes records one seat's consecutive AFK-timeout count for snapshot
+// persistence.
+type SeatStrikes struct {
+	Seat    Seat `json:"seat"`
+	Strikes int  `json:"strikes"`
 }
 
 type RobSnapshot struct {
@@ -585,7 +869,7 @@ func (e *TurnEngine) applyPong(seat Seat, discard Discard, requestedIDs []string
 	e.claimsOccurred = true
 	e.lastDraw = nil
 	e.ActiveSeat = seat
-	e.Phase = PhaseAwaitingDiscard
+	e.beginDiscardWindow(true) // a claimed Pong skips the draw step; new turn segment
 	e.Claim = nil
 	e.Version++
 	return nil
@@ -634,7 +918,7 @@ func (e *TurnEngine) applyChow(seat Seat, discard Discard, ids []string) error {
 	e.claimsOccurred = true
 	e.lastDraw = nil
 	e.ActiveSeat = seat
-	e.Phase = PhaseAwaitingDiscard
+	e.beginDiscardWindow(true) // a claimed Chow skips the draw step; new turn segment
 	e.Claim = nil
 	e.Version++
 	return nil

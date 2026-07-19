@@ -203,6 +203,13 @@ const (
 	CommandSubmitRob               CommandType = "submit_rob"
 	CommandResolveRob              CommandType = "resolve_rob"
 	CommandRespondOffer            CommandType = "respond_offer"
+	// CommandAutoDiscardExpiredTurn is a server-originated command (§5.10/
+	// §8.7): no client submits it directly. A runtime issues it once it
+	// believes the active seat's decision deadline has passed; the engine
+	// itself re-validates the deadline against the command's own commit
+	// time, so a premature or duplicate issue is simply rejected rather
+	// than corrupting state.
+	CommandAutoDiscardExpiredTurn CommandType = "auto_discard_expired_turn"
 )
 
 type MatchCommand struct {
@@ -379,6 +386,8 @@ func applyCommand(engine *TurnEngine, command MatchCommand) (CommandResult, erro
 		result.HandResult, actionErr = engine.ResolveRob(command.ExpectedVersion)
 	case CommandRespondOffer:
 		result.HandResult, actionErr = engine.RespondOffer(command.ExpectedVersion, command.Seat, command.Accept)
+	case CommandAutoDiscardExpiredTurn:
+		result.ClaimWindow, actionErr = engine.AutoDiscardExpiredTurn(engine.now())
 	default:
 		actionErr = ErrTurnState
 	}
@@ -448,6 +457,20 @@ func engineFromSnapshot(encoded []byte, now func() time.Time) (*TurnEngine, erro
 		result := *saved.Turn.Result
 		result.Winners = append([]HandWinner(nil), saved.Turn.Result.Winners...)
 		engine.result = &result
+	}
+	if saved.Turn.TurnDeadline != nil {
+		deadline := *saved.Turn.TurnDeadline
+		engine.TurnDeadline = &deadline
+	}
+	engine.deadlineConfig = saved.Turn.DeadlineConfig
+	engine.networkEstimate = saved.Turn.NetworkEstimate
+	engine.afkStrikes = map[Seat]int{}
+	for _, entry := range saved.Turn.AFKStrikes {
+		engine.afkStrikes[entry.Seat] = entry.Strikes
+	}
+	engine.takenOver = map[Seat]bool{}
+	for _, seat := range saved.Turn.TakenOver {
+		engine.takenOver[seat] = true
 	}
 	return engine, nil
 }
@@ -611,6 +634,23 @@ func (a *MatchActor) Apply(ctx context.Context, command MatchCommand) (CommandRe
 	return eventResult, actionErr
 }
 
+// Peek returns a throwaway clone of the current engine state, safe for a
+// caller to inspect (or even mutate) for decision-making purposes — e.g. a
+// bot policy computing a takeover move. The clone is never merged back;
+// any resulting action must be submitted through Apply using the normal
+// command shape so it is properly logged and replayable.
+func (a *MatchActor) Peek() *TurnEngine {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.engine == nil {
+		return nil
+	}
+	return cloneTurnEngine(a.engine)
+}
+
 func (a *MatchActor) snapshotDue(now time.Time) bool {
 	return a.snapshotEvery > 0 && (a.sequence%a.snapshotEvery == 0 || now.Sub(a.lastSnapshotAt) >= 30*time.Second)
 }
@@ -715,6 +755,24 @@ func cloneTurnEngine(engine *TurnEngine) *TurnEngine {
 		cloned.lastDraw = &draw
 	}
 	cloned.result = engine.Result()
+	cloned.TurnDeadline = nil
+	if engine.TurnDeadline != nil {
+		deadline := *engine.TurnDeadline
+		cloned.TurnDeadline = &deadline
+	}
+	// afkStrikes/takenOver are maps: the `cloned := *engine` shallow copy
+	// above left them aliased to engine's own maps, which would let a
+	// speculative working-copy mutation (Apply's clone-before-commit
+	// pattern) leak back into the committed engine before the command even
+	// succeeds.
+	cloned.afkStrikes = map[Seat]int{}
+	for seat, strikes := range engine.afkStrikes {
+		cloned.afkStrikes[seat] = strikes
+	}
+	cloned.takenOver = map[Seat]bool{}
+	for seat, taken := range engine.takenOver {
+		cloned.takenOver[seat] = taken
+	}
 	return &cloned
 }
 

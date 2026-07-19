@@ -4,14 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gameswithout/mahjong/bots"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/storage"
 	"github.com/gameswithout/mahjong/rulesengine"
 )
+
+// takeoverSeatOrder fixes the scan order driveLocked uses when more than
+// one seat is taken over simultaneously; only ordering, not fairness,
+// depends on it (each drive pass re-evaluates from scratch).
+var takeoverSeatOrder = []rulesengine.Seat{rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North}
 
 var (
 	ErrNotMember        = errors.New("player is not a member of this match")
@@ -106,6 +113,9 @@ func (r *Runtime) Join(
 	if err := r.refreshLocked(ctx, current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
+	if err := r.driveLocked(ctx, current); err != nil {
+		return rulesengine.SeatView{}, err
+	}
 	return current.actor.View(seat)
 }
 
@@ -128,6 +138,9 @@ func (r *Runtime) View(
 		return rulesengine.SeatView{}, err
 	}
 	if err := r.refreshLocked(ctx, current); err != nil {
+		return rulesengine.SeatView{}, err
+	}
+	if err := r.driveLocked(ctx, current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
 	return current.actor.View(seat)
@@ -153,6 +166,9 @@ func (r *Runtime) Apply(
 		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
 	}
 	if err := r.refreshLocked(ctx, current); err != nil {
+		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
+	}
+	if err := r.driveLocked(ctx, current); err != nil {
 		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
 	}
 
@@ -247,7 +263,7 @@ func (r *Runtime) resolveClaimResponse(
 	current *loadedMatch,
 	result rulesengine.CommandResult,
 ) (rulesengine.CommandResult, error) {
-	resolved, err := resolveClaimsWhenReady(ctx, current.actor, result)
+	resolved, err := resolveClaimsWhenReady(ctx, current.actor, result, r.now())
 	if !errors.Is(err, rulesengine.ErrEventSequence) {
 		return resolved, err
 	}
@@ -256,8 +272,108 @@ func (r *Runtime) resolveClaimResponse(
 		return resolved, fmt.Errorf("restore after concurrent claim resolution: %w", restoreErr)
 	}
 	current.actor = restored
-	resolved, err = resolveClaimsWhenReady(ctx, restored, result)
+	resolved, err = resolveClaimsWhenReady(ctx, restored, result, r.now())
 	return resolved, err
+}
+
+// driveLocked lazily advances current toward its next human-actionable
+// state (§5.10/§8.7/§11.1): committing an overdue turn's canonical
+// auto-discard, resolving an overdue (or fully-answered) claim window, and
+// playing any taken-over seat's move. It runs after every refreshLocked, so
+// it fires speculatively on each client request; a premature attempt is
+// rejected harmlessly by the engine's own deadline check, so calling it
+// whether or not anything has actually expired is safe.
+//
+// This is lazy, request-triggered expiry, not a background ticker — a match
+// nobody calls Join/View/Apply against again will not self-advance past a
+// deadline on its own. In practice this is bounded by the other seats at
+// the table continuing to interact with the match while waiting on an AFK
+// player; a dedicated reaper is out of scope here.
+//
+// Rob windows and §5.9 offers are intentionally left alone: neither
+// runtime's command surface accepts a player response to either yet (a
+// pre-existing gap, not introduced here), so there is nothing for this
+// driver to layer bot behavior on top of.
+func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
+	const dealer, prevailingWind = rulesengine.East, rulesengine.East
+	const maxSteps = 16
+	for step := 0; step < maxSteps; step++ {
+		engine := current.actor.Peek()
+		if engine == nil {
+			return nil
+		}
+		version := engine.Version
+		now := r.now()
+
+		if engine.TurnDeadline != nil && !now.Before(*engine.TurnDeadline) {
+			switch engine.Phase {
+			case rulesengine.PhaseAwaitingDraw, rulesengine.PhaseAwaitingDiscard, rulesengine.PhaseOfferPending:
+				_, err := current.actor.Apply(ctx, rulesengine.MatchCommand{
+					MatchID:   current.record.RuntimeID,
+					RequestID: "system:auto-discard:" + strconv.FormatUint(version, 10),
+					Type:      rulesengine.CommandAutoDiscardExpiredTurn,
+				})
+				if err == nil {
+					continue
+				}
+				if !errors.Is(err, rulesengine.ErrTurnNotExpired) {
+					return err
+				}
+			}
+		}
+
+		if engine.Phase == rulesengine.PhaseClaimWindow && engine.Claim != nil {
+			claim := engine.Claim
+			fullyAnswered := len(claim.Responses) == len(claim.Eligible)
+			if fullyAnswered || now.After(claim.Deadline) {
+				// Same request ID scheme as resolveClaimsWhenReady, so this
+				// stays idempotent whether resolution is triggered from
+				// here or from a player's own claim response completing
+				// the window.
+				_, err := current.actor.Apply(ctx, rulesengine.MatchCommand{
+					MatchID:         current.record.RuntimeID,
+					RequestID:       "server:resolve-claims:" + claim.ActionID,
+					Type:            rulesengine.CommandResolveClaims,
+					ExpectedVersion: claim.StateVersion,
+				})
+				if err != nil {
+					return err
+				}
+				continue
+			}
+		}
+
+		acted := false
+		for _, seat := range takeoverSeatOrder {
+			if !engine.IsTakenOver(seat) {
+				continue
+			}
+			command, err := bots.DecideTakeoverCommand(engine, seat, dealer, prevailingWind, 0, version)
+			if err != nil {
+				return fmt.Errorf("drive takeover seat %s: %w", seat, err)
+			}
+			if command == nil {
+				continue
+			}
+			command.MatchID = current.record.RuntimeID
+			command.RequestID = "system:takeover:" + string(seat) + ":" + strconv.FormatUint(version, 10)
+			result, applyErr := current.actor.Apply(ctx, *command)
+			if applyErr != nil && !errors.Is(applyErr, rulesengine.ErrHandComplete) {
+				return applyErr
+			}
+			if command.Type == rulesengine.CommandSubmitClaim {
+				if _, err := r.resolveClaimResponse(ctx, current, result); err != nil {
+					return err
+				}
+			}
+			acted = true
+			break
+		}
+		if !acted {
+			return nil
+		}
+	}
+	return nil
 }
 
 func (r *Runtime) matchLock(runtimeID string) *sync.Mutex {
@@ -389,9 +505,10 @@ func resolveClaimsWhenReady(
 	ctx context.Context,
 	actor *rulesengine.MatchActor,
 	result rulesengine.CommandResult,
+	now time.Time,
 ) (rulesengine.CommandResult, error) {
 	claim := result.Snapshot.Claim
-	if claim == nil || len(claim.Responses) != len(claim.Eligible) {
+	if claim == nil || (len(claim.Responses) != len(claim.Eligible) && !now.After(claim.Deadline)) {
 		return result, nil
 	}
 	requestID := "server:resolve-claims:" + claim.ActionID

@@ -12,11 +12,11 @@ const PhaseRobWindow TurnPhase = "rob_window"
 type WinKind string
 
 const (
-	WinDiscard        WinKind = "discard"
-	WinZimo           WinKind = "zimo"
-	WinRob            WinKind = "rob"
-	WinEightFlowers   WinKind = "eight_flowers"
-	WinHeavenly       WinKind = "heavenly"
+	WinDiscard         WinKind = "discard"
+	WinZimo            WinKind = "zimo"
+	WinRob             WinKind = "rob"
+	WinEightFlowers    WinKind = "eight_flowers"
+	WinHeavenly        WinKind = "heavenly"
 	KindExhaustiveDraw WinKind = "exhaustive_draw"
 )
 
@@ -122,6 +122,19 @@ func (e *TurnEngine) RespondOffer(expectedVersion uint64, seat Seat, accept bool
 	if expectedVersion != e.Version {
 		return nil, ErrStaleAction
 	}
+	result, err := e.applyRespondOffer(seat, accept)
+	if err != nil {
+		return nil, err
+	}
+	e.recordGenuineAction(seat)
+	return result, nil
+}
+
+// applyRespondOffer performs the offer resolution shared by a genuine
+// RespondOffer call and the timeout-triggered auto-decline path
+// (AutoDiscardExpiredTurn); AFK bookkeeping differs between those two
+// callers, so it lives in each of them instead of here.
+func (e *TurnEngine) applyRespondOffer(seat Seat, accept bool) (*HandResult, error) {
 	offer := *e.offer
 	e.offer = nil
 	if accept {
@@ -139,13 +152,13 @@ func (e *TurnEngine) RespondOffer(expectedVersion uint64, seat Seat, accept bool
 			e.Phase = PhaseInitialReplacement
 			return nil, e.continueInitialReplacement()
 		}
-		e.Phase = PhaseAwaitingDiscard
+		e.beginDiscardWindow(false) // mid-turn offer; continues the same combined budget
 		e.Version++
 		return nil, nil
 	case OfferHeavenly:
 		e.heavenlyAvailable = false
 		e.heavenlyLapsed = true
-		e.Phase = PhaseAwaitingDiscard
+		e.beginDiscardWindow(true) // East's first discard; no prior draw window existed
 		e.Version++
 		return nil, nil
 	}
@@ -283,7 +296,7 @@ func (e *TurnEngine) DeclareAddedKong(expectedVersion uint64, seat Seat, tileID 
 		Declarer:     seat,
 		Tile:         *tile,
 		MeldIndex:    meldIndex,
-		Deadline:     e.now().UTC().Add(10 * time.Second),
+		Deadline:     e.deadlineConfig.interceptDeadlineOrSentinel(e.now().UTC(), e.networkEstimate),
 		Eligible:     eligible,
 		Responses:    map[Seat]RobResponse{},
 	}
@@ -339,6 +352,13 @@ func (e *TurnEngine) ResolveRob(expectedVersion uint64) (*HandResult, error) {
 	}
 	if len(window.Responses) != len(window.Eligible) && e.now().UTC().Before(window.Deadline) {
 		return nil, ErrClaimPending
+	}
+	for _, seat := range window.Eligible {
+		if _, responded := window.Responses[seat]; responded {
+			e.recordGenuineAction(seat)
+		} else {
+			e.recordTimeout(seat)
+		}
 	}
 
 	ordered := append([]Seat(nil), window.Eligible...)
@@ -437,7 +457,11 @@ func (e *TurnEngine) kongReplacementDraw(seat Seat, player *PlayerState) (DrawRe
 		e.raiseOffer(OfferEightFlowers, seat, -1)
 		return DrawResult{Seat: seat, Tile: replacement, Replacement: true}, nil
 	}
-	e.Phase = PhaseAwaitingDiscard
+	// A Kong replacement draw is always a fresh decision point: whether the
+	// Kong was declared mid-turn (concealed/added) or via a claim, the
+	// player now faces a new discard choice and gets a new §5.10 budget for
+	// it, matching the extra processing the replacement draw itself took.
+	e.beginDiscardWindow(true)
 	e.Version++
 	return DrawResult{Seat: seat, Tile: replacement, Replacement: true}, nil
 }
@@ -517,7 +541,7 @@ func (e *TurnEngine) continueInitialReplacement() error {
 		e.raiseOffer(OfferHeavenly, East, -1)
 		return nil
 	}
-	e.Phase = PhaseAwaitingDiscard
+	e.beginDiscardWindow(true) // East's first discard; no prior draw window existed
 	e.Version++
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -214,7 +215,12 @@ func TestRuntimeRecoversActorAndIdempotentResult(t *testing.T) {
 		t.Fatalf("first Discard() error = %v", err)
 	}
 
-	recoveredRuntime := NewRuntime(store, func() time.Time { return clock().Add(time.Hour) })
+	// A modest clock advance (well short of the claim window's own §5.10
+	// deadline) proves recovery replays state from the events' own recorded
+	// timestamps rather than depending on wall-clock proximity, without
+	// also triggering driveLocked's now-real deadline-expiry behavior —
+	// that is covered separately.
+	recoveredRuntime := NewRuntime(store, func() time.Time { return clock().Add(time.Second) })
 	seat, recoveredView, err := recoveredRuntime.Join(context.Background(), "session-recover", "user-east")
 	if err != nil {
 		t.Fatalf("recovered Join() error = %v", err)
@@ -306,6 +312,131 @@ func TestRuntimeResolvesAllPassesAndAdvancesToNextDraw(t *testing.T) {
 	}
 	if drawn.Phase != rulesengine.PhaseAwaitingDiscard {
 		t.Fatalf("South draw phase = %s", drawn.Phase)
+	}
+}
+
+func TestRuntimeDriveLockedAutoDiscardsExpiredTurn(t *testing.T) {
+	clock := time.Date(2026, 7, 19, 8, 0, 0, 0, time.UTC)
+	runtime := NewRuntime(rulesengine.NewMemoryEventStore(), func() time.Time { return clock })
+
+	_, view, err := runtime.Join(context.Background(), "session-expiry", "user-east")
+	if err != nil {
+		t.Fatalf("Join() error = %v", err)
+	}
+	if view.Phase != rulesengine.PhaseAwaitingDiscard {
+		t.Fatalf("initial phase = %s, want PhaseAwaitingDiscard", view.Phase)
+	}
+
+	// Nobody ever submits East's discard. Advance the clock well past any
+	// possible §5.10 turn deadline and let a plain View() — as if another
+	// seat were just polling for state — drive the timeout.
+	clock = clock.Add(20 * time.Second)
+	advanced, err := runtime.View("session-expiry", "user-east")
+	if err != nil {
+		t.Fatalf("View() after deadline error = %v", err)
+	}
+	if advanced.Phase != rulesengine.PhaseClaimWindow {
+		t.Fatalf("phase after expiry = %s, want PhaseClaimWindow", advanced.Phase)
+	}
+	if advanced.LastDiscard == nil || advanced.LastDiscard.Seat != rulesengine.East {
+		t.Fatalf("last discard = %#v, want East's canonical auto-discard", advanced.LastDiscard)
+	}
+}
+
+// TestRuntimeDriveLockedPlaysTakenOverSeatAutomatically mirrors the
+// mahjong-match-service runtime's equivalent test: East, then South, then
+// West each discard for real with every other non-North seat explicitly
+// passing, leaving North as the only seat that never responds. Rotation
+// order E-S-W-N means North is never the discarder in this sequence and is
+// eligible on all three claim windows, so three consecutive unanswered
+// windows land North exactly as it becomes North's own turn — taken over,
+// per §8.7/§11.1 — with nobody ever submitting a command on North's behalf.
+func TestRuntimeDriveLockedPlaysTakenOverSeatAutomatically(t *testing.T) {
+	clock := time.Date(2026, 7, 19, 8, 0, 0, 0, time.UTC)
+	runtime := NewRuntime(rulesengine.NewMemoryEventStore(), func() time.Time { return clock })
+	ctx := context.Background()
+	const matchID = "session-takeover"
+
+	var view rulesengine.SeatView
+	for _, user := range []string{"user-east", "user-south", "user-west", "user-north"} {
+		_, joined, err := runtime.Join(ctx, matchID, user)
+		if err != nil {
+			t.Fatalf("%s Join() error = %v", user, err)
+		}
+		if user == "user-east" {
+			view = joined
+		}
+	}
+
+	discarders := []struct {
+		user   string
+		seat   rulesengine.Seat
+		others []string
+	}{
+		{"user-east", rulesengine.East, []string{"user-south", "user-west"}},
+		{"user-south", rulesengine.South, []string{"user-east", "user-west"}},
+		{"user-west", rulesengine.West, []string{"user-east", "user-south"}},
+	}
+	seq := 0
+	for _, step := range discarders {
+		seq++
+		if view.ActiveSeat != step.seat {
+			t.Fatalf("expected %s active, got %s", step.seat, view.ActiveSeat)
+		}
+		tileID := view.OwnHand[0].ID
+		if view.Phase == rulesengine.PhaseAwaitingDraw {
+			result, err := runtime.Apply(ctx, matchID, step.user, fmt.Sprintf("draw-%d", seq), protocol.MatchCommandRequest{
+				MatchID:         matchID,
+				Type:            rulesengine.CommandDraw,
+				ExpectedVersion: view.StateVersion,
+			})
+			if err != nil {
+				t.Fatalf("Draw(%s) error = %v", step.user, err)
+			}
+			tileID = result.Draw.Tile.ID
+			if view, err = runtime.View(matchID, step.user); err != nil {
+				t.Fatalf("View(%s) after draw error = %v", step.user, err)
+			}
+		}
+		if _, err := runtime.Apply(ctx, matchID, step.user, fmt.Sprintf("discard-%d", seq), protocol.MatchCommandRequest{
+			MatchID:         matchID,
+			Type:            rulesengine.CommandDiscard,
+			ExpectedVersion: view.StateVersion,
+			TileID:          tileID,
+		}); err != nil {
+			t.Fatalf("Discard(%s) error = %v", step.user, err)
+		}
+		for _, other := range step.others {
+			otherView, err := runtime.View(matchID, other)
+			if err != nil {
+				t.Fatalf("View(%s) error = %v", other, err)
+			}
+			if otherView.Claim == nil {
+				t.Fatalf("expected a claim window for %s after %s's discard", other, step.user)
+			}
+			if _, err := runtime.Apply(ctx, matchID, other, fmt.Sprintf("pass-%d-%s", seq, other), protocol.MatchCommandRequest{
+				MatchID:         matchID,
+				Type:            rulesengine.CommandSubmitClaim,
+				ExpectedVersion: otherView.StateVersion,
+				Claim:           &rulesengine.ClaimResponse{Type: rulesengine.ClaimPass},
+			}); err != nil {
+				t.Fatalf("pass(%s) error = %v", other, err)
+			}
+		}
+		// North deliberately never responds -> one AFK strike per round.
+		clock = clock.Add(20 * time.Second)
+		var err error
+		if view, err = runtime.View(matchID, "user-east"); err != nil {
+			t.Fatalf("View() after claim deadline error = %v", err)
+		}
+	}
+
+	// driveLocked loops until nothing is left to do, so the loop's own final
+	// View() already carried North all the way through its takeover-driven
+	// draw and discard: nobody ever submitted a single command for North,
+	// yet its move is fully reflected here.
+	if view.Phase != rulesengine.PhaseClaimWindow || view.LastDiscard == nil || view.LastDiscard.Seat != rulesengine.North {
+		t.Fatalf("phase = %s, lastDiscard = %#v, want North's bot-driven discard", view.Phase, view.LastDiscard)
 	}
 }
 
