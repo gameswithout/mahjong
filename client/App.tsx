@@ -1090,6 +1090,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                                 state={seatViewToMatchTableState(matchRuntimeState.view, {
                                   now: nowTick,
                                   onClaimAction: dispatchClaimAction,
+                                  claimActionPending: matchRuntimeState.commandPending,
                                 })}
                                 interaction={{
                                   canDraw:

@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import type { MatchAction, MatchTableState, SeatId, SeatState, WireMeld, WireTile } from "./matchTableTypes";
 import { windName } from "./matchTableTypes";
 
@@ -121,17 +123,45 @@ function OpponentSeat({
   );
 }
 
+// §9.4/§9.9's exact timer thresholds: neutral -> amber at 3 seconds,
+// amber -> red at 1 second. (Not 5s/3s — those were the E7.F5 wireframe's
+// placeholder values, never reconciled against the spec's actual wording
+// until E8.F3.)
+const AMBER_THRESHOLD_SECONDS = 3;
+const RED_THRESHOLD_SECONDS = 1;
+
 function WallAndTurnCenter({ state }: { state: MatchTableState }) {
-  const urgent = state.countdownSeconds <= 3;
-  const warn = state.countdownSeconds <= 5 && !urgent;
+  const urgent = state.countdownSeconds <= RED_THRESHOLD_SECONDS;
+  const warn = state.countdownSeconds <= AMBER_THRESHOLD_SECONDS && !urgent;
   const activeSeat = (Object.values(state.seats) as SeatState[]).find((s) => s.isActive)?.seat ?? state.localSeat;
   const fraction = state.countdownTotalSeconds > 0 ? state.countdownSeconds / state.countdownTotalSeconds : 0;
+
+  // §9.4: "At 3 seconds it changes from neutral to amber, announces '3
+  // seconds' to assistive technology... at 1 second it changes to red and
+  // repeats the non-color cue." This must fire once per threshold crossing,
+  // not on every per-second re-render (which aria-live="polite" on a
+  // continuously-changing label would otherwise cause).
+  const [announcement, setAnnouncement] = useState("");
+  const announcedThresholdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (state.countdownSeconds > AMBER_THRESHOLD_SECONDS) {
+      announcedThresholdRef.current = null;
+      return;
+    }
+    if (state.countdownSeconds <= RED_THRESHOLD_SECONDS && announcedThresholdRef.current !== RED_THRESHOLD_SECONDS) {
+      announcedThresholdRef.current = RED_THRESHOLD_SECONDS;
+      setAnnouncement("1 second remaining");
+    } else if (state.countdownSeconds <= AMBER_THRESHOLD_SECONDS && announcedThresholdRef.current === null) {
+      announcedThresholdRef.current = AMBER_THRESHOLD_SECONDS;
+      setAnnouncement("3 seconds remaining");
+    }
+  }, [state.countdownSeconds]);
+
   return (
     <div className="center-panel" aria-label="Table status">
       <div
         className={`countdown${urgent ? " countdown-urgent" : warn ? " countdown-warn" : ""}`}
         role="timer"
-        aria-live="polite"
         aria-label={`${state.countdownSeconds} seconds remaining`}
       >
         <svg viewBox="0 0 36 36" className="countdown-ring" aria-hidden="true">
@@ -146,6 +176,9 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
         </svg>
         <span className="countdown-number">{state.countdownSeconds}</span>
       </div>
+      <span className="sr-only" role="status" aria-live="assertive">
+        {announcement}
+      </span>
       <div className="wall-outline" aria-label={`${state.wall.drawableRemaining} drawable tiles remaining`}>
         <span className="wall-outline-icon" aria-hidden="true">
           ▤

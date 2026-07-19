@@ -212,10 +212,52 @@ describe("seatViewToMatchTableState", () => {
       expect(state.legalActions).toEqual([]);
     });
 
-    it("is empty once the seat has already responded", () => {
-      const view = claimView({ own_response: { seat: "E", type: "pass", state_version: 2, response_revision: 0 } });
+    it("keeps offering actions after an initial response, marking the chosen one (revision-until-deadline)", () => {
+      const view = claimView({
+        options: { can_pong: true },
+        own_response: { seat: "E", type: "pass", state_version: 2, response_revision: 0 },
+      });
+      const dispatch = vi.fn();
+      const state = seatViewToMatchTableState(view, { now: Date.now(), onClaimAction: dispatch });
+      expect(state.legalActions.map((a) => a.id)).toEqual(["pong", "pass"]);
+      expect(state.legalActions.find((a) => a.id === "pass")!.label).toBe("Pass ✓");
+      expect(state.legalActions.find((a) => a.id === "pong")!.label).toBe("Pong");
+      // Revising is still a real dispatch — the caller submits the new
+      // choice with an incremented response_revision, which SubmitClaim
+      // accepts right up to the deadline.
+      state.legalActions.find((a) => a.id === "pong")!.onClick!();
+      expect(dispatch).toHaveBeenCalledWith("pong");
+    });
+
+    it("marks the chosen chow set specifically, not just any chow button", () => {
+      const view = claimView({
+        options: {
+          chow_sets: [
+            ["characters-2-1", "characters-3-1"],
+            ["characters-3-1", "characters-4-1"],
+          ],
+        },
+        own_response: {
+          seat: "E",
+          type: "chow",
+          tile_ids: ["characters-3-1", "characters-4-1"],
+          state_version: 2,
+          response_revision: 0,
+        },
+      });
       const state = seatViewToMatchTableState(view, { now: Date.now(), onClaimAction: vi.fn() });
-      expect(state.legalActions).toEqual([]);
+      const chowActions = state.legalActions.filter((a) => a.id.startsWith("chow"));
+      expect(chowActions.map((a) => a.label)).toEqual(["Chow 1", "Chow 2 ✓"]);
+    });
+
+    it("disables every claim action while a previous one is still pending", () => {
+      const view = claimView({ options: { can_pong: true } });
+      const state = seatViewToMatchTableState(view, {
+        now: Date.now(),
+        onClaimAction: vi.fn(),
+        claimActionPending: true,
+      });
+      expect(state.legalActions.every((a) => a.disabled)).toBe(true);
     });
 
     it("always offers Pass alongside whatever the server marked legal", () => {

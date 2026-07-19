@@ -66,30 +66,60 @@ function deadlineCountdown(
 // every id here traces back to a boolean/array the server sent, not
 // anything inferred from own_hand). dispatch is called with a stable
 // action id the caller switches on to send the matching command.
-function claimLegalActions(view: SeatView, dispatch: (actionId: string, tileIds?: [string, string]) => void): MatchAction[] {
+//
+// §9.4/§9.5's "revision-until-deadline": the engine's SubmitClaim already
+// accepts a resubmission with an incremented response_revision right up
+// to the window's deadline, so this keeps offering every legal action —
+// including after an initial response — rather than locking the choice in
+// immediately; only the currently-chosen one is marked so the player can
+// see what they already picked while still being free to change it.
+function claimLegalActions(
+  view: SeatView,
+  dispatch: (actionId: string, tileIds?: [string, string]) => void,
+  pending: boolean,
+): MatchAction[] {
   const claim = view.claim;
-  if (!claim || claim.own_response || !claim.eligible.includes(view.seat)) {
+  if (!claim || !claim.eligible.includes(view.seat)) {
     return [];
   }
+  const chosenId = ownResponseActionId(claim);
+  const action = (id: string, label: string, onClick: () => void): MatchAction => ({
+    id,
+    label: id === chosenId ? `${label} ✓` : label,
+    onClick,
+    disabled: pending,
+  });
   const actions: MatchAction[] = [];
   if (claim.options.can_win) {
-    actions.push({ id: "win", label: "Win", onClick: () => dispatch("win") });
+    actions.push(action("win", "Win", () => dispatch("win")));
   }
   if (claim.options.can_kong) {
-    actions.push({ id: "kong", label: "Kong", onClick: () => dispatch("kong") });
+    actions.push(action("kong", "Kong", () => dispatch("kong")));
   }
   if (claim.options.can_pong) {
-    actions.push({ id: "pong", label: "Pong", onClick: () => dispatch("pong") });
+    actions.push(action("pong", "Pong", () => dispatch("pong")));
   }
   (claim.options.chow_sets ?? []).forEach(([first, second], index) => {
-    actions.push({
-      id: `chow-${index}`,
-      label: claim.options.chow_sets!.length > 1 ? `Chow ${index + 1}` : "Chow",
-      onClick: () => dispatch("chow", [first, second]),
-    });
+    const id = `chow-${index}`;
+    const label = claim.options.chow_sets!.length > 1 ? `Chow ${index + 1}` : "Chow";
+    actions.push(action(id, label, () => dispatch("chow", [first, second])));
   });
-  actions.push({ id: "pass", label: "Pass", onClick: () => dispatch("pass") });
+  actions.push(action("pass", "Pass", () => dispatch("pass")));
   return actions;
+}
+
+function ownResponseActionId(claim: NonNullable<SeatView["claim"]>): string | null {
+  const response = claim.own_response;
+  if (!response) {
+    return null;
+  }
+  if (response.type === "chow" && response.tile_ids?.length === 2) {
+    const index = (claim.options.chow_sets ?? []).findIndex(
+      ([first, second]) => first === response.tile_ids![0] && second === response.tile_ids![1],
+    );
+    return index >= 0 ? `chow-${index}` : "chow-0";
+  }
+  return response.type;
 }
 
 export interface MatchTableAdapterOptions {
@@ -97,6 +127,13 @@ export interface MatchTableAdapterOptions {
   now: number;
   /** Called with a stable claim-action id (and Chow's tile pair, if any). */
   onClaimAction: (actionId: string, tileIds?: [string, string]) => void;
+  /**
+   * Disables every claim action while a previous one is still in flight —
+   * without this, a fast double-click could send two responses before the
+   * first's ack updates own_response, submitting a stale response_revision
+   * the engine would reject.
+   */
+  claimActionPending?: boolean;
 }
 
 export function seatViewToMatchTableState(view: SeatView, options: MatchTableAdapterOptions): MatchTableState {
@@ -153,6 +190,6 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
     claimSource: claimant ?? null,
     countdownSeconds: countdown?.seconds ?? 0,
     countdownTotalSeconds: countdown?.total ?? TURN_TOTAL_SECONDS,
-    legalActions: claimLegalActions(view, options.onClaimAction),
+    legalActions: claimLegalActions(view, options.onClaimAction, options.claimActionPending ?? false),
   };
 }
