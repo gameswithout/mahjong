@@ -1,0 +1,428 @@
+/* §9.2 match table wireframe styles. Validated against the mandatory
+   640x360 CSS pixel landscape minimum viewport (E7.F5) only — the center
+   column's 1fr track is written to be fluid, but broader responsive
+   behavior across "every supported match viewport" (larger phones,
+   tablet, desktop) is E8.F1's device-lab pass, not exercised here. */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.match-table,
+.match-table * {
+  box-sizing: border-box;
+}
+
+.match-table {
+  background: #10131f;
+  color: #f7f4ee;
+  display: grid;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  gap: 3px;
+  grid-template-areas:
+    "top top top"
+    "left center right"
+    "bottom bottom bottom"
+    "actions actions actions";
+  grid-template-columns: 92px 1fr 92px;
+  grid-template-rows: 44px 1fr auto 44px;
+  height: 100%;
+  min-height: 360px;
+  overflow: hidden;
+  padding: 3px;
+  width: 100%;
+}
+
+/* Grid/flex children default to min-width/min-height:auto, which uses their
+   content's intrinsic size and ignores the track size — the classic "grid
+   blowout" bug. Every level of this layout must be allowed to shrink below
+   its content's natural size so the fixed 640x360 budget is enforced by the
+   grid/flex tracks, not by whatever the content happens to want. */
+.match-table,
+.match-table .seat,
+.match-table .center-panel,
+.match-table .opponent-hand-backs,
+.match-table .discard-grid,
+.match-table .local-hand,
+.match-table .action-row,
+.match-table .meld-area {
+  min-height: 0;
+  min-width: 0;
+}
+
+.seat {
+  background: #1b2033;
+  border: 1px solid #2c3352;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 2px 3px;
+}
+
+.seat-top {
+  grid-area: top;
+}
+
+.seat-left {
+  grid-area: left;
+}
+
+.seat-right {
+  grid-area: right;
+}
+
+.seat-bottom {
+  grid-area: bottom;
+}
+
+.seat-header {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 3px;
+}
+
+.wind-badge {
+  align-items: center;
+  background: #2c3352;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 800;
+  height: 16px;
+  justify-content: center;
+  width: 16px;
+}
+
+.wind-badge-prevailing {
+  background: #f2c66d;
+  color: #10131f;
+}
+
+.dealer-badge {
+  /* #d9534f only reached 3.96:1 against white text; at 9px this is normal
+     text (WCAG 2.2 AA needs 4.5:1, not the 3:1 large-text allowance), so a
+     darker red is used instead (measured 7.09:1). */
+  background: #a52a27;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 3px;
+}
+
+.active-badge {
+  animation: pulse 1.2s ease-in-out infinite;
+  color: #6fe3a1;
+  font-size: 10px;
+}
+
+.claim-badge {
+  background: #f2c66d;
+  border-radius: 3px;
+  color: #10131f;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 3px;
+  text-transform: uppercase;
+}
+
+.hand-count {
+  font-size: 10px;
+  margin-left: auto;
+  opacity: 0.8;
+}
+
+.local-label {
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: auto;
+  opacity: 0.85;
+}
+
+.tile {
+  align-items: center;
+  background: linear-gradient(180deg, #fdfbf6, #ece5d3);
+  border: 1px solid #b8ad8e;
+  border-radius: 3px;
+  color: #21160a;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1;
+}
+
+.tile-xs {
+  height: 14px;
+  width: 10px;
+}
+
+.tile-sm {
+  font-size: 9px;
+  height: 18px;
+  width: 13px;
+}
+
+.tile-md {
+  font-size: 11px;
+  height: 24px;
+  width: 17px;
+}
+
+.tile-lg {
+  font-size: 13px;
+  height: 40px;
+  min-width: 22px;
+  width: 22px;
+}
+
+.tile-back {
+  background: repeating-linear-gradient(45deg, #3a3f66, #3a3f66 2px, #2c3352 2px, #2c3352 4px);
+  border: 1px solid #4a5180;
+}
+
+.opponent-hand-backs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.meld-area {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.meld {
+  background: #232a45;
+  border-radius: 3px;
+  display: inline-flex;
+  gap: 1px;
+  padding: 1px;
+}
+
+.discard-grid {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 1px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.discard-slot {
+  position: relative;
+}
+
+.discard-slot-recent .tile {
+  animation: discard-pulse 1s ease-in-out infinite;
+  border-color: #f2c66d;
+  box-shadow: 0 0 0 1px #f2c66d;
+}
+
+.discard-slot-claimed {
+  align-self: center;
+  color: #f2c66d;
+  font-size: 7px;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.center-panel {
+  align-items: center;
+  background: #14182a;
+  border: 1px solid #2c3352;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  grid-area: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  padding: 2px;
+}
+
+.countdown {
+  position: relative;
+}
+
+.countdown-ring {
+  height: 34px;
+  transform: rotate(-90deg);
+  width: 34px;
+}
+
+.countdown-ring-track {
+  fill: none;
+  stroke: #2c3352;
+  stroke-width: 3;
+}
+
+.countdown-ring-fill {
+  fill: none;
+  stroke: #6fe3a1;
+  stroke-linecap: round;
+  stroke-width: 3;
+  transition: stroke-dasharray 0.3s linear;
+}
+
+.countdown-warn .countdown-ring-fill {
+  stroke: #f2c66d;
+}
+
+.countdown-urgent .countdown-ring-fill {
+  stroke: #e05555;
+}
+
+.countdown-number {
+  align-items: center;
+  color: #f7f4ee;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  height: 34px;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 34px;
+}
+
+.countdown-urgent .countdown-number {
+  color: #e05555;
+}
+
+.wall-outline {
+  align-items: baseline;
+  display: flex;
+  gap: 2px;
+}
+
+.wall-outline-icon {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.wall-count {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.wall-count-label {
+  font-size: 8px;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+.round-status {
+  display: flex;
+  flex-direction: column;
+  font-size: 9px;
+  opacity: 0.85;
+  text-align: center;
+}
+
+.active-seat-callout {
+  background: #232a45;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 6px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.local-seat {
+  gap: 2px;
+  padding: 2px 4px;
+}
+
+.local-hand {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 1px;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.local-hand-tile-wrap {
+  display: inline-flex;
+  /* 32x44 CSS px minimum accessible hit area even though the visible tile
+     glyph is smaller at this viewport (§9.9 compact-hand exception). */
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 32px;
+}
+
+.action-row {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  grid-area: actions;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.action-button {
+  background: #f2c66d;
+  border: 0;
+  border-radius: 999px;
+  color: #10131f;
+  cursor: pointer;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  /* §9.9: 44x44 CSS px minimum action-button target. */
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+}
+
+.action-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.action-pass {
+  background: #3a4066;
+  color: #f7f4ee;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes discard-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px #f2c66d;
+  }
+  50% {
+    box-shadow: 0 0 0 2px #f2c66d;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .active-badge,
+  .discard-slot-recent .tile {
+    animation: none;
+  }
+}

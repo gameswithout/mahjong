@@ -6,6 +6,16 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        // Vite resolves these relative to the project root by default; no
+        // Node path APIs needed (tsconfig here has no "node" types).
+        input: {
+          main: "index.html",
+          wireframe: "wireframe.html",
+        },
+      },
+    },
     define: {
       "import.meta.env.ACCELBYTE_BASE_URL": JSON.stringify(env.ACCELBYTE_BASE_URL),
       "import.meta.env.ACCELBYTE_NAMESPACE": JSON.stringify(env.ACCELBYTE_NAMESPACE),
