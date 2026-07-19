@@ -117,6 +117,53 @@ func TestProjectSeatExposesNonConcealedMeldTilesToEveryone(t *testing.T) {
 	}
 }
 
+// TestProjectSeatExposesTakenOverIdenticallyToEverySeat covers the E8.F6
+// "Auto-playing" badge: PlayerView.TakenOver is public — the same value
+// for a given seat regardless of who is viewing — and starts false.
+func TestProjectSeatExposesTakenOverIdenticallyToEverySeat(t *testing.T) {
+	state := turnFixture(t)
+	engine := fixedClockEngine(t, state)
+	if err := engine.BeginInitialReplacement(); err != nil {
+		t.Fatalf("BeginInitialReplacement() error = %v", err)
+	}
+	for _, seat := range []Seat{East, South, West, North} {
+		view, err := engine.ProjectSeat("match-1", seat)
+		if err != nil {
+			t.Fatalf("ProjectSeat(%s) error = %v", seat, err)
+		}
+		for _, player := range view.Players {
+			if player.TakenOver {
+				t.Fatalf("viewer %s: seat %s reported TakenOver before any timeout occurred", seat, player.Seat)
+			}
+		}
+	}
+
+	engine.recordTimeout(North)
+	engine.recordTimeout(North)
+	engine.recordTimeout(North)
+	if !engine.IsTakenOver(North) {
+		t.Fatal("expected North to be taken over after three recorded timeouts")
+	}
+
+	for _, seat := range []Seat{East, South, West, North} {
+		view, err := engine.ProjectSeat("match-1", seat)
+		if err != nil {
+			t.Fatalf("ProjectSeat(%s) error = %v", seat, err)
+		}
+		var north PlayerView
+		found := false
+		for _, player := range view.Players {
+			if player.Seat == North {
+				north = player
+				found = true
+			}
+		}
+		if !found || !north.TakenOver {
+			t.Fatalf("viewer %s: North's TakenOver = %#v, want true for every viewer", seat, north)
+		}
+	}
+}
+
 // TestProjectSeatExposesHandResultOnlyAtTerminalPhase covers §9.7 items
 // 1-4 (winning hand/tile, decomposition, patterns, raw Tai): HandResult is
 // nil mid-hand, and once the hand ends it is identical for every seat —

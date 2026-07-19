@@ -124,6 +124,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         hand: isLocal ? view.own_hand.map(wireTile) : undefined,
         melds,
         discards: (discardsBySeat.get(seat) ?? []).map(wireTile),
+        takenOver: player?.taken_over ?? false,
       };
       return [seat, state];
     }),

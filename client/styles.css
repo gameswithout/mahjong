@@ -379,3 +379,22 @@ h1 {
 .hand-result-return {
   margin-top: 0.5rem;
 }
+
+.reconnect-overlay {
+  background: #3a2f0f;
+  border: 1px solid #c7a13f;
+  border-radius: 0.6rem;
+  color: #f2c66d;
+  font-weight: 600;
+  padding: 0.6rem 0.9rem;
+}
+
+.control-restored-toast {
+  background: #1c3a2c;
+  border: 1px solid #3f9d6a;
+  border-radius: 0.6rem;
+  color: #7fe3ac;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.8rem;
+}

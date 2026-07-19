@@ -52,6 +52,11 @@ type PlayerView struct {
 	Exposed   []Tile     `json:"exposed,omitempty"`
 	MeldCount int        `json:"meld_count,omitempty"`
 	Melds     []MeldView `json:"melds,omitempty"`
+	// TakenOver reports whether this seat is currently under §8.7/§11.1
+	// disclosed-bot takeover. This is public — every seat sees the same
+	// value for a given player, matching the "Auto-playing" badge every
+	// player at the table sees, not just the affected seat's own client.
+	TakenOver bool `json:"taken_over,omitempty"`
 }
 
 // MeldView is a redacted projection of a Meld for a seat other than its
@@ -183,6 +188,7 @@ func (e *TurnEngine) ProjectSeat(matchID string, seat Seat) (SeatView, error) {
 			HandCount: len(candidate.Hand),
 			MeldCount: len(candidate.Melds),
 			Exposed:   append([]Tile(nil), candidate.Exposed...),
+			TakenOver: e.IsTakenOver(candidate.Seat),
 		}
 		if owner {
 			// OwnExposed is the canonical copy; keep the per-player field public

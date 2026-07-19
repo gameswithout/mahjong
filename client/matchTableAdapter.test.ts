@@ -35,6 +35,23 @@ describe("seatViewToMatchTableState", () => {
     expect(state.wall.reserveRemaining).toBe(16);
   });
 
+  it("maps takenOver from each player's public taken_over flag, defaulting to false", () => {
+    const state = seatViewToMatchTableState(
+      seatView({
+        players: [
+          { seat: "E", hand_count: 1 },
+          { seat: "S", hand_count: 16, taken_over: true },
+          { seat: "W", hand_count: 16 },
+          { seat: "N", hand_count: 16 },
+        ],
+      }),
+      { now: Date.now(), onClaimAction: vi.fn() },
+    );
+    expect(state.seats.S.takenOver).toBe(true);
+    expect(state.seats.E.takenOver).toBe(false);
+    expect(state.seats.W.takenOver).toBe(false);
+  });
+
   it("groups the public discard pile by seat", () => {
     const state = seatViewToMatchTableState(
       seatView({

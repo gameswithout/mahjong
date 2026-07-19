@@ -95,6 +95,11 @@ function OpponentSeat({
         {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
         {state.isActive ? <span className="active-badge" title="Active player">●</span> : null}
         {claimSource === seat ? <span className="claim-badge" title="Claim source">claim</span> : null}
+        {state.takenOver ? (
+          <span className="takeover-badge" title="Auto-playing (disconnected)" role="status">
+            Auto-playing
+          </span>
+        ) : null}
         <span className="hand-count" aria-label={`${state.handCount} tiles in hand`}>
           {state.handCount}
         </span>
@@ -188,6 +193,11 @@ function LocalSeat({
         <span className="wind-badge">{windName(state.wind).slice(0, 1)}</span>
         {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
         <span className="local-label">You</span>
+        {state.takenOver ? (
+          <span className="takeover-badge" title="Auto-playing (disconnected)" role="status">
+            Auto-playing
+          </span>
+        ) : null}
         {canDraw ? (
           <button
             type="button"

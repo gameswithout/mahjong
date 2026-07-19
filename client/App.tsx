@@ -30,6 +30,13 @@ import { seatViewToMatchTableState } from "./matchTableAdapter";
 import "./styles.css";
 import "./match-table.css";
 
+// §8.7 auto-reconnect tuning: which MatchRuntimeErrorCode values are worth
+// retrying automatically (a dropped/stalled connection) versus surfacing
+// immediately (configuration/protocol errors that retrying cannot fix).
+const MATCH_RUNTIME_RETRYABLE_CODES = new Set(["closed", "network", "timeout"]);
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY_MS = 2000;
+
 type LobbyStatus = "connecting" | "connected" | "reconnecting";
 
 type ViewState =
@@ -108,6 +115,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [joinSessionId, setJoinSessionId] = useState("");
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [controlRestoredNotice, setControlRestoredNotice] = useState(false);
+  const wasTakenOverRef = useRef(false);
   const lobbyRef = useRef<LobbyConnection | null>(null);
   const matchRuntimeRef = useRef<MatchRuntimeConnection | null>(null);
   const matchRuntimeMatchIdRef = useRef<string | null>(null);
@@ -286,6 +296,52 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     setSelectedTileId((current) =>
       current && matchRuntimeState.view.own_hand.some((item) => item.id === current) ? current : null,
     );
+  }, [matchRuntimeState]);
+
+  // §8.7 "client displays Reconnecting immediately": a transient match-
+  // runtime disconnect (closed/network/timeout — not a configuration or
+  // protocol error, which retrying cannot fix) is retried automatically a
+  // bounded number of times instead of dropping straight to the manual
+  // error panel. reconnectAttempt also drives the "Reconnecting…" label
+  // below (a fresh connect vs. a resumed one).
+  useEffect(() => {
+    if (
+      matchRuntimeState.status !== "error" ||
+      !MATCH_RUNTIME_RETRYABLE_CODES.has(matchRuntimeState.code) ||
+      reconnectAttempt >= MAX_RECONNECT_ATTEMPTS
+    ) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setReconnectAttempt((attempt) => attempt + 1);
+      void connectMatchRuntime();
+    }, RECONNECT_DELAY_MS);
+    return () => window.clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchRuntimeState, reconnectAttempt]);
+
+  useEffect(() => {
+    if (matchRuntimeState.status === "joined") {
+      setReconnectAttempt(0);
+    }
+  }, [matchRuntimeState.status]);
+
+  // §8.7 "control-restored toast": detects this seat's own taken_over flag
+  // going true -> false (the runtime called RestoreControl at this seat's
+  // next legal personal turn once it observed this client present again).
+  useEffect(() => {
+    if (matchRuntimeState.status !== "joined") {
+      return;
+    }
+    const own = matchRuntimeState.view.players.find((player) => player.seat === matchRuntimeState.view.seat);
+    const isTakenOver = own?.taken_over ?? false;
+    if (wasTakenOverRef.current && !isTakenOver) {
+      setControlRestoredNotice(true);
+      const timeout = window.setTimeout(() => setControlRestoredNotice(false), 5000);
+      wasTakenOverRef.current = isTakenOver;
+      return () => window.clearTimeout(timeout);
+    }
+    wasTakenOverRef.current = isTakenOver;
   }, [matchRuntimeState]);
 
   async function signInAsGuest() {
@@ -1011,8 +1067,10 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                         )}
 
                       {matchRuntimeState.status === "connecting" && (
-                        <p className="runtime-message" role="status" aria-live="polite">
-                          Authenticating and joining the test hand…
+                        <p className="runtime-message reconnect-overlay" role="status" aria-live="assertive">
+                          {reconnectAttempt > 0
+                            ? `Reconnecting… (attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`
+                            : "Authenticating and joining the test hand…"}
                         </p>
                       )}
 
@@ -1022,6 +1080,11 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                           <HandResultScreen view={matchRuntimeState.view} onReturn={leaveTable} />
                         ) : (
                           <div className="runtime-state" role="status" aria-live="polite">
+                            {controlRestoredNotice && (
+                              <p className="control-restored-toast" role="status" aria-live="polite">
+                                Control restored — it's you again.
+                              </p>
+                            )}
                             <div className="match-table-frame">
                               <MatchTable
                                 state={seatViewToMatchTableState(matchRuntimeState.view, {

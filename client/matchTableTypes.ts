@@ -32,6 +32,9 @@ export interface SeatState {
   hand?: WireTile[];
   melds: WireMeld[];
   discards: WireTile[];
+  // takenOver is the §8.7/§11.1 disclosed-bot-takeover state — renders as
+  // an "Auto-playing" badge. Defaults to false for the E7.F5 mock data.
+  takenOver?: boolean;
 }
 
 export interface WallState {
