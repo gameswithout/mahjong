@@ -1,0 +1,307 @@
+// Copyright (c) 2023 AccelByte Inc. All Rights Reserved.
+// This is licensed software from AccelByte Inc, for limitations
+// and restrictions contact your company contract manager.
+
+package common
+
+import (
+	"context"
+	"crypto/rsa"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
+	"github.com/pkg/errors"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
+
+	"github.com/AccelByte/accelbyte-go-sdk/iam-sdk/pkg/iamclientmodels"
+	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/service/iam"
+	"github.com/AccelByte/accelbyte-go-sdk/services-api/pkg/utils/auth/validator"
+
+	pb "github.com/gameswithout/mahjong/mahjong-match-service/pkg/pb"
+)
+
+var (
+	Validator validator.AuthTokenValidator
+)
+
+// AuthRequirement represents the authentication requirements for a method.
+type AuthRequirement struct {
+	RequireToken bool
+	Permission   *iam.Permission
+}
+
+func parseFullMethod(fullMethod string) (string, string, error) {
+	// Define the regular expression according to example shown here https://github.com/grpc/grpc-java/issues/4726
+	re := regexp.MustCompile(`^/([^/]+)/([^/]+)$`)
+	matches := re.FindStringSubmatch(fullMethod)
+
+	// Validate the match
+	if matches == nil {
+		return "", "", fmt.Errorf("invalid FullMethod format")
+	}
+
+	// Extract service and method names
+	serviceName, methodName := matches[1], matches[2]
+
+	if len(serviceName) == 0 {
+		return "", "", fmt.Errorf("invalid FullMethod format: service name is empty")
+	}
+
+	if len(methodName) == 0 {
+		return "", "", fmt.Errorf("invalid FullMethod format: method name is empty")
+	}
+
+	return serviceName, methodName, nil
+}
+
+func extractAuthRequirement(infoUnary *grpc.UnaryServerInfo, infoStream *grpc.StreamServerInfo) (*AuthRequirement, error) {
+	if infoUnary != nil && infoStream != nil {
+		return nil, errors.New("both infoUnary and infoStream cannot be filled at the same time")
+	}
+
+	var serviceName string
+	var methodName string
+	var err error
+
+	if infoUnary != nil {
+		serviceName, methodName, err = parseFullMethod(infoUnary.FullMethod)
+	} else if infoStream != nil {
+		serviceName, methodName, err = parseFullMethod(infoStream.FullMethod)
+	} else {
+		return nil, errors.New("both infoUnary and infoStream are nil")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Read the method descriptor from the proto file
+	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(serviceName))
+	if err != nil {
+		return nil, err
+	}
+
+	serviceDesc := desc.(protoreflect.ServiceDescriptor)
+	method := serviceDesc.Methods().ByName(protoreflect.Name(methodName))
+	methodOptions := method.Options()
+
+	// Check if the OpenAPI v2 operation specifies security requirements (e.g., Bearer auth)
+	hasBearerSecurity := hasSecurityScheme(methodOptions, "Bearer")
+
+	// Check for permission.action and permission.resource
+	// Safely extract extensions with type assertions
+	var resource string
+	if resExt := proto.GetExtension(methodOptions, pb.E_Resource); resExt != nil {
+		if res, ok := resExt.(string); ok {
+			resource = res
+		}
+	}
+
+	var action pb.Action
+	if actExt := proto.GetExtension(methodOptions, pb.E_Action); actExt != nil {
+		if act, ok := actExt.(pb.Action); ok {
+			action = act
+		}
+	}
+
+	// If both permission.action and permission.resource are set, require permission
+	var permission *iam.Permission
+	if resource != "" && action.Number() != 0 {
+		permission = &iam.Permission{
+			Action:   int(action.Number()),
+			Resource: resource,
+		}
+	}
+
+	return &AuthRequirement{
+		RequireToken: hasBearerSecurity,
+		Permission:   permission,
+	}, nil
+}
+
+func hasSecurityScheme(methodOptions protoreflect.ProtoMessage, schemeName string) bool {
+	// Get the openapiv2_operation extension
+	opExt := proto.GetExtension(methodOptions, options.E_Openapiv2Operation)
+	if opExt == nil {
+		return false
+	}
+
+	operation, ok := opExt.(*options.Operation)
+	if !ok || operation == nil {
+		return false
+	}
+
+	// Check if security is defined and has at least one security requirement with the specified scheme
+	for _, securityReq := range operation.Security {
+		if securityReq == nil {
+			continue
+		}
+		// Check if the security requirement map contains the specified scheme key
+		if _, hasScheme := securityReq.SecurityRequirement[schemeName]; hasScheme {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getNamespace() string {
+	return GetEnv("AB_NAMESPACE", "accelbyte")
+}
+
+type principalContextKey struct{}
+
+type Principal struct {
+	UserID string
+}
+
+func PrincipalFromContext(ctx context.Context) (Principal, bool) {
+	principal, ok := ctx.Value(principalContextKey{}).(Principal)
+	return principal, ok && principal.UserID != ""
+}
+
+func ContextWithPrincipal(ctx context.Context, principal Principal) context.Context {
+	return context.WithValue(ctx, principalContextKey{}, principal)
+}
+
+func checkAuthorizationMetadata(ctx context.Context, permission *iam.Permission) (context.Context, error) {
+	if Validator == nil {
+		return ctx, status.Error(codes.Internal, "authorization token validator is not set")
+	}
+
+	meta, found := metadata.FromIncomingContext(ctx)
+	if !found {
+		return ctx, status.Error(codes.Unauthenticated, "metadata is missing")
+	}
+
+	var token string
+	if authHeaders, ok := meta["authorization"]; ok && len(authHeaders) > 0 {
+		token = strings.TrimPrefix(authHeaders[0], "Bearer ")
+	} else {
+		// Check for token in cookies (browser-based authentication via gRPC-Gateway)
+		token = extractTokenFromCookieMetadata(meta)
+	}
+
+	if token == "" {
+		return ctx, status.Error(codes.Unauthenticated, "authorization header or cookie is missing")
+	}
+
+	namespace := getNamespace()
+	if err := Validator.Validate(token, permission, &namespace, nil); err != nil {
+		return ctx, status.Error(codes.PermissionDenied, err.Error())
+	}
+	userID, err := tokenSubject(token)
+	if err != nil {
+		return ctx, status.Error(codes.Unauthenticated, "validated token has no subject")
+	}
+	return context.WithValue(ctx, principalContextKey{}, Principal{UserID: userID}), nil
+}
+
+func tokenSubject(token string) (string, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", errors.New("token is not a JWT")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", err
+	}
+	var claims struct {
+		Subject string `json:"sub"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(claims.Subject) == "" {
+		return "", errors.New("subject is empty")
+	}
+	return claims.Subject, nil
+}
+
+// extractTokenFromCookieMetadata parses the "cookie" metadata key and returns the access_token value if present.
+func extractTokenFromCookieMetadata(meta metadata.MD) string {
+	r := &http.Request{Header: http.Header{"Cookie": meta.Get("cookie")}}
+	if c, err := r.Cookie("access_token"); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+func NewUnaryAuthServerIntercept() func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) { // nolint
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		// Extract auth requirement from the proto file
+		requirement, err := extractAuthRequirement(info, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		// If no auth requirement, skip all auth checks (public access)
+		if requirement == nil {
+			return handler(ctx, req)
+		}
+
+		// Enforce auth whenever the proto declares Bearer security or explicit permissions
+		// (treat permissions as authoritative even if the security block was omitted by mistake)
+		if requirement.RequireToken || requirement.Permission != nil {
+			ctx, err = checkAuthorizationMetadata(ctx, requirement.Permission)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return handler(ctx, req)
+	}
+}
+
+func NewStreamAuthServerIntercept() func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		// Extract auth requirement from the proto file
+		requirement, err := extractAuthRequirement(nil, info)
+		if err != nil {
+			return err
+		}
+
+		// If no auth requirement, skip all auth checks (public access)
+		if requirement == nil {
+			return handler(srv, ss)
+		}
+
+		// Enforce auth whenever the proto declares Bearer security or explicit permissions
+		// (treat permissions as authoritative even if the security block was omitted by mistake)
+		if requirement.RequireToken || requirement.Permission != nil {
+			_, err = checkAuthorizationMetadata(ss.Context(), requirement.Permission)
+			if err != nil {
+				return err
+			}
+		}
+
+		return handler(srv, ss)
+	}
+}
+
+func NewTokenValidator(authService iam.OAuth20Service, refreshInterval time.Duration, validateLocally bool) validator.AuthTokenValidator {
+	return &iam.TokenValidator{
+		AuthService:     authService,
+		RefreshInterval: refreshInterval,
+
+		Filter:                nil,
+		JwkSet:                nil,
+		JwtClaims:             iam.JWTClaims{},
+		JwtEncoding:           *base64.URLEncoding.WithPadding(base64.NoPadding),
+		PublicKeys:            make(map[string]*rsa.PublicKey),
+		LocalValidationActive: validateLocally,
+		RevokedUsers:          make(map[string]time.Time),
+		Roles:                 make(map[string]*iamclientmodels.ModelRolePermissionResponseV3),
+	}
+}

@@ -1,0 +1,208 @@
+// Copyright (c) 2023 AccelByte Inc. All Rights Reserved.
+// This is licensed software from AccelByte Inc, for limitations
+// and restrictions contact your company contract manager.
+
+syntax = "proto3";
+
+option csharp_namespace = "AccelByte.Extend.ServiceExtension";
+option go_package = "accelbyte.net/extend/serviceextension";
+option java_package = "net.accelbyte.extend.serviceextension";
+option java_multiple_files = true;
+
+package service;
+
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+service Service {
+  // JoinMatch creates the authoritative match from the fixed AGS Session
+  // roster when necessary, assigns stable seats, and returns only the
+  // authenticated caller's view.
+  rpc JoinMatch(JoinMatchRequest) returns (JoinMatchResponse) {
+    option (google.api.http) = {
+      post: "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Join an authoritative Mahjong match"
+      description: "Creates the match from the fixed AGS Session roster when needed and returns the authenticated player's private projection."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  // GetMatchState returns a caller-specific projection. Concealed tiles and
+  // private claim responses belonging to other players are never included.
+  rpc GetMatchState(GetMatchStateRequest) returns (GetMatchStateResponse) {
+    option (google.api.http) = {
+      get: "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the authenticated player's match state"
+      description: "Returns the latest authoritative match projection visible to the authenticated Session member."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  // SubmitMatchCommand applies one idempotent player command after validating
+  // Session membership, seat ownership, turn ownership, and state version.
+  rpc SubmitMatchCommand(SubmitMatchCommandRequest) returns (SubmitMatchCommandResponse) {
+    option (google.api.http) = {
+      post: "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/commands"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Submit an authoritative Mahjong command"
+      description: "Durably applies an idempotent draw, discard, or claim command and returns the authenticated player's updated projection."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+}
+
+message JoinMatchRequest {
+  string namespace = 1;
+  string session_id = 2;
+  string match_id = 3;
+}
+
+message JoinMatchResponse {
+  MatchState state = 1;
+}
+
+message GetMatchStateRequest {
+  string namespace = 1;
+  string session_id = 2;
+  string match_id = 3;
+}
+
+message GetMatchStateResponse {
+  MatchState state = 1;
+}
+
+enum MatchCommandType {
+  MATCH_COMMAND_TYPE_UNSPECIFIED = 0;
+  MATCH_COMMAND_TYPE_DRAW = 1;
+  MATCH_COMMAND_TYPE_DISCARD = 2;
+  MATCH_COMMAND_TYPE_SUBMIT_CLAIM = 3;
+}
+
+message SubmitMatchCommandRequest {
+  string namespace = 1;
+  string session_id = 2;
+  string match_id = 3;
+  string request_id = 4;
+  MatchCommandType type = 5;
+  uint64 expected_version = 6;
+  string tile_id = 7;
+  ClaimCommand claim = 8;
+}
+
+message ClaimCommand {
+  string action_id = 1;
+  string type = 2;
+  repeated string tile_ids = 3;
+  uint64 response_revision = 4;
+  bool deliberate = 5;
+}
+
+message SubmitMatchCommandResponse {
+  string request_id = 1;
+  uint64 state_version = 2;
+  string phase = 3;
+  MatchState state = 4;
+}
+
+// MatchState is a privacy-filtered projection for exactly one authenticated
+// player. It is not a serializable authoritative snapshot.
+message MatchState {
+  string match_id = 1;
+  string seat = 2;
+  uint64 state_version = 3;
+  string phase = 4;
+  string active_seat = 5;
+  repeated Tile own_hand = 6;
+  repeated Tile own_exposed = 7;
+  repeated PlayerView players = 8;
+  WallView wall = 9;
+  Discard last_discard = 10;
+  ClaimView claim = 11;
+  bool win_locked = 12;
+}
+
+message Tile {
+  string id = 1;
+  string kind = 2;
+  uint32 rank = 3;
+  uint32 copy = 4;
+}
+
+message PlayerView {
+  string seat = 1;
+  int32 hand_count = 2;
+  repeated Tile exposed = 3;
+  int32 meld_count = 4;
+}
+
+message WallView {
+  int32 remaining = 1;
+  int32 drawable_remaining = 2;
+  int32 reserve_remaining = 3;
+}
+
+message Discard {
+  string seat = 1;
+  Tile tile = 2;
+  uint64 sequence = 3;
+}
+
+message ClaimView {
+  string action_id = 1;
+  uint64 state_version = 2;
+  Discard discard = 3;
+  string deadline = 4;
+  repeated string eligible = 5;
+  ClaimResponse own_response = 6;
+}
+
+message ClaimResponse {
+  string action_id = 1;
+  string seat = 2;
+  string type = 3;
+  repeated string tile_ids = 4;
+  uint64 state_version = 5;
+  uint64 response_revision = 6;
+  bool deliberate = 7;
+}
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "Mahjong Match Service API";
+    version: "v1";
+  };
+  base_path: "/mahjong";
+
+  security_definitions: {
+    security: {
+      key: "Bearer";
+      value: {
+        type: TYPE_API_KEY;
+        in: IN_HEADER;
+        name: "Authorization";
+      }
+    }
+  };
+};

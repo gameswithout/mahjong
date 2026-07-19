@@ -10,14 +10,18 @@ This game runs on its **own AGS account/studio**, separate from any other AccelB
 | --- | --- |
 | Deployment type | Shared Cloud |
 | Studio namespace | `gameswithout` |
-| Environment base URL | `https://gameswithout.prod.gamingservices.accelbyte.io` |
+| Tooling/API base URL | `https://gameswithout.prod.gamingservices.accelbyte.io` |
+| Browser/game-title base URL | `https://gameswithout-mahjong.prod.gamingservices.accelbyte.io` |
 | AGS API MCP URL | `https://gameswithout.prod.gamingservices.accelbyte.io/mcp/gameswithout-mahjong` |
 | Game namespace (dev) | `gameswithout-mahjong` |
 | Game namespace (prod) | *(created later — Admin Portal, human in the loop)* |
 | Public IAM client (web/PWA) | `<PUBLIC_CLIENT_ID — still required for browser/player login>` |
 | Confidential IAM client (tooling/CI/Extend) | `373617a151fe4d3f92be11f4a045cba5` — secret NEVER in this repo |
 
-URL patterns above are the Shared Cloud per-studio shape. If the game account is Private Cloud, the base is `https://<environment_name>.accelbyte.io` instead; if it's plain Shared Cloud without a studio subdomain, use `https://prod.gamingservices.accelbyte.io`. Don't invent other shapes.
+The tooling/API host is the publisher-level Shared Cloud shape; the browser
+SDK uses the game-title-level host shown above for Lobby and player APIs. If
+the game account is Private Cloud, use the account owner's supplied host
+instead; do not infer or swap hosts without confirmation.
 
 ## 1. One-time, account owner (Admin Portal of the game account)
 
@@ -71,14 +75,22 @@ When the app workspace exists, each developer keeps a local, **gitignored** `.en
 
 ```bash
 # .env.example — copy to .env and fill in
-ACCELBYTE_BASE_URL=https://gameswithout.prod.gamingservices.accelbyte.io
+ACCELBYTE_BASE_URL=https://gameswithout-mahjong.prod.gamingservices.accelbyte.io
 ACCELBYTE_NAMESPACE=gameswithout-mahjong
 ACCELBYTE_CLIENT_ID=<PUBLIC_CLIENT_ID>
+ACCELBYTE_MATCH_POOL=mahjong-test-pool
+ACCELBYTE_SESSION_TEMPLATE=mahjong-test-none
+ACCELBYTE_SESSION_CLIENT_VERSION=web-0.0.0
 # Confidential secret: tooling/CI only, from the secrets vault — never committed:
 # ACCELBYTE_CLIENT_SECRET=
 ```
 
-The CLI also honors `AGS_BASE_URL` / `AGS_CLIENT_ID` / `AGS_CLIENT_SECRET` environment variables for non-interactive use — that's the CI path (client-credentials grant with the confidential client): `ags auth login --grant client-credentials`.
+The CLI profile and `AGS_BASE_URL` remain on the publisher-level tooling host
+for admin/API operations. The browser `.env` uses the game-title host above.
+The CLI also honors `AGS_BASE_URL` / `AGS_CLIENT_ID` / `AGS_CLIENT_SECRET`
+environment variables for non-interactive use — that's the CI path
+(client-credentials grant with the confidential client):
+`ags auth login --grant client-credentials`.
 
 ## 5. Environment separation
 

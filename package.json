@@ -1,0 +1,29 @@
+{
+  "name": "mahjong-online",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke:matchmaking": "node --env-file=.env scripts/smoke-matchmaking.mjs"
+  },
+  "dependencies": {
+    "@accelbyte/sdk": "4.3.2",
+    "@accelbyte/sdk-iam": "6.3.5",
+    "@accelbyte/sdk-lobby": "^5.2.7",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.0",
+    "@types/react-dom": "19.1.0",
+    "@vitejs/plugin-react": "4.4.1",
+    "jsdom": "^25.0.0",
+    "typescript": "5.8.3",
+    "vite": "6.3.5",
+    "vitest": "3.1.1"
+  }
+}

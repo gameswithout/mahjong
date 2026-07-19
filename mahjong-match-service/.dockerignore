@@ -1,0 +1,8 @@
+Dockerfile
+Makefile
+pkg/pb
+.cache/
+.git
+.env
+.env.*
+!.env.template

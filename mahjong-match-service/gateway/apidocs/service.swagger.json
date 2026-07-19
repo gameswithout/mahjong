@@ -1,0 +1,500 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Mahjong Match Service API",
+    "version": "v1"
+  },
+  "tags": [
+    {
+      "name": "Service"
+    }
+  ],
+  "basePath": "/mahjong",
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/namespaces/{namespace}/sessions/{sessionId}/matches/{matchId}": {
+      "get": {
+        "summary": "Get the authenticated player's match state",
+        "description": "Returns the latest authoritative match projection visible to the authenticated Session member.",
+        "operationId": "Service_GetMatchState",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceGetMatchStateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "matchId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/namespaces/{namespace}/sessions/{sessionId}/matches/{matchId}/commands": {
+      "post": {
+        "summary": "Submit an authoritative Mahjong command",
+        "description": "Durably applies an idempotent draw, discard, or claim command and returns the authenticated player's updated projection.",
+        "operationId": "Service_SubmitMatchCommand",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceSubmitMatchCommandResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "matchId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceSubmitMatchCommandBody"
+            }
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/namespaces/{namespace}/sessions/{sessionId}/matches/{matchId}/join": {
+      "post": {
+        "summary": "Join an authoritative Mahjong match",
+        "description": "Creates the match from the fixed AGS Session roster when needed and returns the authenticated player's private projection.",
+        "operationId": "Service_JoinMatch",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceJoinMatchResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "matchId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceJoinMatchBody"
+            }
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "ServiceJoinMatchBody": {
+      "type": "object"
+    },
+    "ServiceSubmitMatchCommandBody": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/serviceMatchCommandType"
+        },
+        "expectedVersion": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "tileId": {
+          "type": "string"
+        },
+        "claim": {
+          "$ref": "#/definitions/serviceClaimCommand"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "serviceClaimCommand": {
+      "type": "object",
+      "properties": {
+        "actionId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "tileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "responseRevision": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "deliberate": {
+          "type": "boolean"
+        }
+      }
+    },
+    "serviceClaimResponse": {
+      "type": "object",
+      "properties": {
+        "actionId": {
+          "type": "string"
+        },
+        "seat": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "tileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stateVersion": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "responseRevision": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "deliberate": {
+          "type": "boolean"
+        }
+      }
+    },
+    "serviceClaimView": {
+      "type": "object",
+      "properties": {
+        "actionId": {
+          "type": "string"
+        },
+        "stateVersion": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "discard": {
+          "$ref": "#/definitions/serviceDiscard"
+        },
+        "deadline": {
+          "type": "string"
+        },
+        "eligible": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ownResponse": {
+          "$ref": "#/definitions/serviceClaimResponse"
+        }
+      }
+    },
+    "serviceDiscard": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "type": "string"
+        },
+        "tile": {
+          "$ref": "#/definitions/serviceTile"
+        },
+        "sequence": {
+          "type": "string",
+          "format": "uint64"
+        }
+      }
+    },
+    "serviceGetMatchStateResponse": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "$ref": "#/definitions/serviceMatchState"
+        }
+      }
+    },
+    "serviceJoinMatchResponse": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "$ref": "#/definitions/serviceMatchState"
+        }
+      }
+    },
+    "serviceMatchCommandType": {
+      "type": "string",
+      "enum": [
+        "MATCH_COMMAND_TYPE_UNSPECIFIED",
+        "MATCH_COMMAND_TYPE_DRAW",
+        "MATCH_COMMAND_TYPE_DISCARD",
+        "MATCH_COMMAND_TYPE_SUBMIT_CLAIM"
+      ],
+      "default": "MATCH_COMMAND_TYPE_UNSPECIFIED"
+    },
+    "serviceMatchState": {
+      "type": "object",
+      "properties": {
+        "matchId": {
+          "type": "string"
+        },
+        "seat": {
+          "type": "string"
+        },
+        "stateVersion": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "activeSeat": {
+          "type": "string"
+        },
+        "ownHand": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceTile"
+          }
+        },
+        "ownExposed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceTile"
+          }
+        },
+        "players": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/servicePlayerView"
+          }
+        },
+        "wall": {
+          "$ref": "#/definitions/serviceWallView"
+        },
+        "lastDiscard": {
+          "$ref": "#/definitions/serviceDiscard"
+        },
+        "claim": {
+          "$ref": "#/definitions/serviceClaimView"
+        },
+        "winLocked": {
+          "type": "boolean"
+        }
+      },
+      "description": "MatchState is a privacy-filtered projection for exactly one authenticated\nplayer. It is not a serializable authoritative snapshot."
+    },
+    "servicePlayerView": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "type": "string"
+        },
+        "handCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "exposed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceTile"
+          }
+        },
+        "meldCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "serviceSubmitMatchCommandResponse": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "stateVersion": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/definitions/serviceMatchState"
+        }
+      }
+    },
+    "serviceTile": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "rank": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "copy": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "serviceWallView": {
+      "type": "object",
+      "properties": {
+        "remaining": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "drawableRemaining": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "reserveRemaining": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header"
+    }
+  }
+}

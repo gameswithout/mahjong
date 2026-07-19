@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "rules": "mahjong-product-specification v1.2 §5.11–5.12, §7.3–7.4",
+  "settlements": [
+    {
+      "name": "7.4-base-5tai-bamboo",
+      "tier": "bamboo", "dealer": "E", "continuations": 0,
+      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 5}]},
+      "expect": {"net": {"E": 0, "S": -50, "W": 50, "N": 0}}
+    },
+    {
+      "name": "7.4-base-5tai-sparrow",
+      "tier": "sparrow", "dealer": "E", "continuations": 0,
+      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 5}]},
+      "expect": {"net": {"E": 0, "S": -500, "W": 500, "N": 0}}
+    },
+    {
+      "name": "7.4-base-5tai-windcloud",
+      "tier": "windcloud", "dealer": "E", "continuations": 0,
+      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 5}]},
+      "expect": {"net": {"E": 0, "S": -5000, "W": 5000, "N": 0}}
+    },
+    {
+      "name": "7.4-base-5tai-dragons",
+      "tier": "dragons", "dealer": "E", "continuations": 0,
+      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 5}]},
+      "expect": {"net": {"E": 0, "S": -50000, "W": 50000, "N": 0}}
+    },
+    {
+      "name": "7.4-ex1-dealer-zimo-k2",
+      "tier": "bamboo", "dealer": "E", "continuations": 2,
+      "result": {"kind": "zimo", "winners": [{"seat": "E", "raw_tai": 5}]},
+      "expect": {"net": {"E": 300, "S": -100, "W": -100, "N": -100}}
+    },
+    {
+      "name": "7.4-ex2-nondealer-zimo-dealer-k2",
+      "tier": "bamboo", "dealer": "E", "continuations": 2,
+      "result": {"kind": "zimo", "winners": [{"seat": "S", "raw_tai": 5}]},
+      "expect": {"net": {"E": -100, "S": 200, "W": -50, "N": -50}}
+    },
+    {
+      "name": "7.4-ex3-kong-tai-settles-at-hand-end",
+      "tier": "bamboo", "dealer": "E", "continuations": 0,
+      "result": {"kind": "zimo", "winners": [{"seat": "S", "raw_tai": 4}]},
+      "expect": {"net": {"E": -50, "S": 130, "W": -40, "N": -40}}
+    },
+    {
+      "name": "7.4-ex4-eight-flowers-three-payers",
+      "tier": "bamboo", "dealer": "E", "continuations": 0,
+      "result": {"kind": "eight_flowers", "winners": [{"seat": "S", "raw_tai": 15}]},
+      "expect": {"net": {"E": -160, "S": 460, "W": -150, "N": -150}}
+    },
+    {
+      "name": "7.4-ex5-single-payer-cap",
+      "tier": "dragons", "dealer": "E", "continuations": 0,
+      "result": {"kind": "discard", "payer": "S", "winners": [{"seat": "W", "raw_tai": 45}]},
+      "expect": {"net": {"E": 0, "S": -300000, "W": 300000, "N": 0}}
+    },
+    {
+      "name": "7.4-ex6-ex8-maximum-hand-independent-caps",
+      "tier": "dragons", "dealer": "E", "continuations": 10,
+      "result": {"kind": "zimo", "winners": [{"seat": "E", "raw_tai": 69}]},
+      "expect": {"net": {"E": 900000, "S": -300000, "W": -300000, "N": -300000}}
+    },
+    {
+      "name": "7.4-ex7-largest-remainder-171-129",
+      "tier": "bamboo", "dealer": "E", "continuations": 0,
+      "result": {"kind": "discard", "payer": "N", "winners": [{"seat": "S", "raw_tai": 20}, {"seat": "W", "raw_tai": 15}]},
+      "expect": {"net": {"E": 0, "S": 171, "W": 129, "N": -300}}
+    },
+    {
+      "name": "7.4-ex9-exhaustive-draw-zero-transfer",
+      "tier": "bamboo", "dealer": "E", "continuations": 3,
+      "result": {"kind": "exhaustive_draw"},
+      "expect": {"net": {"E": 0, "S": 0, "W": 0, "N": 0}}
+    },
+    {
+      "name": "rob-uses-discard-model-declarer-pays",
+      "tier": "sparrow", "dealer": "S", "continuations": 1,
+      "result": {"kind": "rob", "payer": "S", "winners": [{"seat": "N", "raw_tai": 4}]},
+      "expect": {"net": {"E": 0, "S": -700, "W": 0, "N": 700}}
+    },
+    {
+      "name": "heavenly-uses-three-payer-model-with-dealer-winner",
+      "tier": "bamboo", "dealer": "E", "continuations": 0,
+      "result": {"kind": "heavenly", "winners": [{"seat": "E", "raw_tai": 69}]},
+      "expect": {"net": {"E": 900, "S": -300, "W": -300, "N": -300}}
+    }
+  ],
+  "continuations": [
+    {"name": "dealer-zimo-retains", "dealer": "E", "k": 2, "result": {"kind": "zimo", "winners": [{"seat": "E", "raw_tai": 5}]}, "ting": false, "expect": {"next_dealer": "E", "next_k": 3, "retains": true}},
+    {"name": "nondealer-win-rotates", "dealer": "E", "k": 2, "result": {"kind": "discard", "payer": "E", "winners": [{"seat": "S", "raw_tai": 5}]}, "ting": false, "expect": {"next_dealer": "S", "next_k": 0, "retains": false}},
+    {"name": "shared-discard-rotates", "dealer": "E", "k": 2, "result": {"kind": "discard", "payer": "N", "winners": [{"seat": "E", "raw_tai": 5}, {"seat": "S", "raw_tai": 5}]}, "ting": false, "expect": {"next_dealer": "S", "next_k": 0, "retains": false}},
+    {"name": "exhaustive-ting-retains", "dealer": "W", "k": 4, "result": {"kind": "exhaustive_draw"}, "ting": true, "expect": {"next_dealer": "W", "next_k": 5, "retains": true}},
+    {"name": "exhaustive-not-ting-rotates", "dealer": "W", "k": 4, "result": {"kind": "exhaustive_draw"}, "ting": false, "expect": {"next_dealer": "N", "next_k": 0, "retains": false}},
+    {"name": "k10-rotates-regardless", "dealer": "E", "k": 10, "result": {"kind": "zimo", "winners": [{"seat": "E", "raw_tai": 5}]}, "ting": false, "expect": {"next_dealer": "S", "next_k": 0, "retains": false}}
+  ]
+}
