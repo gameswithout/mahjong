@@ -452,6 +452,31 @@ body {
   margin-left: 4px;
 }
 
+.sort-toggle-button {
+  background: #232a45;
+  border: 1px solid #3a4066;
+  border-radius: 999px;
+  color: #f7f4ee;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  margin-left: auto;
+  padding: 2px 6px;
+}
+
+.sort-toggle-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.reorder-button {
+  font-size: 10px;
+  min-height: 32px;
+  min-width: 0;
+  padding: 0 8px;
+}
+
 .action-row {
   align-items: center;
   display: flex;

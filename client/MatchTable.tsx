@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
 import { tileTypeKey, windName } from "./matchTableTypes";
+import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
 
 // §9.2 static wireframe: proves every simultaneous-visibility element
 // (tile identity, claim source, most recent discard, active player, dealer,
@@ -255,6 +256,7 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
 
 function LocalSeat({
   state,
+  displayedHand,
   lastDiscardTileId,
   selectable,
   selectedTileId,
@@ -266,8 +268,12 @@ function LocalSeat({
   drawPending,
   waits,
   matchKey,
+  sortMode,
+  onCycleSortMode,
+  onMoveSelected,
 }: {
   state: SeatState;
+  displayedHand: WireTile[];
   lastDiscardTileId?: string;
   selectable?: boolean;
   selectedTileId?: string | null;
@@ -279,7 +285,16 @@ function LocalSeat({
   drawPending?: boolean;
   waits: WaitEntry[];
   matchKey: string | null;
+  sortMode: SortMode;
+  onCycleSortMode: () => void;
+  onMoveSelected: (direction: "left" | "right") => void;
 }) {
+  // §9.3 "manual reorder" reuses the same tile-select gesture already used
+  // for discard selection (only active in Off mode) rather than a second,
+  // parallel selection mechanism — the Move buttons act on whichever tile
+  // is currently selected.
+  const canReorder = sortMode === "off" && selectable && !!selectedTileId;
+
   return (
     <section className="seat seat-bottom local-seat" aria-label="Your seat">
       <header className="seat-header">
@@ -291,6 +306,14 @@ function LocalSeat({
             Auto-playing
           </span>
         ) : null}
+        <button
+          type="button"
+          className="sort-toggle-button"
+          onClick={onCycleSortMode}
+          aria-label={`Hand sort: ${sortModeLabel(sortMode)}. Activate to change.`}
+        >
+          Sort: {sortModeLabel(sortMode)}
+        </button>
         {canDraw ? (
           <button
             type="button"
@@ -312,7 +335,7 @@ function LocalSeat({
       <WaitPanel waits={waits} />
       <DiscardGrid discards={state.discards} highlightId={lastDiscardTileId} matchKey={matchKey} />
       <div className="local-hand" role="list" aria-label="Your hand">
-        {(state.hand ?? []).map((item) => {
+        {displayedHand.map((item) => {
           const selected = selectedTileId === item.id;
           if (!selectable) {
             return (
@@ -331,6 +354,18 @@ function LocalSeat({
               aria-label={selected ? `${item.label}, selected. Activate again or confirm to discard.` : `Select ${item.label} to discard`}
               disabled={discardPending}
               onClick={() => onSelectTile?.(item.id)}
+              onKeyDown={(event) => {
+                if (!canReorder || !selected) {
+                  return;
+                }
+                if (event.key === "ArrowLeft") {
+                  event.preventDefault();
+                  onMoveSelected("left");
+                } else if (event.key === "ArrowRight") {
+                  event.preventDefault();
+                  onMoveSelected("right");
+                }
+              }}
             >
               <Tile t={item} size="lg" matchesSelected={!selected && matchesKey(item.id, matchKey)} />
             </button>
@@ -339,6 +374,16 @@ function LocalSeat({
       </div>
       {selectable && selectedTileId ? (
         <div className="discard-confirm-row">
+          {canReorder ? (
+            <>
+              <button type="button" className="action-button action-pass reorder-button" onClick={() => onMoveSelected("left")}>
+                ← Move
+              </button>
+              <button type="button" className="action-button action-pass reorder-button" onClick={() => onMoveSelected("right")}>
+                Move →
+              </button>
+            </>
+          ) : null}
           <button
             type="button"
             className="action-button action-discard-confirm"
@@ -401,6 +446,62 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
   const lastDiscardTileId = state.lastDiscard?.tile.id;
   const matchKey = interaction?.selectedTileId ? tileTypeKey(interaction.selectedTileId) : null;
 
+  const localHand = local.hand ?? [];
+  const localHandIds = localHand.map((t) => t.id).join(",");
+  const selectedTileId = interaction?.selectedTileId ?? null;
+
+  const [sortMode, setSortMode] = useState<SortMode>("off");
+  const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
+
+  // §9.3: "Auto-sort runs after deal, draw, claim, and manual toggle but
+  // never while a tile is selected." Reconciles the display order against
+  // whatever tiles are actually in hand now (deal/draw/discard/claim all
+  // change that set), then — unless a tile is currently selected — applies
+  // the active auto-sort mode on top.
+  useEffect(() => {
+    setHandOrder((current) => {
+      const incomingIds = localHand.map((t) => t.id);
+      const incomingSet = new Set(incomingIds);
+      const currentSet = new Set(current);
+      const kept = current.filter((id) => incomingSet.has(id));
+      const added = incomingIds.filter((id) => !currentSet.has(id));
+      const reconciled = [...kept, ...added];
+      if (sortMode === "off" || selectedTileId) {
+        return reconciled;
+      }
+      const byId = new Map(localHand.map((t) => [t.id, t]));
+      const ordered = reconciled.map((id) => byId.get(id)).filter((t): t is WireTile => Boolean(t));
+      return applySort(sortMode, ordered).map((t) => t.id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localHandIds, sortMode, selectedTileId]);
+
+  const displayedHand = useMemo(() => {
+    const byId = new Map(localHand.map((t) => [t.id, t]));
+    return handOrder.map((id) => byId.get(id)).filter((t): t is WireTile => Boolean(t));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handOrder, localHandIds]);
+
+  function cycleSortMode() {
+    setSortMode((current) => SORT_MODES[(SORT_MODES.indexOf(current) + 1) % SORT_MODES.length]);
+  }
+
+  function moveSelected(direction: "left" | "right") {
+    if (!selectedTileId) {
+      return;
+    }
+    setHandOrder((current) => {
+      const index = current.indexOf(selectedTileId);
+      const swapWith = direction === "left" ? index - 1 : index + 1;
+      if (index === -1 || swapWith < 0 || swapWith >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      [next[index], next[swapWith]] = [next[swapWith], next[index]];
+      return next;
+    });
+  }
+
   return (
     <div className="match-table" data-testid="match-table">
       <OpponentSeat
@@ -433,6 +534,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
       />
       <LocalSeat
         state={local}
+        displayedHand={displayedHand}
         lastDiscardTileId={state.lastDiscard?.seat === state.localSeat ? lastDiscardTileId : undefined}
         selectable={interaction?.canDiscard}
         selectedTileId={interaction?.selectedTileId}
@@ -444,6 +546,9 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         drawPending={interaction?.drawPending}
         waits={state.waits}
         matchKey={matchKey}
+        sortMode={sortMode}
+        onCycleSortMode={cycleSortMode}
+        onMoveSelected={moveSelected}
       />
       <ActionRow actions={state.legalActions} />
     </div>
