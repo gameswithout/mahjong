@@ -108,6 +108,79 @@ export interface PlayerView {
   melds?: MeldView[];
 }
 
+export type WinKind = "discard" | "zimo" | "rob" | "eight_flowers" | "heavenly" | "exhaustive_draw";
+
+// PatternScore/HandShape/ScoreResult/HandWinner/HandResult mirror
+// rulesengine's own types (scoring.go/selfturn.go) — §9.7 items 1-4.
+export interface PatternScore {
+  name: string;
+  tai: number;
+}
+
+export interface HandShape {
+  pair: MahjongTile[];
+  melds: MeldView[];
+}
+
+export interface ScoreContext {
+  seat?: MahjongSeat;
+  prevailing_wind?: MahjongSeat;
+  discard_win?: boolean;
+  zimo?: boolean;
+  replacement?: boolean;
+  last_tile?: boolean;
+  robbed_added_kong?: boolean;
+  eight_flowers?: boolean;
+  earthly_hand?: boolean;
+  heavenly_hand?: boolean;
+  single_wait?: boolean;
+}
+
+export interface ScoreResult {
+  winning: boolean;
+  raw_tai: number;
+  patterns: PatternScore[];
+  shape: HandShape;
+  effective_tiles: number;
+}
+
+export interface HandWinner {
+  seat: MahjongSeat;
+  context: ScoreContext;
+  score: ScoreResult;
+}
+
+export interface HandResult {
+  kind: WinKind;
+  winners?: HandWinner[];
+  payer?: MahjongSeat;
+  winning_tile_id?: string;
+}
+
+// Transfer/Settlement mirror rulesengine's settlement.go — §9.7 item 6.
+export interface Transfer {
+  from: MahjongSeat;
+  to: MahjongSeat;
+  effective_tai: number;
+  raw_amount: number;
+  amount: number;
+  capped?: boolean;
+}
+
+export interface Settlement {
+  transfers?: Transfer[];
+  net: Partial<Record<MahjongSeat, number>>;
+  total_credits: number;
+  total_debits: number;
+}
+
+// ContinuationOutcome mirrors rulesengine's ContinuationOutcome — §9.7 item 7.
+export interface ContinuationOutcome {
+  next_dealer: MahjongSeat;
+  next_continuations: number;
+  dealer_retains?: boolean;
+}
+
 export interface SeatView {
   match_id: string;
   seat: MahjongSeat;
@@ -132,6 +205,11 @@ export interface SeatView {
   // turn_deadline is only meaningful while phase is awaiting_draw or
   // awaiting_discard.
   turn_deadline?: string;
+  // hand_result/settlement/next_dealer are only set once phase reaches
+  // hand_complete or exhaustive_draw (§9.7).
+  hand_result?: HandResult;
+  settlement?: Settlement;
+  next_dealer?: ContinuationOutcome;
 }
 
 export interface MatchJoinRequest {

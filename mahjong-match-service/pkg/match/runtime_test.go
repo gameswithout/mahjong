@@ -757,6 +757,125 @@ func TestRuntimeDriveLocked_RestoresControlAtNextTurnAfterReconnect(t *testing.T
 	}
 }
 
+func concealedPongTilesForTest(kind rulesengine.TileKind, rank uint8) []rulesengine.Tile {
+	id := func(copyNumber uint8) string {
+		return fmt.Sprintf("%s-%d-%d", kind, rank, copyNumber)
+	}
+	return []rulesengine.Tile{
+		{ID: id(1), Kind: kind, Rank: rank, Copy: 1},
+		{ID: id(2), Kind: kind, Rank: rank, Copy: 2},
+		{ID: id(3), Kind: kind, Rank: rank, Copy: 3},
+	}
+}
+
+// TestEnrichedViewAttachesSettlementAndNextDealerOnlyAtHandEnd covers the
+// §9.7 items ProjectSeat itself cannot compute (Settlement, NextDealer):
+// nil mid-hand, populated identically for every seat once a real discard
+// win completes the hand, using the runtime's own hardcoded
+// dealer/tier/continuation assumption (matchDealer/matchTier).
+func TestEnrichedViewAttachesSettlementAndNextDealerOnlyAtHandEnd(t *testing.T) {
+	deal, err := rulesengine.Deal(20260719, [2]uint8{3, 4})
+	if err != nil {
+		t.Fatalf("Deal() error = %v", err)
+	}
+	// South holds a complete waiting hand (5 concealed melds + one tile
+	// short of the pair): claiming East's dots-5-2 discard completes it.
+	south := append(append(append(append(
+		concealedPongTilesForTest(rulesengine.Characters, 1),
+		concealedPongTilesForTest(rulesengine.Characters, 2)...),
+		concealedPongTilesForTest(rulesengine.Characters, 3)...),
+		concealedPongTilesForTest(rulesengine.Bamboo, 1)...),
+		concealedPongTilesForTest(rulesengine.Bamboo, 2)...)
+	south = append(south, rulesengine.Tile{ID: "dots-5-1", Kind: rulesengine.Dots, Rank: 5, Copy: 1})
+	deal.Players[1].Hand = south
+	deal.Players[0].Hand = []rulesengine.Tile{{ID: "dots-5-2", Kind: rulesengine.Dots, Rank: 5, Copy: 2}}
+
+	clockValue := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	clock := func() time.Time { return clockValue }
+	engine, err := rulesengine.NewTurnEngine(deal, clock)
+	if err != nil {
+		t.Fatalf("NewTurnEngine() error = %v", err)
+	}
+	ctx := context.Background()
+	actor, err := rulesengine.NewMatchActor(ctx, "match-settlement", engine, rulesengine.NewMemoryEventStore(), clock)
+	if err != nil {
+		t.Fatalf("NewMatchActor() error = %v", err)
+	}
+	if _, err := actor.Apply(ctx, rulesengine.MatchCommand{RequestID: "setup", Type: rulesengine.CommandBeginInitialReplacement}); err != nil {
+		t.Fatalf("BeginInitialReplacement error = %v", err)
+	}
+
+	midHandView, err := enrichedView(actor, rulesengine.West)
+	if err != nil {
+		t.Fatalf("enrichedView(West) mid-hand error = %v", err)
+	}
+	if midHandView.Settlement != nil || midHandView.NextDealer != nil {
+		t.Fatalf("Settlement/NextDealer should be nil mid-hand, got %#v / %#v", midHandView.Settlement, midHandView.NextDealer)
+	}
+
+	discardView, err := actor.View(rulesengine.East)
+	if err != nil {
+		t.Fatalf("View(East) error = %v", err)
+	}
+	discardResult, err := actor.Apply(ctx, rulesengine.MatchCommand{
+		RequestID: "east-discard", Type: rulesengine.CommandDiscard,
+		ExpectedVersion: discardView.StateVersion, Seat: rulesengine.East, TileID: "dots-5-2",
+	})
+	if err != nil {
+		t.Fatalf("Discard(East) error = %v", err)
+	}
+	claim := discardResult.Snapshot.Claim
+	if claim == nil {
+		t.Fatal("expected a claim window after East's discard")
+	}
+	if _, err := actor.Apply(ctx, rulesengine.MatchCommand{
+		RequestID: "south-win", Type: rulesengine.CommandSubmitClaim,
+		Claim: &rulesengine.ClaimResponse{Seat: rulesengine.South, Type: rulesengine.ClaimWin, ActionID: claim.ActionID, StateVersion: claim.StateVersion},
+	}); err != nil {
+		t.Fatalf("SubmitClaim(Win) error = %v", err)
+	}
+	for _, seat := range []rulesengine.Seat{rulesengine.West, rulesengine.North} {
+		if _, err := actor.Apply(ctx, rulesengine.MatchCommand{
+			RequestID: "pass-" + string(seat), Type: rulesengine.CommandSubmitClaim,
+			Claim: &rulesengine.ClaimResponse{Seat: seat, Type: rulesengine.ClaimPass, ActionID: claim.ActionID, StateVersion: claim.StateVersion},
+		}); err != nil {
+			t.Fatalf("pass(%s) error = %v", seat, err)
+		}
+	}
+	if _, err := actor.Apply(ctx, rulesengine.MatchCommand{
+		RequestID: "resolve", Type: rulesengine.CommandResolveClaims, ExpectedVersion: claim.StateVersion,
+	}); err != nil {
+		t.Fatalf("ResolveClaims() error = %v", err)
+	}
+	if actor.Peek().Phase != rulesengine.PhaseHandComplete {
+		t.Fatalf("phase = %s, want hand_complete", actor.Peek().Phase)
+	}
+
+	for _, seat := range []rulesengine.Seat{rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North} {
+		view, err := enrichedView(actor, seat)
+		if err != nil {
+			t.Fatalf("enrichedView(%s) error = %v", seat, err)
+		}
+		if view.HandResult == nil || view.HandResult.Kind != rulesengine.WinDiscard {
+			t.Fatalf("seat %s: HandResult = %#v, want a discard win", seat, view.HandResult)
+		}
+		if view.Settlement == nil {
+			t.Fatalf("seat %s: expected Settlement to be attached", seat)
+		}
+		if view.Settlement.TotalCredits != view.Settlement.TotalDebits || view.Settlement.TotalCredits <= 0 {
+			t.Fatalf("seat %s: settlement not balanced/nonzero: %#v", seat, view.Settlement)
+		}
+		if view.NextDealer == nil {
+			t.Fatalf("seat %s: expected NextDealer to be attached", seat)
+		}
+		// East (the dealer) did not win and did not deal into a draw — the
+		// dealer rotates.
+		if view.NextDealer.DealerRetains || view.NextDealer.NextDealer != rulesengine.South {
+			t.Fatalf("seat %s: NextDealer = %#v, want rotation to South", seat, view.NextDealer)
+		}
+	}
+}
+
 func TestRuntimeMatchLock_DifferentMatchesDoNotBlock(t *testing.T) {
 	runtime := NewRuntime(nil, nil, nil, nil)
 	first := runtime.matchLock("match-a")

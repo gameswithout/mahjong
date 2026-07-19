@@ -294,3 +294,88 @@ h1 {
   overflow-x: auto;
   width: 100%;
 }
+
+.hand-result-screen {
+  background: #1b2038;
+  border: 1px solid #3e476d;
+  border-radius: 1rem;
+  margin: 0.75rem 0;
+  padding: 1.25rem;
+  text-align: left;
+}
+
+.hand-result-heading {
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
+.hand-result-winner {
+  background: #242a42;
+  border-radius: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+}
+
+.hand-result-winner-heading {
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+
+.hand-result-decomposition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.hand-result-meld,
+.hand-result-pair {
+  background: #10131f;
+  border-radius: 0.4rem;
+  display: inline-flex;
+  gap: 1px;
+  padding: 0.15rem 0.3rem;
+}
+
+.hand-result-tai-total {
+  font-weight: 700;
+  margin: 0.4rem 0;
+}
+
+.hand-result-why-toggle {
+  min-height: 36px;
+}
+
+.hand-result-patterns {
+  list-style: disc;
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.hand-result-dealer-tai,
+.hand-result-no-winner,
+.hand-result-no-transfers,
+.hand-result-continuation,
+.hand-result-match-id {
+  margin: 0.5rem 0;
+}
+
+.hand-result-settlement {
+  background: #242a42;
+  border-radius: 0.75rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+}
+
+.hand-result-settlement-heading {
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+
+.hand-result-transfer {
+  margin: 0.2rem 0;
+}
+
+.hand-result-return {
+  margin-top: 0.5rem;
+}

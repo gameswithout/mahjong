@@ -117,6 +117,64 @@ func TestProjectSeatExposesNonConcealedMeldTilesToEveryone(t *testing.T) {
 	}
 }
 
+// TestProjectSeatExposesHandResultOnlyAtTerminalPhase covers §9.7 items
+// 1-4 (winning hand/tile, decomposition, patterns, raw Tai): HandResult is
+// nil mid-hand, and once the hand ends it is identical for every seat —
+// including a seat that did not win, since a completed hand's winner(s)
+// are legitimately revealed at showdown. Settlement/NextDealer are left
+// for the runtime layer (dealer/continuation/tier are session state
+// ProjectSeat has no visibility into).
+func TestProjectSeatExposesHandResultOnlyAtTerminalPhase(t *testing.T) {
+	state := dealWithFront(t, "dots-5-2")
+	state.Players[0].Hand = junkHand17()
+	state.Players[1].Hand = append(append(append(
+		concealedPongTiles(Characters, 1),
+		concealedPongTiles(Characters, 2)...),
+		concealedPongTiles(Characters, 3)...),
+		append(concealedPongTiles(Bamboo, 1),
+			append(concealedPongTiles(Bamboo, 2), tile("dots-5-1", Dots, 5, 1))...)...)
+	engine := fixedClockEngine(t, state)
+	if err := engine.BeginInitialReplacement(); err != nil {
+		t.Fatalf("BeginInitialReplacement() error = %v", err)
+	}
+
+	midHandView, err := engine.ProjectSeat("match-1", West)
+	if err != nil {
+		t.Fatalf("ProjectSeat(West) mid-hand error = %v", err)
+	}
+	if midHandView.HandResult != nil {
+		t.Fatalf("HandResult should be nil mid-hand, got %#v", midHandView.HandResult)
+	}
+
+	window, err := engine.Discard(engine.Version, East, "dots-9-1")
+	if err != nil {
+		t.Fatalf("Discard() error = %v", err)
+	}
+	passAllClaims(t, engine, window)
+	if _, err := engine.Draw(engine.Version); err != nil {
+		t.Fatalf("Draw() error = %v", err)
+	}
+	if _, err := engine.DeclareZimo(engine.Version, South); err != nil {
+		t.Fatalf("DeclareZimo() error = %v", err)
+	}
+	if engine.Phase != PhaseHandComplete {
+		t.Fatalf("phase = %s, want hand_complete", engine.Phase)
+	}
+
+	for _, seat := range []Seat{East, South, West, North} {
+		view, err := engine.ProjectSeat("match-1", seat)
+		if err != nil {
+			t.Fatalf("ProjectSeat(%s) error = %v", seat, err)
+		}
+		if view.HandResult == nil || view.HandResult.Kind != WinZimo || len(view.HandResult.Winners) != 1 || view.HandResult.Winners[0].Seat != South {
+			t.Fatalf("seat %s: HandResult = %#v, want South's Zimo visible identically to every seat", seat, view.HandResult)
+		}
+		if view.Settlement != nil || view.NextDealer != nil {
+			t.Fatalf("seat %s: ProjectSeat must leave Settlement/NextDealer for the runtime layer, got %#v / %#v", seat, view.Settlement, view.NextDealer)
+		}
+	}
+}
+
 // TestProjectSeatExposesTurnDeadline covers the countdown the E8 match
 // table needs for a live draw/discard decision, mirroring how Claim's own
 // deadline is already formatted.

@@ -32,6 +32,18 @@ type SeatView struct {
 	// while the engine is in another phase must not be treated as live
 	// (mirrors TurnEngine.TurnDeadline's own doc comment).
 	TurnDeadline string `json:"turn_deadline,omitempty"`
+	// HandResult is set once Phase reaches hand_complete or
+	// exhaustive_draw (§9.7 items 1-4: winning hand/tile, decomposition,
+	// patterns, raw Tai). It is identical and safe for every seat — a
+	// winning hand is legitimately revealed at showdown, and an
+	// exhaustive draw's empty Winners reveals nothing. Settlement and
+	// NextDealer (§9.7 items 5-7) are match-runtime concerns — dealer,
+	// continuation count, and lobby tier are session state ProjectSeat has
+	// no visibility into — so they are left for the runtime to attach
+	// after calling ProjectSeat, not populated here.
+	HandResult *HandResult          `json:"hand_result,omitempty"`
+	Settlement *Settlement          `json:"settlement,omitempty"`
+	NextDealer *ContinuationOutcome `json:"next_dealer,omitempty"`
 }
 
 type PlayerView struct {
@@ -160,6 +172,9 @@ func (e *TurnEngine) ProjectSeat(matchID string, seat Seat) (SeatView, error) {
 	}
 	if e.TurnDeadline != nil {
 		view.TurnDeadline = e.TurnDeadline.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
+	}
+	if e.Phase == PhaseHandComplete || e.Phase == PhaseExhaustiveDraw {
+		view.HandResult = e.Result()
 	}
 	for _, candidate := range e.Deal.Players {
 		owner := candidate.Seat == seat

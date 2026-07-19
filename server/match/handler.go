@@ -329,6 +329,54 @@ var (
 // presets, which this runtime also does not yet select by tier).
 const DefaultSeatRetention = 90 * time.Second
 
+// The match runtime does not yet track dealer/prevailing-wind/continuation
+// or lobby tier (E2.F6/E2.F7 multi-hand rotation and tier selection are
+// unbuilt) — every current match is a single freshly-dealt hand with East
+// as dealer at Bamboo Courtyard stakes, matching the same hardcoded
+// assumption driveLocked already uses for takeover-bot purposes. Revisit
+// once real rotation and tier selection exist.
+const matchDealer = rulesengine.East
+const matchContinuations = 0
+
+var matchTier = rulesengine.TierBambooCourtyard
+
+// enrichedView calls actor.View(seat) and, once the hand has actually
+// ended, attaches the §9.7 items ProjectSeat itself cannot compute
+// (Settlement, NextDealer) since those need dealer/continuation/tier
+// session state ProjectSeat has no visibility into.
+func enrichedView(actor *rulesengine.MatchActor, seat rulesengine.Seat) (rulesengine.SeatView, error) {
+	view, err := actor.View(seat)
+	if err != nil || view.HandResult == nil {
+		return view, err
+	}
+	settlement, settleErr := rulesengine.SettleHand(rulesengine.SettlementInput{
+		Tier:          matchTier,
+		Dealer:        matchDealer,
+		Continuations: matchContinuations,
+		Result:        view.HandResult,
+	})
+	if settleErr == nil {
+		view.Settlement = &settlement
+	}
+	dealerTing := false
+	if view.HandResult.Kind == rulesengine.KindExhaustiveDraw {
+		if engine := actor.Peek(); engine != nil {
+			for _, player := range engine.Deal.Players {
+				if player.Seat != matchDealer {
+					continue
+				}
+				waits, _ := rulesengine.WinningTiles(player.Hand, player.Melds)
+				dealerTing = len(waits) > 0
+			}
+		}
+	}
+	outcome, outcomeErr := rulesengine.NextDealerState(matchDealer, matchContinuations, view.HandResult, dealerTing)
+	if outcomeErr == nil {
+		view.NextDealer = &outcome
+	}
+	return view, nil
+}
+
 type Runtime struct {
 	mu       sync.Mutex
 	store    rulesengine.EventStore
@@ -461,7 +509,7 @@ func (r *Runtime) Join(ctx context.Context, matchID, userID string) (rulesengine
 	if err := r.driveLocked(ctx, current); err != nil {
 		return "", rulesengine.SeatView{}, err
 	}
-	view, err := current.actor.View(seat)
+	view, err := enrichedView(current.actor, seat)
 	return seat, view, err
 }
 
@@ -649,7 +697,7 @@ func (r *Runtime) View(matchID, userID string) (rulesengine.SeatView, error) {
 	if err := r.driveLocked(context.Background(), current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
-	return current.actor.View(seat)
+	return enrichedView(current.actor, seat)
 }
 
 func (r *Runtime) Apply(ctx context.Context, matchID, userID, requestID string, request protocol.MatchCommandRequest) (rulesengine.CommandResult, error) {
@@ -820,7 +868,7 @@ func (r *Runtime) Broadcast(matchID, requestID string) {
 	r.mu.Unlock()
 
 	for _, subscriber := range subscribers {
-		view, err := actor.View(subscriber.seat)
+		view, err := enrichedView(actor, subscriber.seat)
 		if err != nil {
 			continue
 		}

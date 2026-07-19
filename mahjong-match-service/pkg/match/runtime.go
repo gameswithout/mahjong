@@ -20,6 +20,54 @@ import (
 // depends on it (each drive pass re-evaluates from scratch).
 var takeoverSeatOrder = []rulesengine.Seat{rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North}
 
+// The match runtime does not yet track dealer/prevailing-wind/continuation
+// or lobby tier (E2.F6/E2.F7 multi-hand rotation and tier selection are
+// unbuilt) — every current match is a single freshly-dealt hand with East
+// as dealer at Bamboo Courtyard stakes, matching the same hardcoded
+// assumption driveLocked already uses for takeover-bot purposes. Revisit
+// once real rotation and tier selection exist.
+const matchDealer = rulesengine.East
+const matchContinuations = 0
+
+var matchTier = rulesengine.TierBambooCourtyard
+
+// enrichedView calls actor.View(seat) and, once the hand has actually
+// ended, attaches the §9.7 items ProjectSeat itself cannot compute
+// (Settlement, NextDealer) since those need dealer/continuation/tier
+// session state ProjectSeat has no visibility into.
+func enrichedView(actor *rulesengine.MatchActor, seat rulesengine.Seat) (rulesengine.SeatView, error) {
+	view, err := actor.View(seat)
+	if err != nil || view.HandResult == nil {
+		return view, err
+	}
+	settlement, settleErr := rulesengine.SettleHand(rulesengine.SettlementInput{
+		Tier:          matchTier,
+		Dealer:        matchDealer,
+		Continuations: matchContinuations,
+		Result:        view.HandResult,
+	})
+	if settleErr == nil {
+		view.Settlement = &settlement
+	}
+	dealerTing := false
+	if view.HandResult.Kind == rulesengine.KindExhaustiveDraw {
+		if engine := actor.Peek(); engine != nil {
+			for _, player := range engine.Deal.Players {
+				if player.Seat != matchDealer {
+					continue
+				}
+				waits, _ := rulesengine.WinningTiles(player.Hand, player.Melds)
+				dealerTing = len(waits) > 0
+			}
+		}
+	}
+	outcome, outcomeErr := rulesengine.NextDealerState(matchDealer, matchContinuations, view.HandResult, dealerTing)
+	if outcomeErr == nil {
+		view.NextDealer = &outcome
+	}
+	return view, nil
+}
+
 var (
 	ErrNotMember        = errors.New("player is not a member of this match")
 	ErrMatchNotLoaded   = errors.New("match has not been joined")
@@ -141,7 +189,7 @@ func (r *Runtime) Join(
 	if err := r.driveLocked(ctx, current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
-	return current.actor.View(seat)
+	return enrichedView(current.actor, seat)
 }
 
 func (r *Runtime) View(
@@ -169,7 +217,7 @@ func (r *Runtime) View(
 	if err := r.driveLocked(ctx, current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
-	return current.actor.View(seat)
+	return enrichedView(current.actor, seat)
 }
 
 func (r *Runtime) Apply(
@@ -209,7 +257,7 @@ func (r *Runtime) Apply(
 				return previous, rulesengine.SeatView{}, err
 			}
 		}
-		view, err := current.actor.View(seat)
+		view, err := enrichedView(current.actor, seat)
 		return previous, view, err
 	}
 	view, err := current.actor.View(seat)
@@ -231,7 +279,7 @@ func (r *Runtime) Apply(
 			}
 			current.actor = restored
 			if previous, found := restored.Previous(command.RequestID); found {
-				view, viewErr := restored.View(seat)
+				view, viewErr := enrichedView(restored, seat)
 				return previous, view, viewErr
 			}
 			return result, rulesengine.SeatView{}, fmt.Errorf("%w: another replica committed first", rulesengine.ErrStaleAction)
@@ -244,7 +292,7 @@ func (r *Runtime) Apply(
 			return result, rulesengine.SeatView{}, err
 		}
 	}
-	nextView, err := current.actor.View(seat)
+	nextView, err := enrichedView(current.actor, seat)
 	return result, nextView, err
 }
 

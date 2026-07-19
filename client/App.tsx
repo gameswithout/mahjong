@@ -25,6 +25,7 @@ import {
 } from "./match-runtime";
 import type { ClaimType, MatchCommandRequest, SeatView } from "../protocol/envelope";
 import { MatchTable } from "./MatchTable";
+import { HandResultScreen } from "./HandResultScreen";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
 import "./styles.css";
 import "./match-table.css";
@@ -1015,46 +1016,50 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                         </p>
                       )}
 
-                      {matchRuntimeState.status === "joined" && (
-                        <div className="runtime-state" role="status" aria-live="polite">
-                          <div className="match-table-frame">
-                            <MatchTable
-                              state={seatViewToMatchTableState(matchRuntimeState.view, {
-                                now: nowTick,
-                                onClaimAction: dispatchClaimAction,
-                              })}
-                              interaction={{
-                                canDraw:
-                                  matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
-                                  matchRuntimeState.view.phase === "awaiting_draw",
-                                onDraw: drawTile,
-                                drawPending: matchRuntimeState.commandPending,
-                                canDiscard:
-                                  matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
-                                  matchRuntimeState.view.phase === "awaiting_discard",
-                                selectedTileId,
-                                onSelectTile: selectHandTile,
-                                onConfirmDiscard: confirmDiscard,
-                                discardPending: matchRuntimeState.commandPending,
-                              }}
-                            />
+                      {matchRuntimeState.status === "joined" &&
+                        (matchRuntimeState.view.phase === "hand_complete" ||
+                        matchRuntimeState.view.phase === "exhaustive_draw" ? (
+                          <HandResultScreen view={matchRuntimeState.view} onReturn={leaveTable} />
+                        ) : (
+                          <div className="runtime-state" role="status" aria-live="polite">
+                            <div className="match-table-frame">
+                              <MatchTable
+                                state={seatViewToMatchTableState(matchRuntimeState.view, {
+                                  now: nowTick,
+                                  onClaimAction: dispatchClaimAction,
+                                })}
+                                interaction={{
+                                  canDraw:
+                                    matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
+                                    matchRuntimeState.view.phase === "awaiting_draw",
+                                  onDraw: drawTile,
+                                  drawPending: matchRuntimeState.commandPending,
+                                  canDiscard:
+                                    matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
+                                    matchRuntimeState.view.phase === "awaiting_discard",
+                                  selectedTileId,
+                                  onSelectTile: selectHandTile,
+                                  onConfirmDiscard: confirmDiscard,
+                                  discardPending: matchRuntimeState.commandPending,
+                                }}
+                              />
+                            </div>
+
+                            {matchRuntimeState.view.active_seat !== matchRuntimeState.view.seat && (
+                              <p className="runtime-message">
+                                Waiting for seat {matchRuntimeState.view.active_seat}.
+                              </p>
+                            )}
+
+                            <button
+                              className="secondary-action session-action"
+                              type="button"
+                              onClick={syncMatchRuntime}
+                            >
+                              Refresh match state
+                            </button>
                           </div>
-
-                          {matchRuntimeState.view.active_seat !== matchRuntimeState.view.seat && (
-                            <p className="runtime-message">
-                              Waiting for seat {matchRuntimeState.view.active_seat}.
-                            </p>
-                          )}
-
-                          <button
-                            className="secondary-action session-action"
-                            type="button"
-                            onClick={syncMatchRuntime}
-                          >
-                            Refresh match state
-                          </button>
-                        </div>
-                      )}
+                        ))}
 
                       {matchRuntimeState.status === "error" && (
                         <div className="session-error" role="alert">
