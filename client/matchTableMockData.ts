@@ -90,6 +90,10 @@ export const mockMatchTableState: MatchTableState = {
   countdownSeconds: 7,
   countdownTotalSeconds: 15,
   legalActions: ["Pass", "Chow", "Pong", "Win"].map((label) => ({ id: label, label })),
+  waits: [
+    { tile: tile("characters-4-2"), visibleRemaining: 2 },
+    { tile: tile("dots-9-3"), visibleRemaining: 0 },
+  ],
 };
 
 // A second scenario exercising the timer's urgent state (<=3s) and a

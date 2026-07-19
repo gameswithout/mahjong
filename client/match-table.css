@@ -210,6 +210,35 @@ body {
   border: 1px solid #4a5180;
 }
 
+/* §9.5: "Selected-tile matches receive both outline and brightness change,
+   never color alone." Outline + filter, not a color-only cue. */
+.tile-match {
+  filter: brightness(1.25);
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.wait-panel {
+  display: flex;
+  flex-shrink: 0;
+  gap: 3px;
+  overflow-x: auto;
+}
+
+.wait-entry {
+  align-items: center;
+  display: inline-flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.wait-remaining {
+  font-size: 7px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
 .opponent-hand-backs {
   display: flex;
   flex-shrink: 0;

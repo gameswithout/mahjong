@@ -293,6 +293,161 @@ func TestProjectSeatComputesClaimOptionsServerSide(t *testing.T) {
 	}
 }
 
+// TestProjectSeatComputesTingWaitListWithVisibleRemainingCount covers the
+// §9.4 assist: a seat holding a single-wait hand gets exactly the tile type
+// it needs, and VisibleRemaining correctly subtracts every publicly visible
+// copy (own hand, discards, exposed melds) but never an opponent's
+// concealed hand — VisibleRemaining floors at zero rather than going
+// negative once every copy is accounted for.
+func TestProjectSeatComputesTingWaitListWithVisibleRemainingCount(t *testing.T) {
+	state := dealWithFront(t)
+	// Same single-wait shape as TestWinningTilesReturnsUniquePhysicalRepresentatives:
+	// every suit run 1-9 plus 1-6 of bamboo, needing one more dots-1 to pair.
+	state.Players[0].Hand = []Tile{
+		tile("characters-1-1", Characters, 1, 1), tile("characters-2-1", Characters, 2, 1), tile("characters-3-1", Characters, 3, 1),
+		tile("characters-4-1", Characters, 4, 1), tile("characters-5-1", Characters, 5, 1), tile("characters-6-1", Characters, 6, 1),
+		tile("characters-7-1", Characters, 7, 1), tile("characters-8-1", Characters, 8, 1), tile("characters-9-1", Characters, 9, 1),
+		tile("bamboo-1-1", Bamboo, 1, 1), tile("bamboo-2-1", Bamboo, 2, 1), tile("bamboo-3-1", Bamboo, 3, 1),
+		tile("bamboo-4-1", Bamboo, 4, 1), tile("bamboo-5-1", Bamboo, 5, 1), tile("bamboo-6-1", Bamboo, 6, 1),
+		tile("dots-1-1", Dots, 1, 1),
+	}
+	state.Players[1].Hand = []Tile{tile("wind-east-1", Wind, 0, 1)}
+	state.Players[2].Hand = []Tile{tile("wind-south-1", Wind, 0, 1)}
+	state.Players[3].Hand = []Tile{tile("wind-west-1", Wind, 0, 1)}
+	engine := fixedClockEngine(t, state)
+	if err := engine.BeginInitialReplacement(); err != nil {
+		t.Fatalf("BeginInitialReplacement() error = %v", err)
+	}
+
+	view, err := engine.ProjectSeat("match-1", East)
+	if err != nil {
+		t.Fatalf("ProjectSeat(East) error = %v", err)
+	}
+	if len(view.Waits) != 1 || view.Waits[0].Tile.Kind != Dots || view.Waits[0].Tile.Rank != 1 {
+		t.Fatalf("Waits = %#v, want a single dots-1 wait", view.Waits)
+	}
+	if view.Waits[0].VisibleRemaining != 3 {
+		t.Fatalf("VisibleRemaining = %d, want 3 (4 minus the copy already in East's own hand)", view.Waits[0].VisibleRemaining)
+	}
+
+	// A public discard of a second dots-1 copy should subtract one more.
+	engine.discards = append(engine.discards, Discard{Seat: South, Tile: tile("dots-1-2", Dots, 1, 2), Sequence: 1})
+	view, err = engine.ProjectSeat("match-1", East)
+	if err != nil {
+		t.Fatalf("ProjectSeat(East) error = %v", err)
+	}
+	if view.Waits[0].VisibleRemaining != 2 {
+		t.Fatalf("VisibleRemaining after discard = %d, want 2", view.Waits[0].VisibleRemaining)
+	}
+
+	// West's exposed Pong holding the last two physical copies should
+	// exhaust the count to zero, not negative — still listed (§9.4:
+	// "structurally legal but exhausted wait"), just with an "All visible"
+	// zero rather than being removed.
+	westIndex := 2
+	state.Players[westIndex].Melds = []Meld{{
+		Type: MeldPong,
+		Tiles: []Tile{
+			tile("dots-1-3", Dots, 1, 3),
+			tile("dots-1-4", Dots, 1, 4),
+		},
+	}}
+	view, err = engine.ProjectSeat("match-1", East)
+	if err != nil {
+		t.Fatalf("ProjectSeat(East) error = %v", err)
+	}
+	if len(view.Waits) != 1 {
+		t.Fatalf("Waits = %#v, want the exhausted wait still listed", view.Waits)
+	}
+	if view.Waits[0].VisibleRemaining != 0 {
+		t.Fatalf("VisibleRemaining after West's exposed Pong = %d, want floored at 0", view.Waits[0].VisibleRemaining)
+	}
+
+	// A concealed meld's tiles must never reduce the count: they are not
+	// visible to anyone but their owner (§9.4: "never reads opponent
+	// hands").
+	state.Players[westIndex].Melds[0].Concealed = true
+	view, err = engine.ProjectSeat("match-1", East)
+	if err != nil {
+		t.Fatalf("ProjectSeat(East) error = %v", err)
+	}
+	if view.Waits[0].VisibleRemaining != 2 {
+		t.Fatalf("VisibleRemaining once West's Pong is concealed = %d, want back to 2 (concealed tiles excluded)", view.Waits[0].VisibleRemaining)
+	}
+}
+
+// TestProjectSeatComputesWinPreviewAlongsideCanWin covers the §9.4 "score
+// preview before Win" assist: the preview attached to a live ClaimOptionsView
+// must be exactly the ScoreResult the real ClaimWin resolution goes on to
+// produce, not an approximation — captured before resolution and compared
+// against the actual HandResult afterward, rather than hand-deriving Tai
+// totals independently in the test.
+func TestProjectSeatComputesWinPreviewAlongsideCanWin(t *testing.T) {
+	state := dealWithFront(t)
+	// East's hand is junkHand17 with its last slot swapped for dots-5-2 so
+	// East's first discard is a tile South can claim Win on directly.
+	hand := append([]Tile(nil), junkHand17()[:16]...)
+	hand = append(hand, tile("dots-5-2", Dots, 5, 2))
+	state.Players[0].Hand = hand
+	// South: three concealed Pongs plus two more, one dots-5 short of a
+	// pair (same shape as TestZimoOnFirstDrawScoresEarthlyAndConcealedZimo,
+	// but claiming East's discard rather than self-drawing it).
+	state.Players[1].Hand = append(append(append(
+		concealedPongTiles(Characters, 1),
+		concealedPongTiles(Characters, 2)...),
+		concealedPongTiles(Characters, 3)...),
+		append(concealedPongTiles(Bamboo, 1),
+			append(concealedPongTiles(Bamboo, 2), tile("dots-5-1", Dots, 5, 1))...)...)
+	engine := fixedClockEngine(t, state)
+	if err := engine.BeginInitialReplacement(); err != nil {
+		t.Fatalf("BeginInitialReplacement() error = %v", err)
+	}
+	window, err := engine.Discard(engine.Version, East, "dots-5-2")
+	if err != nil {
+		t.Fatalf("Discard() error = %v", err)
+	}
+	if !containsSeat(window.Eligible, South) {
+		t.Fatalf("expected South to be eligible for East's dots-5-2 discard, eligible = %v", window.Eligible)
+	}
+
+	southView, err := engine.ProjectSeat("match-1", South)
+	if err != nil {
+		t.Fatalf("ProjectSeat(South) error = %v", err)
+	}
+	if !southView.Claim.Options.CanWin {
+		t.Fatal("expected South to be able to claim Win on East's dots-5-2")
+	}
+	preview := southView.Claim.Options.WinPreview
+	if preview == nil || !preview.Winning || preview.RawTai == 0 {
+		t.Fatalf("WinPreview = %#v, want a winning, non-zero preview", preview)
+	}
+
+	if err := engine.SubmitClaim(ClaimResponse{Seat: South, Type: ClaimWin, StateVersion: window.StateVersion}); err != nil {
+		t.Fatalf("SubmitClaim(Win) error = %v", err)
+	}
+	for _, seat := range []Seat{West, North} {
+		if err := engine.SubmitClaim(ClaimResponse{Seat: seat, Type: ClaimPass, StateVersion: window.StateVersion}); err != nil {
+			t.Fatalf("pass for %s error = %v", seat, err)
+		}
+	}
+	if _, err := engine.ResolveClaims(window.StateVersion); err != nil {
+		t.Fatalf("ResolveClaims() error = %v", err)
+	}
+	result := engine.Result()
+	if result == nil || len(result.Winners) != 1 || result.Winners[0].Seat != South {
+		t.Fatalf("result = %#v, want South as the sole winner", result)
+	}
+	actual := result.Winners[0].Score
+	if actual.RawTai != preview.RawTai || len(actual.Patterns) != len(preview.Patterns) {
+		t.Fatalf("actual score %#v does not match the earlier WinPreview %#v", actual, preview)
+	}
+	for index := range actual.Patterns {
+		if actual.Patterns[index] != preview.Patterns[index] {
+			t.Fatalf("pattern[%d] = %#v, preview had %#v", index, actual.Patterns[index], preview.Patterns[index])
+		}
+	}
+}
+
 // TestProjectSeatExposesFullPublicDiscardPile covers the new Discards
 // field: every seat's discard, in order, is visible to every other seat —
 // discards have never been private in this ruleset.

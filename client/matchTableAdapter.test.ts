@@ -171,6 +171,25 @@ describe("seatViewToMatchTableState", () => {
     expect(state.countdownTotalSeconds).toBe(15);
   });
 
+  it("maps waits to the local player's wait list, defaulting to empty", () => {
+    const withoutWaits = seatViewToMatchTableState(seatView(), { now: Date.now(), onClaimAction: vi.fn() });
+    expect(withoutWaits.waits).toEqual([]);
+
+    const state = seatViewToMatchTableState(
+      seatView({
+        waits: [
+          { tile: { id: "dots-1-2", kind: "dots", rank: 1, copy: 2 }, visible_remaining: 3 },
+          { tile: { id: "dots-9-3", kind: "dots", rank: 9, copy: 3 }, visible_remaining: 0 },
+        ],
+      }),
+      { now: Date.now(), onClaimAction: vi.fn() },
+    );
+    expect(state.waits).toEqual([
+      { tile: expect.objectContaining({ id: "dots-1-2" }), visibleRemaining: 3 },
+      { tile: expect.objectContaining({ id: "dots-9-3" }), visibleRemaining: 0 },
+    ]);
+  });
+
   it("floors an expired deadline's countdown at zero rather than going negative", () => {
     const now = Date.parse("2026-07-19T10:00:10.000Z");
     const state = seatViewToMatchTableState(
@@ -258,6 +277,37 @@ describe("seatViewToMatchTableState", () => {
         claimActionPending: true,
       });
       expect(state.legalActions.every((a) => a.disabled)).toBe(true);
+    });
+
+    it("attaches the server's win_preview to the Win action, and omits it when absent", () => {
+      const view = claimView({
+        options: {
+          can_win: true,
+          win_preview: {
+            winning: true,
+            raw_tai: 5,
+            patterns: [
+              { name: "Base Win", tai: 1 },
+              { name: "All Pongs", tai: 4},
+            ],
+            shape: { pair: [], melds: [] },
+            effective_tiles: 17,
+          },
+        },
+      });
+      const state = seatViewToMatchTableState(view, { now: Date.now(), onClaimAction: vi.fn() });
+      const winAction = state.legalActions.find((a) => a.id === "win");
+      expect(winAction?.preview).toEqual({
+        rawTai: 5,
+        patterns: [
+          { name: "Base Win", tai: 1 },
+          { name: "All Pongs", tai: 4 },
+        ],
+      });
+
+      const withoutPreview = claimView({ options: { can_win: true } });
+      const stateWithoutPreview = seatViewToMatchTableState(withoutPreview, { now: Date.now(), onClaimAction: vi.fn() });
+      expect(stateWithoutPreview.legalActions.find((a) => a.id === "win")?.preview).toBeUndefined();
     });
 
     it("always offers Pass alongside whatever the server marked legal", () => {

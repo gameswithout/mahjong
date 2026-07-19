@@ -76,6 +76,10 @@ export interface ClaimOptionsView {
   can_pong?: boolean;
   can_kong?: boolean;
   chow_sets?: [string, string][];
+  // win_preview is the §9.4 "score preview before Win" assist: the same
+  // ScoreResult SubmitClaim(win) would itself produce, only present when
+  // can_win is true.
+  win_preview?: ScoreResult;
 }
 
 export interface SeatClaimView {
@@ -214,6 +218,20 @@ export interface SeatView {
   hand_result?: HandResult;
   settlement?: Settlement;
   next_dealer?: ContinuationOutcome;
+  // waits is the §9.4 Ting/wait-list assist: absent whenever this seat
+  // isn't currently holding a waiting-shaped hand (e.g. mid-turn holding an
+  // undiscarded draw), not just when the wait list is empty.
+  waits?: WaitTileView[];
+}
+
+// WaitTileView is one tile type in the §9.4 wait list — tile is a concrete
+// physical tile of that type (for glyph/label rendering); visible_remaining
+// is "four copies minus copies in the player's own hand, all discards, all
+// exposed melds, and all exposed bonus/replacement information" and may be
+// zero for a structurally legal but exhausted wait ("All visible").
+export interface WaitTileView {
+  tile: MahjongTile;
+  visible_remaining: number;
 }
 
 export interface MatchJoinRequest {

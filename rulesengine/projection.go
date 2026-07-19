@@ -44,6 +44,25 @@ type SeatView struct {
 	HandResult *HandResult          `json:"hand_result,omitempty"`
 	Settlement *Settlement          `json:"settlement,omitempty"`
 	NextDealer *ContinuationOutcome `json:"next_dealer,omitempty"`
+	// Waits is the §9.4 Ting/wait-list assist: every tile type that would
+	// complete this seat's own hand right now, each with its "Visible
+	// remaining" count. Computed purely from this seat's own hand/melds
+	// plus public information (§9.4: "never reads opponent hands or wall
+	// order") — absent whenever the seat isn't holding a waiting-shaped
+	// hand (e.g. mid-turn holding an undiscarded draw), not just when the
+	// wait list is empty.
+	Waits []WaitTileView `json:"waits,omitempty"`
+}
+
+// WaitTileView is one tile type in the §9.4 wait list. Tile is a concrete,
+// unused physical tile of that type so the client can render it with the
+// same glyph/label lookup as any other tile; VisibleRemaining is "four
+// copies minus copies in the player's own hand, all discards, all exposed
+// melds, and all exposed bonus/replacement information" (§9.4) and may be
+// zero for a structurally legal but exhausted wait.
+type WaitTileView struct {
+	Tile             Tile `json:"tile"`
+	VisibleRemaining int  `json:"visible_remaining"`
 }
 
 type PlayerView struct {
@@ -109,6 +128,11 @@ type ClaimOptionsView struct {
 	CanPong  bool        `json:"can_pong,omitempty"`
 	CanKong  bool        `json:"can_kong,omitempty"`
 	ChowSets [][2]string `json:"chow_sets,omitempty"`
+	// WinPreview is the §9.4 "score preview before Win" assist: the same
+	// ScoreResult SubmitClaim(ClaimWin) would produce for this seat, computed
+	// with the identical context (DiscardWin, SingleWait) the real
+	// resolution in resolveClaim uses. Only set when CanWin is true.
+	WinPreview *ScoreResult `json:"win_preview,omitempty"`
 }
 
 // claimOptionsFor computes seat's legal responses to discard, reusing the
@@ -120,6 +144,18 @@ func (e *TurnEngine) claimOptionsFor(seat Seat, discard Discard) ClaimOptionsVie
 		CanWin:  !e.winLocks[seat] && e.winValidator != nil && e.winValidator(e.Deal, seat, discard.Tile),
 		CanPong: e.canPong(seat, discard.Tile, nil),
 		CanKong: e.canKong(seat, discard.Tile, nil),
+	}
+	if options.CanWin {
+		if player, err := e.player(seat); err == nil {
+			context := ScoreContext{
+				Seat:       seat,
+				DiscardWin: true,
+				SingleWait: e.singleWaitExcluding(player, ""),
+			}
+			if score, err := ScoreWinningDiscard(*player, discard.Tile, context); err == nil {
+				options.WinPreview = &score
+			}
+		}
 	}
 	if discard.Tile.IsNumbered() && seat == nextSeat(discard.Seat) {
 		player, err := e.player(seat)
@@ -175,6 +211,14 @@ func (e *TurnEngine) ProjectSeat(matchID string, seat Seat) (SeatView, error) {
 		WinLocked: e.winLocks[seat],
 		OwnMelds:  append([]Meld(nil), player.Melds...),
 	}
+	if waits, err := WaitingTiles(player.Hand, player.Melds); err == nil {
+		for _, candidate := range waits {
+			view.Waits = append(view.Waits, WaitTileView{
+				Tile:             candidate,
+				VisibleRemaining: e.visibleRemainingFor(candidate, player.Hand),
+			})
+		}
+	}
 	if e.TurnDeadline != nil {
 		view.TurnDeadline = e.TurnDeadline.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 	}
@@ -223,6 +267,48 @@ func (e *TurnEngine) ProjectSeat(matchID string, seat Seat) (SeatView, error) {
 		}
 	}
 	return view, nil
+}
+
+// visibleRemainingFor implements §9.4's Ting remaining-count formula: four
+// copies minus copies visible to seat across its own hand, every public
+// discard, every exposed meld at the table (concealed melds excluded — their
+// tiles are not visible to opponents, and a seat's own concealed Kong
+// already consumes all 4 copies of its type so it can never appear as a
+// wait candidate to begin with), and every player's exposed bonus tiles.
+func (e *TurnEngine) visibleRemainingFor(candidate Tile, ownHand []Tile) int {
+	used := 0
+	for _, tile := range ownHand {
+		if sameTileType(tile, candidate) {
+			used++
+		}
+	}
+	for _, discard := range e.discards {
+		if sameTileType(discard.Tile, candidate) {
+			used++
+		}
+	}
+	for _, player := range e.Deal.Players {
+		for _, meld := range player.Melds {
+			if meld.Concealed {
+				continue
+			}
+			for _, tile := range meld.Tiles {
+				if sameTileType(tile, candidate) {
+					used++
+				}
+			}
+		}
+		for _, tile := range player.Exposed {
+			if sameTileType(tile, candidate) {
+				used++
+			}
+		}
+	}
+	remaining := 4 - used
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
 
 func (e *TurnEngine) ProjectAll(matchID string) (map[Seat]SeatView, error) {

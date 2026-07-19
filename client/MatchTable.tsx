@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { MatchAction, MatchTableState, SeatId, SeatState, WireMeld, WireTile } from "./matchTableTypes";
-import { windName } from "./matchTableTypes";
+import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
+import { tileTypeKey, windName } from "./matchTableTypes";
 
 // §9.2 static wireframe: proves every simultaneous-visibility element
 // (tile identity, claim source, most recent discard, active player, dealer,
@@ -24,18 +24,42 @@ function remapSeats(localSeat: SeatId): Record<ScreenSlot, SeatId> {
   return { bottom: at(0), right: at(1), top: at(2), left: at(3) };
 }
 
-function Tile({ t, size = "md", faceDown = false }: { t: WireTile; size?: "sm" | "md" | "lg"; faceDown?: boolean }) {
+function Tile({
+  t,
+  size = "md",
+  faceDown = false,
+  matchesSelected = false,
+}: {
+  t: WireTile;
+  size?: "sm" | "md" | "lg";
+  faceDown?: boolean;
+  matchesSelected?: boolean;
+}) {
   if (faceDown) {
     return <span className={`tile tile-back tile-${size}`} aria-hidden="true" />;
   }
   return (
-    <span className={`tile tile-${size}`} role="img" aria-label={t.label} title={t.label}>
+    <span
+      className={`tile tile-${size}${matchesSelected ? " tile-match" : ""}`}
+      role="img"
+      aria-label={t.label}
+      title={t.label}
+    >
       {t.glyph}
     </span>
   );
 }
 
-function MeldGroup({ meld }: { meld: WireMeld }) {
+// §9.5: "Selected-tile matches receive both outline and brightness change,
+// never color alone" — any other currently-visible tile of the same type as
+// the one selected in the local hand (own melds, discards, opponents'
+// exposed melds) gets the same treatment. matchKey is the selected tile's
+// tileTypeKey(), or null when nothing is selected.
+function matchesKey(id: string, matchKey: string | null): boolean {
+  return matchKey !== null && tileTypeKey(id) === matchKey;
+}
+
+function MeldGroup({ meld, matchKey }: { meld: WireMeld; matchKey: string | null }) {
   // A concealed meld belonging to another seat arrives with no tile
   // identities (server-redacted) — render face-down placeholders instead
   // of leaking nothing-to-leak but also not falsely claiming zero tiles.
@@ -52,13 +76,23 @@ function MeldGroup({ meld }: { meld: WireMeld }) {
   return (
     <span className="meld" aria-label={`${meld.concealed ? "concealed " : ""}${meld.type} of ${meld.tiles.map((item) => item.label).join(", ")}`}>
       {meld.tiles.map((item) => (
-        <Tile key={item.id} t={item} size="sm" />
+        <Tile key={item.id} t={item} size="sm" matchesSelected={matchesKey(item.id, matchKey)} />
       ))}
     </span>
   );
 }
 
-function DiscardGrid({ discards, highlightId, claimed }: { discards: WireTile[]; highlightId?: string; claimed?: boolean }) {
+function DiscardGrid({
+  discards,
+  highlightId,
+  claimed,
+  matchKey,
+}: {
+  discards: WireTile[];
+  highlightId?: string;
+  claimed?: boolean;
+  matchKey: string | null;
+}) {
   return (
     <div className="discard-grid" role="list" aria-label="Discards">
       {discards.map((item) => (
@@ -67,10 +101,30 @@ function DiscardGrid({ discards, highlightId, claimed }: { discards: WireTile[];
           role="listitem"
           className={`discard-slot${item.id === highlightId ? " discard-slot-recent" : ""}`}
         >
-          <Tile t={item} size="sm" />
+          <Tile t={item} size="sm" matchesSelected={matchesKey(item.id, matchKey)} />
         </span>
       ))}
       {claimed && highlightId ? <span className="discard-slot discard-slot-claimed">claimed</span> : null}
+    </div>
+  );
+}
+
+// §9.4 Ting/wait-list assist: every tile type that currently completes the
+// local player's hand, each with its "Visible remaining" count — zero shown
+// as "All visible" rather than removed (a structurally legal but exhausted
+// wait is still information the player can act on).
+function WaitPanel({ waits }: { waits: WaitEntry[] }) {
+  if (waits.length === 0) {
+    return null;
+  }
+  return (
+    <div className="wait-panel" role="list" aria-label="Waiting on">
+      {waits.map((entry) => (
+        <span key={entry.tile.id} role="listitem" className="wait-entry">
+          <Tile t={entry.tile} size="sm" />
+          <span className="wait-remaining">{entry.visibleRemaining > 0 ? entry.visibleRemaining : "All visible"}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -82,6 +136,7 @@ function OpponentSeat({
   prevailingWind,
   lastDiscardTileId,
   claimSource,
+  matchKey,
 }: {
   seat: SeatId;
   slot: ScreenSlot;
@@ -89,6 +144,7 @@ function OpponentSeat({
   prevailingWind: SeatId;
   lastDiscardTileId?: string;
   claimSource: SeatId | null;
+  matchKey: string | null;
 }) {
   return (
     <section className={`seat seat-${slot}`} aria-label={`${windName(seat)} seat`}>
@@ -114,11 +170,11 @@ function OpponentSeat({
       {state.melds.length > 0 ? (
         <div className="meld-area" aria-label="Exposed melds">
           {state.melds.map((meld) => (
-            <MeldGroup key={meld.id} meld={meld} />
+            <MeldGroup key={meld.id} meld={meld} matchKey={matchKey} />
           ))}
         </div>
       ) : null}
-      <DiscardGrid discards={state.discards} highlightId={lastDiscardTileId} />
+      <DiscardGrid discards={state.discards} highlightId={lastDiscardTileId} matchKey={matchKey} />
     </section>
   );
 }
@@ -208,6 +264,8 @@ function LocalSeat({
   canDraw,
   onDraw,
   drawPending,
+  waits,
+  matchKey,
 }: {
   state: SeatState;
   lastDiscardTileId?: string;
@@ -219,6 +277,8 @@ function LocalSeat({
   canDraw?: boolean;
   onDraw?: () => void;
   drawPending?: boolean;
+  waits: WaitEntry[];
+  matchKey: string | null;
 }) {
   return (
     <section className="seat seat-bottom local-seat" aria-label="Your seat">
@@ -245,11 +305,12 @@ function LocalSeat({
       {state.melds.length > 0 ? (
         <div className="meld-area" aria-label="Your exposed melds">
           {state.melds.map((meld) => (
-            <MeldGroup key={meld.id} meld={meld} />
+            <MeldGroup key={meld.id} meld={meld} matchKey={matchKey} />
           ))}
         </div>
       ) : null}
-      <DiscardGrid discards={state.discards} highlightId={lastDiscardTileId} />
+      <WaitPanel waits={waits} />
+      <DiscardGrid discards={state.discards} highlightId={lastDiscardTileId} matchKey={matchKey} />
       <div className="local-hand" role="list" aria-label="Your hand">
         {(state.hand ?? []).map((item) => {
           const selected = selectedTileId === item.id;
@@ -271,7 +332,7 @@ function LocalSeat({
               disabled={discardPending}
               onClick={() => onSelectTile?.(item.id)}
             >
-              <Tile t={item} size="lg" />
+              <Tile t={item} size="lg" matchesSelected={!selected && matchesKey(item.id, matchKey)} />
             </button>
           );
         })}
@@ -292,6 +353,14 @@ function LocalSeat({
   );
 }
 
+// §9.4 "score preview before Win": shown on the Win button itself rather
+// than behind a separate panel, so it stays within the simultaneous-
+// visibility requirement (§9.2) — the raw Tai total in the label, the full
+// pattern breakdown as a tooltip.
+function winButtonTitle(preview: NonNullable<MatchAction["preview"]>): string {
+  return preview.patterns.map((p) => `${p.name} (${p.tai})`).join(", ");
+}
+
 function ActionRow({ actions }: { actions: MatchAction[] }) {
   if (actions.length === 0) {
     return null;
@@ -305,8 +374,10 @@ function ActionRow({ actions }: { actions: MatchAction[] }) {
           className={`action-button action-${action.id.toLowerCase()}`}
           onClick={action.onClick}
           disabled={action.disabled}
+          title={action.preview ? winButtonTitle(action.preview) : undefined}
         >
           {action.label}
+          {action.preview ? ` · ${action.preview.rawTai} Tai` : ""}
         </button>
       ))}
     </div>
@@ -328,6 +399,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
   const slots = remapSeats(state.localSeat);
   const local = state.seats[state.localSeat];
   const lastDiscardTileId = state.lastDiscard?.tile.id;
+  const matchKey = interaction?.selectedTileId ? tileTypeKey(interaction.selectedTileId) : null;
 
   return (
     <div className="match-table" data-testid="match-table">
@@ -338,6 +410,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         prevailingWind={state.prevailingWind}
         lastDiscardTileId={state.lastDiscard?.seat === slots.top ? lastDiscardTileId : undefined}
         claimSource={state.claimSource}
+        matchKey={matchKey}
       />
       <OpponentSeat
         seat={slots.left}
@@ -346,6 +419,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         prevailingWind={state.prevailingWind}
         lastDiscardTileId={state.lastDiscard?.seat === slots.left ? lastDiscardTileId : undefined}
         claimSource={state.claimSource}
+        matchKey={matchKey}
       />
       <WallAndTurnCenter state={state} />
       <OpponentSeat
@@ -355,6 +429,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         prevailingWind={state.prevailingWind}
         lastDiscardTileId={state.lastDiscard?.seat === slots.right ? lastDiscardTileId : undefined}
         claimSource={state.claimSource}
+        matchKey={matchKey}
       />
       <LocalSeat
         state={local}
@@ -367,6 +442,8 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         canDraw={interaction?.canDraw}
         onDraw={interaction?.onDraw}
         drawPending={interaction?.drawPending}
+        waits={state.waits}
+        matchKey={matchKey}
       />
       <ActionRow actions={state.legalActions} />
     </div>

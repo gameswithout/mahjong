@@ -91,7 +91,14 @@ function claimLegalActions(
   });
   const actions: MatchAction[] = [];
   if (claim.options.can_win) {
-    actions.push(action("win", "Win", () => dispatch("win")));
+    const winAction = action("win", "Win", () => dispatch("win"));
+    if (claim.options.win_preview) {
+      winAction.preview = {
+        rawTai: claim.options.win_preview.raw_tai,
+        patterns: claim.options.win_preview.patterns.map((p) => ({ name: p.name, tai: p.tai })),
+      };
+    }
+    actions.push(winAction);
   }
   if (claim.options.can_kong) {
     actions.push(action("kong", "Kong", () => dispatch("kong")));
@@ -191,5 +198,9 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
     countdownSeconds: countdown?.seconds ?? 0,
     countdownTotalSeconds: countdown?.total ?? TURN_TOTAL_SECONDS,
     legalActions: claimLegalActions(view, options.onClaimAction, options.claimActionPending ?? false),
+    waits: (view.waits ?? []).map((entry) => ({
+      tile: wireTile(entry.tile),
+      visibleRemaining: entry.visible_remaining,
+    })),
   };
 }

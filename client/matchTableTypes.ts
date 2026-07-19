@@ -50,6 +50,23 @@ export interface MatchAction {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  // preview is the §9.4 "score preview before Win" assist, set only on the
+  // Win action when the server computed one.
+  preview?: WinPreview;
+}
+
+export interface WinPreview {
+  rawTai: number;
+  patterns: { name: string; tai: number }[];
+}
+
+// WaitEntry is one §9.4 Ting/wait-list row: a tile the local player is
+// waiting on, plus how many of its four copies remain visible ("All
+// visible" when zero — still listed, not hidden, for a structurally legal
+// but exhausted wait).
+export interface WaitEntry {
+  tile: WireTile;
+  visibleRemaining: number;
 }
 
 export interface MatchTableState {
@@ -63,6 +80,9 @@ export interface MatchTableState {
   countdownSeconds: number;
   countdownTotalSeconds: number;
   legalActions: MatchAction[];
+  // waits is the local player's own §9.4 Ting/wait list, empty when they
+  // aren't currently holding a waiting-shaped hand.
+  waits: WaitEntry[];
 }
 
 const SUIT_GLYPHS: Record<string, string> = {
@@ -103,6 +123,18 @@ export function tile(id: string): WireTile {
   }
   const [suit, rank] = parts;
   return { id, glyph: `${rank}${SUIT_GLYPHS[suit] ?? "?"}`, label: `${rank} of ${suit}` };
+}
+
+// tileTypeKey groups physical tiles by identity for the §9.5 identical
+// visible-tile highlight, mirroring rulesengine's tileTypeKey/tileBaseID:
+// two tiles match when they're the same rank of the same suit, or the same
+// named honor — the trailing "-<copy>" is stripped either way.
+export function tileTypeKey(id: string): string {
+  const parts = id.split("-");
+  if (parts[0] === "flower") {
+    return id;
+  }
+  return parts.slice(0, -1).join("-");
 }
 
 const seatWindLabel: Record<SeatId, string> = { E: "East", S: "South", W: "West", N: "North" };
