@@ -114,6 +114,11 @@ type discardCandidate struct {
 // discarding, connectivity of the discarded tile) and returns candidates
 // sorted best-to-worst by that combined signal, with a stable tie-break on
 // tile ID so ties are deterministic before any seeded pick among them.
+// "Best" maximizes effective draws (more ways to complete the hand) and
+// minimizes the connectivity of the tile actually given up — connectivity
+// rates how useful a tile is to the rest of the hand, so the best discard
+// is the least useful one, e.g. an isolated tile over the middle of an
+// already-complete run.
 func rankDiscards(hand []rulesengine.Tile, melds []rulesengine.Meld) []discardCandidate {
 	discardable := legalDiscards(hand)
 	candidates := make([]discardCandidate, 0, len(discardable))
@@ -130,7 +135,7 @@ func rankDiscards(hand []rulesengine.Tile, melds []rulesengine.Meld) []discardCa
 			return candidates[i].effective > candidates[j].effective
 		}
 		if candidates[i].connectivity != candidates[j].connectivity {
-			return candidates[i].connectivity > candidates[j].connectivity
+			return candidates[i].connectivity < candidates[j].connectivity
 		}
 		return candidates[i].tile.ID < candidates[j].tile.ID
 	})

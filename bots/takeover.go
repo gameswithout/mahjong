@@ -43,7 +43,7 @@ func DriveTakeoverSeat(
 	if err != nil || command == nil {
 		return false, err
 	}
-	return true, applyTakeoverCommand(engine, command)
+	return true, applyPolicyCommand(engine, command)
 }
 
 // DecideTakeoverCommand computes, but does not apply, the single action a
@@ -96,7 +96,7 @@ func DecideTakeoverCommand(
 		if engine.ActiveSeat != seat {
 			return nil, nil
 		}
-		return decideTurnCommand(engine, seat, dealer, prevailingWind, continuation, seed)
+		return decideTurnCommand(engine, takeoverDifficulty, seat, dealer, prevailingWind, continuation, seed)
 
 	case rulesengine.PhaseClaimWindow:
 		claim := engine.Claim
@@ -106,18 +106,21 @@ func DecideTakeoverCommand(
 		if _, already := claim.Responses[seat]; already {
 			return nil, nil
 		}
-		return decideClaimCommand(engine, seat, dealer, prevailingWind, continuation, seed, claim)
+		return decideClaimCommand(engine, takeoverDifficulty, seat, dealer, prevailingWind, continuation, seed, claim)
 
 	default:
 		return nil, nil
 	}
 }
 
-// decideTurnCommand handles the active seat's own turn: declare a legal
-// Win first (§11.3: always), then a self-Kong if Medium's policy takes one,
-// otherwise discard.
+// decideTurnCommand handles seat's own turn under policy: declare a legal
+// Win first (§11.3: always), then a self-Kong if policy takes one, otherwise
+// discard. Shared by takeover orchestration (with the fixed Medium takeover
+// policy) and the E3.F4 calibration harness (with each seat's assigned
+// difficulty).
 func decideTurnCommand(
 	engine *rulesengine.TurnEngine,
+	policy Policy,
 	seat, dealer, prevailingWind rulesengine.Seat,
 	continuation int,
 	seed uint64,
@@ -134,7 +137,7 @@ func decideTurnCommand(
 		}, nil
 	}
 	if options := buildSelfKongOptions(obs.Hand, obs.Melds); len(options) > 0 {
-		decision := DecideSelfKong(takeoverDifficulty, obs, options, seed)
+		decision := DecideSelfKong(policy, obs, options, seed)
 		switch decision.Action.Kind {
 		case ActionConcealedKong:
 			return &rulesengine.MatchCommand{
@@ -152,9 +155,9 @@ func decideTurnCommand(
 			}, nil
 		}
 	}
-	decision := DecideDiscard(takeoverDifficulty, obs, seed)
+	decision := DecideDiscard(policy, obs, seed)
 	if decision.Action.TileID == "" {
-		return nil, fmt.Errorf("bots: takeover policy produced no discard for %s", seat)
+		return nil, fmt.Errorf("bots: policy produced no discard for %s", seat)
 	}
 	return &rulesengine.MatchCommand{
 		Type:            rulesengine.CommandDiscard,
@@ -164,9 +167,12 @@ func decideTurnCommand(
 	}, nil
 }
 
-// decideClaimCommand handles a pending claim-window response for seat.
+// decideClaimCommand handles a pending claim-window response for seat under
+// policy. Shared by takeover orchestration and the calibration harness; see
+// decideTurnCommand.
 func decideClaimCommand(
 	engine *rulesengine.TurnEngine,
+	policy Policy,
 	seat, dealer, prevailingWind rulesengine.Seat,
 	continuation int,
 	seed uint64,
@@ -184,7 +190,7 @@ func decideClaimCommand(
 	if seat != nextSeatAfter(claim.Discard.Seat) {
 		options.ChowSets = nil
 	}
-	decision := DecideClaim(takeoverDifficulty, obs, options, seed)
+	decision := DecideClaim(policy, obs, options, seed)
 
 	response := rulesengine.ClaimResponse{
 		Seat:         seat,
@@ -216,12 +222,14 @@ func decideClaimCommand(
 	}, nil
 }
 
-// applyTakeoverCommand applies a command previously computed by
-// DecideTakeoverCommand directly against engine, using the same public
-// engine methods a human player's own action would use. Event-sourced
-// callers do not use this — they submit the command through their
-// MatchActor's Apply instead, so the move is logged and replayable.
-func applyTakeoverCommand(engine *rulesengine.TurnEngine, command *rulesengine.MatchCommand) error {
+// applyPolicyCommand applies a command previously computed by
+// decideTurnCommand/decideClaimCommand (or DecideTakeoverCommand) directly
+// against engine, using the same public engine methods a human player's own
+// action would use. Event-sourced callers do not use this for takeover —
+// they submit the command through their MatchActor's Apply instead, so the
+// move is logged and replayable; the calibration harness (which owns its
+// engine directly, with no event log) uses it for every policy-driven move.
+func applyPolicyCommand(engine *rulesengine.TurnEngine, command *rulesengine.MatchCommand) error {
 	switch command.Type {
 	case rulesengine.CommandDraw:
 		_, err := engine.Draw(command.ExpectedVersion)

@@ -32,13 +32,25 @@ const (
 	// dominate the score, matching the "deterministic one-ply efficiency
 	// reference" §11.4 measures Hard's divergence against (at most 5%):
 	// Hard is meant to mostly agree with pure hand efficiency, using value
-	// as a tie-break and risk as an override only when a real, nonzero
-	// danger signal exists (an empty-opponent-info decision has zero risk
-	// by construction, so it reduces to speed+connectivity ranking).
+	// as a real (if secondary) pursuit and risk as a tie-break that only
+	// matters when a real, nonzero danger signal exists. hardRiskWeight was
+	// originally 8.0, large enough that ordinary background risk (present
+	// on almost any discard once any opponent has an exposed meld) could
+	// swamp connectivity's normal range and made Hard play far more
+	// defensively — and far less often the winner — than intended; E3.F4's
+	// calibration harness caught this directly (Hard-vs-3-Medium first-place
+	// rate measured near 9-10% against a required 34-42%, i.e. worse than
+	// Medium itself). Lowering risk to a true tie-break and raising value's
+	// weight so Hard actually pursues a bigger hand, not just an efficient
+	// one, raised the measured rate to the low-to-mid 20s. That is real,
+	// verified improvement, not yet a full close of the gap to the 34-42%
+	// band — landing exactly in band is expected to need further iteration
+	// against the calibration suite as its own follow-up, not one-shot
+	// weight-guessing.
 	hardSpeedWeight        = 100.0
 	hardConnectivityWeight = 10.0
-	hardValueWeight        = 1.0
-	hardRiskWeight         = 8.0
+	hardValueWeight        = 5.0
+	hardRiskWeight         = 1.0
 	hardFoldSafetyBonus    = 1000000.0
 	// hardFoldMeldThreshold is how many exposed melds make an opponent
 	// "visibly Ting/high-value" for fold purposes (§11.3) — a defensible
@@ -201,6 +213,9 @@ func (p hardPolicy) DecideDiscard(obs Observation, seed uint64) Decision {
 		// functions, same direction) so Hard's ranking agrees with the
 		// one-ply efficiency reference at the margin; value is a smaller
 		// tie-break on top of that, and risk only matters when nonzero.
+		// connectivity rates how useful the candidate tile itself is to the
+		// rest of the hand, so — like risk — it subtracts from the score:
+		// the best discard gives up the least useful tile.
 		speed := float64(effectiveDrawCount(remaining, obs.Melds))
 		connectivity := float64(connectivityScore(remaining, tile))
 		value, tenpai := estimateHandValue(remaining, obs.Melds, obs.BonusTiles, obs.Seat, obs.PrevailingWind, budget)
@@ -210,7 +225,7 @@ func (p hardPolicy) DecideDiscard(obs Observation, seed uint64) Decision {
 			value += dealerBonus
 		}
 		risk := discardRisk(tile, obs, budget, winLocked)
-		score := speed*hardSpeedWeight + connectivity*hardConnectivityWeight + value*hardValueWeight - risk*hardRiskWeight
+		score := speed*hardSpeedWeight - connectivity*hardConnectivityWeight + value*hardValueWeight - risk*hardRiskWeight
 		if folding && IsFullySafe(EvaluateDiscardSafety(obs, tile, winLocked)) {
 			score += hardFoldSafetyBonus
 		}
