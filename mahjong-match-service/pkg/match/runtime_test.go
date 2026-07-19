@@ -569,6 +569,194 @@ func TestRuntimeDriveLocked_PlaysTakenOverSeatAutomatically(t *testing.T) {
 	}
 }
 
+// TestRuntimeDriveLocked_RestoresControlAtNextTurnAfterReconnect drives North
+// into takeover exactly like TestRuntimeDriveLocked_PlaysTakenOverSeatAutomatically
+// (its own bot-driven draw+discard included), then has "north" call View() —
+// the §8.7 reconnect signal — while still taken over. Per §8.7 ("a returning
+// player regains control at the next legal personal turn"), North should NOT
+// be restored immediately mid-cascade; the takeover bot's already-in-flight
+// discard stands. Instead, North's very next decision point — its claim
+// eligibility on East's following real discard — must be left for a real
+// command instead of being auto-driven, proving control was actually handed
+// back rather than merely flagged.
+func TestRuntimeDriveLocked_RestoresControlAtNextTurnAfterReconnect(t *testing.T) {
+	clock := time.Date(2026, 7, 19, 8, 0, 0, 0, time.UTC)
+	now := func() time.Time { return clock }
+	key := storage.MatchKey{Namespace: "gameswithout-mahjong", SessionID: "session-1", MatchID: "match-1"}
+	runtime := NewRuntime(
+		session.StaticResolver{Members: []string{"east", "south", "west", "north"}},
+		&fakeMatchRepository{},
+		rulesengine.NewMemoryEventStore(),
+		now,
+	)
+	ctx := context.Background()
+
+	view, err := runtime.Join(ctx, key, "east")
+	if err != nil {
+		t.Fatalf("east Join() error = %v", err)
+	}
+	for _, user := range []string{"south", "west", "north"} {
+		if _, err := runtime.Join(ctx, key, user); err != nil {
+			t.Fatalf("%s Join() error = %v", user, err)
+		}
+	}
+
+	discarders := []struct {
+		user   string
+		seat   rulesengine.Seat
+		others []string
+	}{
+		{"east", rulesengine.East, []string{"south", "west"}},
+		{"south", rulesengine.South, []string{"east", "west"}},
+		{"west", rulesengine.West, []string{"east", "south"}},
+	}
+	seq := 0
+	for _, step := range discarders {
+		seq++
+		if view.ActiveSeat != step.seat {
+			t.Fatalf("expected %s active, got %s", step.seat, view.ActiveSeat)
+		}
+		tileID := view.OwnHand[0].ID
+		if view.Phase == rulesengine.PhaseAwaitingDraw {
+			result, _, err := runtime.Apply(ctx, key, step.user, rulesengine.MatchCommand{
+				RequestID:       fmt.Sprintf("draw-%d", seq),
+				Type:            rulesengine.CommandDraw,
+				ExpectedVersion: view.StateVersion,
+			})
+			if err != nil {
+				t.Fatalf("Draw(%s) error = %v", step.user, err)
+			}
+			tileID = result.Draw.Tile.ID
+			if view, err = runtime.View(ctx, key, step.user); err != nil {
+				t.Fatalf("View(%s) after draw error = %v", step.user, err)
+			}
+		}
+		if _, _, err := runtime.Apply(ctx, key, step.user, rulesengine.MatchCommand{
+			RequestID:       fmt.Sprintf("discard-%d", seq),
+			Type:            rulesengine.CommandDiscard,
+			ExpectedVersion: view.StateVersion,
+			TileID:          tileID,
+		}); err != nil {
+			t.Fatalf("Discard(%s) error = %v", step.user, err)
+		}
+		for _, other := range step.others {
+			otherView, err := runtime.View(ctx, key, other)
+			if err != nil {
+				t.Fatalf("View(%s) error = %v", other, err)
+			}
+			if otherView.Claim == nil {
+				t.Fatalf("expected a claim window for %s after %s's discard", other, step.user)
+			}
+			if _, _, err := runtime.Apply(ctx, key, other, rulesengine.MatchCommand{
+				RequestID:       fmt.Sprintf("pass-%d-%s", seq, other),
+				Type:            rulesengine.CommandSubmitClaim,
+				ExpectedVersion: otherView.StateVersion,
+				Claim: &rulesengine.ClaimResponse{
+					ActionID: otherView.Claim.ActionID,
+					Type:     rulesengine.ClaimPass,
+				},
+			}); err != nil {
+				t.Fatalf("pass(%s) error = %v", other, err)
+			}
+		}
+		// North deliberately never responds -> one AFK strike per round.
+		clock = clock.Add(20 * time.Second)
+		if view, err = runtime.View(ctx, key, "east"); err != nil {
+			t.Fatalf("View() after claim deadline error = %v", err)
+		}
+	}
+
+	// North is now taken over and its bot-driven discard already happened
+	// as part of the loop's own final View() call (driveLocked runs to
+	// completion in one pass) — matches
+	// TestRuntimeDriveLocked_PlaysTakenOverSeatAutomatically's end state.
+	if view.Phase != rulesengine.PhaseClaimWindow || view.LastDiscard == nil || view.LastDiscard.Seat != rulesengine.North {
+		t.Fatalf("phase = %s, lastDiscard = %#v, want North's bot-driven discard", view.Phase, view.LastDiscard)
+	}
+
+	// "north" reconnects now, mid-cascade, while still taken over. The
+	// already-in-flight bot discard above is not undone; this only sets the
+	// pending-restore flag for North's next opportunity.
+	if _, err := runtime.View(ctx, key, "north"); err != nil {
+		t.Fatalf("north View() (reconnect signal) error = %v", err)
+	}
+
+	// East/South/West pass on North's discard; nobody claims, so the next
+	// active seat is East (rotation continues past North).
+	for _, other := range []string{"east", "south", "west"} {
+		otherView, err := runtime.View(ctx, key, other)
+		if err != nil {
+			t.Fatalf("View(%s) error = %v", other, err)
+		}
+		if _, _, err := runtime.Apply(ctx, key, other, rulesengine.MatchCommand{
+			RequestID:       "post-reconnect-pass-" + other,
+			Type:            rulesengine.CommandSubmitClaim,
+			ExpectedVersion: otherView.StateVersion,
+			Claim:           &rulesengine.ClaimResponse{ActionID: otherView.Claim.ActionID, Type: rulesengine.ClaimPass},
+		}); err != nil {
+			t.Fatalf("pass(%s) error = %v", other, err)
+		}
+	}
+	eastView, err := runtime.View(ctx, key, "east")
+	if err != nil {
+		t.Fatalf("View(east) error = %v", err)
+	}
+	if eastView.ActiveSeat != rulesengine.East || eastView.Phase != rulesengine.PhaseAwaitingDraw {
+		t.Fatalf("phase = %s, active = %s, want East awaiting draw", eastView.Phase, eastView.ActiveSeat)
+	}
+	drawResult, _, err := runtime.Apply(ctx, key, "east", rulesengine.MatchCommand{
+		RequestID:       "east-draw-2",
+		Type:            rulesengine.CommandDraw,
+		ExpectedVersion: eastView.StateVersion,
+	})
+	if err != nil {
+		t.Fatalf("East Draw() error = %v", err)
+	}
+	discardResult, _, err := runtime.Apply(ctx, key, "east", rulesengine.MatchCommand{
+		RequestID:       "east-discard-2",
+		Type:            rulesengine.CommandDiscard,
+		ExpectedVersion: drawResult.Version,
+		TileID:          drawResult.Draw.Tile.ID,
+	})
+	if err != nil {
+		t.Fatalf("East Discard() error = %v", err)
+	}
+	if discardResult.ClaimWindow == nil || !seatIn(discardResult.ClaimWindow.Eligible, rulesengine.North) {
+		t.Fatalf("expected North to be eligible to claim East's discard, got %#v", discardResult.ClaimWindow)
+	}
+
+	// This is North's next legal personal turn opportunity. Control must
+	// already be restored: repeated View() calls must NOT auto-drive a
+	// claim response for North anymore.
+	for i := 0; i < 3; i++ {
+		polled, err := runtime.View(ctx, key, "east")
+		if err != nil {
+			t.Fatalf("View() poll %d error = %v", i, err)
+		}
+		if polled.Claim == nil {
+			t.Fatalf("poll %d: North's claim window resolved without North responding — takeover was not restored", i)
+		}
+	}
+
+	// A real command from "north" must now work normally (control is
+	// genuinely restored, not just left stalled).
+	northView, err := runtime.View(ctx, key, "north")
+	if err != nil {
+		t.Fatalf("View(north) error = %v", err)
+	}
+	if northView.Claim == nil || northView.Claim.ActionID == "" {
+		t.Fatalf("north view missing claim window: %#v", northView)
+	}
+	if _, _, err := runtime.Apply(ctx, key, "north", rulesengine.MatchCommand{
+		RequestID:       "north-pass-restored",
+		Type:            rulesengine.CommandSubmitClaim,
+		ExpectedVersion: northView.StateVersion,
+		Claim:           &rulesengine.ClaimResponse{ActionID: northView.Claim.ActionID, Type: rulesengine.ClaimPass},
+	}); err != nil {
+		t.Fatalf("North's real command after restoration error = %v", err)
+	}
+}
+
 func TestRuntimeMatchLock_DifferentMatchesDoNotBlock(t *testing.T) {
 	runtime := NewRuntime(nil, nil, nil, nil)
 	first := runtime.matchLock("match-a")

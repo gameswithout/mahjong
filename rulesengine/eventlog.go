@@ -210,6 +210,12 @@ const (
 	// time, so a premature or duplicate issue is simply rejected rather
 	// than corrupting state.
 	CommandAutoDiscardExpiredTurn CommandType = "auto_discard_expired_turn"
+	// CommandRestoreControl is a server-originated command (§8.7): the
+	// runtime issues it once it has determined the seat's rightful human
+	// owner has genuinely reconnected/resumed and the seat has reached its
+	// next legal personal turn — the engine itself has no notion of
+	// "reconnected," only of who called RestoreControl and when.
+	CommandRestoreControl CommandType = "restore_control"
 )
 
 type MatchCommand struct {
@@ -388,6 +394,8 @@ func applyCommand(engine *TurnEngine, command MatchCommand) (CommandResult, erro
 		result.HandResult, actionErr = engine.RespondOffer(command.ExpectedVersion, command.Seat, command.Accept)
 	case CommandAutoDiscardExpiredTurn:
 		result.ClaimWindow, actionErr = engine.AutoDiscardExpiredTurn(engine.now())
+	case CommandRestoreControl:
+		engine.RestoreControl(command.Seat)
 	default:
 		actionErr = ErrTurnState
 	}

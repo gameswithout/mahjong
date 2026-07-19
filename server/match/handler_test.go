@@ -440,6 +440,254 @@ func TestRuntimeDriveLockedPlaysTakenOverSeatAutomatically(t *testing.T) {
 	}
 }
 
+// TestRuntimeRestoresControlAtNextTurnAfterReconnect mirrors the
+// mahjong-match-service runtime's equivalent test: drives North into
+// takeover (its own bot-driven discard included), has "user-north" call
+// View() — the §8.7 reconnect signal — while still taken over, then proves
+// North's very next decision point (its claim eligibility on East's
+// following real discard) is left for a real command instead of being
+// auto-driven.
+func TestRuntimeRestoresControlAtNextTurnAfterReconnect(t *testing.T) {
+	clock := time.Date(2026, 7, 19, 8, 0, 0, 0, time.UTC)
+	runtime := NewRuntime(rulesengine.NewMemoryEventStore(), func() time.Time { return clock })
+	ctx := context.Background()
+	const matchID = "session-reconnect"
+
+	var view rulesengine.SeatView
+	for _, user := range []string{"user-east", "user-south", "user-west", "user-north"} {
+		_, joined, err := runtime.Join(ctx, matchID, user)
+		if err != nil {
+			t.Fatalf("%s Join() error = %v", user, err)
+		}
+		if user == "user-east" {
+			view = joined
+		}
+	}
+
+	discarders := []struct {
+		user   string
+		seat   rulesengine.Seat
+		others []string
+	}{
+		{"user-east", rulesengine.East, []string{"user-south", "user-west"}},
+		{"user-south", rulesengine.South, []string{"user-east", "user-west"}},
+		{"user-west", rulesengine.West, []string{"user-east", "user-south"}},
+	}
+	seq := 0
+	for _, step := range discarders {
+		seq++
+		if view.ActiveSeat != step.seat {
+			t.Fatalf("expected %s active, got %s", step.seat, view.ActiveSeat)
+		}
+		tileID := view.OwnHand[0].ID
+		if view.Phase == rulesengine.PhaseAwaitingDraw {
+			result, err := runtime.Apply(ctx, matchID, step.user, fmt.Sprintf("draw-%d", seq), protocol.MatchCommandRequest{
+				MatchID:         matchID,
+				Type:            rulesengine.CommandDraw,
+				ExpectedVersion: view.StateVersion,
+			})
+			if err != nil {
+				t.Fatalf("Draw(%s) error = %v", step.user, err)
+			}
+			tileID = result.Draw.Tile.ID
+			if view, err = runtime.View(matchID, step.user); err != nil {
+				t.Fatalf("View(%s) after draw error = %v", step.user, err)
+			}
+		}
+		if _, err := runtime.Apply(ctx, matchID, step.user, fmt.Sprintf("discard-%d", seq), protocol.MatchCommandRequest{
+			MatchID:         matchID,
+			Type:            rulesengine.CommandDiscard,
+			ExpectedVersion: view.StateVersion,
+			TileID:          tileID,
+		}); err != nil {
+			t.Fatalf("Discard(%s) error = %v", step.user, err)
+		}
+		for _, other := range step.others {
+			otherView, err := runtime.View(matchID, other)
+			if err != nil {
+				t.Fatalf("View(%s) error = %v", other, err)
+			}
+			if otherView.Claim == nil {
+				t.Fatalf("expected a claim window for %s after %s's discard", other, step.user)
+			}
+			if _, err := runtime.Apply(ctx, matchID, other, fmt.Sprintf("pass-%d-%s", seq, other), protocol.MatchCommandRequest{
+				MatchID:         matchID,
+				Type:            rulesengine.CommandSubmitClaim,
+				ExpectedVersion: otherView.StateVersion,
+				Claim:           &rulesengine.ClaimResponse{Type: rulesengine.ClaimPass},
+			}); err != nil {
+				t.Fatalf("pass(%s) error = %v", other, err)
+			}
+		}
+		clock = clock.Add(20 * time.Second)
+		var err error
+		if view, err = runtime.View(matchID, "user-east"); err != nil {
+			t.Fatalf("View() after claim deadline error = %v", err)
+		}
+	}
+	if view.Phase != rulesengine.PhaseClaimWindow || view.LastDiscard == nil || view.LastDiscard.Seat != rulesengine.North {
+		t.Fatalf("phase = %s, lastDiscard = %#v, want North's bot-driven discard", view.Phase, view.LastDiscard)
+	}
+
+	// "user-north" reconnects now, mid-cascade, while still taken over.
+	if _, err := runtime.View(matchID, "user-north"); err != nil {
+		t.Fatalf("north View() (reconnect signal) error = %v", err)
+	}
+
+	// East/South/West pass on North's discard; nobody claims, so the next
+	// active seat is East.
+	for _, other := range []string{"user-east", "user-south", "user-west"} {
+		otherView, err := runtime.View(matchID, other)
+		if err != nil {
+			t.Fatalf("View(%s) error = %v", other, err)
+		}
+		if _, err := runtime.Apply(ctx, matchID, other, "post-reconnect-pass-"+other, protocol.MatchCommandRequest{
+			MatchID:         matchID,
+			Type:            rulesengine.CommandSubmitClaim,
+			ExpectedVersion: otherView.StateVersion,
+			Claim:           &rulesengine.ClaimResponse{Type: rulesengine.ClaimPass},
+		}); err != nil {
+			t.Fatalf("pass(%s) error = %v", other, err)
+		}
+	}
+	eastView, err := runtime.View(matchID, "user-east")
+	if err != nil {
+		t.Fatalf("View(east) error = %v", err)
+	}
+	if eastView.ActiveSeat != rulesengine.East || eastView.Phase != rulesengine.PhaseAwaitingDraw {
+		t.Fatalf("phase = %s, active = %s, want East awaiting draw", eastView.Phase, eastView.ActiveSeat)
+	}
+	drawResult, err := runtime.Apply(ctx, matchID, "user-east", "east-draw-2", protocol.MatchCommandRequest{
+		MatchID:         matchID,
+		Type:            rulesengine.CommandDraw,
+		ExpectedVersion: eastView.StateVersion,
+	})
+	if err != nil {
+		t.Fatalf("East Draw() error = %v", err)
+	}
+	discardResult, err := runtime.Apply(ctx, matchID, "user-east", "east-discard-2", protocol.MatchCommandRequest{
+		MatchID:         matchID,
+		Type:            rulesengine.CommandDiscard,
+		ExpectedVersion: drawResult.Version,
+		TileID:          drawResult.Draw.Tile.ID,
+	})
+	if err != nil {
+		t.Fatalf("East Discard() error = %v", err)
+	}
+	if discardResult.ClaimWindow == nil || !seatIn(discardResult.ClaimWindow.Eligible, rulesengine.North) {
+		t.Fatalf("expected North to be eligible to claim East's discard, got %#v", discardResult.ClaimWindow)
+	}
+
+	// This is North's next legal personal turn opportunity. Control must
+	// already be restored: repeated View() calls must NOT auto-drive a
+	// claim response for North anymore.
+	for i := 0; i < 3; i++ {
+		polled, err := runtime.View(matchID, "user-east")
+		if err != nil {
+			t.Fatalf("View() poll %d error = %v", i, err)
+		}
+		if polled.Claim == nil {
+			t.Fatalf("poll %d: North's claim window resolved without North responding — takeover was not restored", i)
+		}
+	}
+
+	// A real command from "user-north" must now work normally.
+	northView, err := runtime.View(matchID, "user-north")
+	if err != nil {
+		t.Fatalf("View(north) error = %v", err)
+	}
+	if northView.Claim == nil {
+		t.Fatalf("north view missing claim window: %#v", northView)
+	}
+	if _, err := runtime.Apply(ctx, matchID, "user-north", "north-pass-restored", protocol.MatchCommandRequest{
+		MatchID:         matchID,
+		Type:            rulesengine.CommandSubmitClaim,
+		ExpectedVersion: northView.StateVersion,
+		Claim:           &rulesengine.ClaimResponse{Type: rulesengine.ClaimPass},
+	}); err != nil {
+		t.Fatalf("North's real command after restoration error = %v", err)
+	}
+}
+
+// TestHandlerRevokesPreviousConnectionOnSameSeatReconnect covers §8.7's
+// cross-device rule: "the previous device's match session is revoked" when
+// the same account resumes an active match elsewhere. The same user token
+// joins the same match from two separate connections; the first must be
+// notified and force-closed once the second successfully subscribes to the
+// same seat.
+func TestHandlerRevokesPreviousConnectionOnSameSeatReconnect(t *testing.T) {
+	runtime := NewRuntime(rulesengine.NewMemoryEventStore(), func() time.Time {
+		return time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC)
+	})
+	handler := &Handler{
+		Verifier: tokenVerifier{"east-token": "user-east"},
+		Runtime:  runtime,
+		Now: func() time.Time {
+			return time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC)
+		},
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	firstConn := dialRuntime(t, server.URL, "east-token")
+	defer firstConn.Close()
+	readEnvelope(t, firstConn, "server.ready")
+	writeEnvelope(t, firstConn, "match.join", "join-1", protocol.MatchJoinRequest{MatchID: "session-revoke"})
+	readEnvelope(t, firstConn, "match.joined")
+
+	secondConn := dialRuntime(t, server.URL, "east-token")
+	defer secondConn.Close()
+	readEnvelope(t, secondConn, "server.ready")
+	writeEnvelope(t, secondConn, "match.join", "join-2", protocol.MatchJoinRequest{MatchID: "session-revoke"})
+	readEnvelope(t, secondConn, "match.joined")
+
+	revoked := readEnvelope(t, firstConn, "match.session_revoked")
+	if len(revoked.Payload) == 0 {
+		t.Fatal("expected a non-empty session_revoked payload")
+	}
+	_ = firstConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, _, err := firstConn.ReadMessage(); err == nil {
+		t.Fatal("expected the revoked connection to be closed")
+	}
+}
+
+// TestSeatDisconnectedForTracksRetentionWindow covers the §8.7 seat-
+// retention bookkeeping this runtime exposes: a seat has no disconnect
+// timer while a live connection is subscribed, gets one the moment its
+// last subscriber drops, and loses it again once a new one attaches.
+func TestSeatDisconnectedForTracksRetentionWindow(t *testing.T) {
+	clock := time.Date(2026, 7, 19, 11, 0, 0, 0, time.UTC)
+	runtime := NewRuntime(rulesengine.NewMemoryEventStore(), func() time.Time { return clock })
+	ctx := context.Background()
+	const matchID = "session-retention"
+	if _, _, err := runtime.Join(ctx, matchID, "user-east"); err != nil {
+		t.Fatalf("Join() error = %v", err)
+	}
+	if _, ok := runtime.SeatDisconnectedFor(matchID, rulesengine.East); ok {
+		t.Fatal("seat should not be marked disconnected before any subscriber exists")
+	}
+
+	unsubscribe := runtime.Subscribe(matchID, "user-east", rulesengine.East, func(protocol.Envelope) error { return nil }, nil)
+	if _, ok := runtime.SeatDisconnectedFor(matchID, rulesengine.East); ok {
+		t.Fatal("seat should not be disconnected while subscribed")
+	}
+
+	unsubscribe()
+	clock = clock.Add(45 * time.Second)
+	elapsed, ok := runtime.SeatDisconnectedFor(matchID, rulesengine.East)
+	if !ok || elapsed != 45*time.Second {
+		t.Fatalf("SeatDisconnectedFor() = %v, %v; want 45s, true", elapsed, ok)
+	}
+	if runtime.SeatRetentionWindow() != DefaultSeatRetention {
+		t.Fatalf("SeatRetentionWindow() = %v, want %v", runtime.SeatRetentionWindow(), DefaultSeatRetention)
+	}
+
+	runtime.Subscribe(matchID, "user-east", rulesengine.East, func(protocol.Envelope) error { return nil }, nil)
+	if _, ok := runtime.SeatDisconnectedFor(matchID, rulesengine.East); ok {
+		t.Fatal("seat should be cleared as disconnected once resubscribed")
+	}
+}
+
 func TestHandlerJoinsActorAndReturnsOnlyProjectedState(t *testing.T) {
 	runtime := NewRuntime(rulesengine.NewMemoryEventStore(), func() time.Time {
 		return time.Date(2026, 7, 18, 5, 0, 0, 0, time.UTC)

@@ -44,6 +44,30 @@ type Runtime struct {
 type loadedMatch struct {
 	record storage.MatchRecord
 	actor  *rulesengine.MatchActor
+	// pendingRestore marks a seat whose rightful owner has been observed
+	// present (an authenticated Join/View/Apply call) while that seat was
+	// taken over (§8.7). It is only ever set while the seat is actually
+	// taken over at the moment of the call — never preemptively — so a
+	// call made before any takeover exists cannot leave a stale flag that
+	// would instantly (and wrongly) restore control the next time the seat
+	// happens to be taken over in some later, unrelated window. driveLocked
+	// consumes (clears) this flag once it actually restores control, at
+	// the seat's next legal personal turn rather than immediately.
+	pendingRestore map[rulesengine.Seat]bool
+}
+
+// markPresentIfTakenOver records that seat's owner was just observed
+// (an authenticated call succeeded) while the seat was under takeover —
+// the §8.7 reconnect signal driveLocked acts on.
+func (r *Runtime) markPresentIfTakenOver(current *loadedMatch, seat rulesengine.Seat) {
+	engine := current.actor.Peek()
+	if engine == nil || !engine.IsTakenOver(seat) {
+		return
+	}
+	if current.pendingRestore == nil {
+		current.pendingRestore = map[rulesengine.Seat]bool{}
+	}
+	current.pendingRestore[seat] = true
 }
 
 type eventHeadStore interface {
@@ -113,6 +137,7 @@ func (r *Runtime) Join(
 	if err := r.refreshLocked(ctx, current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
+	r.markPresentIfTakenOver(current, seat)
 	if err := r.driveLocked(ctx, current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
@@ -140,6 +165,7 @@ func (r *Runtime) View(
 	if err := r.refreshLocked(ctx, current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
+	r.markPresentIfTakenOver(current, seat)
 	if err := r.driveLocked(ctx, current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
@@ -168,6 +194,7 @@ func (r *Runtime) Apply(
 	if err := r.refreshLocked(ctx, current); err != nil {
 		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
 	}
+	r.markPresentIfTakenOver(current, seat)
 	if err := r.driveLocked(ctx, current); err != nil {
 		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
 	}
@@ -348,6 +375,24 @@ func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 			if !engine.IsTakenOver(seat) {
 				continue
 			}
+			if current.pendingRestore[seat] {
+				// §8.7: the seat's rightful owner has been observed present
+				// (Join/View/Apply succeeded while taken over) and this is
+				// their next legal personal turn/claim opportunity — hand
+				// control back now instead of driving another bot move.
+				delete(current.pendingRestore, seat)
+				_, err := current.actor.Apply(ctx, rulesengine.MatchCommand{
+					MatchID:   current.record.RuntimeID,
+					RequestID: "system:restore-control:" + string(seat) + ":" + strconv.FormatUint(version, 10),
+					Type:      rulesengine.CommandRestoreControl,
+					Seat:      seat,
+				})
+				if err != nil {
+					return err
+				}
+				acted = true
+				break
+			}
 			command, err := bots.DecideTakeoverCommand(engine, seat, dealer, prevailingWind, 0, version)
 			if err != nil {
 				return fmt.Errorf("drive takeover seat %s: %w", seat, err)
@@ -467,7 +512,7 @@ func (r *Runtime) loadLocked(ctx context.Context, record storage.MatchRecord) (*
 			}
 		}
 	}
-	current := &loadedMatch{record: record, actor: actor}
+	current := &loadedMatch{record: record, actor: actor, pendingRestore: map[rulesengine.Seat]bool{}}
 	r.mu.Lock()
 	r.actors[record.RuntimeID] = current
 	r.mu.Unlock()

@@ -140,6 +140,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			joinedSeat = seat
 			unsubscribe = h.Runtime.Subscribe(joinedMatchID, principal.UserID, seat, func(envelope protocol.Envelope) error {
 				return h.writeEnvelope(conn, envelope)
+			}, func() {
+				// §8.7 cross-device revocation: a newer connection for this
+				// seat has taken over; best-effort notify this connection
+				// before forcing its read loop to unblock and exit.
+				revokedEnvelope, _ := protocol.NewEnvelope("match.session_revoked", "", map[string]string{
+					"reason": "Another device resumed this seat.",
+				})
+				_ = h.writeEnvelope(conn, revokedEnvelope)
+				_ = conn.Close()
 			})
 			envelope, _ := protocol.NewEnvelope("match.joined", incoming.RequestID, protocol.MatchJoinedPayload{
 				MatchID: joinedMatchID,
@@ -311,23 +320,46 @@ var (
 	ErrMatchAction = errors.New("match action is not allowed")
 )
 
+// DefaultSeatRetention is the §8.7 Quick Play/private-room seat retention
+// window: a disconnected seat is held for the owning player to resume for
+// this long. This runtime has no lobby-tier/mode concept yet to select the
+// ranked 60s window instead, so a single configurable duration is used;
+// context-specific selection is future work once match creation threads a
+// tier through (mirrors rulesengine.DeadlineConfig's own per-context
+// presets, which this runtime also does not yet select by tier).
+const DefaultSeatRetention = 90 * time.Second
+
 type Runtime struct {
-	mu      sync.Mutex
-	store   rulesengine.EventStore
-	now     func() time.Time
-	matches map[string]*runtimeMatch
+	mu       sync.Mutex
+	store    rulesengine.EventStore
+	now      func() time.Time
+	matches  map[string]*runtimeMatch
+	retained time.Duration
 }
 
 type runtimeMatch struct {
 	actor       *rulesengine.MatchActor
 	seats       map[string]rulesengine.Seat
 	subscribers map[*runtimeSubscriber]struct{}
+	// pendingRestore marks a seat whose rightful owner has been observed
+	// present (a successful Join/View/Apply call) while that seat was
+	// taken over (§8.7) — see markPresentIfTakenOver and driveLocked.
+	pendingRestore map[rulesengine.Seat]bool
+	// disconnectedAt records when a seat's last live subscriber dropped, for
+	// the §8.7 seat-retention window. Absent (zero value, checked via the
+	// ok-form) while at least one subscriber is connected.
+	disconnectedAt map[rulesengine.Seat]time.Time
 }
 
 type runtimeSubscriber struct {
 	userID string
 	seat   rulesengine.Seat
 	send   func(protocol.Envelope) error
+	// kick forcibly closes this subscriber's underlying connection — used
+	// for §8.7 cross-device revocation: "the previous device's match
+	// session is revoked" when a linked account resumes from elsewhere.
+	// nil is safe to call-guard against (Subscribe always supplies one).
+	kick func()
 }
 
 func NewRuntime(store rulesengine.EventStore, now func() time.Time) *Runtime {
@@ -337,7 +369,59 @@ func NewRuntime(store rulesengine.EventStore, now func() time.Time) *Runtime {
 	if now == nil {
 		now = time.Now
 	}
-	return &Runtime{store: store, now: now, matches: map[string]*runtimeMatch{}}
+	return &Runtime{store: store, now: now, matches: map[string]*runtimeMatch{}, retained: DefaultSeatRetention}
+}
+
+// markPresentIfTakenOver records that seat's owner was just observed (a
+// successful call) while the seat was under takeover — the §8.7 reconnect
+// signal driveLocked acts on. It never sets the flag preemptively (only
+// while genuinely taken over), so a call made before any takeover exists
+// cannot leave a stale flag that would instantly restore control the next
+// time the seat happens to be taken over in some later, unrelated window.
+func markPresentIfTakenOver(current *runtimeMatch, seat rulesengine.Seat) {
+	if current == nil || current.actor == nil {
+		return
+	}
+	engine := current.actor.Peek()
+	if engine == nil || !engine.IsTakenOver(seat) {
+		return
+	}
+	if current.pendingRestore == nil {
+		current.pendingRestore = map[rulesengine.Seat]bool{}
+	}
+	current.pendingRestore[seat] = true
+}
+
+// SeatRetentionWindow is the §8.7 duration a disconnected seat is held for
+// before it is eligible to be considered abandoned (E2.F6/E2.F8's job to
+// act on, not this runtime's).
+func (r *Runtime) SeatRetentionWindow() time.Duration {
+	if r == nil || r.retained <= 0 {
+		return DefaultSeatRetention
+	}
+	return r.retained
+}
+
+// SeatDisconnectedFor reports how long matchID's seat has been without a
+// live subscriber, and whether it is currently disconnected at all. It is
+// exposed for the §8.7 seat-retention window (currently observational —
+// this runtime has no multi-hand abandonment/match-ending logic yet to
+// act on an expired window; that is E2.F6/E2.F8's job).
+func (r *Runtime) SeatDisconnectedFor(matchID string, seat rulesengine.Seat) (time.Duration, bool) {
+	if r == nil {
+		return 0, false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current := r.matches[matchID]
+	if current == nil {
+		return 0, false
+	}
+	since, ok := current.disconnectedAt[seat]
+	if !ok {
+		return 0, false
+	}
+	return r.now().Sub(since), true
 }
 
 func (r *Runtime) Join(ctx context.Context, matchID, userID string) (rulesengine.Seat, rulesengine.SeatView, error) {
@@ -373,6 +457,7 @@ func (r *Runtime) Join(ctx context.Context, matchID, userID string) (rulesengine
 		}
 		current.seats[userID] = seat
 	}
+	markPresentIfTakenOver(current, seat)
 	if err := r.driveLocked(ctx, current); err != nil {
 		return "", rulesengine.SeatView{}, err
 	}
@@ -450,6 +535,22 @@ func (r *Runtime) driveLocked(ctx context.Context, current *runtimeMatch) error 
 			if !engine.IsTakenOver(seat) {
 				continue
 			}
+			if current.pendingRestore[seat] {
+				// §8.7: the seat's rightful owner has been observed present
+				// (Join/View/Apply succeeded while taken over) and this is
+				// their next legal personal turn/claim opportunity — hand
+				// control back now instead of driving another bot move.
+				delete(current.pendingRestore, seat)
+				if _, err := current.actor.Apply(ctx, rulesengine.MatchCommand{
+					RequestID: "system:restore-control:" + string(seat) + ":" + strconv.FormatUint(version, 10),
+					Type:      rulesengine.CommandRestoreControl,
+					Seat:      seat,
+				}); err != nil {
+					return err
+				}
+				acted = true
+				break
+			}
 			command, err := bots.DecideTakeoverCommand(engine, seat, dealer, prevailingWind, 0, version)
 			if err != nil {
 				return fmt.Errorf("drive takeover seat %s: %w", seat, err)
@@ -520,9 +621,11 @@ func (r *Runtime) matchLocked(ctx context.Context, matchID string) (*runtimeMatc
 		}
 	}
 	current := &runtimeMatch{
-		actor:       actor,
-		seats:       map[string]rulesengine.Seat{},
-		subscribers: map[*runtimeSubscriber]struct{}{},
+		actor:          actor,
+		seats:          map[string]rulesengine.Seat{},
+		subscribers:    map[*runtimeSubscriber]struct{}{},
+		pendingRestore: map[rulesengine.Seat]bool{},
+		disconnectedAt: map[rulesengine.Seat]time.Time{},
 	}
 	r.matches[matchID] = current
 	return current, nil
@@ -533,16 +636,16 @@ func (r *Runtime) View(matchID, userID string) (rulesengine.SeatView, error) {
 		return rulesengine.SeatView{}, ErrMatchMember
 	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	current := r.matches[matchID]
 	if current == nil {
-		r.mu.Unlock()
 		return rulesengine.SeatView{}, ErrMatchMember
 	}
 	seat, ok := current.seats[userID]
-	r.mu.Unlock()
 	if !ok {
 		return rulesengine.SeatView{}, ErrMatchMember
 	}
+	markPresentIfTakenOver(current, seat)
 	if err := r.driveLocked(context.Background(), current); err != nil {
 		return rulesengine.SeatView{}, err
 	}
@@ -560,12 +663,15 @@ func (r *Runtime) Apply(ctx context.Context, matchID, userID, requestID string, 
 		return rulesengine.CommandResult{}, ErrMatchMember
 	}
 	seat, ok := current.seats[userID]
-	r.mu.Unlock()
 	if !ok {
+		r.mu.Unlock()
 		return rulesengine.CommandResult{}, ErrMatchMember
 	}
-	if err := r.driveLocked(ctx, current); err != nil {
-		return rulesengine.CommandResult{}, err
+	markPresentIfTakenOver(current, seat)
+	driveErr := r.driveLocked(ctx, current)
+	r.mu.Unlock()
+	if driveErr != nil {
+		return rulesengine.CommandResult{}, driveErr
 	}
 	actor := current.actor
 
@@ -639,24 +745,61 @@ func resolveClaimsWhenReady(ctx context.Context, actor *rulesengine.MatchActor, 
 	})
 }
 
-func (r *Runtime) Subscribe(matchID, userID string, seat rulesengine.Seat, send func(protocol.Envelope) error) func() {
+// Subscribe registers a live connection for userID's seat, revoking any
+// other connection already subscribed to that same seat (§8.7: "the
+// previous device's match session is revoked" when a linked account
+// resumes elsewhere — this runtime does not yet distinguish guest from
+// linked accounts, so revocation applies uniformly, which is harmless
+// today since only guest, single-device accounts exist, per E4.F2's
+// current scope). kick is called for the caller's own connection later if
+// a subsequent Subscribe for the same seat revokes it in turn; it may be
+// nil if the caller has no way to force-close its own connection.
+func (r *Runtime) Subscribe(matchID, userID string, seat rulesengine.Seat, send func(protocol.Envelope) error, kick func()) func() {
 	if r == nil || send == nil {
 		return func() {}
 	}
-	subscriber := &runtimeSubscriber{userID: userID, seat: seat, send: send}
+	subscriber := &runtimeSubscriber{userID: userID, seat: seat, send: send, kick: kick}
+	var revoked []func()
 	r.mu.Lock()
 	current := r.matches[matchID]
 	if current != nil && current.seats[userID] == seat {
+		for existing := range current.subscribers {
+			if existing.seat != seat {
+				continue
+			}
+			delete(current.subscribers, existing)
+			if existing.kick != nil {
+				revoked = append(revoked, existing.kick)
+			}
+		}
 		current.subscribers[subscriber] = struct{}{}
+		delete(current.disconnectedAt, seat)
 	}
 	r.mu.Unlock()
+	// Called outside the lock: kick may block on network I/O (closing a
+	// websocket), which must never happen while r.mu is held.
+	for _, revoke := range revoked {
+		revoke()
+	}
 	return func() {
 		r.mu.Lock()
 		if current := r.matches[matchID]; current != nil {
 			delete(current.subscribers, subscriber)
+			if !hasSubscriberForSeat(current.subscribers, seat) {
+				current.disconnectedAt[seat] = r.now()
+			}
 		}
 		r.mu.Unlock()
 	}
+}
+
+func hasSubscriberForSeat(subscribers map[*runtimeSubscriber]struct{}, seat rulesengine.Seat) bool {
+	for subscriber := range subscribers {
+		if subscriber.seat == seat {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runtime) Broadcast(matchID, requestID string) {
