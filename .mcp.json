@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ags_api": {
+      "type": "http",
+      "url": "https://gameswithout-mahjong.prod.gamingservices.accelbyte.io/mcp"
+    }
+  }
+}
