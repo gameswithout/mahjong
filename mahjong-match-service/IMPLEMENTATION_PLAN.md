@@ -237,12 +237,35 @@ Verified:       Image push + deploy succeeded; app status
                 end-to-end browser run (guest sign-in → real AGS Session →
                 join → full match table render) verified against this same
                 code running locally, including the new projection fields
-                arriving over the wire with correct snake_case names
-Not verified:   Runtime IAM client's Session-read permission against a real
-                (non-test-mode) AGS Session; append latency against the real
-                cluster; full authenticated JoinMatch smoke test against the
-                live deployed URL specifically (only verified locally)
+                arriving over the wire with correct snake_case names.
+                2026-07-19: runtime IAM client's Session-read permission
+                confirmed against a REAL (non-test-mode) AGS Session, on the
+                live deployed URL specifically — see below.
+Not verified:   Append latency against the real Aurora cluster; a real
+                four-member match played end-to-end against the live
+                deployed URL (only exercised with a single-member session,
+                which correctly fails roster validation — see below)
 ```
+
+**IAM permission verification (2026-07-19):** the platform-provisioned
+confidential client the live deployment runs as
+(`72498bf13af54deabafdcba90d1ce497`, `extend-mahjong-match-service`) was
+found to have **zero permissions granted**
+(`clientPermissions: []`, `modulePermissions: []`, confirmed via
+`ags iam clients get`) — this is why every real `JoinMatch` call against a
+real AGS Session failed with an opaque `500 "match runtime failed"`
+(`GetGameSessionShort` rejected before reaching any app logic). User granted
+`m_session` / `g_game_session` READ (plus `g_session_storage` READ) via
+Admin Portal. The running process had already cached a pre-grant OAuth
+token from its one-time startup `LoginClient` call, so the fix didn't take
+effect until the app was restarted (`stop-app` + `start-app`) to force
+re-authentication. After restart, a real guest sign-in → real AGS Session →
+`JoinMatch` call against the live URL returned
+`400 "game session does not have exactly four active members: got 1"` —
+i.e. `GetGameSessionShort` now succeeds and the app's own roster-count
+business rule runs correctly. This is conclusive: the permission works.
+Only a genuine four-member session was not exercised (would need four real
+accounts).
 
 **Revision history:**
 - `9eb21b7` — initial deployment (REST match service live).
