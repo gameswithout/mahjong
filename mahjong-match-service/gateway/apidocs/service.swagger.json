@@ -639,6 +639,10 @@
         },
         "takenOver": {
           "type": "boolean"
+        },
+        "isBot": {
+          "type": "boolean",
+          "description": "is_bot reports whether this seat was never assigned to a human (AI\nPractice mode), distinct from the broader taken_over — a client uses\nthis to show \"Bot\" instead of \"Auto-playing (disconnected)\", which\nwould be misleading for a seat that was never a human to begin with."
         }
       }
     },

@@ -372,6 +372,45 @@ func TestProjectState_ProjectsPlayerMeldsAndTakenOver(t *testing.T) {
 	}
 }
 
+// TestProjectState_ProjectsIsBotDistinctFromTakenOver guards against the
+// exact bug class that shipped in the first AI Practice deploy: IsBot was
+// added to rulesengine.PlayerView and populated correctly there, but
+// projectState's field-by-field copy into the protobuf-generated
+// pb.PlayerView (and the pb.PlayerView message itself) was never updated
+// to carry it, so it silently never reached the wire — every seat showed
+// "Auto-playing" instead of "Bot" against a real deployment even though
+// every internal/unit test passed. A rulesengine.PlayerView field that
+// projectState doesn't copy is invisible to any test that only exercises
+// rulesengine directly, which is why this must live here instead.
+func TestProjectState_ProjectsIsBotDistinctFromTakenOver(t *testing.T) {
+	view := privateView()
+	view.Players[1] = rulesengine.PlayerView{
+		Seat:      rulesengine.South,
+		HandCount: 13,
+		TakenOver: true,
+		IsBot:     true,
+	}
+	view.Players[2] = rulesengine.PlayerView{
+		Seat:      rulesengine.West,
+		HandCount: 13,
+		TakenOver: true,
+		IsBot:     false,
+	}
+
+	state := projectState("public-match-id", view)
+	south := state.GetPlayers()[1]
+	west := state.GetPlayers()[2]
+	if !south.GetIsBot() {
+		t.Fatalf("expected is_bot projected for a permanent bot seat, got %#v", south)
+	}
+	if west.GetIsBot() {
+		t.Fatalf("expected is_bot false for a disclosed AFK takeover (not a bot seat), got %#v", west)
+	}
+	if !south.GetTakenOver() || !west.GetTakenOver() {
+		t.Fatalf("both seats should still project taken_over regardless of is_bot: south=%#v west=%#v", south, west)
+	}
+}
+
 func TestProjectState_ProjectsClaimOptionsWithWinPreview(t *testing.T) {
 	view := privateView()
 	view.Claim = &rulesengine.SeatClaimView{

@@ -164,6 +164,11 @@ message PlayerView {
   int32 meld_count = 4;
   repeated MeldView melds = 5;
   bool taken_over = 6;
+  // is_bot reports whether this seat was never assigned to a human (AI
+  // Practice mode), distinct from the broader taken_over — a client uses
+  // this to show "Bot" instead of "Auto-playing (disconnected)", which
+  // would be misleading for a seat that was never a human to begin with.
+  bool is_bot = 7;
 }
 
 // Meld is the full, unredacted representation used where redaction is not

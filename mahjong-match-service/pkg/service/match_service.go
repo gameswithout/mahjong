@@ -241,6 +241,7 @@ func projectState(matchID string, view rulesengine.SeatView) *pb.MatchState {
 			MeldCount: int32(player.MeldCount),
 			Melds:     projectMeldViews(player.Melds),
 			TakenOver: player.TakenOver,
+			IsBot:     player.IsBot,
 		})
 	}
 	if view.LastDiscard != nil {

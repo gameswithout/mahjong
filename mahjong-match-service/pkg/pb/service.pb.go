@@ -790,13 +790,18 @@ func (x *Tile) GetCopy() uint32 {
 }
 
 type PlayerView struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Seat          string                 `protobuf:"bytes,1,opt,name=seat,proto3" json:"seat,omitempty"`
-	HandCount     int32                  `protobuf:"varint,2,opt,name=hand_count,json=handCount,proto3" json:"hand_count,omitempty"`
-	Exposed       []*Tile                `protobuf:"bytes,3,rep,name=exposed,proto3" json:"exposed,omitempty"`
-	MeldCount     int32                  `protobuf:"varint,4,opt,name=meld_count,json=meldCount,proto3" json:"meld_count,omitempty"`
-	Melds         []*MeldView            `protobuf:"bytes,5,rep,name=melds,proto3" json:"melds,omitempty"`
-	TakenOver     bool                   `protobuf:"varint,6,opt,name=taken_over,json=takenOver,proto3" json:"taken_over,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Seat      string                 `protobuf:"bytes,1,opt,name=seat,proto3" json:"seat,omitempty"`
+	HandCount int32                  `protobuf:"varint,2,opt,name=hand_count,json=handCount,proto3" json:"hand_count,omitempty"`
+	Exposed   []*Tile                `protobuf:"bytes,3,rep,name=exposed,proto3" json:"exposed,omitempty"`
+	MeldCount int32                  `protobuf:"varint,4,opt,name=meld_count,json=meldCount,proto3" json:"meld_count,omitempty"`
+	Melds     []*MeldView            `protobuf:"bytes,5,rep,name=melds,proto3" json:"melds,omitempty"`
+	TakenOver bool                   `protobuf:"varint,6,opt,name=taken_over,json=takenOver,proto3" json:"taken_over,omitempty"`
+	// is_bot reports whether this seat was never assigned to a human (AI
+	// Practice mode), distinct from the broader taken_over — a client uses
+	// this to show "Bot" instead of "Auto-playing (disconnected)", which
+	// would be misleading for a seat that was never a human to begin with.
+	IsBot         bool `protobuf:"varint,7,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -869,6 +874,13 @@ func (x *PlayerView) GetMelds() []*MeldView {
 func (x *PlayerView) GetTakenOver() bool {
 	if x != nil {
 		return x.TakenOver
+	}
+	return false
+}
+
+func (x *PlayerView) GetIsBot() bool {
+	if x != nil {
+		return x.IsBot
 	}
 	return false
 }
@@ -2213,7 +2225,7 @@ const file_service_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x12\n" +
 	"\x04rank\x18\x03 \x01(\rR\x04rank\x12\x12\n" +
-	"\x04copy\x18\x04 \x01(\rR\x04copy\"\xcf\x01\n" +
+	"\x04copy\x18\x04 \x01(\rR\x04copy\"\xe6\x01\n" +
 	"\n" +
 	"PlayerView\x12\x12\n" +
 	"\x04seat\x18\x01 \x01(\tR\x04seat\x12\x1d\n" +
@@ -2224,7 +2236,8 @@ const file_service_proto_rawDesc = "" +
 	"meld_count\x18\x04 \x01(\x05R\tmeldCount\x12'\n" +
 	"\x05melds\x18\x05 \x03(\v2\x11.service.MeldViewR\x05melds\x12\x1d\n" +
 	"\n" +
-	"taken_over\x18\x06 \x01(\bR\ttakenOver\"\x8d\x01\n" +
+	"taken_over\x18\x06 \x01(\bR\ttakenOver\x12\x15\n" +
+	"\x06is_bot\x18\a \x01(\bR\x05isBot\"\x8d\x01\n" +
 	"\x04Meld\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12#\n" +
 	"\x05tiles\x18\x02 \x03(\v2\r.service.TileR\x05tiles\x12\x1c\n" +
