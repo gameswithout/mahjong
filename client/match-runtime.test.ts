@@ -284,6 +284,51 @@ describe("createMatchRuntimeConnection", () => {
     expect(states).toHaveLength(1);
   });
 
+  it("sends only the ClaimCommand proto fields, dropping seat/state_version the parser rejects", async () => {
+    const fake = new FakeFetch();
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+    });
+    await connection.ready;
+
+    fake.enqueue(200, { state: wireMatchState({ state_version: "7", phase: "awaiting_draw" }) });
+    connection.command(
+      {
+        match_id: "session-1",
+        type: "submit_claim",
+        expected_version: 6,
+        // The client holds a full ClaimResponse (seat + state_version drive
+        // the UI), but the service's ClaimCommand proto defines only five
+        // fields and its JSON parser rejects unknown ones — so seat and
+        // state_version must not be sent on the wire.
+        claim: {
+          action_id: "claim-6",
+          seat: "S",
+          type: "pass",
+          tile_ids: [],
+          state_version: 6,
+          response_revision: 0,
+          deliberate: true,
+        },
+      },
+      "claim-1",
+    );
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+    const body = fake.calls.at(-1)!.body as { claim: Record<string, unknown> };
+    expect(body.claim).toEqual({
+      action_id: "claim-6",
+      type: "pass",
+      tile_ids: [],
+      response_revision: 0,
+      deliberate: true,
+    });
+    expect(body.claim).not.toHaveProperty("seat");
+    expect(body.claim).not.toHaveProperty("state_version");
+  });
+
   it("rejects a response whose match_id does not match the requested match", async () => {
     const fake = new FakeFetch();
     fake.enqueue(200, { state: wireMatchState({ match_id: "wrong-match" }) });

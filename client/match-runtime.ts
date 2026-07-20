@@ -370,12 +370,28 @@ export function createMatchRuntimeConnection(
         throw new MatchRuntimeError("configuration", "A match Session ID is required.");
       }
       const id = nextRequestId(requestId);
+      // The claim we hold client-side is a full ClaimResponse (it also
+      // carries seat and state_version, which the UI uses), but the
+      // service's ClaimCommand proto defines only these five fields and
+      // its JSON parser rejects any others as unknown. seat and
+      // state_version are authoritative server-side anyway — the runtime
+      // sets them from the validated caller and current view — so sending
+      // them would be both rejected and pointless.
+      const claim = command.claim
+        ? {
+            action_id: command.claim.action_id,
+            type: command.claim.type,
+            tile_ids: command.claim.tile_ids,
+            response_revision: command.claim.response_revision,
+            deliberate: command.claim.deliberate,
+          }
+        : undefined;
       const body: Record<string, unknown> = {
         request_id: id,
         type: COMMAND_TYPE_TO_PROTO[command.type],
         expected_version: command.expected_version,
         tile_id: command.tile_id,
-        claim: command.claim,
+        claim,
       };
       void request("POST", matchPath(trimmed, "/commands"), body)
         .then((raw) => {
