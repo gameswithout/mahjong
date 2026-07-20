@@ -225,8 +225,12 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      cors-fix-1 (2026-07-19, supersedes 9eb21b7 and 43da5de-wip —
-                see below for what changed in each)
+Image tag:      ai-practice-ca9d3d2 (2026-07-19, supersedes cors-fix-1; adds
+                AI Practice solo-vs-bots — ai_practice roster padding with
+                bot seats, untimed §5.10 preset, is_bot projection — plus
+                driveLocked resolution of rob windows and §5.9 offers,
+                which previously could stall any match a bot declared an
+                added Kong in, and deadlock untimed matches on offers)
 Database:       AGS Extend SQL cluster — AWS RDS Aurora Postgres,
                 extend-sql-gameswithout-prod, us-east-2
 Verified:       Image push + deploy succeeded; app status
@@ -244,7 +248,12 @@ Verified:       Image push + deploy succeeded; app status
 Not verified:   Append latency against the real Aurora cluster; a real
                 four-member match played end-to-end against the live
                 deployed URL (only exercised with a single-member session,
-                which correctly fails roster validation — see below)
+                which correctly fails roster validation — see below); an
+                AI Practice solo match played end-to-end against the live
+                deployed URL (the mechanism is covered by deterministic
+                runtime tests, and ai-practice-ca9d3d2 deploy verification
+                below re-confirmed deployment-running + 401 on the live
+                surface, but no live solo hand has been played yet)
 ```
 
 **IAM permission verification (2026-07-19):** the platform-provisioned
