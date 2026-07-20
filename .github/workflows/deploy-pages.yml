@@ -1,0 +1,45 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Configure production AGS client
+        run: |
+          {
+            echo "ACCELBYTE_BASE_URL=https://gameswithout-mahjong.prod.gamingservices.accelbyte.io"
+            echo "ACCELBYTE_NAMESPACE=gameswithout-mahjong"
+            echo "ACCELBYTE_CLIENT_ID=dc7a13b683c44822905797a8d1df39e7"
+            echo "ACCELBYTE_MATCH_SERVICE_URL=https://gameswithout-mahjong.prod.gamingservices.accelbyte.io/ext-gameswithout-mahjong-mahjong-match-service"
+            echo "ACCELBYTE_MATCH_POOL=${{ vars.ACCELBYTE_MATCH_POOL }}"
+            echo "ACCELBYTE_SESSION_TEMPLATE=${{ vars.ACCELBYTE_SESSION_TEMPLATE }}"
+            echo "ACCELBYTE_SESSION_CLIENT_VERSION=${{ vars.ACCELBYTE_SESSION_CLIENT_VERSION || 'web-0.0.0' }}"
+          } >> .env.production
+
+      - run: npm run build
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
