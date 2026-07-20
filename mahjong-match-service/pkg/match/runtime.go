@@ -391,10 +391,14 @@ func (r *Runtime) resolveClaimResponse(
 // the table continuing to interact with the match while waiting on an AFK
 // player; a dedicated reaper is out of scope here.
 //
-// Rob windows and §5.9 offers are intentionally left alone: neither
-// runtime's command surface accepts a player response to either yet (a
-// pre-existing gap, not introduced here), so there is nothing for this
-// driver to layer bot behavior on top of.
+// Rob windows and §5.9 offers are also driven here, because nothing else
+// can drive them: the player command surface (authorizeCommand) does not
+// accept rob/offer responses yet and no client UI exists for either (a
+// pre-existing E2 gap). A bot-controlled seat's offer is accepted (§11.3:
+// bots always take a win — both offer types are wins); everything else is
+// declined/passed exactly as the §5.10 timeout path would have ruled, but
+// without waiting — which is what makes untimed AI Practice matches (no
+// TurnDeadline, sentinel claim/rob deadlines) unable to deadlock on them.
 func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 	const dealer, prevailingWind = rulesengine.East, rulesengine.East
 	const maxSteps = 16
@@ -438,6 +442,76 @@ func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 					ExpectedVersion: claim.StateVersion,
 				})
 				if err != nil {
+					return err
+				}
+				continue
+			}
+		}
+
+		if engine.Phase == rulesengine.PhaseOfferPending {
+			if offer := engine.Offer(); offer != nil {
+				accept := engine.IsTakenOver(offer.Seat)
+				// A bot-controlled seat always accepts (§11.3 always-win; both
+				// §5.9 offer types are wins for the offered seat). A human's
+				// offer is normally left to the §5.10 timeout branch above —
+				// but when no turn deadline exists (untimed AI Practice, or a
+				// Heavenly offer raised during initial replacement before any
+				// deadline was ever set), nothing else can ever resolve it:
+				// no player command surface or client UI accepts an offer
+				// response yet. Decline exactly as the timeout would have —
+				// Eight Flowers is re-offered on later turns (never
+				// forfeited), Heavenly lapses (§5.9).
+				if accept || engine.TurnDeadline == nil {
+					_, err := current.actor.Apply(ctx, rulesengine.MatchCommand{
+						MatchID:         current.record.RuntimeID,
+						RequestID:       "system:respond-offer:" + string(offer.Seat) + ":" + strconv.FormatUint(version, 10),
+						Type:            rulesengine.CommandRespondOffer,
+						Seat:            offer.Seat,
+						ExpectedVersion: version,
+						Accept:          accept,
+					})
+					if err != nil && !errors.Is(err, rulesengine.ErrHandComplete) {
+						return err
+					}
+					continue
+				}
+			}
+		}
+
+		if engine.Phase == rulesengine.PhaseRobWindow {
+			if rob := engine.Rob(); rob != nil {
+				// Decline for every seat that has not answered — bot seats per
+				// the documented Medium takeover scope (a legal outcome for a
+				// player who simply doesn't rob), humans because no rob
+				// command surface or client UI exists yet: waiting would add
+				// nothing in a timed match and deadlock an untimed one.
+				for _, seat := range rob.Eligible {
+					if _, answered := rob.Responses[seat]; answered {
+						continue
+					}
+					_, err := current.actor.Apply(ctx, rulesengine.MatchCommand{
+						MatchID:   current.record.RuntimeID,
+						RequestID: "system:rob-decline:" + rob.ActionID + ":" + string(seat),
+						Type:      rulesengine.CommandSubmitRob,
+						Rob: &rulesengine.RobResponse{
+							Seat:         seat,
+							Win:          false,
+							StateVersion: rob.StateVersion,
+						},
+					})
+					// An already-expired window rejects late responses; that
+					// is fine — resolution below succeeds on expiry alone.
+					if err != nil && !errors.Is(err, rulesengine.ErrClaimDeadline) {
+						return err
+					}
+				}
+				_, err := current.actor.Apply(ctx, rulesengine.MatchCommand{
+					MatchID:         current.record.RuntimeID,
+					RequestID:       "system:resolve-rob:" + rob.ActionID,
+					Type:            rulesengine.CommandResolveRob,
+					ExpectedVersion: rob.StateVersion,
+				})
+				if err != nil && !errors.Is(err, rulesengine.ErrHandComplete) {
 					return err
 				}
 				continue
