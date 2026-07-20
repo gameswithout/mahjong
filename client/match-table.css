@@ -42,7 +42,7 @@ body {
     "bottom bottom bottom"
     "actions actions actions";
   grid-template-columns: 92px 1fr 92px;
-  grid-template-rows: 44px 1fr auto 44px;
+  grid-template-rows: 44px 1fr auto auto;
   height: 100%;
   min-height: 360px;
   overflow: hidden;
@@ -544,12 +544,9 @@ body {
 
 .discard-confirm-row {
   display: flex;
+  gap: 4px;
   justify-content: center;
   padding: 1px 0;
-}
-
-.local-draw-button {
-  margin-left: 4px;
 }
 
 .sort-toggle-button {
@@ -576,13 +573,114 @@ body {
   padding: 0 8px;
 }
 
+/* The unified "what do I do now" zone — always present, always the same
+   place. It carries a plain-language prompt plus whatever control the
+   current turn state calls for (draw / discard confirm / claim buttons /
+   waiting), so the player never has to hunt across the screen for the
+   next action. */
+.action-bar {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  grid-area: actions;
+  justify-content: center;
+  min-height: 44px;
+  padding: 2px 0;
+}
+
+.action-bar-context {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.action-bar-prompt {
+  color: #d7dbef;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.action-bar-hint {
+  color: #f2c66d;
+}
+
+.action-bar-waiting {
+  align-items: center;
+  color: #9aa0c2;
+  display: inline-flex;
+  gap: 5px;
+}
+
+/* Three dots that fill in sequence — a live "someone is thinking" signal,
+   so a bot's turn reads as the game working, not as a frozen screen. */
+.thinking-dots {
+  background: currentcolor;
+  border-radius: 999px;
+  height: 4px;
+  position: relative;
+  width: 4px;
+}
+
+.thinking-dots,
+.thinking-dots::before,
+.thinking-dots::after {
+  animation: thinking 1.4s ease-in-out infinite;
+}
+
+.thinking-dots::before,
+.thinking-dots::after {
+  background: currentcolor;
+  border-radius: 999px;
+  content: "";
+  height: 4px;
+  position: absolute;
+  top: 0;
+  width: 4px;
+}
+
+.thinking-dots::before {
+  animation-delay: -0.2s;
+  left: -7px;
+}
+
+.thinking-dots::after {
+  animation-delay: 0.2s;
+  left: 7px;
+}
+
+@keyframes thinking {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
 .action-row {
   align-items: center;
   display: flex;
   gap: 4px;
-  grid-area: actions;
   justify-content: center;
   overflow-x: auto;
+}
+
+/* The single primary call to action (Draw / Discard) — visually the
+   loudest thing on the bar, and shaped to hold an inline tile glyph. */
+.action-primary {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13px;
+  gap: 6px;
+  padding: 0 18px;
+}
+
+.action-discard-confirm .tile {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 30%);
 }
 
 .action-button {
@@ -661,7 +759,7 @@ body {
     border-radius: 12px;
     gap: 8px;
     grid-template-columns: 200px 1fr 200px;
-    grid-template-rows: 76px 1fr auto 64px;
+    grid-template-rows: 76px 1fr auto auto;
     padding: 8px;
   }
 
@@ -807,5 +905,21 @@ body {
 
   .action-row {
     gap: 10px;
+  }
+
+  .action-bar {
+    gap: 8px;
+    min-height: 64px;
+    padding: 6px 0;
+  }
+
+  .action-bar-prompt {
+    font-size: 14px;
+  }
+
+  .action-primary {
+    font-size: 16px;
+    gap: 8px;
+    padding: 0 28px;
   }
 }

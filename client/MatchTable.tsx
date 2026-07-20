@@ -300,11 +300,8 @@ function LocalSeat({
   selectable,
   selectedTileId,
   onSelectTile,
-  onConfirmDiscard,
   discardPending,
   canDraw,
-  onDraw,
-  drawPending,
   waits,
   matchKey,
   sortMode,
@@ -317,11 +314,8 @@ function LocalSeat({
   selectable?: boolean;
   selectedTileId?: string | null;
   onSelectTile?: (tileId: string) => void;
-  onConfirmDiscard?: () => void;
   discardPending?: boolean;
   canDraw?: boolean;
-  onDraw?: () => void;
-  drawPending?: boolean;
   waits: WaitEntry[];
   matchKey: string | null;
   sortMode: SortMode;
@@ -355,16 +349,6 @@ function LocalSeat({
           >
             Sort: {sortModeLabel(sortMode)}
           </button>
-          {canDraw ? (
-            <button
-              type="button"
-              className="action-button action-draw local-draw-button"
-              onClick={onDraw}
-              disabled={drawPending}
-            >
-              {drawPending ? "Drawing…" : "Draw"}
-            </button>
-          ) : null}
         </div>
       </header>
       {state.melds.length > 0 ? (
@@ -414,25 +398,13 @@ function LocalSeat({
           );
         })}
       </div>
-      {selectable && selectedTileId ? (
+      {canReorder ? (
         <div className="discard-confirm-row">
-          {canReorder ? (
-            <>
-              <button type="button" className="action-button action-pass reorder-button" onClick={() => onMoveSelected("left")}>
-                ← Move
-              </button>
-              <button type="button" className="action-button action-pass reorder-button" onClick={() => onMoveSelected("right")}>
-                Move →
-              </button>
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="action-button action-discard-confirm"
-            onClick={onConfirmDiscard}
-            disabled={discardPending}
-          >
-            {discardPending ? "Discarding…" : "Discard"}
+          <button type="button" className="action-button action-pass reorder-button" onClick={() => onMoveSelected("left")}>
+            ← Move
+          </button>
+          <button type="button" className="action-button action-pass reorder-button" onClick={() => onMoveSelected("right")}>
+            Move →
           </button>
         </div>
       ) : null}
@@ -448,10 +420,7 @@ function winButtonTitle(preview: NonNullable<MatchAction["preview"]>): string {
   return preview.patterns.map((p) => `${p.name} (${p.tai})`).join(", ");
 }
 
-function ActionRow({ actions }: { actions: MatchAction[] }) {
-  if (actions.length === 0) {
-    return null;
-  }
+function ClaimButtons({ actions }: { actions: MatchAction[] }) {
   return (
     <div className="action-row" role="group" aria-label="Legal actions">
       {actions.map((action) => (
@@ -467,6 +436,93 @@ function ActionRow({ actions }: { actions: MatchAction[] }) {
           {action.preview ? ` · ${action.preview.rawTai} Tai` : ""}
         </button>
       ))}
+    </div>
+  );
+}
+
+// The single, always-present "what's happening / what do I do now" zone.
+// Before this, the three things a player can do (draw, discard, claim)
+// lived in three unrelated corners of the screen with no prompt telling
+// them which applied; this consolidates all of it into one bar at the
+// bottom with plain-language guidance, so a newcomer is never left
+// guessing where to look or what the game is waiting on.
+function ActionBar({
+  legalActions,
+  claimTile,
+  claimFromLabel,
+  canDraw,
+  onDraw,
+  drawPending,
+  canDiscard,
+  selectedTile,
+  onConfirmDiscard,
+  discardPending,
+  activeSeatLabel,
+}: {
+  legalActions: MatchAction[];
+  claimTile?: WireTile;
+  claimFromLabel?: string;
+  canDraw?: boolean;
+  onDraw?: () => void;
+  drawPending?: boolean;
+  canDiscard?: boolean;
+  selectedTile?: WireTile;
+  onConfirmDiscard?: () => void;
+  discardPending?: boolean;
+  activeSeatLabel: string;
+}) {
+  if (legalActions.length > 0) {
+    return (
+      <div className="action-bar action-bar-claim">
+        <div className="action-bar-context">
+          {claimTile ? <Tile t={claimTile} size="md" /> : null}
+          <span className="action-bar-prompt">
+            {claimFromLabel ? `${claimFromLabel} discarded — your move` : "Respond to the discard"}
+          </span>
+        </div>
+        <ClaimButtons actions={legalActions} />
+      </div>
+    );
+  }
+  if (canDraw) {
+    return (
+      <div className="action-bar">
+        <button
+          type="button"
+          className="action-button action-primary"
+          onClick={onDraw}
+          disabled={drawPending}
+        >
+          {drawPending ? "Drawing…" : "Draw a tile"}
+        </button>
+      </div>
+    );
+  }
+  if (canDiscard) {
+    return (
+      <div className="action-bar">
+        {selectedTile ? (
+          <button
+            type="button"
+            className="action-button action-primary action-discard-confirm"
+            onClick={onConfirmDiscard}
+            disabled={discardPending}
+          >
+            {discardPending ? "Discarding…" : "Discard"}
+            {!discardPending ? <Tile t={selectedTile} size="sm" /> : null}
+          </button>
+        ) : (
+          <p className="action-bar-prompt action-bar-hint">Your turn — tap a tile below to discard it</p>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="action-bar">
+      <p className="action-bar-prompt action-bar-waiting" aria-live="polite">
+        {activeSeatLabel} is thinking
+        <span className="thinking-dots" aria-hidden="true" />
+      </p>
     </div>
   );
 }
@@ -544,6 +600,21 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     });
   }
 
+  // Plain-language label for a seat: "You" for the local player, otherwise
+  // the display name plus its unique wind so two same-named bots are never
+  // ambiguous ("Bot · West").
+  function seatLabel(seat: SeatId): string {
+    if (seat === state.localSeat) {
+      return "You";
+    }
+    return `${state.seats[seat].displayName} · ${windName(seat)}`;
+  }
+
+  const activeSeat = (Object.values(state.seats) as SeatState[]).find((s) => s.isActive)?.seat ?? state.localSeat;
+  const claimTile = state.claimSource ? state.lastDiscard?.tile : undefined;
+  const claimFromLabel = state.claimSource ? seatLabel(state.claimSource) : undefined;
+  const selectedTile = selectedTileId ? localHand.find((t) => t.id === selectedTileId) : undefined;
+
   return (
     <div className="match-table" data-testid="match-table">
       <OpponentSeat
@@ -581,18 +652,27 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         selectable={interaction?.canDiscard}
         selectedTileId={interaction?.selectedTileId}
         onSelectTile={interaction?.onSelectTile}
-        onConfirmDiscard={interaction?.onConfirmDiscard}
         discardPending={interaction?.discardPending}
         canDraw={interaction?.canDraw}
-        onDraw={interaction?.onDraw}
-        drawPending={interaction?.drawPending}
         waits={state.waits}
         matchKey={matchKey}
         sortMode={sortMode}
         onCycleSortMode={cycleSortMode}
         onMoveSelected={moveSelected}
       />
-      <ActionRow actions={state.legalActions} />
+      <ActionBar
+        legalActions={state.legalActions}
+        claimTile={claimTile}
+        claimFromLabel={claimFromLabel}
+        canDraw={interaction?.canDraw}
+        onDraw={interaction?.onDraw}
+        drawPending={interaction?.drawPending}
+        canDiscard={interaction?.canDiscard}
+        selectedTile={selectedTile}
+        onConfirmDiscard={interaction?.onConfirmDiscard}
+        discardPending={interaction?.discardPending}
+        activeSeatLabel={seatLabel(activeSeat)}
+      />
     </div>
   );
 }
