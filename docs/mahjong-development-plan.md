@@ -34,7 +34,7 @@ The draft plan carried assumptions A1–A7 and five ambiguities. All twelve were
 | D5 | Art/audio | **[DEVIATION-RISK]** AI-generated, human-curated. Commercial-rights documentation for AI output is legally unsettled; §2.7's license requirement is satisfied via a per-asset provenance log (model, prompt, curation edits) plus counsel review. zh-TW cultural review still applies to all themed content. | Vendor search dropped; provenance-log workflow added; counsel opinion is Beta-entry open item 3; risk R-L1. Fallback for contested assets: licensed marketplace art. |
 | D6 | Rules Lead | **[DEVIATION]** No external Taiwanese Rules Lead at M1. The Product Owner holds the Rules Lead role (allowed by §2.7 with documented conflict). M1 certification = AI-assisted cross-checking of the Tai table and golden cases against GameTower and reference sources; fluent Taiwanese players recruited from the Beta cohort validate scoring during Beta. | Rules-interpretation risk shifts into Beta, where §2.5's 14-day zero-S0/S1 gate still protects exit. R-T2 severity raised; a structured Beta rules-validation program is added to the Beta sprints. |
 | D7 | Beta invites | Personal network + Mahjong communities (Discord, Reddit, PTT, Dcard), self-managed through the invite-code tool (E16.F6). | The 500-player three-market gate stays but is at-risk (R-D1); Taiwan reach needs deliberate PTT/Dcard outreach; the recorded fallback is a §2.5 gate renegotiation, which is a Product Owner spec decision. |
-| D8 | Email auth | Custom magic-link token service — 15-minute single-use links, rate-limited — exchanging into AGS IAM sessions via headless/custom auth. Preserves §10.2's no-password rule. | E4.F3 scoped as AGS integration + a small Go token service; on the security-review checklist. |
+| D8 | Email auth (revised 2026-07-19; supersedes the original magic-link-only decision) | **Email + password via AGS IAM's native `EMAILPASSWD` auth type** (registration with pre-verified email code, password-grant login) — no first-party token service. Email magic link is deferred to the post-launch backlog (Step 17) rather than built for MVP. | §10.2's "no-password rule" no longer holds; email/password is in scope alongside Guest for MVP. E4.F3 rescoped from a Go magic-link token service to a client-side AGS IAM integration (registration + verification-code + password-grant login). No security-review checklist item for a first-party token service, since none exists. |
 | D9 | Test devices | Phased: desktop browsers + iPad now; physical phones (iPhone + Android) acquired **before Beta hardening (WP15)** because the §16.1 iOS interruption matrix, the 360 px validation gate, and the §15.6 battery/thermal soak require them. | TD-11 records the deferral with its hard trigger. Until WP15, phone coverage is emulator/BrowserStack-only and R-T1 remains unverified. |
 | D10 | Good standing | "Account in good standing" = no active sanction and not pending deletion. Cooldowns (queue-dodge, abandonment) do **not** break good standing. | Absorbed into spec v1.2 (§7.1, applies specification-wide). |
 | D11 | Season anchor | Season 1 starts 00:00 UTC on V1 launch day. | Season config staged in WP23 locks to the launch date. |
@@ -207,7 +207,7 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 | --- | --- | --- | --- | --- | --- | --- |
 | E4.F1 | Sessions & tokens (AGS integration, D4) | Verify and configure AGS IAM against §15.10 — 15-min access / rotating refresh (30-day inactivity, 90-day absolute), family revocation on reuse, logout-all; wrap any gaps in Go; first-party recent-reauth gate for sensitive ops. | E0.F3, P0 spike | M | AGS config gaps | Token-reuse revocation test passes against AGS; sensitive ops 401 without recent auth; spike checklist signed for this service. |
 | E4.F2 | Guest accounts | Device credential issuance/rotation, age gate (month/year, block <13, no retention of full DOB), versioned ToS/Privacy acceptance, storage-persistence warning, 180+30-day inactive deletion job (§10.1, §10.3). | E4.F1 | M | iOS storage eviction | Cleared storage → warned path; underage cannot create persistent account; deletion job idempotent. |
-| E4.F3 | Email magic link (Beta) | Email provider integration, single-use 15-min links per D8 (Go token service exchanging into AGS IAM sessions), rate limits, guest→link migration with settings-conflict summary (§9.10, §10.2). | E4.F2 | M | Deliverability | Link flow < 60 s end-to-end in staging; conflict summary shown when established account has values. |
+| E4.F3 | Email/password account (revised per D8, 2026-07-19) | AGS IAM native `EMAILPASSWD` auth: request-code → register (email, username, password, country, DOB month/year+age-confirmation) → password-grant login, client-side only (no first-party token service). Guest→account migration with settings-conflict summary (§9.10, §10.2) remains a follow-up, not in this row's initial slice. | E4.F2 | M | Registration/verification UX; guest-migration deferred | Registration + verification-code + login flow succeeds against AGS IAM in staging; under-13 blocked client-side before submission. |
 | E4.F4 | Google/Apple OAuth (V1) | OAuth flows, established-account collision rule (never auto-merge), unlink guard for last identity (§10.2). | E4.F3 | M | Apple web-auth quirks | Collision chooses established account; last-identity unlink blocked. |
 | E4.F5 | Player identity | Opaque IDs, curated default names, rename 1/30 days, bilingual profanity/impersonation filter, exact-ID search (§10.5). | E4.F2 | M | Filter quality zh-TW | Filter fixture list (both languages) passes; rename cooldown enforced server-side. |
 
@@ -692,13 +692,14 @@ Third-party dependency list: **AccelByte AGS (identity, social, leaderboards, ma
 This document contains: executive roadmap (Step 4 table), architecture overview (Step 2), WBS (Step 3), dependency graph (Step 4 spine + per-feature dep columns), milestone plan (M0–M9), sprint plan (Step 5), engineering task lists + template (Step 6), QA strategy (Step 11), DevOps plan (Step 12), risk register (Step 15), and this post-launch backlog. Each WBS feature row + its spec sections + the Step 6 template is a self-contained implementation prompt.
 
 **Post-launch backlog (priority order, from spec §16.4 future scope):**
-1. Discard puzzle mode on tutorial fixtures (§2.3) — first post-launch candidate.
-2. Friend-only spectating in private rooms (§8.6).
-3. Untimed unranked human queue (accessibility, §9.9).
-4. First Jade sink specification — triggered by §7.5 economy review.
-5. Own-match replay viewer on the internal replay foundation (§8.10).
-6. Upper-tier lobby openings per §7.1 criteria (ops action, not build).
-7. WebGL2 effects layer (TD-2) as telemetry warrants.
-8. Cosmetic pipeline scale-up per §2.8 hypothesis (content program, not engineering).
+1. Email magic-link sign-in (deferred per the D8 revision, 2026-07-19) — additional sign-in method alongside email/password; not required for MVP.
+2. Discard puzzle mode on tutorial fixtures (§2.3) — first post-launch candidate.
+3. Friend-only spectating in private rooms (§8.6).
+4. Untimed unranked human queue (accessibility, §9.9).
+5. First Jade sink specification — triggered by §7.5 economy review.
+6. Own-match replay viewer on the internal replay foundation (§8.10).
+7. Upper-tier lobby openings per §7.1 criteria (ops action, not build).
+8. WebGL2 effects layer (TD-2) as telemetry warrants.
+9. Cosmetic pipeline scale-up per §2.8 hypothesis (content program, not engineering).
 
 **Explicitly not planned (spec non-goals §2.4):** monetization of any kind, native apps, HK/Riichi playable modules (extension contracts honored in E1's module boundaries per §14.1), spectator/replay public features, clubs, tournaments, open chat.

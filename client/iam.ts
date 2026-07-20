@@ -1,5 +1,5 @@
 import { AccelByte } from "@accelbyte/sdk";
-import { OAuth20V4Api, UsersApi } from "@accelbyte/sdk-iam";
+import { OAuth20Api, OAuth20V4Api, UsersApi, UsersV4Api } from "@accelbyte/sdk-iam";
 
 import { accelByteConfig, assertAccelByteConfig, type AccelByteWebConfig } from "./config";
 import { browserDeviceIdStore, type DeviceIdStore } from "./device-id";
@@ -10,6 +10,8 @@ export type IamAuthErrorCode =
   | "invalid_client"
   | "network"
   | "current_user"
+  | "invalid_credentials"
+  | "registration_failed"
   | "unknown";
 
 export class IamAuthError extends Error {
@@ -28,6 +30,26 @@ export interface GuestIdentity {
   deviceId: string;
 }
 
+export interface EmailIdentity {
+  userId: string;
+}
+
+// §10.2/§10.3: AGS IAM's native EMAILPASSWD registration — a verification
+// code (obtained separately via requestEmailVerificationCode) is supplied
+// up front so the account is created already-verified, rather than
+// registering first and verifying after. birthYear/birthMonth only (never
+// a full birth date) per §10.3's "full birth date is not retained" rule;
+// the day is synthesized when calling AGS, which requires a full date.
+export interface EmailRegistrationInput {
+  email: string;
+  username: string;
+  password: string;
+  country: string;
+  birthYear: number;
+  birthMonth: number;
+  code: string;
+}
+
 interface TokenResponse {
   access_token?: unknown;
   refresh_token?: unknown;
@@ -41,6 +63,9 @@ export interface IamTransport {
   loginWithDeviceId(deviceId: string): Promise<TokenResponse>;
   getCurrentUser(accessToken: string): Promise<UserResponse>;
   createAuthenticatedSdk?(accessToken: string): AccelByteWebSdk;
+  requestEmailVerificationCode?(email: string): Promise<void>;
+  registerWithEmailPassword?(input: EmailRegistrationInput): Promise<void>;
+  loginWithEmailPassword?(email: string, password: string): Promise<TokenResponse>;
 }
 
 export type AccelByteWebSdk = ReturnType<typeof AccelByte.SDK>;
@@ -90,6 +115,10 @@ function isNetworkFailure(error: unknown): boolean {
   return apiStatus(error) === undefined;
 }
 
+// AGS's OAuth token endpoint uses {error, error_description}; its plain
+// REST endpoints (registration, verification codes) use {errorMessage}.
+// Both are safe, user-facing strings (e.g. "email already exists"), unlike
+// the raw error object, which must never reach the UI.
 function apiErrorDescription(error: unknown): string {
   if (!error || typeof error !== "object" || !("response" in error)) {
     return "";
@@ -101,14 +130,30 @@ function apiErrorDescription(error: unknown): string {
   }
 
   const data = response.data;
-  if (!data || typeof data !== "object" || !("error_description" in data)) {
+  if (!data || typeof data !== "object") {
     return "";
   }
 
-  return typeof data.error_description === "string" ? data.error_description : "";
+  if ("error_description" in data && typeof data.error_description === "string") {
+    return data.error_description;
+  }
+  if ("errorMessage" in data && typeof data.errorMessage === "string") {
+    return data.errorMessage;
+  }
+  return "";
 }
 
-function mapAuthError(error: unknown, operation: "login" | "current_user"): IamAuthError {
+type IamOperation = "login" | "current_user" | "email_login" | "register" | "request_code";
+
+const UNKNOWN_MESSAGE_BY_OPERATION: Record<IamOperation, string> = {
+  login: "Guest sign-in failed. Please retry.",
+  current_user: "Guest sign-in failed. Please retry.",
+  email_login: "Sign-in failed. Please retry.",
+  register: "Account creation failed. Please retry.",
+  request_code: "Could not send a verification code. Please retry.",
+};
+
+function mapAuthError(error: unknown, operation: IamOperation): IamAuthError {
   if (error instanceof IamAuthError) {
     return error;
   }
@@ -138,13 +183,30 @@ function mapAuthError(error: unknown, operation: "login" | "current_user"): IamA
     });
   }
 
+  if (operation === "email_login" && (status === 400 || status === 401 || status === 403)) {
+    return new IamAuthError(
+      "invalid_credentials",
+      "Incorrect email or password.",
+      { cause: error },
+    );
+  }
+
+  if ((operation === "register" || operation === "request_code") && status !== undefined && status < 500) {
+    const description = apiErrorDescription(error);
+    return new IamAuthError(
+      "registration_failed",
+      description || UNKNOWN_MESSAGE_BY_OPERATION[operation],
+      { cause: error },
+    );
+  }
+
   if (isNetworkFailure(error)) {
     return new IamAuthError("network", "AGS could not be reached. Check your connection and retry.", {
       cause: error,
     });
   }
 
-  return new IamAuthError("unknown", "Guest sign-in failed. Please retry.", { cause: error });
+  return new IamAuthError("unknown", UNKNOWN_MESSAGE_BY_OPERATION[operation], { cause: error });
 }
 
 export function createSdkIamTransport(config: AccelByteWebConfig = accelByteConfig): IamTransport {
@@ -185,6 +247,57 @@ export function createSdkIamTransport(config: AccelByteWebConfig = accelByteConf
       sdk.setToken({ accessToken });
       return sdk;
     },
+
+    async requestEmailVerificationCode(email) {
+      try {
+        const sdk = createSdk(config);
+        await UsersApi(sdk).createUserCodeRequest_v3({ emailAddress: email });
+      } catch (error) {
+        throw mapAuthError(error, "request_code");
+      }
+    },
+
+    async registerWithEmailPassword(input) {
+      try {
+        const sdk = createSdk(config);
+        const dateOfBirth = `${input.birthYear}-${String(input.birthMonth).padStart(2, "0")}-01`;
+        await UsersV4Api(sdk).createUser_v4({
+          authType: "EMAILPASSWD",
+          emailAddress: input.email,
+          username: input.username,
+          password: input.password,
+          country: input.country,
+          dateOfBirth,
+          code: input.code,
+        });
+      } catch (error) {
+        throw mapAuthError(error, "register");
+      }
+    },
+
+    async loginWithEmailPassword(email, password) {
+      try {
+        // Deliberately not IamUserAuthorizationClient.loginWithPasswordAuthorization:
+        // that helper builds its Basic auth header from the bare Node
+        // `Buffer` global (only safe here because @accelbyte/sdk's browser
+        // entry happens to polyfill window.Buffer as an import side effect).
+        // postOauthToken_v3 with grant_type "password" is the same
+        // underlying call, built the same explicit, self-contained way
+        // loginWithDeviceId already uses (Basic auth header via btoa).
+        const sdk = createSdk(config, {
+          Authorization: basicClientHeader(config.clientId),
+        });
+        const response = await OAuth20Api(sdk).postOauthToken_v3({
+          grant_type: "password",
+          username: email,
+          password,
+          client_id: config.clientId,
+        });
+        return response.data as TokenResponse;
+      } catch (error) {
+        throw mapAuthError(error, "email_login");
+      }
+    },
   };
 }
 
@@ -210,6 +323,38 @@ export class BrowserIam {
 
     this.accessToken = token.access_token;
     return { deviceId, userId: user.userId };
+  }
+
+  async requestEmailVerificationCode(email: string): Promise<void> {
+    if (!this.transport.requestEmailVerificationCode) {
+      throw new IamAuthError("configuration", "Email registration is not available.");
+    }
+    await this.transport.requestEmailVerificationCode(email);
+  }
+
+  async registerWithEmail(input: EmailRegistrationInput): Promise<void> {
+    if (!this.transport.registerWithEmailPassword) {
+      throw new IamAuthError("configuration", "Email registration is not available.");
+    }
+    await this.transport.registerWithEmailPassword(input);
+  }
+
+  async loginWithEmail(email: string, password: string): Promise<EmailIdentity> {
+    if (!this.transport.loginWithEmailPassword) {
+      throw new IamAuthError("configuration", "Email sign-in is not available.");
+    }
+    const token = await this.transport.loginWithEmailPassword(email, password);
+    if (typeof token.access_token !== "string" || token.access_token.length === 0) {
+      throw new IamAuthError("unknown", "AGS returned an invalid session.");
+    }
+
+    const user = await this.transport.getCurrentUser(token.access_token);
+    if (typeof user.userId !== "string" || user.userId.length === 0) {
+      throw new IamAuthError("current_user", "AGS returned an invalid profile.");
+    }
+
+    this.accessToken = token.access_token;
+    return { userId: user.userId };
   }
 
   getAuthenticatedSdk(): AccelByteWebSdk {

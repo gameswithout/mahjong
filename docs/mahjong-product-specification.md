@@ -927,13 +927,14 @@ Guests complete the same age confirmation and versioned Terms/Privacy acceptance
 
 ### 10.2 Linking and sign-in
 
-Closed Beta supports Guest identity and email magic link; magic link in Beta protects accounts against browser-storage loss and enables friends and private rooms. Version 1 supports:
+**Revised 2026-07-19 (supersedes the original magic-link-only decision, D8 in the development plan):** Closed Beta supports Guest identity and email/password (AGS IAM native `EMAILPASSWD` auth: registration with a pre-verified email code, then password-grant login); email/password protects accounts against browser-storage loss and enables friends and private rooms. Version 1 supports:
 
-- email magic link;
+- email/password;
+- email magic link (post-launch backlog — deferred, not required for MVP);
 - Google sign-in;
 - Apple sign-in.
 
-Facebook, WeChat, username/password, passkeys, phone/SMS, and platform-native accounts are out of scope.
+Facebook, WeChat, passkeys, phone/SMS, and platform-native accounts are out of scope.
 
 A Guest can link to a new identity and preserve all data. If the identity already maps to an established account, the user must choose that established account; two established accounts are never automatically merged. Support may transfer verified Guest data once when there are no conflicting public matches or sanctions. Unlinking the last recoverable identity is prohibited.
 
