@@ -194,6 +194,59 @@ describe("createMatchRuntimeConnection", () => {
     expect(view.settlement.transfers[0].amount).toBe(40);
   });
 
+  it("defaults omitted int64 fields to 0 instead of throwing (protojson zero-value omission)", async () => {
+    // Caught live against the deployed service: protojson omits int64/
+    // uint64 fields entirely when their value is exactly 0 — a discard's
+    // sequence 0, a claim response's revision 0, a settlement transfer of
+    // 0 are all legitimate and common, not malformed responses.
+    const fake = new FakeFetch();
+    fake.enqueue(200, {
+      state: {
+        ...wireMatchState(),
+        state_version: "0",
+        last_discard: { seat: "E", tile: { id: "dots-1-1", kind: "dots", rank: 1, copy: 1 } }, // sequence omitted
+        claim: {
+          action_id: "claim-0",
+          // state_version omitted
+          discard: { seat: "E", tile: { id: "dots-1-1", kind: "dots", rank: 1, copy: 1 } }, // sequence omitted
+          deadline: "2026-07-18T12:00:10Z",
+          eligible: ["S"],
+          own_response: { action_id: "claim-0", seat: "S", type: "pass" }, // state_version, response_revision omitted
+          options: {},
+        },
+        settlement: {
+          net: {},
+          transfers: [{ from: "S", to: "E" }], // effective_tai, raw_amount, amount omitted
+          // total_credits, total_debits omitted
+        },
+      },
+    });
+    const joined: unknown[] = [];
+    const errors: MatchRuntimeError[] = [];
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+      onJoined: (payload) => joined.push(payload),
+      onError: (error) => errors.push(error),
+    });
+    await connection.ready;
+    connection.join("session-1");
+    await vi.waitFor(() => expect(joined.length + errors.length).toBeGreaterThan(0));
+
+    expect(errors).toEqual([]);
+    const view = (joined[0] as { view: Record<string, any> }).view;
+    expect(view.state_version).toBe(0);
+    expect(view.last_discard.sequence).toBe(0);
+    expect(view.claim.state_version).toBe(0);
+    expect(view.claim.discard.sequence).toBe(0);
+    expect(view.claim.own_response.state_version).toBe(0);
+    expect(view.claim.own_response.response_revision).toBe(0);
+    expect(view.settlement.transfers[0].effective_tai).toBe(0);
+    expect(view.settlement.total_credits).toBe(0);
+    expect(view.settlement.total_debits).toBe(0);
+  });
+
   it("submits typed commands, mapping the client command type to the proto enum name", async () => {
     const fake = new FakeFetch();
     const accepted: unknown[] = [];

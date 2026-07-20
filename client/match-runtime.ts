@@ -65,7 +65,16 @@ function protocolError(message: string, cause?: unknown): MatchRuntimeError {
 // [{tile_ids:["a","b"]}] into the [["a","b"]] tuple shape SeatView expects —
 // keeping every downstream consumer (matchTableAdapter, MatchTable,
 // HandResultScreen) unchanged.
-function toNumber(value: unknown): number {
+// protojson omits int64/uint64 fields entirely from the JSON when their
+// value is exactly 0 (proto3's default zero-value omission applies to
+// singular scalar fields regardless of the JSON string encoding). That zero
+// is common and legitimate here — a discard's sequence 0, a fresh claim
+// response's revision 0, a settlement transfer of 0 — so a missing field
+// must default to 0, not be treated as malformed.
+function toNumber(value: unknown, fallback = 0): number {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
   if (typeof value === "number") {
     return value;
   }
@@ -153,8 +162,8 @@ function normalizeSettlement(raw: unknown): unknown {
     ...settlement,
     net,
     transfers,
-    total_credits: toNumber(settlement.total_credits ?? 0),
-    total_debits: toNumber(settlement.total_debits ?? 0),
+    total_credits: toNumber(settlement.total_credits),
+    total_debits: toNumber(settlement.total_debits),
   };
 }
 
