@@ -83,6 +83,10 @@ export interface MatchTableState {
   claimSource: SeatId | null;
   countdownSeconds: number;
   countdownTotalSeconds: number;
+  // untimed is true when neither a turn nor a claim deadline is present on
+  // the wire at all (§5.10 Tutorial/AI Practice) — distinct from
+  // countdownSeconds legitimately reaching 0 on a real, expired deadline.
+  untimed: boolean;
   legalActions: MatchAction[];
   // waits is the local player's own §9.4 Ting/wait list, empty when they
   // aren't currently holding a waiting-shaped hand.

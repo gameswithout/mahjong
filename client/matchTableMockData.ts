@@ -49,7 +49,7 @@ const seats: Record<string, SeatState> = {
   },
   W: {
     seat: "W",
-    displayName: "Player W",
+    displayName: "Bot",
     wind: "W",
     isDealer: false,
     isActive: false,
@@ -59,7 +59,7 @@ const seats: Record<string, SeatState> = {
   },
   N: {
     seat: "N",
-    displayName: "Player N",
+    displayName: "Bot",
     wind: "N",
     isDealer: false,
     isActive: false,
@@ -69,7 +69,7 @@ const seats: Record<string, SeatState> = {
   },
   E: {
     seat: "E",
-    displayName: "Dealer E",
+    displayName: "Bot",
     wind: "E",
     isDealer: true,
     isActive: false,
@@ -89,6 +89,7 @@ export const mockMatchTableState: MatchTableState = {
   claimSource: "E",
   countdownSeconds: 7,
   countdownTotalSeconds: 15,
+  untimed: false,
   legalActions: ["Pass", "Chow", "Pong", "Win"].map((label) => ({ id: label, label })),
   waits: [
     { tile: tile("characters-4-2"), visibleRemaining: 2 },

@@ -973,18 +973,87 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     });
   }
 
-  function syncMatchRuntime() {
-    if (!matchRuntimeRef.current || matchRuntimeState.status !== "joined") {
-      return;
-    }
-    try {
-      matchRuntimeRef.current.sync();
-    } catch (error) {
-      setMatchRuntimeState({ status: "error", ...matchRuntimeErrorView(error) });
-    }
-  }
-
   const birthYearOptions = Array.from({ length: 100 }, (_, index) => new Date().getFullYear() - index);
+
+  // Once a player has started joining a match, the whole screen belongs to
+  // the game — no session ID, roster, or lobby chrome competing for
+  // attention. This covers the join/reconnect wait, the live table, the
+  // hand result, and a runtime error, all the way back to "idle" (leaving
+  // the table resets matchRuntimeState to idle, returning to the lobby).
+  if (matchRuntimeState.status !== "idle") {
+    return (
+      <div className="game-screen">
+        {matchRuntimeState.status === "connecting" && (
+          <div className="game-screen-status" role="status" aria-live="assertive">
+            <p className="game-screen-status-text">
+              {reconnectAttempt > 0
+                ? `Reconnecting… (attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`
+                : "Joining the table…"}
+            </p>
+          </div>
+        )}
+
+        {matchRuntimeState.status === "joined" &&
+          (matchRuntimeState.view.phase === "hand_complete" ||
+          matchRuntimeState.view.phase === "exhaustive_draw" ? (
+            <div className="game-screen-result">
+              <HandResultScreen view={matchRuntimeState.view} onReturn={leaveTable} />
+            </div>
+          ) : (
+            <>
+              <div className="game-screen-topbar">
+                {controlRestoredNotice && (
+                  <p className="control-restored-toast" role="status" aria-live="polite">
+                    Control restored — it's you again.
+                  </p>
+                )}
+                <button className="leave-match-button" type="button" onClick={leaveTable}>
+                  Leave match
+                </button>
+              </div>
+              <div className="match-table-frame">
+                <MatchTable
+                  state={seatViewToMatchTableState(matchRuntimeState.view, {
+                    now: nowTick,
+                    onClaimAction: dispatchClaimAction,
+                    claimActionPending: matchRuntimeState.commandPending,
+                  })}
+                  interaction={{
+                    canDraw:
+                      matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
+                      matchRuntimeState.view.phase === "awaiting_draw",
+                    onDraw: drawTile,
+                    drawPending: matchRuntimeState.commandPending,
+                    canDiscard:
+                      matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
+                      matchRuntimeState.view.phase === "awaiting_discard",
+                    selectedTileId,
+                    onSelectTile: selectHandTile,
+                    onConfirmDiscard: confirmDiscard,
+                    discardPending: matchRuntimeState.commandPending,
+                  }}
+                />
+              </div>
+            </>
+          ))}
+
+        {matchRuntimeState.status === "error" && (
+          <div className="game-screen-status" role="alert">
+            <p className="game-screen-status-text">{matchRuntimeState.message}</p>
+            <p className="error-code">Error code: match_runtime_{matchRuntimeState.code}</p>
+            <div className="game-screen-actions">
+              <button className="secondary-action" type="button" onClick={connectMatchRuntime}>
+                Reconnect
+              </button>
+              <button className="leave-match-button" type="button" onClick={leaveTable}>
+                Leave match
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <main className="bootstrap-shell">
@@ -1425,97 +1494,25 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     <div className="match-runtime-panel">
                       <p className="status-label">Local match runtime</p>
 
-                      {!accelByteConfig.matchServiceURL &&
-                        matchRuntimeState.status === "idle" && (
-                          <p className="runtime-message">
-                            Configure ACCELBYTE_MATCH_SERVICE_URL and restart the dev server.
-                          </p>
-                        )}
-
-                      {accelByteConfig.matchServiceURL &&
-                        matchRuntimeState.status === "idle" && (
-                          <button
-                            className="secondary-action session-action"
-                            type="button"
-                            onClick={connectMatchRuntime}
-                          >
-                            Connect test hand
-                          </button>
-                        )}
-
-                      {matchRuntimeState.status === "connecting" && (
-                        <p className="runtime-message reconnect-overlay" role="status" aria-live="assertive">
-                          {reconnectAttempt > 0
-                            ? `Reconnecting… (attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`
-                            : "Authenticating and joining the test hand…"}
+                      {/* Every other matchRuntimeState status (connecting,
+                          joined, error) takes over the whole screen — see
+                          the game-screen early return above. Only "idle"
+                          (before the player has asked to join anything)
+                          is ever reachable here. */}
+                      {!accelByteConfig.matchServiceURL && (
+                        <p className="runtime-message">
+                          Configure ACCELBYTE_MATCH_SERVICE_URL and restart the dev server.
                         </p>
                       )}
 
-                      {matchRuntimeState.status === "joined" &&
-                        (matchRuntimeState.view.phase === "hand_complete" ||
-                        matchRuntimeState.view.phase === "exhaustive_draw" ? (
-                          <HandResultScreen view={matchRuntimeState.view} onReturn={leaveTable} />
-                        ) : (
-                          <div className="runtime-state" role="status" aria-live="polite">
-                            {controlRestoredNotice && (
-                              <p className="control-restored-toast" role="status" aria-live="polite">
-                                Control restored — it's you again.
-                              </p>
-                            )}
-                            <div className="match-table-frame">
-                              <MatchTable
-                                state={seatViewToMatchTableState(matchRuntimeState.view, {
-                                  now: nowTick,
-                                  onClaimAction: dispatchClaimAction,
-                                  claimActionPending: matchRuntimeState.commandPending,
-                                })}
-                                interaction={{
-                                  canDraw:
-                                    matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
-                                    matchRuntimeState.view.phase === "awaiting_draw",
-                                  onDraw: drawTile,
-                                  drawPending: matchRuntimeState.commandPending,
-                                  canDiscard:
-                                    matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
-                                    matchRuntimeState.view.phase === "awaiting_discard",
-                                  selectedTileId,
-                                  onSelectTile: selectHandTile,
-                                  onConfirmDiscard: confirmDiscard,
-                                  discardPending: matchRuntimeState.commandPending,
-                                }}
-                              />
-                            </div>
-
-                            {matchRuntimeState.view.active_seat !== matchRuntimeState.view.seat && (
-                              <p className="runtime-message">
-                                Waiting for seat {matchRuntimeState.view.active_seat}.
-                              </p>
-                            )}
-
-                            <button
-                              className="secondary-action session-action"
-                              type="button"
-                              onClick={syncMatchRuntime}
-                            >
-                              Refresh match state
-                            </button>
-                          </div>
-                        ))}
-
-                      {matchRuntimeState.status === "error" && (
-                        <div className="session-error" role="alert">
-                          <p>{matchRuntimeState.message}</p>
-                          <p className="error-code">
-                            Error code: match_runtime_{matchRuntimeState.code}
-                          </p>
-                          <button
-                            className="secondary-action session-action"
-                            type="button"
-                            onClick={connectMatchRuntime}
-                          >
-                            Reconnect runtime
-                          </button>
-                        </div>
+                      {accelByteConfig.matchServiceURL && (
+                        <button
+                          className="secondary-action session-action"
+                          type="button"
+                          onClick={connectMatchRuntime}
+                        >
+                          Connect test hand
+                        </button>
                       )}
                     </div>
                     <button

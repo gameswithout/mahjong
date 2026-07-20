@@ -44,6 +44,15 @@ function wireMeld(meld: MeldView, ownerSeat: SeatId, index: number): WireMeld {
   };
 }
 
+// A claim/rob window always carries a deadline field even in an untimed
+// match (§5.10 Tutorial/AI Practice) — the engine substitutes a 24-hour
+// sentinel so its "resolve once every seat responds OR the deadline
+// passes" logic doesn't need a separate no-deadline branch. Any real
+// deadline's remaining time is bounded by totalSeconds plus the §5.10
+// animation/RTT allowance (at most ~1.1s); comfortably past that, it can
+// only be the sentinel, not a countdown that's merely running early.
+const SENTINEL_SLACK_SECONDS = 60;
+
 function deadlineCountdown(
   deadlineIso: string | undefined,
   totalSeconds: number,
@@ -58,6 +67,9 @@ function deadlineCountdown(
   }
   const remainingMs = deadlineMs - nowMs;
   const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  if (seconds > totalSeconds + SENTINEL_SLACK_SECONDS) {
+    return null;
+  }
   return { seconds: Math.min(seconds, totalSeconds), total: totalSeconds };
 }
 
@@ -158,9 +170,10 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       const melds = isLocal
         ? (view.own_melds ?? []).map((meld, index) => wireMeld(meld, seat, index))
         : (player?.melds ?? []).map((meld, index) => wireMeld(meld, seat, index));
+      const isBot = player?.is_bot ?? false;
       const state: SeatState = {
         seat,
-        displayName: isLocal ? "You" : `Seat ${seat}`,
+        displayName: isLocal ? "You" : isBot ? "Bot" : "Player",
         wind: seat,
         isDealer: seat === HARDCODED_DEALER,
         isActive: seat === view.active_seat,
@@ -169,7 +182,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         melds,
         discards: (discardsBySeat.get(seat) ?? []).map(wireTile),
         takenOver: player?.taken_over ?? false,
-        isBot: player?.is_bot ?? false,
+        isBot,
       };
       return [seat, state];
     }),
@@ -198,6 +211,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
     claimSource: claimant ?? null,
     countdownSeconds: countdown?.seconds ?? 0,
     countdownTotalSeconds: countdown?.total ?? TURN_TOTAL_SECONDS,
+    untimed: countdown === null,
     legalActions: claimLegalActions(view, options.onClaimAction, options.claimActionPending ?? false),
     waits: (view.waits ?? []).map((entry) => ({
       tile: wireTile(entry.tile),

@@ -189,6 +189,45 @@ describe("seatViewToMatchTableState", () => {
     expect(state.countdownTotalSeconds).toBe(15);
   });
 
+  it("marks untimed only when no deadline is present at all, not when one has expired", () => {
+    const withoutDeadline = seatViewToMatchTableState(
+      seatView({ phase: "awaiting_discard" }),
+      { now: Date.now(), onClaimAction: vi.fn() },
+    );
+    expect(withoutDeadline.untimed).toBe(true);
+    expect(withoutDeadline.countdownSeconds).toBe(0);
+
+    const now = Date.parse("2026-07-19T10:00:10.000Z");
+    const expired = seatViewToMatchTableState(
+      seatView({ phase: "awaiting_discard", turn_deadline: "2026-07-19T10:00:00.000Z" }),
+      { now, onClaimAction: vi.fn() },
+    );
+    expect(expired.untimed).toBe(false);
+    expect(expired.countdownSeconds).toBe(0);
+  });
+
+  it("marks untimed for a claim window's 24h no-deadline sentinel, not a real 7s countdown", () => {
+    const now = Date.parse("2026-07-19T10:00:00.000Z");
+    const state = seatViewToMatchTableState(
+      seatView({
+        phase: "claim_window",
+        claim: {
+          action_id: "action-1",
+          state_version: 2,
+          discard: { seat: "S", tile: { id: "dots-1-1", kind: "dots", rank: 1, copy: 1 }, sequence: 1 },
+          // §5.10 untimed matches (AI Practice): the engine substitutes a
+          // 24h sentinel deadline rather than omitting the field.
+          deadline: "2026-07-20T10:00:00.000Z",
+          eligible: ["E"],
+          options: {},
+        },
+      }),
+      { now, onClaimAction: vi.fn() },
+    );
+    expect(state.untimed).toBe(true);
+    expect(state.countdownSeconds).toBe(0);
+  });
+
   it("maps waits to the local player's wait list, defaulting to empty", () => {
     const withoutWaits = seatViewToMatchTableState(seatView(), { now: Date.now(), onClaimAction: vi.fn() });
     expect(withoutWaits.waits).toEqual([]);

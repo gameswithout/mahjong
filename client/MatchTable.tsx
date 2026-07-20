@@ -170,16 +170,21 @@ function OpponentSeat({
   matchKey: string | null;
 }) {
   return (
-    <section className={`seat seat-${slot}`} aria-label={`${windName(seat)} seat`}>
+    <section className={`seat seat-${slot}${state.isActive ? " seat-active" : ""}`} aria-label={`${windName(seat)} seat`}>
       <header className="seat-header">
-        <span className={`wind-badge${seat === prevailingWind ? " wind-badge-prevailing" : ""}`}>{windName(seat).slice(0, 1)}</span>
-        {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
-        {state.isActive ? <span className="active-badge" title="Active player">●</span> : null}
-        {claimSource === seat ? <span className="claim-badge" title="Claim source">claim</span> : null}
-        <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
-        <span className="hand-count" aria-label={`${state.handCount} tiles in hand`}>
-          {state.handCount}
-        </span>
+        <div className="seat-identity">
+          <span className={`wind-badge${seat === prevailingWind ? " wind-badge-prevailing" : ""}`}>{windName(seat).slice(0, 1)}</span>
+          <span className="seat-name">{state.displayName}</span>
+          {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
+        </div>
+        <div className="seat-status">
+          {state.isActive ? <span className="active-badge" title="Active player">●</span> : null}
+          {claimSource === seat ? <span className="claim-badge" title="Claim source">claim</span> : null}
+          <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
+          <span className="hand-count" aria-label={`${state.handCount} tiles in hand`}>
+            {state.handCount}
+          </span>
+        </div>
       </header>
       <div className="opponent-hand-backs" aria-hidden="true">
         {Array.from({ length: Math.min(state.handCount, slot === "top" ? 17 : 8) }).map((_, index) => (
@@ -206,8 +211,8 @@ const AMBER_THRESHOLD_SECONDS = 3;
 const RED_THRESHOLD_SECONDS = 1;
 
 function WallAndTurnCenter({ state }: { state: MatchTableState }) {
-  const urgent = state.countdownSeconds <= RED_THRESHOLD_SECONDS;
-  const warn = state.countdownSeconds <= AMBER_THRESHOLD_SECONDS && !urgent;
+  const urgent = !state.untimed && state.countdownSeconds <= RED_THRESHOLD_SECONDS;
+  const warn = !state.untimed && state.countdownSeconds <= AMBER_THRESHOLD_SECONDS && !urgent;
   const activeSeat = (Object.values(state.seats) as SeatState[]).find((s) => s.isActive)?.seat ?? state.localSeat;
   const fraction = state.countdownTotalSeconds > 0 ? state.countdownSeconds / state.countdownTotalSeconds : 0;
 
@@ -215,11 +220,13 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
   // seconds' to assistive technology... at 1 second it changes to red and
   // repeats the non-color cue." This must fire once per threshold crossing,
   // not on every per-second re-render (which aria-live="polite" on a
-  // continuously-changing label would otherwise cause).
+  // continuously-changing label would otherwise cause). None of this
+  // applies to an untimed match (§5.10 Tutorial/AI Practice) — there is no
+  // deadline counting down, so no threshold is ever crossed.
   const [announcement, setAnnouncement] = useState("");
   const announcedThresholdRef = useRef<number | null>(null);
   useEffect(() => {
-    if (state.countdownSeconds > AMBER_THRESHOLD_SECONDS) {
+    if (state.untimed || state.countdownSeconds > AMBER_THRESHOLD_SECONDS) {
       announcedThresholdRef.current = null;
       return;
     }
@@ -230,27 +237,35 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       announcedThresholdRef.current = AMBER_THRESHOLD_SECONDS;
       setAnnouncement("3 seconds remaining");
     }
-  }, [state.countdownSeconds]);
+  }, [state.countdownSeconds, state.untimed]);
 
   return (
     <div className="center-panel" aria-label="Table status">
-      <div
-        className={`countdown${urgent ? " countdown-urgent" : warn ? " countdown-warn" : ""}`}
-        role="timer"
-        aria-label={`${state.countdownSeconds} seconds remaining`}
-      >
-        <svg viewBox="0 0 36 36" className="countdown-ring" aria-hidden="true">
-          <circle cx="18" cy="18" r="15.5" className="countdown-ring-track" />
-          <circle
-            cx="18"
-            cy="18"
-            r="15.5"
-            className="countdown-ring-fill"
-            style={{ strokeDasharray: `${fraction * 97.4} 97.4` }}
-          />
-        </svg>
-        <span className="countdown-number">{state.countdownSeconds}</span>
-      </div>
+      {state.untimed ? (
+        <div className="countdown countdown-untimed" role="status" aria-label="No turn timer">
+          <span className="countdown-untimed-icon" aria-hidden="true">
+            ∞
+          </span>
+        </div>
+      ) : (
+        <div
+          className={`countdown${urgent ? " countdown-urgent" : warn ? " countdown-warn" : ""}`}
+          role="timer"
+          aria-label={`${state.countdownSeconds} seconds remaining`}
+        >
+          <svg viewBox="0 0 36 36" className="countdown-ring" aria-hidden="true">
+            <circle cx="18" cy="18" r="15.5" className="countdown-ring-track" />
+            <circle
+              cx="18"
+              cy="18"
+              r="15.5"
+              className="countdown-ring-fill"
+              style={{ strokeDasharray: `${fraction * 97.4} 97.4` }}
+            />
+          </svg>
+          <span className="countdown-number">{state.countdownSeconds}</span>
+        </div>
+      )}
       <span className="sr-only" role="status" aria-live="assertive">
         {announcement}
       </span>
@@ -314,30 +329,34 @@ function LocalSeat({
   const canReorder = sortMode === "off" && selectable && !!selectedTileId;
 
   return (
-    <section className="seat seat-bottom local-seat" aria-label="Your seat">
+    <section className={`seat seat-bottom local-seat${selectable || canDraw ? " seat-active" : ""}`} aria-label="Your seat">
       <header className="seat-header">
-        <span className="wind-badge">{windName(state.wind).slice(0, 1)}</span>
-        {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
-        <span className="local-label">You</span>
-        <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
-        <button
-          type="button"
-          className="sort-toggle-button"
-          onClick={onCycleSortMode}
-          aria-label={`Hand sort: ${sortModeLabel(sortMode)}. Activate to change.`}
-        >
-          Sort: {sortModeLabel(sortMode)}
-        </button>
-        {canDraw ? (
+        <div className="seat-identity">
+          <span className="wind-badge">{windName(state.wind).slice(0, 1)}</span>
+          <span className="seat-name">You</span>
+          {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
+          <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
+        </div>
+        <div className="seat-status">
           <button
             type="button"
-            className="action-button action-draw local-draw-button"
-            onClick={onDraw}
-            disabled={drawPending}
+            className="sort-toggle-button"
+            onClick={onCycleSortMode}
+            aria-label={`Hand sort: ${sortModeLabel(sortMode)}. Activate to change.`}
           >
-            {drawPending ? "Drawing…" : "Draw"}
+            Sort: {sortModeLabel(sortMode)}
           </button>
-        ) : null}
+          {canDraw ? (
+            <button
+              type="button"
+              className="action-button action-draw local-draw-button"
+              onClick={onDraw}
+              disabled={drawPending}
+            >
+              {drawPending ? "Drawing…" : "Draw"}
+            </button>
+          ) : null}
+        </div>
       </header>
       {state.melds.length > 0 ? (
         <div className="meld-area" aria-label="Your exposed melds">
