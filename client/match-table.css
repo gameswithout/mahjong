@@ -28,10 +28,16 @@ body {
 }
 
 .match-table {
-  /* A felt playing surface, not a flat panel — a quiet jade glow at the
-     center (where the wall/discards happen) fading into the established
-     navy at the rail. Seats sit as raised trays on top of it. */
-  background: radial-gradient(ellipse 90% 70% at 50% 45%, #1c3129 0%, #131a20 55%, #10131f 100%);
+  /* A real green-felt mahjong table under a warm overhead light, ringed by
+     a dark wood rail — not four flat info panels. The soft light pool at
+     center is where the discard rivers and wall live; it falls off toward
+     the darker felt at the rails where the players sit. */
+  background:
+    radial-gradient(ellipse 62% 48% at 50% 44%, rgb(255 246 214 / 14%), transparent 72%),
+    radial-gradient(ellipse 130% 105% at 50% 42%, #1c7a54 0%, #14603f 46%, #0c4029 100%);
+  border: 4px solid #241611;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px rgb(74 45 24 / 90%), inset 0 0 30px rgb(0 0 0 / 55%);
   color: #f7f4ee;
   display: grid;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -46,7 +52,7 @@ body {
   height: 100%;
   min-height: 360px;
   overflow: hidden;
-  padding: 3px;
+  padding: 6px;
   width: 100%;
 }
 
@@ -67,18 +73,20 @@ body {
   min-width: 0;
 }
 
+/* Seats are zones of the one continuous felt, not separate bordered
+   panels — that single change is most of what makes this read as one
+   table you're sitting around rather than a dashboard. */
 .seat {
-  background: linear-gradient(180deg, #1f2540, #171b30);
-  border: 1px solid #2c3352;
-  border-radius: 7px;
-  box-shadow: 0 2px 5px rgb(0 0 0 / 30%), inset 0 1px 0 rgb(255 255 255 / 4%);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-height: 0;
   overflow: hidden;
   padding: 2px 3px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .seat-top {
@@ -97,12 +105,21 @@ body {
   grid-area: bottom;
 }
 
+/* A little wooden nameplate resting on the felt, the way a scorekeeper's
+   tag or a seat marker would at a real table. */
 .seat-header {
   align-items: center;
+  align-self: flex-start;
+  background: linear-gradient(180deg, rgb(20 26 20 / 82%), rgb(9 14 11 / 82%));
+  border: 1px solid rgb(0 0 0 / 35%);
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 40%), inset 0 1px 0 rgb(255 255 255 / 6%);
   display: flex;
   flex-shrink: 0;
-  gap: 3px;
+  gap: 6px;
   justify-content: space-between;
+  max-width: 100%;
+  padding: 2px 6px;
 }
 
 /* Two clear groups instead of one crowded row: who's in this seat (left)
@@ -144,19 +161,20 @@ body {
   width: 16px;
 }
 
-/* A subtle border highlight, not color alone (§9.5) — the active-badge dot
-   and "Active player"/"Your turn" text already carry the same information;
-   this just makes it legible at a glance across the whole table instead of
-   only inside a single 8px badge. */
+/* A warm pool of light on the felt under the active player's zone, not
+   color alone (§9.5) — the active-badge dot and "Your turn"/"thinking"
+   text carry the same information; this makes whose turn it is legible at
+   a glance across the whole table. */
 .seat-active {
-  border-color: #f2c66d;
-  box-shadow: 0 0 0 1px rgb(242 198 109 / 35%), 0 0 14px rgb(242 198 109 / 20%), 0 2px 5px rgb(0 0 0 / 30%);
+  background: radial-gradient(ellipse 80% 90% at 50% 40%, rgb(242 198 109 / 14%), transparent 75%);
+  box-shadow: inset 0 0 0 1px rgb(242 198 109 / 22%);
 }
 
 .wind-badge {
   align-items: center;
-  background: #2c3352;
+  background: linear-gradient(180deg, #3a4270, #2a3054);
   border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%);
   display: inline-flex;
   font-size: 10px;
   font-weight: 800;
@@ -222,16 +240,23 @@ body {
   opacity: 0.8;
 }
 
+/* A physical mahjong tile: an ivory face with a slight top-lit sheen,
+   sitting on a visible cream "front edge" (the bottom border-shadow) so it
+   reads as a thick standing tile, not a flat sticker. */
 .tile {
   align-items: center;
-  background: linear-gradient(180deg, #fdfbf6, #ece5d3);
-  border: 1px solid #b8ad8e;
-  border-radius: 4px;
-  box-shadow: 0 1px 0 rgb(255 255 255 / 70%) inset, 0 2px 2px rgb(0 0 0 / 25%);
-  color: #21160a;
+  background: linear-gradient(158deg, #fffdf7 0%, #f3ecd9 55%, #e6dcc2 100%);
+  border: 1px solid #c3b794;
+  border-radius: 4px 4px 5px 5px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    inset 0 -2px 2px rgb(180 165 130 / 45%),
+    0 2px 0 #cabf9d,
+    0 3px 3px rgb(0 0 0 / 38%);
+  color: #1c130a;
   display: inline-flex;
   flex-shrink: 0;
-  font-weight: 700;
+  font-weight: 800;
   justify-content: center;
   line-height: 1;
 }
@@ -260,9 +285,18 @@ body {
   width: 22px;
 }
 
+/* The green bakelite back of a real mahjong tile — a domed jade face over
+   the same cream edge, so a face-down tile still reads as a thick tile
+   standing in the wall/opponent's hand. */
 .tile-back {
-  background: repeating-linear-gradient(45deg, #3a3f66, #3a3f66 2px, #2c3352 2px, #2c3352 4px);
-  border: 1px solid #4a5180;
+  background:
+    radial-gradient(ellipse 120% 90% at 50% 32%, #2f9c6a 0%, #1f7d51 55%, #14603d 100%);
+  border: 1px solid #10583a;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 25%),
+    inset 0 -2px 2px rgb(0 0 0 / 25%),
+    0 2px 0 #cabf9d,
+    0 3px 3px rgb(0 0 0 / 38%);
 }
 
 /* §9.5: "Selected-tile matches receive both outline and brightness change,
@@ -309,20 +343,28 @@ body {
 }
 
 .meld {
-  background: #232a45;
-  border-radius: 3px;
+  background: rgb(0 0 0 / 20%);
+  border-radius: 4px;
   display: inline-flex;
   gap: 1px;
-  padding: 1px;
+  padding: 2px;
 }
 
+/* The discard "river" (河): tiles laid out in tidy rows in front of a
+   player, the way they pile up on a real table. The recess is barely
+   there so an empty river reads as plain felt, not an empty box; it
+   deepens visually only once tiles fill it. */
 .discard-grid {
+  align-content: flex-start;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 14%);
   display: flex;
   flex: 1 1 auto;
   flex-wrap: wrap;
-  gap: 1px;
+  gap: 2px;
   min-height: 0;
   overflow: hidden;
+  padding: 3px;
 }
 
 .discard-slot {
@@ -332,7 +374,11 @@ body {
 .discard-slot-recent .tile {
   animation: discard-pulse 1s ease-in-out infinite;
   border-color: #f2c66d;
-  box-shadow: 0 0 0 1px #f2c66d;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    0 2px 0 #cabf9d,
+    0 0 0 2px #f2c66d,
+    0 0 8px rgb(242 198 109 / 70%);
 }
 
 .discard-slot-claimed {
@@ -343,11 +389,14 @@ body {
   opacity: 0.8;
 }
 
+/* The centre of the table: the lit felt where the wall and the timer sit.
+   No hard panel border — it's the same felt, just the brightest part of
+   the light pool, ringed faintly like a dealer's spot. */
 .center-panel {
   align-items: center;
-  background: #14182a;
-  border: 1px solid #2c3352;
-  border-radius: 6px;
+  background: radial-gradient(ellipse 90% 90% at 50% 45%, rgb(255 246 214 / 10%), transparent 70%);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -476,18 +525,22 @@ body {
 }
 
 .local-seat {
-  /* Home base: a warmer tint distinguishes "your" tray from the three
-     opponent trays at a glance, independent of whose turn it is. */
-  background: linear-gradient(180deg, #262c4c, #1b2038);
-  border-color: #3a4066;
+  /* Home base: the felt lifts a touch brighter along your own rail, and a
+     hairline of light separates your side from the table — like the near
+     edge of the felt catching the overhead light. */
+  background: linear-gradient(0deg, rgb(255 255 255 / 5%), transparent 60%);
+  border-top: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 0;
   gap: 2px;
-  padding: 2px 4px;
+  padding: 3px 4px 2px;
 }
 
+/* Your tiles held up in a row in front of you — the largest, most tactile
+   thing on the table, with a bit of breathing room between tiles. */
 .local-hand {
   display: flex;
   flex: 1 1 auto;
-  gap: 1px;
+  gap: 2px;
   justify-content: center;
   min-height: 0;
   overflow: hidden;
