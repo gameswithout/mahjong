@@ -64,15 +64,20 @@ func (f *fakeMatchRepository) EnsureMatch(
 		return storage.MatchRecord{}, false, storage.ErrInvalidRoster
 	}
 	if f.record.RuntimeID == "" {
+		// Positional, not literal-string, assignment: every existing caller
+		// passes roster == []string{"east", "south", "west", "north"}, so
+		// this is behavior-preserving for them, while letting AI-Practice
+		// tests supply their own (e.g. bot-ID-flavored) roster in the same
+		// East/South/West/North order.
+		seatOrder := []rulesengine.Seat{rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North}
+		seats := make(map[string]rulesengine.Seat, 4)
+		for index, userID := range roster {
+			seats[userID] = seatOrder[index]
+		}
 		f.record = storage.MatchRecord{
 			Key:       key,
 			RuntimeID: key.RuntimeID(),
-			Seats: map[string]rulesengine.Seat{
-				"east":  rulesengine.East,
-				"south": rulesengine.South,
-				"west":  rulesengine.West,
-				"north": rulesengine.North,
-			},
+			Seats:     seats,
 		}
 		return f.record, true, nil
 	}
@@ -874,6 +879,131 @@ func TestEnrichedViewAttachesSettlementAndNextDealerOnlyAtHandEnd(t *testing.T) 
 			t.Fatalf("seat %s: NextDealer = %#v, want rotation to South", seat, view.NextDealer)
 		}
 	}
+}
+
+// TestRuntimeAIPractice_BotsPlaySoloMatchAutomatically proves the whole AI
+// Practice mechanism end to end at the match-service layer: a roster with
+// one real user and three session.IsBotUserID-prefixed IDs (the shape
+// AGSResolver.Roster produces for an ai_practice-flagged session) results
+// in a match where South/West/North are permanently bot-controlled, and
+// their entire draw/discard/claim-response play is driven automatically —
+// no command is ever submitted for "bot:1"/"bot:2"/"bot:3", only "human".
+func TestRuntimeAIPractice_BotsPlaySoloMatchAutomatically(t *testing.T) {
+	clock := time.Date(2026, 7, 19, 8, 0, 0, 0, time.UTC)
+	now := func() time.Time { return clock }
+	key := storage.MatchKey{Namespace: "gameswithout-mahjong", SessionID: "session-practice", MatchID: "match-practice"}
+	runtime := NewRuntime(
+		session.StaticResolver{Members: []string{"human", "bot:practice:1", "bot:practice:2", "bot:practice:3"}},
+		&fakeMatchRepository{},
+		rulesengine.NewMemoryEventStore(),
+		now,
+	)
+	ctx := context.Background()
+
+	view, err := runtime.Join(ctx, key, "human")
+	if err != nil {
+		t.Fatalf("human Join() error = %v", err)
+	}
+	if view.ActiveSeat != rulesengine.East {
+		t.Fatalf("expected East (human) active first, got %s", view.ActiveSeat)
+	}
+	for _, player := range view.Players {
+		wantBot := player.Seat != rulesengine.East
+		if player.IsBot != wantBot {
+			t.Fatalf("seat %s IsBot = %v, want %v", player.Seat, player.IsBot, wantBot)
+		}
+		if player.TakenOver != wantBot {
+			t.Fatalf("seat %s TakenOver = %v, want %v", player.Seat, player.TakenOver, wantBot)
+		}
+	}
+	// AI Practice is untimed: nothing for a real human to wait out.
+	if view.TurnDeadline != "" {
+		t.Fatalf("TurnDeadline = %q, want untimed (AI Practice deadline preset)", view.TurnDeadline)
+	}
+
+	seq := 0
+	roundsPlayed := 0
+	for roundsPlayed < 3 {
+		if view.Phase == rulesengine.PhaseHandComplete || view.Phase == rulesengine.PhaseExhaustiveDraw {
+			break
+		}
+		if view.ActiveSeat != rulesengine.East || (view.Phase != rulesengine.PhaseAwaitingDraw && view.Phase != rulesengine.PhaseAwaitingDiscard) {
+			t.Fatalf("round %d: expected East awaiting draw/discard, got seat %s phase %s", roundsPlayed, view.ActiveSeat, view.Phase)
+		}
+
+		discardVersion := view.StateVersion
+		tileID := view.OwnHand[0].ID
+		// East is the dealer: their very first turn starts already holding
+		// the dealt seventeenth tile (PhaseAwaitingDiscard, no draw step).
+		// Every later round is a normal draw-then-discard turn.
+		if view.Phase == rulesengine.PhaseAwaitingDraw {
+			seq++
+			drawResult, _, err := runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
+				RequestID:       fmt.Sprintf("draw-%d", seq),
+				Type:            rulesengine.CommandDraw,
+				ExpectedVersion: view.StateVersion,
+			})
+			if err != nil {
+				t.Fatalf("round %d: Draw() error = %v", roundsPlayed, err)
+			}
+			humanView, err := runtime.View(ctx, key, "human")
+			if err != nil {
+				t.Fatalf("round %d: View() after draw error = %v", roundsPlayed, err)
+			}
+			discardVersion = humanView.StateVersion
+			tileID = drawResult.Draw.Tile.ID
+		}
+
+		seq++
+		if _, _, err := runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
+			RequestID:       fmt.Sprintf("discard-%d", seq),
+			Type:            rulesengine.CommandDiscard,
+			ExpectedVersion: discardVersion,
+			TileID:          tileID,
+		}); err != nil {
+			t.Fatalf("round %d: Discard() error = %v", roundsPlayed, err)
+		}
+
+		// From here to the human's next decision point, every seat other
+		// than East is bot-controlled: South/West/North's draws, discards,
+		// and claim-window responses are all driven by driveLocked without
+		// this test ever submitting a command on their behalf. The only
+		// thing a real human still has to do is answer their OWN claim
+		// eligibility, if any, on a bot's discard.
+		for step := 0; step < 20; step++ {
+			view, err = runtime.View(ctx, key, "human")
+			if err != nil {
+				t.Fatalf("round %d: View() while draining bot turns error = %v", roundsPlayed, err)
+			}
+			if view.Phase == rulesengine.PhaseHandComplete || view.Phase == rulesengine.PhaseExhaustiveDraw {
+				break
+			}
+			if view.ActiveSeat == rulesengine.East && view.Phase == rulesengine.PhaseAwaitingDraw {
+				break
+			}
+			if view.Phase == rulesengine.PhaseClaimWindow && view.Claim != nil && view.Claim.OwnResponse == nil &&
+				seatIn(view.Claim.Eligible, rulesengine.East) {
+				seq++
+				if _, _, err := runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
+					RequestID:       fmt.Sprintf("human-pass-%d", seq),
+					Type:            rulesengine.CommandSubmitClaim,
+					ExpectedVersion: view.StateVersion,
+					Claim:           &rulesengine.ClaimResponse{ActionID: view.Claim.ActionID, Type: rulesengine.ClaimPass},
+				}); err != nil {
+					t.Fatalf("round %d: human Pass() error = %v", roundsPlayed, err)
+				}
+			}
+		}
+		roundsPlayed++
+	}
+
+	if roundsPlayed == 0 {
+		t.Fatal("expected at least one full round to be played")
+	}
+	// Reaching here already proves the mechanism: roundsPlayed full rounds
+	// completed, each requiring South/West/North to draw, discard, and
+	// answer claim windows, entirely via driveLocked — this test never
+	// once called Apply with a "bot:*" userID.
 }
 
 func TestRuntimeMatchLock_DifferentMatchesDoNotBlock(t *testing.T) {

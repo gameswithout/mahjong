@@ -112,8 +112,12 @@ export interface PlayerView {
   melds?: MeldView[];
   // taken_over is public: every seat sees the same value for a given
   // player (the §8.7/§11.1 "Auto-playing" badge), not just that seat's
-  // own client.
+  // own client. True for both a disclosed AFK takeover and a permanent
+  // AI Practice bot seat (is_bot) — is_bot distinguishes the two so the
+  // client can show "Bot" instead of the misleading "Auto-playing
+  // (disconnected)" for a seat that was never a human to begin with.
   taken_over?: boolean;
+  is_bot?: boolean;
 }
 
 export type WinKind = "discard" | "zimo" | "rob" | "eight_flowers" | "heavenly" | "exhaustive_draw";

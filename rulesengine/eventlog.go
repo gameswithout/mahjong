@@ -480,6 +480,10 @@ func engineFromSnapshot(encoded []byte, now func() time.Time) (*TurnEngine, erro
 	for _, seat := range saved.Turn.TakenOver {
 		engine.takenOver[seat] = true
 	}
+	engine.botSeats = map[Seat]bool{}
+	for _, seat := range saved.Turn.BotSeats {
+		engine.botSeats[seat] = true
+	}
 	return engine, nil
 }
 
@@ -780,6 +784,10 @@ func cloneTurnEngine(engine *TurnEngine) *TurnEngine {
 	cloned.takenOver = map[Seat]bool{}
 	for seat, taken := range engine.takenOver {
 		cloned.takenOver[seat] = taken
+	}
+	cloned.botSeats = map[Seat]bool{}
+	for seat, bot := range engine.botSeats {
+		cloned.botSeats[seat] = bot
 	}
 	return &cloned
 }

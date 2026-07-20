@@ -229,6 +229,8 @@ Complexity: S ≤ 3 days, M ≤ 2 weeks, L ≤ 4 weeks, XL > 4 weeks (single own
 | E6.F3 | Queue UX contract | 90-second alternative offer (AI practice / lower tier / keep waiting), latency warning > 150 ms, ranked disable > 300 ms/10% loss (§8.5, §15.5). | E6.F1 | S | — | Offer events emitted; take-rate metric wired (§15.2). |
 | E6.F4 | Ranked queue (V1) | Rating bands ±150 +100/20 s, unrestricted at 80 s in-region; linked-identity eligibility gate (§8.5, §12.5). | E6.F1, E13.F1 | M | — | Guests receive typed eligibility error; band expansion telemetry. |
 
+**AI Practice groundwork (2026-07-19, ahead of E6.F3):** the underlying mechanism E6.F3's 90-second offer will eventually trigger — a match with any seat permanently AI-controlled from the start, distinct from §8.7/§11.1's disclosed AFK takeover of a seat that began with a human — now exists end to end: `rulesengine.TurnEngine.MarkBotSeat`/`IsBotSeat`, `mahjong-match-service`'s `session.IsBotUserID` roster padding (an `ai_practice`-flagged AGS session with fewer than four real members gets its remaining seats filled with bot IDs), and a direct client "Practice vs Bots" button (bypassing matchmaking's queue/offer flow entirely). E6.F3 itself — the 90-second alternative-offer UX inside real matchmaking — is still unbuilt; this only ensures the bot-seat mechanism it will need already works.
+
 ### E7 — Client Foundation
 
 | ID | Feature | Objective / description | Deps | Size | Risks | Acceptance criteria |

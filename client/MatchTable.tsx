@@ -110,6 +110,28 @@ function DiscardGrid({
   );
 }
 
+// A seat with takenOver set is currently bot-controlled — either a §8.7/
+// §11.1 disclosed AFK takeover, or a permanent AI Practice bot seat
+// (isBot) that was never a human to begin with, for which "Auto-playing
+// (disconnected)" would be a misleading label.
+function TakeoverBadge({ takenOver, isBot }: { takenOver?: boolean; isBot?: boolean }) {
+  if (!takenOver) {
+    return null;
+  }
+  if (isBot) {
+    return (
+      <span className="takeover-badge bot-badge" title="AI-controlled seat" role="status">
+        Bot
+      </span>
+    );
+  }
+  return (
+    <span className="takeover-badge" title="Auto-playing (disconnected)" role="status">
+      Auto-playing
+    </span>
+  );
+}
+
 // §9.4 Ting/wait-list assist: every tile type that currently completes the
 // local player's hand, each with its "Visible remaining" count — zero shown
 // as "All visible" rather than removed (a structurally legal but exhausted
@@ -154,11 +176,7 @@ function OpponentSeat({
         {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
         {state.isActive ? <span className="active-badge" title="Active player">●</span> : null}
         {claimSource === seat ? <span className="claim-badge" title="Claim source">claim</span> : null}
-        {state.takenOver ? (
-          <span className="takeover-badge" title="Auto-playing (disconnected)" role="status">
-            Auto-playing
-          </span>
-        ) : null}
+        <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
         <span className="hand-count" aria-label={`${state.handCount} tiles in hand`}>
           {state.handCount}
         </span>
@@ -301,11 +319,7 @@ function LocalSeat({
         <span className="wind-badge">{windName(state.wind).slice(0, 1)}</span>
         {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
         <span className="local-label">You</span>
-        {state.takenOver ? (
-          <span className="takeover-badge" title="Auto-playing (disconnected)" role="status">
-            Auto-playing
-          </span>
-        ) : null}
+        <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
         <button
           type="button"
           className="sort-toggle-button"

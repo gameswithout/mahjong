@@ -52,6 +52,24 @@ describe("seatViewToMatchTableState", () => {
     expect(state.seats.W.takenOver).toBe(false);
   });
 
+  it("maps isBot from each player's public is_bot flag, defaulting to false", () => {
+    const state = seatViewToMatchTableState(
+      seatView({
+        players: [
+          { seat: "E", hand_count: 1 },
+          { seat: "S", hand_count: 13, taken_over: true, is_bot: true },
+          { seat: "W", hand_count: 13, taken_over: true, is_bot: true },
+          { seat: "N", hand_count: 13 },
+        ],
+      }),
+      { now: Date.now(), onClaimAction: vi.fn() },
+    );
+    expect(state.seats.S.isBot).toBe(true);
+    expect(state.seats.W.isBot).toBe(true);
+    expect(state.seats.E.isBot).toBe(false);
+    expect(state.seats.N.isBot).toBe(false);
+  });
+
   it("groups the public discard pile by seat", () => {
     const state = seatViewToMatchTableState(
       seatView({

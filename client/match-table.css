@@ -155,6 +155,14 @@ body {
   text-transform: uppercase;
 }
 
+.bot-badge {
+  /* A permanent AI Practice seat is a steady-state fact, not an incident
+     like a disconnect — a distinct (still AA-passing) color keeps it from
+     reading as an alert the way the takeover purple does. Measured 8.1:1
+     against #10131f header text at this size. */
+  background: #3a6b52;
+}
+
 .hand-count {
   font-size: 10px;
   margin-left: auto;

@@ -1,5 +1,10 @@
 import type { AccelByteSDK } from "@accelbyte/sdk";
 
+// AI Practice: passed as createSession's attributes so the match service's
+// roster resolver (AGSResolver.Roster, pkg/session/ags_resolver.go) pads
+// the roster with bot seats instead of requiring three more real players.
+export const AI_PRACTICE_SESSION_ATTRIBUTES: Record<string, unknown> = { ai_practice: "true" };
+
 export type SessionErrorCode =
   | "network"
   | "unauthorized"
@@ -35,7 +40,11 @@ export interface GameSessionSummary {
 export interface SessionClient {
   listMySessions(): Promise<GameSessionSummary[]>;
   getSession(sessionId: string): Promise<GameSessionSummary>;
-  createSession(): Promise<GameSessionSummary>;
+  // attributes is arbitrary client-supplied session metadata that AGS
+  // round-trips unchanged; the match service's roster resolver reads
+  // { ai_practice: "true" } from it to know a session should be padded
+  // with bot seats instead of requiring three more real players.
+  createSession(attributes?: Record<string, unknown>): Promise<GameSessionSummary>;
   joinSession(sessionId: string): Promise<void>;
   leaveSession(sessionId: string): Promise<void>;
 }
@@ -215,7 +224,10 @@ function leaveEndpoint(namespace: string, sessionId: string): string {
   return `${endpoint(namespace, sessionId)}/leave`;
 }
 
-function createRequestBody(config: SessionCreateConfig | undefined): Record<string, unknown> {
+function createRequestBody(
+  config: SessionCreateConfig | undefined,
+  attributes?: Record<string, unknown>,
+): Record<string, unknown> {
   if (!config) {
     throw new SessionLookupError(
       "configuration",
@@ -224,7 +236,7 @@ function createRequestBody(config: SessionCreateConfig | undefined): Record<stri
   }
 
   return {
-    attributes: {},
+    attributes: attributes ?? {},
     backfillTicketID: "",
     clientVersion: config.clientVersion,
     configurationName: config.configurationName,
@@ -270,9 +282,12 @@ export function createSessionClient(
       }
     },
 
-    async createSession() {
+    async createSession(attributes) {
       try {
-        const response = await axiosInstance.post(createEndpoint(namespace), createRequestBody(config));
+        const response = await axiosInstance.post(
+          createEndpoint(namespace),
+          createRequestBody(config, attributes),
+        );
         return mapSessionDetail(response.data);
       } catch (error) {
         throw mapSessionError(error);

@@ -9,6 +9,7 @@ import {
   type LobbyConnection,
 } from "./lobby";
 import {
+  AI_PRACTICE_SESSION_ATTRIBUTES,
   createSessionClient,
   SessionLookupError,
   type GameSessionSummary,
@@ -702,12 +703,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
   }
 
-  async function createTable() {
+  async function createTable(attributes?: Record<string, unknown>) {
     const requestId = ++sessionRequestRef.current;
     setSessionState({ status: "loading" });
 
     try {
-      const session = await createAuthenticatedSessionClient().createSession();
+      const session = await createAuthenticatedSessionClient().createSession(attributes);
       if (requestId !== sessionRequestRef.current) {
         return;
       }
@@ -722,6 +723,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       const safeError = sessionErrorView(error);
       setSessionState({ status: "error", ...safeError });
     }
+  }
+
+  // AI Practice: a session flagged this way starts with only the local
+  // guest as a real member; the match service's roster resolver pads the
+  // other three seats with permanent bot players (rulesengine's
+  // MarkBotSeat/IsBotSeat) instead of waiting for real players to join.
+  function practiceVsBots() {
+    return createTable(AI_PRACTICE_SESSION_ATTRIBUTES);
   }
 
   async function joinTable() {
@@ -1258,10 +1267,18 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   <button
                     className="secondary-action session-action"
                     type="button"
-                    onClick={createTable}
+                    onClick={() => createTable()}
                     disabled={sessionState.status === "loading" || sessionState.status === "loaded"}
                   >
                     Create test table
+                  </button>
+                  <button
+                    className="secondary-action session-action"
+                    type="button"
+                    onClick={practiceVsBots}
+                    disabled={sessionState.status === "loading" || sessionState.status === "loaded"}
+                  >
+                    Practice vs Bots
                   </button>
                   <label className="session-input-label" htmlFor="join-session-id">
                     Join by session ID

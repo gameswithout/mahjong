@@ -91,6 +91,104 @@ func TestRosterFromResponse_RejectsIncompleteUniqueRoster(t *testing.T) {
 	}
 }
 
+func TestRosterFromResponse_PadsWithBotsWhenAIPracticeFlagged(t *testing.T) {
+	namespace := "gameswithout-mahjong"
+	sessionID := "session-solo"
+	active := true
+	response := &sessionclientmodels.ApimodelsGameSessionResponse{
+		Namespace:  &namespace,
+		ID:         &sessionID,
+		IsActive:   &active,
+		Attributes: map[string]interface{}{"ai_practice": true},
+		Members: []*sessionclientmodels.ApimodelsUserResponse{
+			sessionMember("u1", "CONNECTED"),
+		},
+	}
+	roster, err := rosterFromResponse(response, namespace, sessionID)
+	if err != nil {
+		t.Fatalf("rosterFromResponse() error = %v", err)
+	}
+	if len(roster) != 4 {
+		t.Fatalf("roster size = %d, want 4", len(roster))
+	}
+	if roster[0] != "u1" {
+		t.Fatalf("roster[0] = %q, want the real member first", roster[0])
+	}
+	for _, botID := range roster[1:] {
+		if !IsBotUserID(botID) {
+			t.Fatalf("roster entry %q is not a bot ID", botID)
+		}
+	}
+
+	// Same session, resolved again: bot IDs must be stable so EnsureMatch's
+	// roster-hash idempotency check doesn't see a "changed" roster.
+	again, err := rosterFromResponse(response, namespace, sessionID)
+	if err != nil {
+		t.Fatalf("second rosterFromResponse() error = %v", err)
+	}
+	if !reflect.DeepEqual(roster, again) {
+		t.Fatalf("bot roster is not stable across calls: %#v vs %#v", roster, again)
+	}
+}
+
+func TestRosterFromResponse_AIPracticeAcceptsStringAttributeAndPadsPartialGroup(t *testing.T) {
+	namespace := "gameswithout-mahjong"
+	sessionID := "session-duo"
+	active := true
+	response := &sessionclientmodels.ApimodelsGameSessionResponse{
+		Namespace:  &namespace,
+		ID:         &sessionID,
+		IsActive:   &active,
+		Attributes: map[string]interface{}{"ai_practice": "true"},
+		Members: []*sessionclientmodels.ApimodelsUserResponse{
+			sessionMember("u1", "CONNECTED"),
+			sessionMember("u2", "CONNECTED"),
+		},
+	}
+	roster, err := rosterFromResponse(response, namespace, sessionID)
+	if err != nil {
+		t.Fatalf("rosterFromResponse() error = %v", err)
+	}
+	if len(roster) != 4 {
+		t.Fatalf("roster size = %d, want 4", len(roster))
+	}
+	botCount := 0
+	for _, id := range roster {
+		if IsBotUserID(id) {
+			botCount++
+		}
+	}
+	if botCount != 2 {
+		t.Fatalf("bot count = %d, want 2 (one per missing seat)", botCount)
+	}
+}
+
+func TestRosterFromResponse_WithoutAIPracticeStillRejectsIncompleteRoster(t *testing.T) {
+	namespace := "gameswithout-mahjong"
+	sessionID := "session-solo"
+	active := true
+	response := &sessionclientmodels.ApimodelsGameSessionResponse{
+		Namespace: &namespace,
+		ID:        &sessionID,
+		IsActive:  &active,
+		Members: []*sessionclientmodels.ApimodelsUserResponse{
+			sessionMember("u1", "CONNECTED"),
+		},
+	}
+	if _, err := rosterFromResponse(response, namespace, sessionID); !errors.Is(err, ErrSessionRoster) {
+		t.Fatalf("error = %v, want ErrSessionRoster (no ai_practice attribute set)", err)
+	}
+}
+
+func TestIsBotUserID(t *testing.T) {
+	if !IsBotUserID("bot:session-1:1") {
+		t.Fatal("IsBotUserID(bot:session-1:1) = false, want true")
+	}
+	if IsBotUserID("u1") {
+		t.Fatal("IsBotUserID(u1) = true, want false")
+	}
+}
+
 func TestStaticResolver_RequiresFourAndReturnsCopy(t *testing.T) {
 	members := []string{"u1", "u2", "u3", "u4"}
 	resolver := StaticResolver{Members: members}

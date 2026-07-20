@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AccelByteSDK } from "@accelbyte/sdk";
 
-import { createSessionClient } from "./session";
+import { AI_PRACTICE_SESSION_ATTRIBUTES, createSessionClient } from "./session";
 
 function fakeSdk(
   get: (url: string) => Promise<{ data: unknown }>,
@@ -179,5 +179,33 @@ describe("createSessionClient", () => {
         url: "/session/v1/public/namespaces/gameswithout-mahjong/gamesessions/session-123/leave",
       },
     ]);
+  });
+
+  it("sends AI_PRACTICE_SESSION_ATTRIBUTES through to the create-session request body", async () => {
+    const calls: Array<{ url: string; body?: unknown }> = [];
+    const client = createSessionClient(
+      fakeSdk(
+        async () => ({ data: { gameSessionId: "session-solo", status: "JOINED", members: [] } }),
+        async (url, body) => {
+          calls.push({ url, body });
+          return { data: { gameSessionId: "session-solo", status: "JOINED", members: [] } };
+        },
+      ),
+      "gameswithout-mahjong",
+      {
+        configurationName: "mahjong-test-none",
+        clientVersion: "web-0.0.0",
+        joinability: "OPEN",
+        maxPlayers: 4,
+        minPlayers: 1,
+        type: "NONE",
+      },
+    );
+
+    await expect(client.createSession(AI_PRACTICE_SESSION_ATTRIBUTES)).resolves.toMatchObject({
+      sessionId: "session-solo",
+    });
+    expect(calls).toHaveLength(1);
+    expect((calls[0].body as { attributes: unknown }).attributes).toEqual({ ai_practice: "true" });
   });
 });

@@ -169,6 +169,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         melds,
         discards: (discardsBySeat.get(seat) ?? []).map(wireTile),
         takenOver: player?.taken_over ?? false,
+        isBot: player?.is_bot ?? false,
       };
       return [seat, state];
     }),

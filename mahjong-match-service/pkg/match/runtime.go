@@ -31,6 +31,32 @@ const matchContinuations = 0
 
 var matchTier = rulesengine.TierBambooCourtyard
 
+// applyBotSeats marks every seat whose roster userID is a synthetic AI
+// Practice bot ID (session.IsBotUserID — see AGSResolver.Roster's
+// ai_practice roster padding) as permanently bot-controlled, and, if any
+// were marked, switches the whole match to the untimed §5.10 AI Practice
+// deadline preset. Must run right after NewTurnEngine, before
+// NewMatchActor — the same timing contract SetDeadlineConfig documents —
+// so the initial match.created snapshot captures both.
+func applyBotSeats(engine *rulesengine.TurnEngine, seats map[string]rulesengine.Seat) error {
+	anyBot := false
+	for userID, seat := range seats {
+		if session.IsBotUserID(userID) {
+			engine.MarkBotSeat(seat)
+			anyBot = true
+		}
+	}
+	if !anyBot {
+		return nil
+	}
+	deadlines, err := rulesengine.NewDeadlineConfig(rulesengine.ContextAIPractice, false, 0)
+	if err != nil {
+		return err
+	}
+	engine.SetDeadlineConfig(deadlines)
+	return nil
+}
+
 // enrichedView calls actor.View(seat) and, once the hand has actually
 // ended, attaches the §9.7 items ProjectSeat itself cannot compute
 // (Settlement, NextDealer) since those need dealer/continuation/tier
@@ -534,6 +560,9 @@ func (r *Runtime) loadLocked(ctx context.Context, record storage.MatchRecord) (*
 			if err == nil {
 				var engine *rulesengine.TurnEngine
 				engine, err = rulesengine.NewTurnEngine(deal, r.now)
+				if err == nil {
+					err = applyBotSeats(engine, record.Seats)
+				}
 				if err == nil {
 					actor, err = rulesengine.NewMatchActor(ctx, record.RuntimeID, engine, r.events, r.now)
 					if errors.Is(err, rulesengine.ErrEventSequence) {

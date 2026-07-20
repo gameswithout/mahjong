@@ -130,6 +130,8 @@ type TurnEngine struct {
 	// §5.10/§8.7/§11.1 timeout and AFK-takeover tracking.
 	afkStrikes map[Seat]int
 	takenOver  map[Seat]bool
+	// botSeats marks permanent AI Practice bot seats; see IsBotSeat.
+	botSeats map[Seat]bool
 }
 
 func NewTurnEngine(deal *DealState, now func() time.Time, validators ...WinValidator) (*TurnEngine, error) {
@@ -162,6 +164,7 @@ func NewTurnEngine(deal *DealState, now func() time.Time, validators ...WinValid
 		deadlineConfig: defaultDeadlines,
 		afkStrikes:     map[Seat]int{},
 		takenOver:      map[Seat]bool{},
+		botSeats:       map[Seat]bool{},
 	}, nil
 }
 
@@ -221,18 +224,47 @@ func (e *TurnEngine) AFKStrikes(seat Seat) int {
 	return e.afkStrikes[seat]
 }
 
-// IsTakenOver reports whether seat is currently under disclosed bot
-// takeover after three consecutive action timeouts (§8.7/§11.1). Unlike
-// AFKStrikes, this does NOT clear on the seat's next explicit action: while
-// under takeover, something (a bot orchestrator) is submitting explicit
-// commands on the seat's behalf every turn, and those must not be
-// mistaken for the human's own return. RestoreControl is the only way to
-// clear it.
+// IsTakenOver reports whether seat is currently bot-controlled: either
+// disclosed AFK takeover after three consecutive action timeouts
+// (§8.7/§11.1), or a permanent AI Practice bot seat that was never
+// assigned to a human (IsBotSeat). Both are driven the same way by the
+// match runtime and the bots package; IsBotSeat exists separately only to
+// distinguish them for display and to keep RestoreControl meaningless for
+// a seat with no human owner. Unlike AFKStrikes, this does NOT clear on
+// the seat's next explicit action: while under takeover, something (a bot
+// orchestrator) is submitting explicit commands on the seat's behalf every
+// turn, and those must not be mistaken for the human's own return.
+// RestoreControl is the only way to clear a disclosed AFK takeover; a
+// permanent bot seat is never restored.
 func (e *TurnEngine) IsTakenOver(seat Seat) bool {
 	if e == nil {
 		return false
 	}
-	return e.takenOver[seat]
+	return e.takenOver[seat] || e.botSeats[seat]
+}
+
+// IsBotSeat reports whether seat is a permanent AI Practice bot seat —
+// marked once at match creation via MarkBotSeat, never a disclosed AFK
+// takeover of a seat that started with a human owner.
+func (e *TurnEngine) IsBotSeat(seat Seat) bool {
+	if e == nil {
+		return false
+	}
+	return e.botSeats[seat]
+}
+
+// MarkBotSeat permanently designates seat as AI-controlled for the whole
+// match (AI Practice mode). Call immediately after NewTurnEngine, before
+// any command is applied — the same timing contract SetDeadlineConfig
+// already uses — so the initial match.created snapshot captures it.
+func (e *TurnEngine) MarkBotSeat(seat Seat) {
+	if e == nil {
+		return
+	}
+	if e.botSeats == nil {
+		e.botSeats = map[Seat]bool{}
+	}
+	e.botSeats[seat] = true
 }
 
 // RestoreControl clears seat's takeover flag and AFK strike count —
@@ -733,6 +765,9 @@ func (e *TurnEngine) Snapshot() TurnSnapshot {
 		if e.takenOver[seat] {
 			snapshot.TakenOver = append(snapshot.TakenOver, seat)
 		}
+		if e.botSeats[seat] {
+			snapshot.BotSeats = append(snapshot.BotSeats, seat)
+		}
 	}
 	return snapshot
 }
@@ -759,6 +794,7 @@ type TurnSnapshot struct {
 	NetworkEstimate   time.Duration  `json:"network_estimate,omitempty"`
 	AFKStrikes        []SeatStrikes  `json:"afk_strikes,omitempty"`
 	TakenOver         []Seat         `json:"taken_over,omitempty"`
+	BotSeats          []Seat         `json:"bot_seats,omitempty"`
 }
 
 // SeatStrikes records one seat's consecutive AFK-timeout count for snapshot

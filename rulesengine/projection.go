@@ -71,11 +71,17 @@ type PlayerView struct {
 	Exposed   []Tile     `json:"exposed,omitempty"`
 	MeldCount int        `json:"meld_count,omitempty"`
 	Melds     []MeldView `json:"melds,omitempty"`
-	// TakenOver reports whether this seat is currently under §8.7/§11.1
-	// disclosed-bot takeover. This is public — every seat sees the same
-	// value for a given player, matching the "Auto-playing" badge every
+	// TakenOver reports whether this seat is currently bot-controlled at
+	// all — §8.7/§11.1 disclosed AFK takeover OR a permanent AI Practice
+	// bot seat (IsBot). This is public — every seat sees the same value
+	// for a given player, matching the "Auto-playing"/"Bot" badge every
 	// player at the table sees, not just the affected seat's own client.
 	TakenOver bool `json:"taken_over,omitempty"`
+	// IsBot reports whether this seat was never assigned to a human (AI
+	// Practice mode), distinct from TakenOver's broader "currently
+	// bot-controlled" — a client uses this to show "Bot" instead of
+	// "Auto-playing (disconnected)", which would be misleading here.
+	IsBot bool `json:"is_bot,omitempty"`
 }
 
 // MeldView is a redacted projection of a Meld for a seat other than its
@@ -233,6 +239,7 @@ func (e *TurnEngine) ProjectSeat(matchID string, seat Seat) (SeatView, error) {
 			MeldCount: len(candidate.Melds),
 			Exposed:   append([]Tile(nil), candidate.Exposed...),
 			TakenOver: e.IsTakenOver(candidate.Seat),
+			IsBot:     e.IsBotSeat(candidate.Seat),
 		}
 		if owner {
 			// OwnExposed is the canonical copy; keep the per-player field public
