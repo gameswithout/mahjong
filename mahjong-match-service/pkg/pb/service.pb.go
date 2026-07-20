@@ -547,6 +547,13 @@ type MatchState struct {
 	LastDiscard   *Discard               `protobuf:"bytes,10,opt,name=last_discard,json=lastDiscard,proto3" json:"last_discard,omitempty"`
 	Claim         *ClaimView             `protobuf:"bytes,11,opt,name=claim,proto3" json:"claim,omitempty"`
 	WinLocked     bool                   `protobuf:"varint,12,opt,name=win_locked,json=winLocked,proto3" json:"win_locked,omitempty"`
+	Waits         []*WaitTileView        `protobuf:"bytes,13,rep,name=waits,proto3" json:"waits,omitempty"`
+	OwnMelds      []*Meld                `protobuf:"bytes,14,rep,name=own_melds,json=ownMelds,proto3" json:"own_melds,omitempty"`
+	Discards      []*Discard             `protobuf:"bytes,15,rep,name=discards,proto3" json:"discards,omitempty"`
+	TurnDeadline  string                 `protobuf:"bytes,16,opt,name=turn_deadline,json=turnDeadline,proto3" json:"turn_deadline,omitempty"`
+	HandResult    *HandResult            `protobuf:"bytes,17,opt,name=hand_result,json=handResult,proto3" json:"hand_result,omitempty"`
+	Settlement    *Settlement            `protobuf:"bytes,18,opt,name=settlement,proto3" json:"settlement,omitempty"`
+	NextDealer    *ContinuationOutcome   `protobuf:"bytes,19,opt,name=next_dealer,json=nextDealer,proto3" json:"next_dealer,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -665,6 +672,55 @@ func (x *MatchState) GetWinLocked() bool {
 	return false
 }
 
+func (x *MatchState) GetWaits() []*WaitTileView {
+	if x != nil {
+		return x.Waits
+	}
+	return nil
+}
+
+func (x *MatchState) GetOwnMelds() []*Meld {
+	if x != nil {
+		return x.OwnMelds
+	}
+	return nil
+}
+
+func (x *MatchState) GetDiscards() []*Discard {
+	if x != nil {
+		return x.Discards
+	}
+	return nil
+}
+
+func (x *MatchState) GetTurnDeadline() string {
+	if x != nil {
+		return x.TurnDeadline
+	}
+	return ""
+}
+
+func (x *MatchState) GetHandResult() *HandResult {
+	if x != nil {
+		return x.HandResult
+	}
+	return nil
+}
+
+func (x *MatchState) GetSettlement() *Settlement {
+	if x != nil {
+		return x.Settlement
+	}
+	return nil
+}
+
+func (x *MatchState) GetNextDealer() *ContinuationOutcome {
+	if x != nil {
+		return x.NextDealer
+	}
+	return nil
+}
+
 type Tile struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -739,6 +795,8 @@ type PlayerView struct {
 	HandCount     int32                  `protobuf:"varint,2,opt,name=hand_count,json=handCount,proto3" json:"hand_count,omitempty"`
 	Exposed       []*Tile                `protobuf:"bytes,3,rep,name=exposed,proto3" json:"exposed,omitempty"`
 	MeldCount     int32                  `protobuf:"varint,4,opt,name=meld_count,json=meldCount,proto3" json:"meld_count,omitempty"`
+	Melds         []*MeldView            `protobuf:"bytes,5,rep,name=melds,proto3" json:"melds,omitempty"`
+	TakenOver     bool                   `protobuf:"varint,6,opt,name=taken_over,json=takenOver,proto3" json:"taken_over,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -801,6 +859,213 @@ func (x *PlayerView) GetMeldCount() int32 {
 	return 0
 }
 
+func (x *PlayerView) GetMelds() []*MeldView {
+	if x != nil {
+		return x.Melds
+	}
+	return nil
+}
+
+func (x *PlayerView) GetTakenOver() bool {
+	if x != nil {
+		return x.TakenOver
+	}
+	return false
+}
+
+// Meld is the full, unredacted representation used where redaction is not
+// required: a seat's own melds (MatchState.own_melds) and revealed winning
+// hand decompositions (HandShape.melds) after showdown.
+type Meld struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Tiles         []*Tile                `protobuf:"bytes,2,rep,name=tiles,proto3" json:"tiles,omitempty"`
+	Concealed     bool                   `protobuf:"varint,3,opt,name=concealed,proto3" json:"concealed,omitempty"`
+	Added         bool                   `protobuf:"varint,4,opt,name=added,proto3" json:"added,omitempty"`
+	Claimed       bool                   `protobuf:"varint,5,opt,name=claimed,proto3" json:"claimed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Meld) Reset() {
+	*x = Meld{}
+	mi := &file_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Meld) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Meld) ProtoMessage() {}
+
+func (x *Meld) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Meld.ProtoReflect.Descriptor instead.
+func (*Meld) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Meld) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Meld) GetTiles() []*Tile {
+	if x != nil {
+		return x.Tiles
+	}
+	return nil
+}
+
+func (x *Meld) GetConcealed() bool {
+	if x != nil {
+		return x.Concealed
+	}
+	return false
+}
+
+func (x *Meld) GetAdded() bool {
+	if x != nil {
+		return x.Added
+	}
+	return false
+}
+
+func (x *Meld) GetClaimed() bool {
+	if x != nil {
+		return x.Claimed
+	}
+	return false
+}
+
+// MeldView is the redacted representation used for other players'
+// melds (PlayerView.melds): tiles are omitted for a concealed Kong.
+type MeldView struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Tiles         []*Tile                `protobuf:"bytes,2,rep,name=tiles,proto3" json:"tiles,omitempty"`
+	Concealed     bool                   `protobuf:"varint,3,opt,name=concealed,proto3" json:"concealed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MeldView) Reset() {
+	*x = MeldView{}
+	mi := &file_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MeldView) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MeldView) ProtoMessage() {}
+
+func (x *MeldView) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MeldView.ProtoReflect.Descriptor instead.
+func (*MeldView) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *MeldView) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *MeldView) GetTiles() []*Tile {
+	if x != nil {
+		return x.Tiles
+	}
+	return nil
+}
+
+func (x *MeldView) GetConcealed() bool {
+	if x != nil {
+		return x.Concealed
+	}
+	return false
+}
+
+type WaitTileView struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Tile             *Tile                  `protobuf:"bytes,1,opt,name=tile,proto3" json:"tile,omitempty"`
+	VisibleRemaining int32                  `protobuf:"varint,2,opt,name=visible_remaining,json=visibleRemaining,proto3" json:"visible_remaining,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *WaitTileView) Reset() {
+	*x = WaitTileView{}
+	mi := &file_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WaitTileView) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WaitTileView) ProtoMessage() {}
+
+func (x *WaitTileView) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WaitTileView.ProtoReflect.Descriptor instead.
+func (*WaitTileView) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *WaitTileView) GetTile() *Tile {
+	if x != nil {
+		return x.Tile
+	}
+	return nil
+}
+
+func (x *WaitTileView) GetVisibleRemaining() int32 {
+	if x != nil {
+		return x.VisibleRemaining
+	}
+	return 0
+}
+
 type WallView struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Remaining         int32                  `protobuf:"varint,1,opt,name=remaining,proto3" json:"remaining,omitempty"`
@@ -812,7 +1077,7 @@ type WallView struct {
 
 func (x *WallView) Reset() {
 	*x = WallView{}
-	mi := &file_service_proto_msgTypes[10]
+	mi := &file_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -824,7 +1089,7 @@ func (x *WallView) String() string {
 func (*WallView) ProtoMessage() {}
 
 func (x *WallView) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[10]
+	mi := &file_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -837,7 +1102,7 @@ func (x *WallView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WallView.ProtoReflect.Descriptor instead.
 func (*WallView) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{10}
+	return file_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *WallView) GetRemaining() int32 {
@@ -872,7 +1137,7 @@ type Discard struct {
 
 func (x *Discard) Reset() {
 	*x = Discard{}
-	mi := &file_service_proto_msgTypes[11]
+	mi := &file_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -884,7 +1149,7 @@ func (x *Discard) String() string {
 func (*Discard) ProtoMessage() {}
 
 func (x *Discard) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[11]
+	mi := &file_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -897,7 +1162,7 @@ func (x *Discard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Discard.ProtoReflect.Descriptor instead.
 func (*Discard) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{11}
+	return file_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Discard) GetSeat() string {
@@ -929,13 +1194,14 @@ type ClaimView struct {
 	Deadline      string                 `protobuf:"bytes,4,opt,name=deadline,proto3" json:"deadline,omitempty"`
 	Eligible      []string               `protobuf:"bytes,5,rep,name=eligible,proto3" json:"eligible,omitempty"`
 	OwnResponse   *ClaimResponse         `protobuf:"bytes,6,opt,name=own_response,json=ownResponse,proto3" json:"own_response,omitempty"`
+	Options       *ClaimOptionsView      `protobuf:"bytes,7,opt,name=options,proto3" json:"options,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClaimView) Reset() {
 	*x = ClaimView{}
-	mi := &file_service_proto_msgTypes[12]
+	mi := &file_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -947,7 +1213,7 @@ func (x *ClaimView) String() string {
 func (*ClaimView) ProtoMessage() {}
 
 func (x *ClaimView) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[12]
+	mi := &file_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -960,7 +1226,7 @@ func (x *ClaimView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimView.ProtoReflect.Descriptor instead.
 func (*ClaimView) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{12}
+	return file_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ClaimView) GetActionId() string {
@@ -1005,6 +1271,13 @@ func (x *ClaimView) GetOwnResponse() *ClaimResponse {
 	return nil
 }
 
+func (x *ClaimView) GetOptions() *ClaimOptionsView {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
 type ClaimResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ActionId         string                 `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
@@ -1020,7 +1293,7 @@ type ClaimResponse struct {
 
 func (x *ClaimResponse) Reset() {
 	*x = ClaimResponse{}
-	mi := &file_service_proto_msgTypes[13]
+	mi := &file_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1032,7 +1305,7 @@ func (x *ClaimResponse) String() string {
 func (*ClaimResponse) ProtoMessage() {}
 
 func (x *ClaimResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[13]
+	mi := &file_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1045,7 +1318,7 @@ func (x *ClaimResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimResponse.ProtoReflect.Descriptor instead.
 func (*ClaimResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{13}
+	return file_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ClaimResponse) GetActionId() string {
@@ -1097,6 +1370,772 @@ func (x *ClaimResponse) GetDeliberate() bool {
 	return false
 }
 
+// ChowSet is one legal Chow completion: the two tiles from the responding
+// seat's own hand that would join the discard.
+type ChowSet struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TileIds       []string               `protobuf:"bytes,1,rep,name=tile_ids,json=tileIds,proto3" json:"tile_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChowSet) Reset() {
+	*x = ChowSet{}
+	mi := &file_service_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChowSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChowSet) ProtoMessage() {}
+
+func (x *ChowSet) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChowSet.ProtoReflect.Descriptor instead.
+func (*ChowSet) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ChowSet) GetTileIds() []string {
+	if x != nil {
+		return x.TileIds
+	}
+	return nil
+}
+
+type ClaimOptionsView struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CanWin        bool                   `protobuf:"varint,1,opt,name=can_win,json=canWin,proto3" json:"can_win,omitempty"`
+	CanPong       bool                   `protobuf:"varint,2,opt,name=can_pong,json=canPong,proto3" json:"can_pong,omitempty"`
+	CanKong       bool                   `protobuf:"varint,3,opt,name=can_kong,json=canKong,proto3" json:"can_kong,omitempty"`
+	ChowSets      []*ChowSet             `protobuf:"bytes,4,rep,name=chow_sets,json=chowSets,proto3" json:"chow_sets,omitempty"`
+	WinPreview    *ScoreResult           `protobuf:"bytes,5,opt,name=win_preview,json=winPreview,proto3" json:"win_preview,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClaimOptionsView) Reset() {
+	*x = ClaimOptionsView{}
+	mi := &file_service_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClaimOptionsView) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClaimOptionsView) ProtoMessage() {}
+
+func (x *ClaimOptionsView) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClaimOptionsView.ProtoReflect.Descriptor instead.
+func (*ClaimOptionsView) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ClaimOptionsView) GetCanWin() bool {
+	if x != nil {
+		return x.CanWin
+	}
+	return false
+}
+
+func (x *ClaimOptionsView) GetCanPong() bool {
+	if x != nil {
+		return x.CanPong
+	}
+	return false
+}
+
+func (x *ClaimOptionsView) GetCanKong() bool {
+	if x != nil {
+		return x.CanKong
+	}
+	return false
+}
+
+func (x *ClaimOptionsView) GetChowSets() []*ChowSet {
+	if x != nil {
+		return x.ChowSets
+	}
+	return nil
+}
+
+func (x *ClaimOptionsView) GetWinPreview() *ScoreResult {
+	if x != nil {
+		return x.WinPreview
+	}
+	return nil
+}
+
+type ScoreContext struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Seat            string                 `protobuf:"bytes,1,opt,name=seat,proto3" json:"seat,omitempty"`
+	PrevailingWind  string                 `protobuf:"bytes,2,opt,name=prevailing_wind,json=prevailingWind,proto3" json:"prevailing_wind,omitempty"`
+	DiscardWin      bool                   `protobuf:"varint,3,opt,name=discard_win,json=discardWin,proto3" json:"discard_win,omitempty"`
+	Zimo            bool                   `protobuf:"varint,4,opt,name=zimo,proto3" json:"zimo,omitempty"`
+	Replacement     bool                   `protobuf:"varint,5,opt,name=replacement,proto3" json:"replacement,omitempty"`
+	LastTile        bool                   `protobuf:"varint,6,opt,name=last_tile,json=lastTile,proto3" json:"last_tile,omitempty"`
+	RobbedAddedKong bool                   `protobuf:"varint,7,opt,name=robbed_added_kong,json=robbedAddedKong,proto3" json:"robbed_added_kong,omitempty"`
+	EightFlowers    bool                   `protobuf:"varint,8,opt,name=eight_flowers,json=eightFlowers,proto3" json:"eight_flowers,omitempty"`
+	EarthlyHand     bool                   `protobuf:"varint,9,opt,name=earthly_hand,json=earthlyHand,proto3" json:"earthly_hand,omitempty"`
+	HeavenlyHand    bool                   `protobuf:"varint,10,opt,name=heavenly_hand,json=heavenlyHand,proto3" json:"heavenly_hand,omitempty"`
+	SingleWait      bool                   `protobuf:"varint,11,opt,name=single_wait,json=singleWait,proto3" json:"single_wait,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ScoreContext) Reset() {
+	*x = ScoreContext{}
+	mi := &file_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScoreContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScoreContext) ProtoMessage() {}
+
+func (x *ScoreContext) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScoreContext.ProtoReflect.Descriptor instead.
+func (*ScoreContext) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ScoreContext) GetSeat() string {
+	if x != nil {
+		return x.Seat
+	}
+	return ""
+}
+
+func (x *ScoreContext) GetPrevailingWind() string {
+	if x != nil {
+		return x.PrevailingWind
+	}
+	return ""
+}
+
+func (x *ScoreContext) GetDiscardWin() bool {
+	if x != nil {
+		return x.DiscardWin
+	}
+	return false
+}
+
+func (x *ScoreContext) GetZimo() bool {
+	if x != nil {
+		return x.Zimo
+	}
+	return false
+}
+
+func (x *ScoreContext) GetReplacement() bool {
+	if x != nil {
+		return x.Replacement
+	}
+	return false
+}
+
+func (x *ScoreContext) GetLastTile() bool {
+	if x != nil {
+		return x.LastTile
+	}
+	return false
+}
+
+func (x *ScoreContext) GetRobbedAddedKong() bool {
+	if x != nil {
+		return x.RobbedAddedKong
+	}
+	return false
+}
+
+func (x *ScoreContext) GetEightFlowers() bool {
+	if x != nil {
+		return x.EightFlowers
+	}
+	return false
+}
+
+func (x *ScoreContext) GetEarthlyHand() bool {
+	if x != nil {
+		return x.EarthlyHand
+	}
+	return false
+}
+
+func (x *ScoreContext) GetHeavenlyHand() bool {
+	if x != nil {
+		return x.HeavenlyHand
+	}
+	return false
+}
+
+func (x *ScoreContext) GetSingleWait() bool {
+	if x != nil {
+		return x.SingleWait
+	}
+	return false
+}
+
+type PatternScore struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Tai           int32                  `protobuf:"varint,2,opt,name=tai,proto3" json:"tai,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PatternScore) Reset() {
+	*x = PatternScore{}
+	mi := &file_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PatternScore) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PatternScore) ProtoMessage() {}
+
+func (x *PatternScore) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PatternScore.ProtoReflect.Descriptor instead.
+func (*PatternScore) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *PatternScore) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PatternScore) GetTai() int32 {
+	if x != nil {
+		return x.Tai
+	}
+	return 0
+}
+
+type HandShape struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pair          []*Tile                `protobuf:"bytes,1,rep,name=pair,proto3" json:"pair,omitempty"`
+	Melds         []*Meld                `protobuf:"bytes,2,rep,name=melds,proto3" json:"melds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandShape) Reset() {
+	*x = HandShape{}
+	mi := &file_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandShape) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandShape) ProtoMessage() {}
+
+func (x *HandShape) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandShape.ProtoReflect.Descriptor instead.
+func (*HandShape) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *HandShape) GetPair() []*Tile {
+	if x != nil {
+		return x.Pair
+	}
+	return nil
+}
+
+func (x *HandShape) GetMelds() []*Meld {
+	if x != nil {
+		return x.Melds
+	}
+	return nil
+}
+
+type ScoreResult struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Winning        bool                   `protobuf:"varint,1,opt,name=winning,proto3" json:"winning,omitempty"`
+	RawTai         int32                  `protobuf:"varint,2,opt,name=raw_tai,json=rawTai,proto3" json:"raw_tai,omitempty"`
+	Patterns       []*PatternScore        `protobuf:"bytes,3,rep,name=patterns,proto3" json:"patterns,omitempty"`
+	Shape          *HandShape             `protobuf:"bytes,4,opt,name=shape,proto3" json:"shape,omitempty"`
+	EffectiveTiles int32                  `protobuf:"varint,5,opt,name=effective_tiles,json=effectiveTiles,proto3" json:"effective_tiles,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ScoreResult) Reset() {
+	*x = ScoreResult{}
+	mi := &file_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScoreResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScoreResult) ProtoMessage() {}
+
+func (x *ScoreResult) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScoreResult.ProtoReflect.Descriptor instead.
+func (*ScoreResult) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ScoreResult) GetWinning() bool {
+	if x != nil {
+		return x.Winning
+	}
+	return false
+}
+
+func (x *ScoreResult) GetRawTai() int32 {
+	if x != nil {
+		return x.RawTai
+	}
+	return 0
+}
+
+func (x *ScoreResult) GetPatterns() []*PatternScore {
+	if x != nil {
+		return x.Patterns
+	}
+	return nil
+}
+
+func (x *ScoreResult) GetShape() *HandShape {
+	if x != nil {
+		return x.Shape
+	}
+	return nil
+}
+
+func (x *ScoreResult) GetEffectiveTiles() int32 {
+	if x != nil {
+		return x.EffectiveTiles
+	}
+	return 0
+}
+
+type HandWinner struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Seat          string                 `protobuf:"bytes,1,opt,name=seat,proto3" json:"seat,omitempty"`
+	Context       *ScoreContext          `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
+	Score         *ScoreResult           `protobuf:"bytes,3,opt,name=score,proto3" json:"score,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandWinner) Reset() {
+	*x = HandWinner{}
+	mi := &file_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandWinner) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandWinner) ProtoMessage() {}
+
+func (x *HandWinner) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandWinner.ProtoReflect.Descriptor instead.
+func (*HandWinner) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *HandWinner) GetSeat() string {
+	if x != nil {
+		return x.Seat
+	}
+	return ""
+}
+
+func (x *HandWinner) GetContext() *ScoreContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *HandWinner) GetScore() *ScoreResult {
+	if x != nil {
+		return x.Score
+	}
+	return nil
+}
+
+type HandResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Winners       []*HandWinner          `protobuf:"bytes,2,rep,name=winners,proto3" json:"winners,omitempty"`
+	Payer         string                 `protobuf:"bytes,3,opt,name=payer,proto3" json:"payer,omitempty"`
+	WinningTileId string                 `protobuf:"bytes,4,opt,name=winning_tile_id,json=winningTileId,proto3" json:"winning_tile_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandResult) Reset() {
+	*x = HandResult{}
+	mi := &file_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandResult) ProtoMessage() {}
+
+func (x *HandResult) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandResult.ProtoReflect.Descriptor instead.
+func (*HandResult) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *HandResult) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *HandResult) GetWinners() []*HandWinner {
+	if x != nil {
+		return x.Winners
+	}
+	return nil
+}
+
+func (x *HandResult) GetPayer() string {
+	if x != nil {
+		return x.Payer
+	}
+	return ""
+}
+
+func (x *HandResult) GetWinningTileId() string {
+	if x != nil {
+		return x.WinningTileId
+	}
+	return ""
+}
+
+type Transfer struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	From          string                 `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+	To            string                 `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	EffectiveTai  int64                  `protobuf:"varint,3,opt,name=effective_tai,json=effectiveTai,proto3" json:"effective_tai,omitempty"`
+	RawAmount     int64                  `protobuf:"varint,4,opt,name=raw_amount,json=rawAmount,proto3" json:"raw_amount,omitempty"`
+	Amount        int64                  `protobuf:"varint,5,opt,name=amount,proto3" json:"amount,omitempty"`
+	Capped        bool                   `protobuf:"varint,6,opt,name=capped,proto3" json:"capped,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Transfer) Reset() {
+	*x = Transfer{}
+	mi := &file_service_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Transfer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Transfer) ProtoMessage() {}
+
+func (x *Transfer) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Transfer.ProtoReflect.Descriptor instead.
+func (*Transfer) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *Transfer) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
+}
+
+func (x *Transfer) GetTo() string {
+	if x != nil {
+		return x.To
+	}
+	return ""
+}
+
+func (x *Transfer) GetEffectiveTai() int64 {
+	if x != nil {
+		return x.EffectiveTai
+	}
+	return 0
+}
+
+func (x *Transfer) GetRawAmount() int64 {
+	if x != nil {
+		return x.RawAmount
+	}
+	return 0
+}
+
+func (x *Transfer) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *Transfer) GetCapped() bool {
+	if x != nil {
+		return x.Capped
+	}
+	return false
+}
+
+type Settlement struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Transfers     []*Transfer            `protobuf:"bytes,1,rep,name=transfers,proto3" json:"transfers,omitempty"`
+	Net           map[string]int64       `protobuf:"bytes,2,rep,name=net,proto3" json:"net,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	TotalCredits  int64                  `protobuf:"varint,3,opt,name=total_credits,json=totalCredits,proto3" json:"total_credits,omitempty"`
+	TotalDebits   int64                  `protobuf:"varint,4,opt,name=total_debits,json=totalDebits,proto3" json:"total_debits,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Settlement) Reset() {
+	*x = Settlement{}
+	mi := &file_service_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Settlement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Settlement) ProtoMessage() {}
+
+func (x *Settlement) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Settlement.ProtoReflect.Descriptor instead.
+func (*Settlement) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *Settlement) GetTransfers() []*Transfer {
+	if x != nil {
+		return x.Transfers
+	}
+	return nil
+}
+
+func (x *Settlement) GetNet() map[string]int64 {
+	if x != nil {
+		return x.Net
+	}
+	return nil
+}
+
+func (x *Settlement) GetTotalCredits() int64 {
+	if x != nil {
+		return x.TotalCredits
+	}
+	return 0
+}
+
+func (x *Settlement) GetTotalDebits() int64 {
+	if x != nil {
+		return x.TotalDebits
+	}
+	return 0
+}
+
+type ContinuationOutcome struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	NextDealer        string                 `protobuf:"bytes,1,opt,name=next_dealer,json=nextDealer,proto3" json:"next_dealer,omitempty"`
+	NextContinuations int32                  `protobuf:"varint,2,opt,name=next_continuations,json=nextContinuations,proto3" json:"next_continuations,omitempty"`
+	DealerRetains     bool                   `protobuf:"varint,3,opt,name=dealer_retains,json=dealerRetains,proto3" json:"dealer_retains,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ContinuationOutcome) Reset() {
+	*x = ContinuationOutcome{}
+	mi := &file_service_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContinuationOutcome) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContinuationOutcome) ProtoMessage() {}
+
+func (x *ContinuationOutcome) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContinuationOutcome.ProtoReflect.Descriptor instead.
+func (*ContinuationOutcome) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ContinuationOutcome) GetNextDealer() string {
+	if x != nil {
+		return x.NextDealer
+	}
+	return ""
+}
+
+func (x *ContinuationOutcome) GetNextContinuations() int32 {
+	if x != nil {
+		return x.NextContinuations
+	}
+	return 0
+}
+
+func (x *ContinuationOutcome) GetDealerRetains() bool {
+	if x != nil {
+		return x.DealerRetains
+	}
+	return false
+}
+
 var File_service_proto protoreflect.FileDescriptor
 
 const file_service_proto_rawDesc = "" +
@@ -1140,7 +2179,7 @@ const file_service_proto_rawDesc = "" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12#\n" +
 	"\rstate_version\x18\x02 \x01(\x04R\fstateVersion\x12\x14\n" +
 	"\x05phase\x18\x03 \x01(\tR\x05phase\x12)\n" +
-	"\x05state\x18\x04 \x01(\v2\x13.service.MatchStateR\x05state\"\xc5\x03\n" +
+	"\x05state\x18\x04 \x01(\v2\x13.service.MatchStateR\x05state\"\x9b\x06\n" +
 	"\n" +
 	"MatchState\x12\x19\n" +
 	"\bmatch_id\x18\x01 \x01(\tR\amatchId\x12\x12\n" +
@@ -1158,12 +2197,23 @@ const file_service_proto_rawDesc = "" +
 	" \x01(\v2\x10.service.DiscardR\vlastDiscard\x12(\n" +
 	"\x05claim\x18\v \x01(\v2\x12.service.ClaimViewR\x05claim\x12\x1d\n" +
 	"\n" +
-	"win_locked\x18\f \x01(\bR\twinLocked\"R\n" +
+	"win_locked\x18\f \x01(\bR\twinLocked\x12+\n" +
+	"\x05waits\x18\r \x03(\v2\x15.service.WaitTileViewR\x05waits\x12*\n" +
+	"\town_melds\x18\x0e \x03(\v2\r.service.MeldR\bownMelds\x12,\n" +
+	"\bdiscards\x18\x0f \x03(\v2\x10.service.DiscardR\bdiscards\x12#\n" +
+	"\rturn_deadline\x18\x10 \x01(\tR\fturnDeadline\x124\n" +
+	"\vhand_result\x18\x11 \x01(\v2\x13.service.HandResultR\n" +
+	"handResult\x123\n" +
+	"\n" +
+	"settlement\x18\x12 \x01(\v2\x13.service.SettlementR\n" +
+	"settlement\x12=\n" +
+	"\vnext_dealer\x18\x13 \x01(\v2\x1c.service.ContinuationOutcomeR\n" +
+	"nextDealer\"R\n" +
 	"\x04Tile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x12\n" +
 	"\x04rank\x18\x03 \x01(\rR\x04rank\x12\x12\n" +
-	"\x04copy\x18\x04 \x01(\rR\x04copy\"\x87\x01\n" +
+	"\x04copy\x18\x04 \x01(\rR\x04copy\"\xcf\x01\n" +
 	"\n" +
 	"PlayerView\x12\x12\n" +
 	"\x04seat\x18\x01 \x01(\tR\x04seat\x12\x1d\n" +
@@ -1171,7 +2221,23 @@ const file_service_proto_rawDesc = "" +
 	"hand_count\x18\x02 \x01(\x05R\thandCount\x12'\n" +
 	"\aexposed\x18\x03 \x03(\v2\r.service.TileR\aexposed\x12\x1d\n" +
 	"\n" +
-	"meld_count\x18\x04 \x01(\x05R\tmeldCount\"\x84\x01\n" +
+	"meld_count\x18\x04 \x01(\x05R\tmeldCount\x12'\n" +
+	"\x05melds\x18\x05 \x03(\v2\x11.service.MeldViewR\x05melds\x12\x1d\n" +
+	"\n" +
+	"taken_over\x18\x06 \x01(\bR\ttakenOver\"\x8d\x01\n" +
+	"\x04Meld\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12#\n" +
+	"\x05tiles\x18\x02 \x03(\v2\r.service.TileR\x05tiles\x12\x1c\n" +
+	"\tconcealed\x18\x03 \x01(\bR\tconcealed\x12\x14\n" +
+	"\x05added\x18\x04 \x01(\bR\x05added\x12\x18\n" +
+	"\aclaimed\x18\x05 \x01(\bR\aclaimed\"a\n" +
+	"\bMeldView\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12#\n" +
+	"\x05tiles\x18\x02 \x03(\v2\r.service.TileR\x05tiles\x12\x1c\n" +
+	"\tconcealed\x18\x03 \x01(\bR\tconcealed\"^\n" +
+	"\fWaitTileView\x12!\n" +
+	"\x04tile\x18\x01 \x01(\v2\r.service.TileR\x04tile\x12+\n" +
+	"\x11visible_remaining\x18\x02 \x01(\x05R\x10visibleRemaining\"\x84\x01\n" +
 	"\bWallView\x12\x1c\n" +
 	"\tremaining\x18\x01 \x01(\x05R\tremaining\x12-\n" +
 	"\x12drawable_remaining\x18\x02 \x01(\x05R\x11drawableRemaining\x12+\n" +
@@ -1179,14 +2245,15 @@ const file_service_proto_rawDesc = "" +
 	"\aDiscard\x12\x12\n" +
 	"\x04seat\x18\x01 \x01(\tR\x04seat\x12!\n" +
 	"\x04tile\x18\x02 \x01(\v2\r.service.TileR\x04tile\x12\x1a\n" +
-	"\bsequence\x18\x03 \x01(\x04R\bsequence\"\xec\x01\n" +
+	"\bsequence\x18\x03 \x01(\x04R\bsequence\"\xa1\x02\n" +
 	"\tClaimView\x12\x1b\n" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x12#\n" +
 	"\rstate_version\x18\x02 \x01(\x04R\fstateVersion\x12*\n" +
 	"\adiscard\x18\x03 \x01(\v2\x10.service.DiscardR\adiscard\x12\x1a\n" +
 	"\bdeadline\x18\x04 \x01(\tR\bdeadline\x12\x1a\n" +
 	"\beligible\x18\x05 \x03(\tR\beligible\x129\n" +
-	"\fown_response\x18\x06 \x01(\v2\x16.service.ClaimResponseR\vownResponse\"\xe1\x01\n" +
+	"\fown_response\x18\x06 \x01(\v2\x16.service.ClaimResponseR\vownResponse\x123\n" +
+	"\aoptions\x18\a \x01(\v2\x19.service.ClaimOptionsViewR\aoptions\"\xe1\x01\n" +
 	"\rClaimResponse\x12\x1b\n" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x12\x12\n" +
 	"\x04seat\x18\x02 \x01(\tR\x04seat\x12\x12\n" +
@@ -1196,7 +2263,76 @@ const file_service_proto_rawDesc = "" +
 	"\x11response_revision\x18\x06 \x01(\x04R\x10responseRevision\x12\x1e\n" +
 	"\n" +
 	"deliberate\x18\a \x01(\bR\n" +
-	"deliberate*\x98\x01\n" +
+	"deliberate\"$\n" +
+	"\aChowSet\x12\x19\n" +
+	"\btile_ids\x18\x01 \x03(\tR\atileIds\"\xc7\x01\n" +
+	"\x10ClaimOptionsView\x12\x17\n" +
+	"\acan_win\x18\x01 \x01(\bR\x06canWin\x12\x19\n" +
+	"\bcan_pong\x18\x02 \x01(\bR\acanPong\x12\x19\n" +
+	"\bcan_kong\x18\x03 \x01(\bR\acanKong\x12-\n" +
+	"\tchow_sets\x18\x04 \x03(\v2\x10.service.ChowSetR\bchowSets\x125\n" +
+	"\vwin_preview\x18\x05 \x01(\v2\x14.service.ScoreResultR\n" +
+	"winPreview\"\xf9\x02\n" +
+	"\fScoreContext\x12\x12\n" +
+	"\x04seat\x18\x01 \x01(\tR\x04seat\x12'\n" +
+	"\x0fprevailing_wind\x18\x02 \x01(\tR\x0eprevailingWind\x12\x1f\n" +
+	"\vdiscard_win\x18\x03 \x01(\bR\n" +
+	"discardWin\x12\x12\n" +
+	"\x04zimo\x18\x04 \x01(\bR\x04zimo\x12 \n" +
+	"\vreplacement\x18\x05 \x01(\bR\vreplacement\x12\x1b\n" +
+	"\tlast_tile\x18\x06 \x01(\bR\blastTile\x12*\n" +
+	"\x11robbed_added_kong\x18\a \x01(\bR\x0frobbedAddedKong\x12#\n" +
+	"\reight_flowers\x18\b \x01(\bR\feightFlowers\x12!\n" +
+	"\fearthly_hand\x18\t \x01(\bR\vearthlyHand\x12#\n" +
+	"\rheavenly_hand\x18\n" +
+	" \x01(\bR\fheavenlyHand\x12\x1f\n" +
+	"\vsingle_wait\x18\v \x01(\bR\n" +
+	"singleWait\"4\n" +
+	"\fPatternScore\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
+	"\x03tai\x18\x02 \x01(\x05R\x03tai\"S\n" +
+	"\tHandShape\x12!\n" +
+	"\x04pair\x18\x01 \x03(\v2\r.service.TileR\x04pair\x12#\n" +
+	"\x05melds\x18\x02 \x03(\v2\r.service.MeldR\x05melds\"\xc6\x01\n" +
+	"\vScoreResult\x12\x18\n" +
+	"\awinning\x18\x01 \x01(\bR\awinning\x12\x17\n" +
+	"\araw_tai\x18\x02 \x01(\x05R\x06rawTai\x121\n" +
+	"\bpatterns\x18\x03 \x03(\v2\x15.service.PatternScoreR\bpatterns\x12(\n" +
+	"\x05shape\x18\x04 \x01(\v2\x12.service.HandShapeR\x05shape\x12'\n" +
+	"\x0feffective_tiles\x18\x05 \x01(\x05R\x0eeffectiveTiles\"}\n" +
+	"\n" +
+	"HandWinner\x12\x12\n" +
+	"\x04seat\x18\x01 \x01(\tR\x04seat\x12/\n" +
+	"\acontext\x18\x02 \x01(\v2\x15.service.ScoreContextR\acontext\x12*\n" +
+	"\x05score\x18\x03 \x01(\v2\x14.service.ScoreResultR\x05score\"\x8d\x01\n" +
+	"\n" +
+	"HandResult\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12-\n" +
+	"\awinners\x18\x02 \x03(\v2\x13.service.HandWinnerR\awinners\x12\x14\n" +
+	"\x05payer\x18\x03 \x01(\tR\x05payer\x12&\n" +
+	"\x0fwinning_tile_id\x18\x04 \x01(\tR\rwinningTileId\"\xa2\x01\n" +
+	"\bTransfer\x12\x12\n" +
+	"\x04from\x18\x01 \x01(\tR\x04from\x12\x0e\n" +
+	"\x02to\x18\x02 \x01(\tR\x02to\x12#\n" +
+	"\reffective_tai\x18\x03 \x01(\x03R\feffectiveTai\x12\x1d\n" +
+	"\n" +
+	"raw_amount\x18\x04 \x01(\x03R\trawAmount\x12\x16\n" +
+	"\x06amount\x18\x05 \x01(\x03R\x06amount\x12\x16\n" +
+	"\x06capped\x18\x06 \x01(\bR\x06capped\"\xed\x01\n" +
+	"\n" +
+	"Settlement\x12/\n" +
+	"\ttransfers\x18\x01 \x03(\v2\x11.service.TransferR\ttransfers\x12.\n" +
+	"\x03net\x18\x02 \x03(\v2\x1c.service.Settlement.NetEntryR\x03net\x12#\n" +
+	"\rtotal_credits\x18\x03 \x01(\x03R\ftotalCredits\x12!\n" +
+	"\ftotal_debits\x18\x04 \x01(\x03R\vtotalDebits\x1a6\n" +
+	"\bNetEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"\x8c\x01\n" +
+	"\x13ContinuationOutcome\x12\x1f\n" +
+	"\vnext_dealer\x18\x01 \x01(\tR\n" +
+	"nextDealer\x12-\n" +
+	"\x12next_continuations\x18\x02 \x01(\x05R\x11nextContinuations\x12%\n" +
+	"\x0edealer_retains\x18\x03 \x01(\bR\rdealerRetains*\x98\x01\n" +
 	"\x10MatchCommandType\x12\"\n" +
 	"\x1eMATCH_COMMAND_TYPE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17MATCH_COMMAND_TYPE_DRAW\x10\x01\x12\x1e\n" +
@@ -1233,7 +2369,7 @@ func file_service_proto_rawDescGZIP() []byte {
 }
 
 var file_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_service_proto_goTypes = []any{
 	(MatchCommandType)(0),              // 0: service.MatchCommandType
 	(*JoinMatchRequest)(nil),           // 1: service.JoinMatchRequest
@@ -1246,10 +2382,25 @@ var file_service_proto_goTypes = []any{
 	(*MatchState)(nil),                 // 8: service.MatchState
 	(*Tile)(nil),                       // 9: service.Tile
 	(*PlayerView)(nil),                 // 10: service.PlayerView
-	(*WallView)(nil),                   // 11: service.WallView
-	(*Discard)(nil),                    // 12: service.Discard
-	(*ClaimView)(nil),                  // 13: service.ClaimView
-	(*ClaimResponse)(nil),              // 14: service.ClaimResponse
+	(*Meld)(nil),                       // 11: service.Meld
+	(*MeldView)(nil),                   // 12: service.MeldView
+	(*WaitTileView)(nil),               // 13: service.WaitTileView
+	(*WallView)(nil),                   // 14: service.WallView
+	(*Discard)(nil),                    // 15: service.Discard
+	(*ClaimView)(nil),                  // 16: service.ClaimView
+	(*ClaimResponse)(nil),              // 17: service.ClaimResponse
+	(*ChowSet)(nil),                    // 18: service.ChowSet
+	(*ClaimOptionsView)(nil),           // 19: service.ClaimOptionsView
+	(*ScoreContext)(nil),               // 20: service.ScoreContext
+	(*PatternScore)(nil),               // 21: service.PatternScore
+	(*HandShape)(nil),                  // 22: service.HandShape
+	(*ScoreResult)(nil),                // 23: service.ScoreResult
+	(*HandWinner)(nil),                 // 24: service.HandWinner
+	(*HandResult)(nil),                 // 25: service.HandResult
+	(*Transfer)(nil),                   // 26: service.Transfer
+	(*Settlement)(nil),                 // 27: service.Settlement
+	(*ContinuationOutcome)(nil),        // 28: service.ContinuationOutcome
+	nil,                                // 29: service.Settlement.NetEntry
 }
 var file_service_proto_depIdxs = []int32{
 	8,  // 0: service.JoinMatchResponse.state:type_name -> service.MatchState
@@ -1260,24 +2411,46 @@ var file_service_proto_depIdxs = []int32{
 	9,  // 5: service.MatchState.own_hand:type_name -> service.Tile
 	9,  // 6: service.MatchState.own_exposed:type_name -> service.Tile
 	10, // 7: service.MatchState.players:type_name -> service.PlayerView
-	11, // 8: service.MatchState.wall:type_name -> service.WallView
-	12, // 9: service.MatchState.last_discard:type_name -> service.Discard
-	13, // 10: service.MatchState.claim:type_name -> service.ClaimView
-	9,  // 11: service.PlayerView.exposed:type_name -> service.Tile
-	9,  // 12: service.Discard.tile:type_name -> service.Tile
-	12, // 13: service.ClaimView.discard:type_name -> service.Discard
-	14, // 14: service.ClaimView.own_response:type_name -> service.ClaimResponse
-	1,  // 15: service.Service.JoinMatch:input_type -> service.JoinMatchRequest
-	3,  // 16: service.Service.GetMatchState:input_type -> service.GetMatchStateRequest
-	5,  // 17: service.Service.SubmitMatchCommand:input_type -> service.SubmitMatchCommandRequest
-	2,  // 18: service.Service.JoinMatch:output_type -> service.JoinMatchResponse
-	4,  // 19: service.Service.GetMatchState:output_type -> service.GetMatchStateResponse
-	7,  // 20: service.Service.SubmitMatchCommand:output_type -> service.SubmitMatchCommandResponse
-	18, // [18:21] is the sub-list for method output_type
-	15, // [15:18] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	14, // 8: service.MatchState.wall:type_name -> service.WallView
+	15, // 9: service.MatchState.last_discard:type_name -> service.Discard
+	16, // 10: service.MatchState.claim:type_name -> service.ClaimView
+	13, // 11: service.MatchState.waits:type_name -> service.WaitTileView
+	11, // 12: service.MatchState.own_melds:type_name -> service.Meld
+	15, // 13: service.MatchState.discards:type_name -> service.Discard
+	25, // 14: service.MatchState.hand_result:type_name -> service.HandResult
+	27, // 15: service.MatchState.settlement:type_name -> service.Settlement
+	28, // 16: service.MatchState.next_dealer:type_name -> service.ContinuationOutcome
+	9,  // 17: service.PlayerView.exposed:type_name -> service.Tile
+	12, // 18: service.PlayerView.melds:type_name -> service.MeldView
+	9,  // 19: service.Meld.tiles:type_name -> service.Tile
+	9,  // 20: service.MeldView.tiles:type_name -> service.Tile
+	9,  // 21: service.WaitTileView.tile:type_name -> service.Tile
+	9,  // 22: service.Discard.tile:type_name -> service.Tile
+	15, // 23: service.ClaimView.discard:type_name -> service.Discard
+	17, // 24: service.ClaimView.own_response:type_name -> service.ClaimResponse
+	19, // 25: service.ClaimView.options:type_name -> service.ClaimOptionsView
+	18, // 26: service.ClaimOptionsView.chow_sets:type_name -> service.ChowSet
+	23, // 27: service.ClaimOptionsView.win_preview:type_name -> service.ScoreResult
+	9,  // 28: service.HandShape.pair:type_name -> service.Tile
+	11, // 29: service.HandShape.melds:type_name -> service.Meld
+	21, // 30: service.ScoreResult.patterns:type_name -> service.PatternScore
+	22, // 31: service.ScoreResult.shape:type_name -> service.HandShape
+	20, // 32: service.HandWinner.context:type_name -> service.ScoreContext
+	23, // 33: service.HandWinner.score:type_name -> service.ScoreResult
+	24, // 34: service.HandResult.winners:type_name -> service.HandWinner
+	26, // 35: service.Settlement.transfers:type_name -> service.Transfer
+	29, // 36: service.Settlement.net:type_name -> service.Settlement.NetEntry
+	1,  // 37: service.Service.JoinMatch:input_type -> service.JoinMatchRequest
+	3,  // 38: service.Service.GetMatchState:input_type -> service.GetMatchStateRequest
+	5,  // 39: service.Service.SubmitMatchCommand:input_type -> service.SubmitMatchCommandRequest
+	2,  // 40: service.Service.JoinMatch:output_type -> service.JoinMatchResponse
+	4,  // 41: service.Service.GetMatchState:output_type -> service.GetMatchStateResponse
+	7,  // 42: service.Service.SubmitMatchCommand:output_type -> service.SubmitMatchCommandResponse
+	40, // [40:43] is the sub-list for method output_type
+	37, // [37:40] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_service_proto_init() }
@@ -1291,7 +2464,7 @@ func file_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_proto_rawDesc), len(file_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   14,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 )
@@ -46,5 +48,47 @@ func TestPostgresDSN_LocalConnectionDoesNotForceTLS(t *testing.T) {
 	}
 	if parsed.Query().Has("sslmode") || parsed.Query().Has("sslrootcert") {
 		t.Fatalf("local TLS query = %v, want empty", parsed.Query())
+	}
+}
+
+func TestCorsMiddleware_AnswersPreflightWithoutReachingTheHandler(t *testing.T) {
+	called := false
+	handler := corsMiddleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+
+	request := httptest.NewRequest(http.MethodOptions, "/v1/namespaces/ns/sessions/s/matches/m/join", nil)
+	request.Header.Set("Origin", "https://gameswithout.github.io")
+	request.Header.Set("Access-Control-Request-Method", "POST")
+	request.Header.Set("Access-Control-Request-Headers", "authorization,content-type")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if called {
+		t.Fatal("preflight request reached the wrapped handler")
+	}
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("Access-Control-Allow-Origin = %q", got)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Headers"); got != "Authorization, Content-Type" {
+		t.Fatalf("Access-Control-Allow-Headers = %q", got)
+	}
+}
+
+func TestCorsMiddleware_AddsOriginHeaderToRealRequests(t *testing.T) {
+	handler := corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/namespaces/ns/sessions/s/matches/m/join", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("Access-Control-Allow-Origin = %q", got)
 	}
 }

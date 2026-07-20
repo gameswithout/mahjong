@@ -141,6 +141,13 @@ message MatchState {
   Discard last_discard = 10;
   ClaimView claim = 11;
   bool win_locked = 12;
+  repeated WaitTileView waits = 13;
+  repeated Meld own_melds = 14;
+  repeated Discard discards = 15;
+  string turn_deadline = 16;
+  HandResult hand_result = 17;
+  Settlement settlement = 18;
+  ContinuationOutcome next_dealer = 19;
 }
 
 message Tile {
@@ -155,6 +162,32 @@ message PlayerView {
   int32 hand_count = 2;
   repeated Tile exposed = 3;
   int32 meld_count = 4;
+  repeated MeldView melds = 5;
+  bool taken_over = 6;
+}
+
+// Meld is the full, unredacted representation used where redaction is not
+// required: a seat's own melds (MatchState.own_melds) and revealed winning
+// hand decompositions (HandShape.melds) after showdown.
+message Meld {
+  string type = 1;
+  repeated Tile tiles = 2;
+  bool concealed = 3;
+  bool added = 4;
+  bool claimed = 5;
+}
+
+// MeldView is the redacted representation used for other players'
+// melds (PlayerView.melds): tiles are omitted for a concealed Kong.
+message MeldView {
+  string type = 1;
+  repeated Tile tiles = 2;
+  bool concealed = 3;
+}
+
+message WaitTileView {
+  Tile tile = 1;
+  int32 visible_remaining = 2;
 }
 
 message WallView {
@@ -176,6 +209,7 @@ message ClaimView {
   string deadline = 4;
   repeated string eligible = 5;
   ClaimResponse own_response = 6;
+  ClaimOptionsView options = 7;
 }
 
 message ClaimResponse {
@@ -186,6 +220,87 @@ message ClaimResponse {
   uint64 state_version = 5;
   uint64 response_revision = 6;
   bool deliberate = 7;
+}
+
+// ChowSet is one legal Chow completion: the two tiles from the responding
+// seat's own hand that would join the discard.
+message ChowSet {
+  repeated string tile_ids = 1;
+}
+
+message ClaimOptionsView {
+  bool can_win = 1;
+  bool can_pong = 2;
+  bool can_kong = 3;
+  repeated ChowSet chow_sets = 4;
+  ScoreResult win_preview = 5;
+}
+
+message ScoreContext {
+  string seat = 1;
+  string prevailing_wind = 2;
+  bool discard_win = 3;
+  bool zimo = 4;
+  bool replacement = 5;
+  bool last_tile = 6;
+  bool robbed_added_kong = 7;
+  bool eight_flowers = 8;
+  bool earthly_hand = 9;
+  bool heavenly_hand = 10;
+  bool single_wait = 11;
+}
+
+message PatternScore {
+  string name = 1;
+  int32 tai = 2;
+}
+
+message HandShape {
+  repeated Tile pair = 1;
+  repeated Meld melds = 2;
+}
+
+message ScoreResult {
+  bool winning = 1;
+  int32 raw_tai = 2;
+  repeated PatternScore patterns = 3;
+  HandShape shape = 4;
+  int32 effective_tiles = 5;
+}
+
+message HandWinner {
+  string seat = 1;
+  ScoreContext context = 2;
+  ScoreResult score = 3;
+}
+
+message HandResult {
+  string kind = 1;
+  repeated HandWinner winners = 2;
+  string payer = 3;
+  string winning_tile_id = 4;
+}
+
+message Transfer {
+  string from = 1;
+  string to = 2;
+  int64 effective_tai = 3;
+  int64 raw_amount = 4;
+  int64 amount = 5;
+  bool capped = 6;
+}
+
+message Settlement {
+  repeated Transfer transfers = 1;
+  map<string, int64> net = 2;
+  int64 total_credits = 3;
+  int64 total_debits = 4;
+}
+
+message ContinuationOutcome {
+  string next_dealer = 1;
+  int32 next_continuations = 2;
+  bool dealer_retains = 3;
 }
 
 option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {

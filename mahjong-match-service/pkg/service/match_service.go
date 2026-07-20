@@ -221,13 +221,17 @@ func projectState(matchID string, view rulesengine.SeatView) *pb.MatchState {
 		ActiveSeat:   string(view.ActiveSeat),
 		OwnHand:      projectTiles(view.OwnHand),
 		OwnExposed:   projectTiles(view.OwnExposed),
+		OwnMelds:     projectMelds(view.OwnMelds),
 		Players:      make([]*pb.PlayerView, 0, len(view.Players)),
 		Wall: &pb.WallView{
 			Remaining:         int32(view.Wall.Remaining),
 			DrawableRemaining: int32(view.Wall.DrawableRemaining),
 			ReserveRemaining:  int32(view.Wall.ReserveRemaining),
 		},
-		WinLocked: view.WinLocked,
+		WinLocked:    view.WinLocked,
+		Waits:        projectWaits(view.Waits),
+		Discards:     projectDiscards(view.Discards),
+		TurnDeadline: view.TurnDeadline,
 	}
 	for _, player := range view.Players {
 		state.Players = append(state.Players, &pb.PlayerView{
@@ -235,6 +239,8 @@ func projectState(matchID string, view rulesengine.SeatView) *pb.MatchState {
 			HandCount: int32(player.HandCount),
 			Exposed:   projectTiles(player.Exposed),
 			MeldCount: int32(player.MeldCount),
+			Melds:     projectMeldViews(player.Melds),
+			TakenOver: player.TakenOver,
 		})
 	}
 	if view.LastDiscard != nil {
@@ -247,12 +253,156 @@ func projectState(matchID string, view rulesengine.SeatView) *pb.MatchState {
 			Discard:      projectDiscard(view.Claim.Discard),
 			Deadline:     view.Claim.Deadline,
 			Eligible:     projectSeats(view.Claim.Eligible),
+			Options:      projectClaimOptions(view.Claim.Options),
 		}
 		if view.Claim.OwnResponse != nil {
 			state.Claim.OwnResponse = projectClaimResponse(*view.Claim.OwnResponse)
 		}
 	}
+	if view.HandResult != nil {
+		state.HandResult = projectHandResult(*view.HandResult)
+	}
+	if view.Settlement != nil {
+		state.Settlement = projectSettlement(*view.Settlement)
+	}
+	if view.NextDealer != nil {
+		state.NextDealer = &pb.ContinuationOutcome{
+			NextDealer:        string(view.NextDealer.NextDealer),
+			NextContinuations: int32(view.NextDealer.NextContinuations),
+			DealerRetains:     view.NextDealer.DealerRetains,
+		}
+	}
 	return state
+}
+
+func projectWaits(waits []rulesengine.WaitTileView) []*pb.WaitTileView {
+	result := make([]*pb.WaitTileView, 0, len(waits))
+	for _, wait := range waits {
+		result = append(result, &pb.WaitTileView{
+			Tile:             projectTiles([]rulesengine.Tile{wait.Tile})[0],
+			VisibleRemaining: int32(wait.VisibleRemaining),
+		})
+	}
+	return result
+}
+
+func projectMelds(melds []rulesengine.Meld) []*pb.Meld {
+	result := make([]*pb.Meld, 0, len(melds))
+	for _, meld := range melds {
+		result = append(result, &pb.Meld{
+			Type:      string(meld.Type),
+			Tiles:     projectTiles(meld.Tiles),
+			Concealed: meld.Concealed,
+			Added:     meld.Added,
+			Claimed:   meld.Claimed,
+		})
+	}
+	return result
+}
+
+func projectMeldViews(melds []rulesengine.MeldView) []*pb.MeldView {
+	result := make([]*pb.MeldView, 0, len(melds))
+	for _, meld := range melds {
+		result = append(result, &pb.MeldView{
+			Type:      string(meld.Type),
+			Tiles:     projectTiles(meld.Tiles),
+			Concealed: meld.Concealed,
+		})
+	}
+	return result
+}
+
+func projectDiscards(discards []rulesengine.Discard) []*pb.Discard {
+	result := make([]*pb.Discard, 0, len(discards))
+	for _, discard := range discards {
+		result = append(result, projectDiscard(discard))
+	}
+	return result
+}
+
+func projectClaimOptions(options rulesengine.ClaimOptionsView) *pb.ClaimOptionsView {
+	view := &pb.ClaimOptionsView{
+		CanWin:  options.CanWin,
+		CanPong: options.CanPong,
+		CanKong: options.CanKong,
+	}
+	for _, chowSet := range options.ChowSets {
+		view.ChowSets = append(view.ChowSets, &pb.ChowSet{TileIds: []string{chowSet[0], chowSet[1]}})
+	}
+	if options.WinPreview != nil {
+		view.WinPreview = projectScoreResult(*options.WinPreview)
+	}
+	return view
+}
+
+func projectScoreResult(result rulesengine.ScoreResult) *pb.ScoreResult {
+	score := &pb.ScoreResult{
+		Winning:        result.Winning,
+		RawTai:         int32(result.RawTai),
+		EffectiveTiles: int32(result.EffectiveTiles),
+		Shape: &pb.HandShape{
+			Pair:  projectTiles(result.Shape.Pair),
+			Melds: projectMelds(result.Shape.Melds),
+		},
+	}
+	for _, pattern := range result.Patterns {
+		score.Patterns = append(score.Patterns, &pb.PatternScore{Name: pattern.Name, Tai: int32(pattern.Tai)})
+	}
+	return score
+}
+
+func projectScoreContext(context rulesengine.ScoreContext) *pb.ScoreContext {
+	return &pb.ScoreContext{
+		Seat:            string(context.Seat),
+		PrevailingWind:  string(context.PrevailingWind),
+		DiscardWin:      context.DiscardWin,
+		Zimo:            context.Zimo,
+		Replacement:     context.Replacement,
+		LastTile:        context.LastTile,
+		RobbedAddedKong: context.RobbedAddedKong,
+		EightFlowers:    context.EightFlowers,
+		EarthlyHand:     context.EarthlyHand,
+		HeavenlyHand:    context.HeavenlyHand,
+		SingleWait:      context.SingleWait,
+	}
+}
+
+func projectHandResult(result rulesengine.HandResult) *pb.HandResult {
+	handResult := &pb.HandResult{
+		Kind:          string(result.Kind),
+		Payer:         string(result.Payer),
+		WinningTileId: result.WinningTileID,
+	}
+	for _, winner := range result.Winners {
+		handResult.Winners = append(handResult.Winners, &pb.HandWinner{
+			Seat:    string(winner.Seat),
+			Context: projectScoreContext(winner.Context),
+			Score:   projectScoreResult(winner.Score),
+		})
+	}
+	return handResult
+}
+
+func projectSettlement(settlement rulesengine.Settlement) *pb.Settlement {
+	result := &pb.Settlement{
+		Net:          make(map[string]int64, len(settlement.Net)),
+		TotalCredits: settlement.TotalCredits,
+		TotalDebits:  settlement.TotalDebits,
+	}
+	for seat, amount := range settlement.Net {
+		result.Net[string(seat)] = amount
+	}
+	for _, transfer := range settlement.Transfers {
+		result.Transfers = append(result.Transfers, &pb.Transfer{
+			From:         string(transfer.From),
+			To:           string(transfer.To),
+			EffectiveTai: transfer.EffectiveTai,
+			RawAmount:    transfer.RawAmount,
+			Amount:       transfer.Amount,
+			Capped:       transfer.Capped,
+		})
+	}
+	return result
 }
 
 func projectTiles(tiles []rulesengine.Tile) []*pb.Tile {

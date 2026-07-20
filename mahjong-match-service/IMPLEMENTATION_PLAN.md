@@ -115,6 +115,16 @@ Verified access:       Dedicated client created and client login verified;
                        live user smoke test now needs a fresh auth-code login
 ```
 
+**Deployed runtime client differs from the discovery client above.** The
+live Extend deployment (see "Deployment record" below) runs under an
+AGS-platform-provisioned confidential client
+(`AB_CLIENT_ID=72498bf13af54deabafdcba90d1ce497`, managed as an Extend app
+secret, not the manually created `e411a963a6bc42239dc27e39e3a03440` client
+referenced in local `.env`). Its Session game-session READ permission has
+**not yet been live-verified** — first sign it's missing/wrong will be
+`JoinMatch` failing at runtime. Verify before relying on this deployment for
+a real match.
+
 Browser players continue authenticating with the existing Public client and
 user access token. No confidential credential enters the browser, repository,
 image, event log, or public payload.
@@ -131,7 +141,15 @@ image, event log, or public payload.
 - [x] Decide the inbound player permission annotations for the custom RPCs:
   bearer validation is required, while no unverified custom AGS permission
   resource is fabricated.
-- [ ] Provision the managed SQL resource and obtain its Aurora CA path.
+- [x] Provision the managed SQL resource and obtain its Aurora CA path.
+  Provisioned via AGS Extend's SQL cluster offering (AWS RDS Aurora
+  Postgres, `extend-sql-gameswithout-prod` cluster, `us-east-2`), linked to
+  the `mahjong-match-service` Extend app through the Admin Portal — not
+  self-hosted Postgres. The platform auto-injects connection config
+  (`SQLDB_HOST`/`SQLDB_DATABASE_NAME`/`SQLDB_USERNAME`/`SQLDB_PASSWORD`) and
+  auto-mounts the CA bundle at `/srv/certs/sql/global-bundle.pem` as a
+  non-editable app variable; these are not hand-provisioned or baked into
+  the image.
 - [x] Select a versioned migration mechanism: embedded ordered SQL migrations
   with a transactional `schema_migrations` ledger.
 - [x] Keep the existing `rulesengine` as the single implementation used by
@@ -142,11 +160,14 @@ image, event log, or public payload.
 - [x] Keep v1 transport on REST commands plus state polling. Persistent Extend
   ingress is not required for P0; AGS Lobby notifications remain a later
   latency optimization.
-- [ ] Benchmark synchronous append latency before choosing Extend over the
-  self-hosted Postgres fallback. Local PostgreSQL baseline on an Apple M1 Pro
-  is 1.47–1.56 ms per transactional append (three 500-operation samples);
-  repeat against managed SQL from the deployed region before the production
-  decision.
+- [ ] Benchmark synchronous append latency against the deployed Aurora
+  cluster. Local PostgreSQL baseline on an Apple M1 Pro is 1.47–1.56 ms per
+  transactional append (three 500-operation samples). **Still not repeated
+  against the managed SQL from the deployed region** — the 2026-07-19 deploy
+  (see "Deployment record" below) went ahead without this benchmark, on
+  explicit user direction to proceed despite the gap. Append latency and the
+  §15.5 command-ack targets are unverified in production; run this before
+  trusting the deployment under real match load.
 - [ ] Decide whether `mahjong-match-service` remains a separate repository or
   becomes a tracked directory in the parent repository.
 
@@ -176,15 +197,71 @@ image, event log, or public payload.
   stale projections. Runtime locking is keyed by match, preserving table order
   without serializing unrelated matches.
 - [ ] Docker/Compose image build passes after replacing the parent-module
-  `replace` directive with an immutable shared rules-engine version. Protobuf,
-  gRPC, gateway, and OpenAPI generators are pinned; image generation no longer
-  depends on moving `latest` tags.
-- [ ] AGS-backed Session smoke test passes after refreshing the expired
-  `mahjong-admin` auth-code login.
+  `replace` directive with an immutable shared rules-engine version — the
+  immutable-version replacement itself is still not done, so this box stays
+  open. What **is** now confirmed (2026-07-19): the vendor-mode build
+  (`-mod=vendor`, the exact build the Extend image uses) passes today as-is,
+  still on the `replace` directive plus the checked-in vendor bundle.
+  Protobuf/gRPC/gateway/OpenAPI generator versions are already pinned in the
+  Dockerfile.
+- [ ] AGS-backed Session smoke test (`JoinMatch` against a real four-member
+  AGS Session) still not run. The 2026-07-19 deploy confirmed the service is
+  reachable and enforces auth (unauthenticated request to the live URL
+  returned 401), but that is not a substitute for an authenticated
+  Session-roster smoke test. Also still needs a fresh `mahjong-admin`
+  auth-code login.
+
+## Deployment record
+
+Deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
+ahead of the append-latency benchmark and full Session smoke test above.
+
+```text
+App:            mahjong-match-service (service-extension scenario)
+Namespace:      gameswithout-mahjong
+Base URL:       https://gameswithout-mahjong.prod.gamingservices.accelbyte.io
+Base path:      /ext-gameswithout-mahjong-mahjong-match-service
+                (platform-assigned; NOT /mahjong — anything wiring a client
+                at this service must use the real base path, not the local
+                dev value from README/.env.template)
+Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
+Image tag:      cors-fix-1 (2026-07-19, supersedes 9eb21b7 and 43da5de-wip —
+                see below for what changed in each)
+Database:       AGS Extend SQL cluster — AWS RDS Aurora Postgres,
+                extend-sql-gameswithout-prod, us-east-2
+Verified:       Image push + deploy succeeded; app status
+                deployment-running; unauthenticated request to the live
+                REST surface returns 401 (service reachable, auth enforced);
+                CORS preflight (OPTIONS) against the live URL confirmed
+                returning Access-Control-Allow-Origin: * (2026-07-19); local
+                end-to-end browser run (guest sign-in → real AGS Session →
+                join → full match table render) verified against this same
+                code running locally, including the new projection fields
+                arriving over the wire with correct snake_case names
+Not verified:   Runtime IAM client's Session-read permission against a real
+                (non-test-mode) AGS Session; append latency against the real
+                cluster; full authenticated JoinMatch smoke test against the
+                live deployed URL specifically (only verified locally)
+```
+
+**Revision history:**
+- `9eb21b7` — initial deployment (REST match service live).
+- `43da5de-wip` — extended `MatchState` to feature parity with the client's
+  `SeatView` (waits, melds, discards, turn_deadline, hand_result,
+  settlement, next_dealer, claim.options with win preview), switched the
+  gRPC-gateway JSON marshaler to `UseProtoNames` (snake_case wire format
+  matching the client's existing types). Done to unblock retargeting the
+  browser client from the undeployed `server/cmd/walking-skeleton` WS
+  prototype to this REST service.
+- `cors-fix-1` — added CORS middleware (`main.go`). Discovered via a real
+  browser (Playwright) end-to-end test: the deployed service had no
+  `Access-Control-Allow-Origin` handling at all, and neither does AGS's
+  platform gateway in front of it — every browser call was silently blocked
+  by CORS preflight. This was a hard blocker for the REST client, not a
+  nice-to-have.
 
 ## Out of scope
 
-- Production deployment or app registration.
 - Live IAM permission mutation during implementation.
 - Lobby notification transport.
 - Matchmaking Override.

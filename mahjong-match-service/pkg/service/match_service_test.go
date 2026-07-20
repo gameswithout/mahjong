@@ -319,6 +319,163 @@ func TestProjectState_ProjectsDiscardAndOnlyOwnClaimResponse(t *testing.T) {
 	}
 }
 
+func TestProjectState_ProjectsWaitsOwnMeldsDiscardsAndTurnDeadline(t *testing.T) {
+	view := privateView()
+	view.Waits = []rulesengine.WaitTileView{
+		{Tile: rulesengine.Tile{ID: "dots-5-1", Kind: rulesengine.Dots, Rank: 5, Copy: 1}, VisibleRemaining: 3},
+	}
+	view.OwnMelds = []rulesengine.Meld{
+		{Type: rulesengine.MeldPong, Tiles: []rulesengine.Tile{
+			{ID: "wind-east-1", Kind: rulesengine.Wind, Copy: 1},
+			{ID: "wind-east-2", Kind: rulesengine.Wind, Copy: 2},
+			{ID: "wind-east-3", Kind: rulesengine.Wind, Copy: 3},
+		}, Claimed: true},
+	}
+	view.Discards = []rulesengine.Discard{
+		{Seat: rulesengine.East, Tile: rulesengine.Tile{ID: "dots-9-1", Kind: rulesengine.Dots, Rank: 9, Copy: 1}, Sequence: 1},
+	}
+	view.TurnDeadline = "2026-07-18T12:00:10Z"
+
+	state := projectState("public-match-id", view)
+	if len(state.GetWaits()) != 1 || state.GetWaits()[0].GetVisibleRemaining() != 3 {
+		t.Fatalf("projected waits = %#v", state.GetWaits())
+	}
+	if len(state.GetOwnMelds()) != 1 || !state.GetOwnMelds()[0].GetClaimed() {
+		t.Fatalf("projected own_melds = %#v", state.GetOwnMelds())
+	}
+	if len(state.GetDiscards()) != 1 || state.GetDiscards()[0].GetTile().GetId() != "dots-9-1" {
+		t.Fatalf("projected discards = %#v", state.GetDiscards())
+	}
+	if state.GetTurnDeadline() != "2026-07-18T12:00:10Z" {
+		t.Fatalf("projected turn_deadline = %q", state.GetTurnDeadline())
+	}
+}
+
+func TestProjectState_ProjectsPlayerMeldsAndTakenOver(t *testing.T) {
+	view := privateView()
+	view.Players[1] = rulesengine.PlayerView{
+		Seat:      rulesengine.South,
+		HandCount: 13,
+		TakenOver: true,
+		Melds: []rulesengine.MeldView{
+			{Type: rulesengine.MeldKong, Concealed: true},
+		},
+	}
+
+	state := projectState("public-match-id", view)
+	south := state.GetPlayers()[1]
+	if !south.GetTakenOver() {
+		t.Fatalf("expected taken_over projected, got %#v", south)
+	}
+	if len(south.GetMelds()) != 1 || !south.GetMelds()[0].GetConcealed() || len(south.GetMelds()[0].GetTiles()) != 0 {
+		t.Fatalf("projected concealed meld view = %#v", south.GetMelds())
+	}
+}
+
+func TestProjectState_ProjectsClaimOptionsWithWinPreview(t *testing.T) {
+	view := privateView()
+	view.Claim = &rulesengine.SeatClaimView{
+		ActionID:     "claim-9",
+		StateVersion: 4,
+		Discard: rulesengine.Discard{
+			Seat: rulesengine.West,
+			Tile: rulesengine.Tile{ID: "dots-4-1", Kind: rulesengine.Dots, Rank: 4, Copy: 1},
+		},
+		Deadline: "2026-07-18T12:00:10Z",
+		Eligible: []rulesengine.Seat{rulesengine.East},
+		Options: rulesengine.ClaimOptionsView{
+			CanWin:   true,
+			CanPong:  true,
+			ChowSets: [][2]string{{"dots-3-1", "dots-5-1"}},
+			WinPreview: &rulesengine.ScoreResult{
+				Winning: true,
+				RawTai:  3,
+				Patterns: []rulesengine.PatternScore{
+					{Name: "Base Win", Tai: 1},
+				},
+			},
+		},
+	}
+
+	state := projectState("public-match-id", view)
+	options := state.GetClaim().GetOptions()
+	if !options.GetCanWin() || !options.GetCanPong() {
+		t.Fatalf("projected claim options = %#v", options)
+	}
+	if len(options.GetChowSets()) != 1 || options.GetChowSets()[0].GetTileIds()[0] != "dots-3-1" ||
+		options.GetChowSets()[0].GetTileIds()[1] != "dots-5-1" {
+		t.Fatalf("projected chow sets = %#v", options.GetChowSets())
+	}
+	if options.GetWinPreview().GetRawTai() != 3 || len(options.GetWinPreview().GetPatterns()) != 1 {
+		t.Fatalf("projected win preview = %#v", options.GetWinPreview())
+	}
+}
+
+func TestProjectState_ProjectsHandResultSettlementAndNextDealer(t *testing.T) {
+	view := privateView()
+	view.Phase = rulesengine.PhaseHandComplete
+	view.HandResult = &rulesengine.HandResult{
+		Kind:  rulesengine.WinDiscard,
+		Payer: rulesengine.South,
+		Winners: []rulesengine.HandWinner{
+			{
+				Seat:    rulesengine.East,
+				Context: rulesengine.ScoreContext{Seat: rulesengine.East, DiscardWin: true},
+				Score: rulesengine.ScoreResult{
+					Winning: true,
+					RawTai:  4,
+					Patterns: []rulesengine.PatternScore{
+						{Name: "Base Win", Tai: 1},
+						{Name: "Concealed", Tai: 1},
+					},
+					Shape: rulesengine.HandShape{
+						Pair: []rulesengine.Tile{
+							{ID: "dots-1-1", Kind: rulesengine.Dots, Rank: 1, Copy: 1},
+							{ID: "dots-1-2", Kind: rulesengine.Dots, Rank: 1, Copy: 2},
+						},
+					},
+				},
+			},
+		},
+	}
+	view.Settlement = &rulesengine.Settlement{
+		Transfers: []rulesengine.Transfer{
+			{From: rulesengine.South, To: rulesengine.East, EffectiveTai: 4, RawAmount: 40, Amount: 40},
+		},
+		Net:          map[rulesengine.Seat]int64{rulesengine.East: 40, rulesengine.South: -40},
+		TotalCredits: 40,
+		TotalDebits:  40,
+	}
+	view.NextDealer = &rulesengine.ContinuationOutcome{
+		NextDealer:        rulesengine.South,
+		NextContinuations: 0,
+		DealerRetains:     false,
+	}
+
+	state := projectState("public-match-id", view)
+	result := state.GetHandResult()
+	if result.GetKind() != string(rulesengine.WinDiscard) || result.GetPayer() != "S" {
+		t.Fatalf("projected hand_result = %#v", result)
+	}
+	if len(result.GetWinners()) != 1 || result.GetWinners()[0].GetScore().GetRawTai() != 4 ||
+		len(result.GetWinners()[0].GetScore().GetShape().GetPair()) != 2 {
+		t.Fatalf("projected hand_result winners = %#v", result.GetWinners())
+	}
+
+	settlement := state.GetSettlement()
+	if settlement.GetTotalCredits() != 40 || settlement.GetNet()["E"] != 40 || settlement.GetNet()["S"] != -40 {
+		t.Fatalf("projected settlement = %#v", settlement)
+	}
+	if len(settlement.GetTransfers()) != 1 || settlement.GetTransfers()[0].GetAmount() != 40 {
+		t.Fatalf("projected settlement transfers = %#v", settlement.GetTransfers())
+	}
+
+	nextDealer := state.GetNextDealer()
+	if nextDealer.GetNextDealer() != "S" || nextDealer.GetDealerRetains() {
+		t.Fatalf("projected next_dealer = %#v", nextDealer)
+	}
+}
+
 func privateView() rulesengine.SeatView {
 	return rulesengine.SeatView{
 		MatchID:      "internal-runtime-id",

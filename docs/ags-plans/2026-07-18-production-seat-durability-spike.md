@@ -1,7 +1,11 @@
 # Game Flow Plan — Production Seating and Match Durability Spike
 
 - Date: 2026-07-18
-- Status: Proposed; implementation approval pending
+- Status: Approved and deployed 2026-07-19 — user directed deployment ahead
+  of the append-latency benchmark and go/no-go decision record this plan
+  originally required (see "Decision record required from the spike" and
+  "Approval gate" below, and `mahjong-match-service/IMPLEMENTATION_PLAN.md`'s
+  "Deployment record" for what's live and what's still unverified).
 - Boundary: replace local connection-order seats and JSONL events with
   production-authoritative membership, randomized seating, and durable storage
 
@@ -120,14 +124,25 @@ silently reseating players.
 
 - exact AGS Session operation and permission;
 - selected service-token/workload-identity flow;
-- selected Extend storage technology and transaction model;
-- append p50/p95/p99 and cross-region result;
-- snapshot/recovery timing;
-- backup/restore and retention capability;
-- go/no-go verdict, with self-hosted Postgres fallback if any hard gate fails.
+- selected Extend storage technology and transaction model — **decided**:
+  AGS Extend's managed SQL cluster offering (AWS RDS Aurora Postgres), not
+  the self-hosted Postgres fallback;
+- append p50/p95/p99 and cross-region result — **not measured**; deployment
+  went ahead without this;
+- snapshot/recovery timing — not measured against the live cluster;
+- backup/restore and retention capability — not evaluated;
+- go/no-go verdict — **superseded**: the user directed deployment directly
+  rather than waiting for a written verdict on the above. Treat the
+  unmeasured items as open production risk, not as answered questions.
 
 ## Approval gate
 
-This plan records the next recommended boundary only. No AGS configuration,
-server client permissions, storage provisioning, or deployment is authorized
-by this document until the user approves this plan.
+This plan originally recorded the next recommended boundary only, with AGS
+configuration, server client permissions, storage provisioning, and
+deployment withheld until user approval. **That approval was given
+2026-07-19**, and `mahjong-match-service` is now deployed to AGS Extend
+(namespace `gameswithout-mahjong`) — see
+`mahjong-match-service/IMPLEMENTATION_PLAN.md`'s "Deployment record". The
+approval was explicit about proceeding ahead of the latency benchmark and
+full Session smoke test; those remain open follow-up work, not resolved
+by the deployment itself.

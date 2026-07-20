@@ -234,6 +234,18 @@
         }
       }
     },
+    "serviceChowSet": {
+      "type": "object",
+      "properties": {
+        "tileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "ChowSet is one legal Chow completion: the two tiles from the responding\nseat's own hand that would join the discard."
+    },
     "serviceClaimCommand": {
       "type": "object",
       "properties": {
@@ -255,6 +267,30 @@
         },
         "deliberate": {
           "type": "boolean"
+        }
+      }
+    },
+    "serviceClaimOptionsView": {
+      "type": "object",
+      "properties": {
+        "canWin": {
+          "type": "boolean"
+        },
+        "canPong": {
+          "type": "boolean"
+        },
+        "canKong": {
+          "type": "boolean"
+        },
+        "chowSets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceChowSet"
+          }
+        },
+        "winPreview": {
+          "$ref": "#/definitions/serviceScoreResult"
         }
       }
     },
@@ -313,6 +349,24 @@
         },
         "ownResponse": {
           "$ref": "#/definitions/serviceClaimResponse"
+        },
+        "options": {
+          "$ref": "#/definitions/serviceClaimOptionsView"
+        }
+      }
+    },
+    "serviceContinuationOutcome": {
+      "type": "object",
+      "properties": {
+        "nextDealer": {
+          "type": "string"
+        },
+        "nextContinuations": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "dealerRetains": {
+          "type": "boolean"
         }
       }
     },
@@ -336,6 +390,60 @@
       "properties": {
         "state": {
           "$ref": "#/definitions/serviceMatchState"
+        }
+      }
+    },
+    "serviceHandResult": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "winners": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceHandWinner"
+          }
+        },
+        "payer": {
+          "type": "string"
+        },
+        "winningTileId": {
+          "type": "string"
+        }
+      }
+    },
+    "serviceHandShape": {
+      "type": "object",
+      "properties": {
+        "pair": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceTile"
+          }
+        },
+        "melds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceMeld"
+          }
+        }
+      }
+    },
+    "serviceHandWinner": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "type": "string"
+        },
+        "context": {
+          "$ref": "#/definitions/serviceScoreContext"
+        },
+        "score": {
+          "$ref": "#/definitions/serviceScoreResult"
         }
       }
     },
@@ -408,9 +516,98 @@
         },
         "winLocked": {
           "type": "boolean"
+        },
+        "waits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceWaitTileView"
+          }
+        },
+        "ownMelds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceMeld"
+          }
+        },
+        "discards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceDiscard"
+          }
+        },
+        "turnDeadline": {
+          "type": "string"
+        },
+        "handResult": {
+          "$ref": "#/definitions/serviceHandResult"
+        },
+        "settlement": {
+          "$ref": "#/definitions/serviceSettlement"
+        },
+        "nextDealer": {
+          "$ref": "#/definitions/serviceContinuationOutcome"
         }
       },
       "description": "MatchState is a privacy-filtered projection for exactly one authenticated\nplayer. It is not a serializable authoritative snapshot."
+    },
+    "serviceMeld": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "tiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceTile"
+          }
+        },
+        "concealed": {
+          "type": "boolean"
+        },
+        "added": {
+          "type": "boolean"
+        },
+        "claimed": {
+          "type": "boolean"
+        }
+      },
+      "description": "Meld is the full, unredacted representation used where redaction is not\nrequired: a seat's own melds (MatchState.own_melds) and revealed winning\nhand decompositions (HandShape.melds) after showdown."
+    },
+    "serviceMeldView": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "tiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceTile"
+          }
+        },
+        "concealed": {
+          "type": "boolean"
+        }
+      },
+      "description": "MeldView is the redacted representation used for other players'\nmelds (PlayerView.melds): tiles are omitted for a concealed Kong."
+    },
+    "servicePatternScore": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tai": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
     },
     "servicePlayerView": {
       "type": "object",
@@ -432,6 +629,107 @@
         "meldCount": {
           "type": "integer",
           "format": "int32"
+        },
+        "melds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceMeldView"
+          }
+        },
+        "takenOver": {
+          "type": "boolean"
+        }
+      }
+    },
+    "serviceScoreContext": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "type": "string"
+        },
+        "prevailingWind": {
+          "type": "string"
+        },
+        "discardWin": {
+          "type": "boolean"
+        },
+        "zimo": {
+          "type": "boolean"
+        },
+        "replacement": {
+          "type": "boolean"
+        },
+        "lastTile": {
+          "type": "boolean"
+        },
+        "robbedAddedKong": {
+          "type": "boolean"
+        },
+        "eightFlowers": {
+          "type": "boolean"
+        },
+        "earthlyHand": {
+          "type": "boolean"
+        },
+        "heavenlyHand": {
+          "type": "boolean"
+        },
+        "singleWait": {
+          "type": "boolean"
+        }
+      }
+    },
+    "serviceScoreResult": {
+      "type": "object",
+      "properties": {
+        "winning": {
+          "type": "boolean"
+        },
+        "rawTai": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/servicePatternScore"
+          }
+        },
+        "shape": {
+          "$ref": "#/definitions/serviceHandShape"
+        },
+        "effectiveTiles": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "serviceSettlement": {
+      "type": "object",
+      "properties": {
+        "transfers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceTransfer"
+          }
+        },
+        "net": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "int64"
+          }
+        },
+        "totalCredits": {
+          "type": "string",
+          "format": "int64"
+        },
+        "totalDebits": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },
@@ -469,6 +767,44 @@
         "copy": {
           "type": "integer",
           "format": "int64"
+        }
+      }
+    },
+    "serviceTransfer": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "effectiveTai": {
+          "type": "string",
+          "format": "int64"
+        },
+        "rawAmount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "amount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "capped": {
+          "type": "boolean"
+        }
+      }
+    },
+    "serviceWaitTileView": {
+      "type": "object",
+      "properties": {
+        "tile": {
+          "$ref": "#/definitions/serviceTile"
+        },
+        "visibleRemaining": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },

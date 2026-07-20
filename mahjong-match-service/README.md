@@ -171,5 +171,18 @@ The Docker build uses `-mod=vendor`; do not edit vendored source by hand.
 Publishing the parent module as an immutable version remains a future cleanup,
 but is no longer required to build and test the standalone image.
 
-Production deployment and live AGS permission changes remain outside this
-implementation phase.
+## Deployment
+
+Deployed to AGS Extend (`gameswithout-mahjong` namespace, app
+`mahjong-match-service`, service-extension scenario) via `extend-helper-cli
+image-upload` + `deploy-app`, backed by an AGS Extend-provisioned SQL
+cluster (AWS RDS Aurora Postgres). See `IMPLEMENTATION_PLAN.md`'s
+"Deployment record" for the current image tag, service URL, and what has
+and hasn't been verified against the live deployment (Session-read
+permission and append latency against the real cluster are still
+unverified). Live AGS permission changes remain outside this phase.
+
+The deployed base path is platform-assigned
+(`/ext-gameswithout-mahjong-mahjong-match-service`), not the `/mahjong`
+value used for local dev above — do not assume the two match when wiring a
+client at the live deployment.

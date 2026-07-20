@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	pb "github.com/gameswithout/mahjong/mahjong-match-service/pkg/pb"
 
@@ -17,12 +18,18 @@ import (
 )
 
 type Gateway struct {
-	mux *runtime.ServeMux
+	mux      *runtime.ServeMux
 	basePath string
 }
 
 func NewGateway(ctx context.Context, grpcServerEndpoint string, basePath string) (*Gateway, error) {
-	mux := runtime.NewServeMux()
+	// UseProtoNames keeps REST JSON field names identical to the .proto
+	// (snake_case, e.g. match_id) instead of grpc-gateway's default
+	// camelCase — the browser client's types are written against the
+	// proto's own field names.
+	mux := runtime.NewServeMux(runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
+		MarshalOptions: protojson.MarshalOptions{UseProtoNames: true},
+	}))
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	err := pb.RegisterServiceHandlerFromEndpoint(ctx, mux, grpcServerEndpoint, opts)
 	if err != nil {
@@ -30,7 +37,7 @@ func NewGateway(ctx context.Context, grpcServerEndpoint string, basePath string)
 	}
 
 	return &Gateway{
-		mux: mux,
+		mux:      mux,
 		basePath: basePath,
 	}, nil
 }

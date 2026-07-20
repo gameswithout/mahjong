@@ -353,11 +353,36 @@ func newGRPCGatewayHTTPServer(
 	// Add logging middleware
 	loggedMux := loggingMiddleware(logger, mux)
 
+	// The REST surface is a bearer-token-authenticated API (no cookies), so
+	// a wildcard origin is safe here: the Authorization header is the
+	// security boundary, not same-origin. Without this, every browser
+	// caller (the game client) is blocked by the CORS preflight before the
+	// request ever reaches the gRPC-gateway handler.
+	corsHandler := corsMiddleware(loggedMux)
+
 	return &http.Server{
 		Addr:     addr,
-		Handler:  loggedMux,
+		Handler:  corsHandler,
 		ErrorLog: log.New(os.Stderr, "httpSrv: ", log.LstdFlags), // Configure the logger for the HTTP server
 	}
+}
+
+// corsMiddleware answers CORS preflight (OPTIONS) requests directly — the
+// gRPC-gateway handler has no OPTIONS route and would otherwise reject them
+// with 501 — and adds the Access-Control-Allow-Origin header to every
+// response so browser callers accept it.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Max-Age", "600")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // loggingMiddleware is a middleware that logs HTTP requests
