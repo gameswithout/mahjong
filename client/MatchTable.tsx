@@ -173,6 +173,9 @@ function OpponentSeat({
     <section className={`seat seat-${slot}${state.isActive ? " seat-active" : ""}`} aria-label={`${windName(seat)} seat`}>
       <header className="seat-header">
         <div className="seat-identity">
+          <span className="seat-avatar" aria-hidden="true">
+            {state.isBot ? "🤖" : "🀄"}
+          </span>
           <span className={`wind-badge${seat === prevailingWind ? " wind-badge-prevailing" : ""}`}>{windName(seat).slice(0, 1)}</span>
           <span className="seat-name">{state.displayName}</span>
           {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
@@ -280,7 +283,10 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
         <span className="round-wind">Round {windName(state.prevailingWind)}</span>
         <span className="round-continuation">k={state.continuation}</span>
       </div>
-      <div className="active-seat-callout" aria-live="polite">
+      <div
+        className={`active-seat-callout${activeSeat === state.localSeat ? " active-seat-callout-you" : ""}`}
+        aria-live="polite"
+      >
         {activeSeat === state.localSeat ? "Your turn" : `${windName(activeSeat)} thinking`}
       </div>
     </div>
@@ -332,6 +338,9 @@ function LocalSeat({
     <section className={`seat seat-bottom local-seat${selectable || canDraw ? " seat-active" : ""}`} aria-label="Your seat">
       <header className="seat-header">
         <div className="seat-identity">
+          <span className="seat-avatar" aria-hidden="true">
+            🀄
+          </span>
           <span className="wind-badge">{windName(state.wind).slice(0, 1)}</span>
           <span className="seat-name">You</span>
           {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}

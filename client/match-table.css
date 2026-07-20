@@ -28,7 +28,10 @@ body {
 }
 
 .match-table {
-  background: #10131f;
+  /* A felt playing surface, not a flat panel — a quiet jade glow at the
+     center (where the wall/discards happen) fading into the established
+     navy at the rail. Seats sit as raised trays on top of it. */
+  background: radial-gradient(ellipse 90% 70% at 50% 45%, #1c3129 0%, #131a20 55%, #10131f 100%);
   color: #f7f4ee;
   display: grid;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -65,15 +68,17 @@ body {
 }
 
 .seat {
-  background: #1b2033;
+  background: linear-gradient(180deg, #1f2540, #171b30);
   border: 1px solid #2c3352;
-  border-radius: 6px;
+  border-radius: 7px;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 30%), inset 0 1px 0 rgb(255 255 255 / 4%);
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-height: 0;
   overflow: hidden;
   padding: 2px 3px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .seat-top {
@@ -121,12 +126,31 @@ body {
   white-space: nowrap;
 }
 
+/* A small player-token chip, not a bare floating emoji — reinforces "this
+   is a seat someone (or something) occupies," the same way a name tag or
+   trading-card portrait would at a physical table. */
+.seat-avatar {
+  align-items: center;
+  background: radial-gradient(circle at 35% 30%, #2f3760, #191d38);
+  border: 1px solid #3a4066;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 9px;
+  height: 16px;
+  justify-content: center;
+  line-height: 1;
+  width: 16px;
+}
+
 /* A subtle border highlight, not color alone (§9.5) — the active-badge dot
    and "Active player"/"Your turn" text already carry the same information;
    this just makes it legible at a glance across the whole table instead of
    only inside a single 8px badge. */
 .seat-active {
   border-color: #f2c66d;
+  box-shadow: 0 0 0 1px rgb(242 198 109 / 35%), 0 0 14px rgb(242 198 109 / 20%), 0 2px 5px rgb(0 0 0 / 30%);
 }
 
 .wind-badge {
@@ -202,7 +226,8 @@ body {
   align-items: center;
   background: linear-gradient(180deg, #fdfbf6, #ece5d3);
   border: 1px solid #b8ad8e;
-  border-radius: 3px;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 70%) inset, 0 2px 2px rgb(0 0 0 / 25%);
   color: #21160a;
   display: inline-flex;
   flex-shrink: 0;
@@ -440,9 +465,21 @@ body {
   padding: 1px 6px;
   text-align: center;
   text-transform: uppercase;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+/* An invitation, not just a status readout — the one moment the table is
+   waiting specifically on the person looking at the screen. */
+.active-seat-callout-you {
+  background: #f2c66d;
+  color: #10131f;
 }
 
 .local-seat {
+  /* Home base: a warmer tint distinguishes "your" tray from the three
+     opponent trays at a glance, independent of whose turn it is. */
+  background: linear-gradient(180deg, #262c4c, #1b2038);
+  border-color: #3a4066;
   gap: 2px;
   padding: 2px 4px;
 }
@@ -474,6 +511,20 @@ body {
   cursor: pointer;
   font: inherit;
   padding: 0;
+}
+
+.local-hand-tile-button .tile {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* A tactile lift on hover — picking up a tile to look at it — rather than
+   a flat click target. Touch devices simply never trigger :hover, so this
+   is a free desktop/mouse enhancement with no cost elsewhere. */
+@media (hover: hover) {
+  .local-hand-tile-button:not(:disabled):hover .tile {
+    box-shadow: 0 1px 0 rgb(255 255 255 / 70%) inset, 0 5px 8px rgb(0 0 0 / 35%);
+    transform: translateY(-3px);
+  }
 }
 
 .local-hand-tile-button:disabled {
@@ -535,9 +586,10 @@ body {
 }
 
 .action-button {
-  background: #f2c66d;
+  background: linear-gradient(180deg, #f6d488, #eebd54);
   border: 0;
   border-radius: 999px;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 45%) inset, 0 2px 4px rgb(0 0 0 / 30%);
   color: #10131f;
   cursor: pointer;
   flex-shrink: 0;
@@ -548,6 +600,7 @@ body {
   min-height: 44px;
   min-width: 44px;
   padding: 0 12px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .action-button:focus-visible {
@@ -555,8 +608,19 @@ body {
   outline-offset: 2px;
 }
 
+@media (hover: hover) {
+  .action-button:not(:disabled):hover {
+    box-shadow: 0 1px 0 rgb(255 255 255 / 45%) inset, 0 4px 8px rgb(0 0 0 / 35%);
+    transform: translateY(-1px);
+  }
+}
+
+.action-button:active {
+  transform: translateY(0);
+}
+
 .action-pass {
-  background: #3a4066;
+  background: linear-gradient(180deg, #454c78, #363c60);
   color: #f7f4ee;
 }
 
@@ -638,6 +702,12 @@ body {
 
   .seat-name {
     font-size: 14px;
+  }
+
+  .seat-avatar {
+    font-size: 15px;
+    height: 26px;
+    width: 26px;
   }
 
   .dealer-badge,
