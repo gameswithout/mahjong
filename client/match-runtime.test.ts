@@ -1,35 +1,73 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MatchRuntimeSocket } from "./match-runtime";
+import type { MatchRuntimeFetch } from "./match-runtime";
 import { MatchRuntimeError, createMatchRuntimeConnection } from "./match-runtime";
-import type { SeatView } from "../protocol/envelope";
 
-class FakeSocket implements MatchRuntimeSocket {
-  onopen: ((event?: unknown) => void) | null = null;
-  onmessage: ((event: { data: unknown }) => void) | null = null;
-  onerror: ((event: unknown) => void) | null = null;
-  onclose: ((event: unknown) => void) | null = null;
-  readonly sent: string[] = [];
-  closed = false;
-
-  send(data: string): void {
-    this.sent.push(data);
-  }
-
-  close(): void {
-    this.closed = true;
-  }
-
-  emitMessage(data: unknown): void {
-    this.onmessage?.({ data });
-  }
+interface RecordedCall {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: unknown;
 }
 
-function seatView(overrides: Partial<SeatView> = {}): SeatView {
+// FakeFetch mirrors the real fetch/AbortController contract our
+// implementation relies on: queued responses are returned in call order, and
+// a "hang" queued entry only settles (with an AbortError, like real fetch)
+// once the caller's AbortSignal actually fires — this is what lets the
+// timeout test drive a real abort through match-runtime.ts's own logic
+// rather than asserting on a mock's internals.
+class FakeFetch {
+  readonly calls: RecordedCall[] = [];
+  private readonly queue: Array<{ status: number; body: unknown } | "hang" | { reject: unknown }> = [];
+
+  enqueue(status: number, body: unknown): void {
+    this.queue.push({ status, body });
+  }
+
+  enqueueRejection(error: unknown): void {
+    this.queue.push({ reject: error });
+  }
+
+  enqueueHang(): void {
+    this.queue.push("hang");
+  }
+
+  readonly fetchImpl: MatchRuntimeFetch = (async (url: string, init?: RequestInit) => {
+    const headers: Record<string, string> = {};
+    new Headers(init?.headers).forEach((value, key) => {
+      headers[key] = value;
+    });
+    this.calls.push({
+      url: String(url),
+      method: init?.method ?? "GET",
+      headers,
+      body: init?.body ? JSON.parse(init.body as string) : undefined,
+    });
+
+    const next = this.queue.shift();
+    if (!next) {
+      throw new Error("FakeFetch: no queued response for call " + this.calls.length);
+    }
+    if (next === "hang") {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      });
+    }
+    if ("reject" in next) {
+      throw next.reject;
+    }
+    return new Response(JSON.stringify(next.body), {
+      status: next.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as MatchRuntimeFetch;
+}
+
+function wireMatchState(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     match_id: "session-1",
     seat: "E",
-    state_version: 2,
+    state_version: "2",
     phase: "awaiting_draw",
     active_seat: "E",
     own_hand: [{ id: "characters-1-1", kind: "characters", rank: 1, copy: 1 }],
@@ -46,200 +84,250 @@ function seatView(overrides: Partial<SeatView> = {}): SeatView {
 }
 
 describe("createMatchRuntimeConnection", () => {
-  it("uses the bearer subprotocol and resolves only after server.ready", async () => {
-    const socket = new FakeSocket();
-    let url = "";
-    let protocols: string[] = [];
-    const envelopes: unknown[] = [];
+  it("resolves ready immediately (no server handshake exists over REST)", async () => {
+    const fake = new FakeFetch();
     const connection = createMatchRuntimeConnection("player-token", {
-      url: "ws://127.0.0.1:8081/ws",
-      socketFactory: (nextURL, nextProtocols) => {
-        url = nextURL;
-        protocols = nextProtocols;
-        return socket;
-      },
-      onEnvelope: (envelope) => envelopes.push(envelope),
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
     });
-
-    expect(url).toBe("ws://127.0.0.1:8081/ws");
-    expect(protocols).toEqual(["ags.bearer", "ags.token.cGxheWVyLXRva2Vu"]);
-    socket.emitMessage(JSON.stringify({
-      v: 1,
-      type: "server.ready",
-      payload: { user_id: "guest-123", server_time: "2026-07-18T01:02:03Z" },
-    }));
-    await expect(connection.ready).resolves.toEqual({
-      user_id: "guest-123",
-      server_time: "2026-07-18T01:02:03Z",
-    });
-
-    const requestID = connection.send("ping", { client_time: "now" });
-    expect(requestID).toBe("match-runtime-1");
-    expect(JSON.parse(socket.sent[0])).toEqual({
-      v: 1,
-      type: "ping",
-      request_id: "match-runtime-1",
-      payload: { client_time: "now" },
-    });
-    expect(envelopes).toHaveLength(1);
-    connection.close();
-    expect(socket.closed).toBe(true);
+    await expect(connection.ready).resolves.toMatchObject({ user_id: "" });
+    expect(fake.calls).toHaveLength(0);
   });
 
-  it("sends typed join/commands and dispatches redacted match views", async () => {
-    const socket = new FakeSocket();
+  it("joins with the bearer header, namespace, and session/match path segments", async () => {
+    const fake = new FakeFetch();
     const joined: unknown[] = [];
-    const states: unknown[] = [];
-    const accepted: unknown[] = [];
     const connection = createMatchRuntimeConnection("player-token", {
-      url: "ws://127.0.0.1:8081/ws",
-      socketFactory: () => socket,
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
       onJoined: (payload) => joined.push(payload),
-      onState: (payload) => states.push(payload),
-      onCommandAccepted: (payload) => accepted.push(payload),
     });
-    socket.emitMessage(JSON.stringify({
-      v: 1,
-      type: "server.ready",
-      payload: { user_id: "guest-123", server_time: "2026-07-18T01:02:03Z" },
-    }));
     await connection.ready;
 
     expect(connection.join(" session-1 ", "join-1")).toBe("join-1");
-    expect(JSON.parse(socket.sent[0])).toEqual({
-      v: 1,
-      type: "match.join",
-      request_id: "join-1",
-      payload: { match_id: "session-1" },
-    });
-    const view = seatView();
-    socket.emitMessage(JSON.stringify({
-      v: 1,
-      type: "match.joined",
-      request_id: "join-1",
-      payload: { match_id: "session-1", seat: "E", view },
-    }));
-    expect(joined).toEqual([{ match_id: "session-1", seat: "E", view }]);
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
 
-    connection.command({
-      match_id: "session-1",
-      type: "draw",
-      expected_version: 2,
-    }, "draw-1");
-    expect(JSON.parse(socket.sent[1])).toEqual({
-      v: 1,
-      type: "match.command",
-      request_id: "draw-1",
-      payload: {
-        match_id: "session-1",
-        type: "draw",
-        expected_version: 2,
-      },
+    const call = fake.calls[0];
+    expect(call.method).toBe("POST");
+    expect(call.url).toBe(
+      "https://match.test/mahjong/v1/namespaces/gameswithout-mahjong/sessions/session-1/matches/session-1/join",
+    );
+    // Headers iteration lowercases names per the Fetch spec.
+    expect(call.headers.authorization).toBe("Bearer player-token");
+    expect(call.body).toEqual({});
+  });
+
+  it("normalizes wire int64 strings to numbers and dispatches onJoined", async () => {
+    const fake = new FakeFetch();
+    fake.enqueue(200, { state: wireMatchState() });
+    const joined: unknown[] = [];
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+      onJoined: (payload) => joined.push(payload),
     });
-    socket.emitMessage(JSON.stringify({
-      v: 1,
-      type: "match.command.accepted",
+    await connection.ready;
+    connection.join("session-1", "join-1");
+    await vi.waitFor(() => expect(joined).toHaveLength(1));
+
+    const payload = joined[0] as { match_id: string; seat: string; view: { state_version: number } };
+    expect(payload.match_id).toBe("session-1");
+    expect(payload.seat).toBe("E");
+    expect(payload.view.state_version).toBe(2);
+    expect(typeof payload.view.state_version).toBe("number");
+  });
+
+  it("reshapes wire chow_sets objects into tuples and normalizes settlement/claim int64 fields", async () => {
+    const fake = new FakeFetch();
+    const states: unknown[] = [];
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+      onState: (payload) => states.push(payload),
+    });
+    await connection.ready;
+    connection.sync();
+    // sync() before join() reports a configuration error and makes no
+    // request — join first so currentMatchId is set.
+    expect(fake.calls).toHaveLength(0);
+    fake.enqueue(200, { state: wireMatchState() });
+    connection.join("session-1");
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+    fake.enqueue(200, {
+      state: wireMatchState({
+        phase: "claim_window",
+        claim: {
+          action_id: "claim-6",
+          state_version: "6",
+          discard: { seat: "E", tile: { id: "dots-9-1", kind: "dots", rank: 9, copy: 1 }, sequence: "6" },
+          deadline: "2026-07-18T12:00:10Z",
+          eligible: ["S"],
+          own_response: { action_id: "claim-6", seat: "S", type: "pass", state_version: "6", response_revision: "1" },
+          options: {
+            can_win: true,
+            can_pong: false,
+            can_kong: false,
+            chow_sets: [{ tile_ids: ["dots-3-1", "dots-5-1"] }],
+          },
+        },
+        settlement: {
+          transfers: [{ from: "S", to: "E", effective_tai: "4", raw_amount: "40", amount: "40" }],
+          net: { E: "40", S: "-40" },
+          total_credits: "40",
+          total_debits: "40",
+        },
+      }),
+    });
+    connection.sync("sync-1");
+    await vi.waitFor(() => expect(states).toHaveLength(1));
+    const view = (states[0] as { view: Record<string, any> }).view;
+    expect(view.claim.state_version).toBe(6);
+    expect(view.claim.discard.sequence).toBe(6);
+    expect(view.claim.own_response.response_revision).toBe(1);
+    expect(view.claim.options.chow_sets).toEqual([["dots-3-1", "dots-5-1"]]);
+    expect(view.settlement.net).toEqual({ E: 40, S: -40 });
+    expect(view.settlement.transfers[0].amount).toBe(40);
+  });
+
+  it("submits typed commands, mapping the client command type to the proto enum name", async () => {
+    const fake = new FakeFetch();
+    const accepted: unknown[] = [];
+    const states: unknown[] = [];
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+      onCommandAccepted: (payload) => accepted.push(payload),
+      onState: (payload) => states.push(payload),
+    });
+    await connection.ready;
+
+    fake.enqueue(200, {
       request_id: "draw-1",
-      payload: {
-        match_id: "session-1",
-        seat: "E",
-        state_version: 3,
-        phase: "awaiting_discard",
-      },
-    }));
-    socket.emitMessage(JSON.stringify({
-      v: 1,
-      type: "match.state",
+      state_version: "3",
+      phase: "awaiting_discard",
+      state: wireMatchState({ state_version: "3", phase: "awaiting_discard" }),
+    });
+    connection.command({ match_id: "session-1", type: "draw", expected_version: 2 }, "draw-1");
+    await vi.waitFor(() => expect(accepted).toHaveLength(1));
+
+    const call = fake.calls.at(-1)!;
+    expect(call.url).toBe(
+      "https://match.test/mahjong/v1/namespaces/gameswithout-mahjong/sessions/session-1/matches/session-1/commands",
+    );
+    expect(call.body).toMatchObject({
       request_id: "draw-1",
-      payload: {
-        match_id: "session-1",
-        seat: "E",
-        view: seatView({ state_version: 3, phase: "awaiting_discard" }),
-      },
-    }));
-    expect(accepted).toHaveLength(1);
+      type: "MATCH_COMMAND_TYPE_DRAW",
+      expected_version: 2,
+    });
+    // A single REST round trip carries both the ack and the fresh view,
+    // where the old WS protocol needed two separate server frames.
+    expect(accepted[0]).toMatchObject({ match_id: "session-1", seat: "E", state_version: 3, phase: "awaiting_discard" });
     expect(states).toHaveLength(1);
   });
 
-  it("rejects inconsistent match projections", async () => {
-    const socket = new FakeSocket();
+  it("rejects a response whose match_id does not match the requested match", async () => {
+    const fake = new FakeFetch();
+    fake.enqueue(200, { state: wireMatchState({ match_id: "wrong-match" }) });
     const errors: MatchRuntimeError[] = [];
     const connection = createMatchRuntimeConnection("player-token", {
-      url: "ws://127.0.0.1:8081/ws",
-      socketFactory: () => socket,
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
       onError: (error) => errors.push(error),
     });
-    socket.emitMessage(JSON.stringify({
-      v: 1,
-      type: "server.ready",
-      payload: { user_id: "guest-123", server_time: "2026-07-18T01:02:03Z" },
-    }));
     await connection.ready;
-    socket.emitMessage(JSON.stringify({
-      v: 1,
-      type: "match.state",
-      payload: {
-        match_id: "session-1",
-        seat: "S",
-        view: seatView({ seat: "E" }),
-      },
-    }));
-    expect(errors.at(-1)).toMatchObject({ code: "protocol" });
+    connection.join("session-1");
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(errors[0]).toMatchObject({ code: "protocol" });
   });
 
-  it("rejects stale protocol envelopes and server errors without logging credentials", async () => {
-    const socket = new FakeSocket();
-    const connection = createMatchRuntimeConnection("secret-token", {
-      url: "ws://runtime.test/ws",
-      socketFactory: () => socket,
-    });
-    socket.emitMessage(JSON.stringify({ v: 99, type: "server.ready", payload: {} }));
-    await expect(connection.ready).rejects.toMatchObject({ code: "protocol" });
-    expect(socket.sent).toEqual([]);
-
-    const errorSocket = new FakeSocket();
-    const errorConnection = createMatchRuntimeConnection("secret-token", {
-      url: "ws://runtime.test/ws",
-      socketFactory: () => errorSocket,
-    });
-    errorSocket.emitMessage(JSON.stringify({
-      v: 1,
-      type: "error",
-      payload: { code: "auth.invalid", message: "unauthorized" },
-    }));
-    await expect(errorConnection.ready).rejects.toEqual(
-      expect.objectContaining({
-        code: "protocol",
-        message: "auth.invalid: unauthorized",
-      }),
-    );
-    expect(String(errorConnection.ready)).not.toContain("secret-token");
+  it("maps HTTP status codes to the existing MatchRuntimeErrorCode union", async () => {
+    const cases: Array<{ status: number; code: string }> = [
+      { status: 401, code: "configuration" },
+      { status: 500, code: "network" },
+      { status: 429, code: "network" },
+      { status: 400, code: "protocol" },
+      { status: 404, code: "protocol" },
+    ];
+    for (const { status, code } of cases) {
+      const fake = new FakeFetch();
+      fake.enqueue(status, { message: `boom-${status}` });
+      const errors: MatchRuntimeError[] = [];
+      const connection = createMatchRuntimeConnection("secret-token", {
+        url: "https://match.test/mahjong",
+        namespace: "gameswithout-mahjong",
+        fetchImpl: fake.fetchImpl,
+        onError: (error) => errors.push(error),
+      });
+      await connection.ready;
+      connection.join("session-1");
+      await vi.waitFor(() => expect(errors).toHaveLength(1));
+      expect(errors[0]).toMatchObject({ code });
+      expect(errors[0].message).toContain(`boom-${status}`);
+      expect(String(errors[0])).not.toContain("secret-token");
+    }
   });
 
-  it("rejects missing configuration and a connection that closes before ready", async () => {
-    expect(() => createMatchRuntimeConnection("", { url: "ws://runtime.test/ws" })).toThrow(
-      "Guest sign-in is required",
-    );
-    expect(() => createMatchRuntimeConnection("token", { url: "" })).toThrow(
+  it("reports a network error when fetch itself throws (offline)", async () => {
+    const fake = new FakeFetch();
+    fake.enqueueRejection(new TypeError("Failed to fetch"));
+    const errors: MatchRuntimeError[] = [];
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+      onError: (error) => errors.push(error),
+    });
+    await connection.ready;
+    connection.join("session-1");
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(errors[0]).toMatchObject({ code: "network" });
+  });
+
+  it("rejects missing configuration synchronously", () => {
+    expect(() =>
+      createMatchRuntimeConnection("", { url: "https://match.test/mahjong", namespace: "gameswithout-mahjong" }),
+    ).toThrow("Guest sign-in is required");
+    expect(() => createMatchRuntimeConnection("token", { url: "", namespace: "gameswithout-mahjong" })).toThrow(
       "Match runtime URL is not configured",
     );
-
-    const socket = new FakeSocket();
-    const connection = createMatchRuntimeConnection("token", {
-      url: "ws://runtime.test/ws",
-      socketFactory: () => socket,
-    });
-    socket.onclose?.({ code: 1006 });
-    await expect(connection.ready).rejects.toMatchObject({ code: "closed" });
+    expect(() => createMatchRuntimeConnection("token", { url: "https://match.test/mahjong", namespace: "" })).toThrow(
+      "AGS namespace is not configured",
+    );
   });
 
-  it("times out when the server does not send ready", async () => {
-    const connection = createMatchRuntimeConnection("token", {
-      url: "ws://runtime.test/ws",
-      timeoutMs: 1,
-      socketFactory: () => new FakeSocket(),
+  describe("timeout", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
     });
-    await expect(connection.ready).rejects.toBeInstanceOf(MatchRuntimeError);
-    await expect(connection.ready).rejects.toMatchObject({ code: "timeout" });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("aborts and reports a timeout when the match service does not respond in time", async () => {
+      const fake = new FakeFetch();
+      fake.enqueueHang();
+      const errors: MatchRuntimeError[] = [];
+      const connection = createMatchRuntimeConnection("player-token", {
+        url: "https://match.test/mahjong",
+        namespace: "gameswithout-mahjong",
+        timeoutMs: 1_000,
+        fetchImpl: fake.fetchImpl,
+        onError: (error) => errors.push(error),
+      });
+      await connection.ready;
+      connection.join("session-1");
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatchObject({ code: "timeout" });
+    });
   });
 });

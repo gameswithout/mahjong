@@ -817,11 +817,11 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     if (sessionState.status !== "loaded") {
       return;
     }
-    if (!accelByteConfig.matchRuntimeURL) {
+    if (!accelByteConfig.matchServiceURL) {
       setMatchRuntimeState({
         status: "error",
         code: "configuration",
-        message: "Match runtime URL is not configured. Restart after updating .env.",
+        message: "Match service URL is not configured. Restart after updating .env.",
       });
       return;
     }
@@ -834,7 +834,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     let connection: MatchRuntimeConnection;
     try {
       connection = createMatchRuntimeConnection(stableIam.getAccessToken(), {
-        url: accelByteConfig.matchRuntimeURL,
+        url: accelByteConfig.matchServiceURL,
+        namespace: accelByteConfig.namespace,
         onJoined: (payload) => {
           if (payload.match_id === matchId && matchRuntimeRef.current === connection) {
             setMatchRuntimeState({
@@ -1407,14 +1408,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     <div className="match-runtime-panel">
                       <p className="status-label">Local match runtime</p>
 
-                      {!accelByteConfig.matchRuntimeURL &&
+                      {!accelByteConfig.matchServiceURL &&
                         matchRuntimeState.status === "idle" && (
                           <p className="runtime-message">
-                            Configure ACCELBYTE_MATCH_RUNTIME_URL and restart the dev server.
+                            Configure ACCELBYTE_MATCH_SERVICE_URL and restart the dev server.
                           </p>
                         )}
 
-                      {accelByteConfig.matchRuntimeURL &&
+                      {accelByteConfig.matchServiceURL &&
                         matchRuntimeState.status === "idle" && (
                           <button
                             className="secondary-action session-action"

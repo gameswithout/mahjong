@@ -1,12 +1,11 @@
 import {
   PROTOCOL_VERSION,
-  type ClientMessageType,
   type MatchCommandAcceptedPayload,
   type MatchCommandRequest,
+  type MatchCommandType,
   type MatchJoinedPayload,
   type MatchStatePayload,
   type ProtocolEnvelope,
-  type ProtocolErrorPayload,
   type SeatView,
   type ServerReadyPayload,
 } from "../protocol/envelope";
@@ -24,24 +23,13 @@ export class MatchRuntimeError extends Error {
   }
 }
 
-export interface MatchRuntimeSocket {
-  onopen: ((event?: unknown) => void) | null;
-  onmessage: ((event: { data: unknown }) => void) | null;
-  onerror: ((event: unknown) => void) | null;
-  onclose: ((event: unknown) => void) | null;
-  send(data: string): void;
-  close(code?: number, reason?: string): void;
-}
-
-export type MatchRuntimeSocketFactory = (
-  url: string,
-  protocols: string[],
-) => MatchRuntimeSocket;
+export type MatchRuntimeFetch = typeof fetch;
 
 export interface MatchRuntimeConnectionOptions {
   url: string;
+  namespace: string;
   timeoutMs?: number;
-  socketFactory?: MatchRuntimeSocketFactory;
+  fetchImpl?: MatchRuntimeFetch;
   onEnvelope?: (envelope: ProtocolEnvelope) => void;
   onJoined?: (payload: MatchJoinedPayload) => void;
   onState?: (payload: MatchStatePayload) => void;
@@ -51,79 +39,157 @@ export interface MatchRuntimeConnectionOptions {
 
 export interface MatchRuntimeConnection {
   readonly ready: Promise<ServerReadyPayload>;
-  send(type: ClientMessageType, payload?: unknown, requestId?: string): string;
   join(matchId: string, requestId?: string): string;
   sync(requestId?: string): string;
   command(command: MatchCommandRequest, requestId?: string): string;
   close(code?: number, reason?: string): void;
 }
 
-const DEFAULT_READY_TIMEOUT_MS = 8_000;
+const DEFAULT_TIMEOUT_MS = 8_000;
 
-function defaultSocketFactory(url: string, protocols: string[]): MatchRuntimeSocket {
-  return new WebSocket(url, protocols) as unknown as MatchRuntimeSocket;
-}
+const COMMAND_TYPE_TO_PROTO: Record<MatchCommandType, string> = {
+  draw: "MATCH_COMMAND_TYPE_DRAW",
+  discard: "MATCH_COMMAND_TYPE_DISCARD",
+  submit_claim: "MATCH_COMMAND_TYPE_SUBMIT_CLAIM",
+};
 
 function protocolError(message: string, cause?: unknown): MatchRuntimeError {
   return new MatchRuntimeError("protocol", message, { cause });
 }
 
-function encodeBearerToken(accessToken: string): string {
-  // OAuth bearer tokens are ASCII. Base64url keeps every byte inside the
-  // WebSocket subprotocol token grammar without putting the raw credential in
-  // the selected/echoed protocol.
-  return btoa(accessToken)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/u, "");
-}
-
-function parseEnvelope(raw: unknown): ProtocolEnvelope {
-  let value: unknown = raw;
-  if (typeof raw === "string") {
-    try {
-      value = JSON.parse(raw);
-    } catch (error) {
-      throw protocolError("Match runtime sent invalid JSON.", error);
+// The gRPC-gateway JSON marshaler encodes int64/uint64 proto fields as JSON
+// strings (per the proto3 JSON spec, to avoid JS float-precision loss), but
+// every consumer of SeatView expects real numbers. This walks a raw parsed
+// match-state body and converts the known int64/uint64 fields in place, plus
+// reshapes ClaimOptionsView.chow_sets from the wire's
+// [{tile_ids:["a","b"]}] into the [["a","b"]] tuple shape SeatView expects —
+// keeping every downstream consumer (matchTableAdapter, MatchTable,
+// HandResultScreen) unchanged.
+function toNumber(value: unknown): number {
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
     }
   }
-
-  if (!value || typeof value !== "object") {
-    throw protocolError("Match runtime sent an invalid envelope.");
-  }
-  const envelope = value as Partial<ProtocolEnvelope>;
-  if (envelope.v !== PROTOCOL_VERSION || typeof envelope.type !== "string") {
-    throw protocolError("Match runtime sent an unsupported protocol envelope.");
-  }
-  return envelope as ProtocolEnvelope;
+  throw protocolError("Match service returned a non-numeric value where a number was expected.");
 }
 
-function readReadyPayload(envelope: ProtocolEnvelope): ServerReadyPayload {
-  if (envelope.type !== "server.ready" || !envelope.payload || typeof envelope.payload !== "object") {
-    throw protocolError("Match runtime did not send a server.ready envelope.");
+function normalizeDiscard(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") {
+    return raw;
   }
-  const payload = envelope.payload as Partial<ServerReadyPayload>;
-  if (typeof payload.user_id !== "string" || typeof payload.server_time !== "string") {
-    throw protocolError("Match runtime sent an invalid server.ready payload.");
-  }
-  return { user_id: payload.user_id, server_time: payload.server_time };
+  const discard = raw as Record<string, unknown>;
+  return { ...discard, sequence: toNumber(discard.sequence) };
 }
 
-function readServerError(envelope: ProtocolEnvelope): MatchRuntimeError {
-  if (!envelope.payload || typeof envelope.payload !== "object") {
-    return protocolError("Match runtime sent an invalid error payload.");
+function normalizeChowSets(raw: unknown): unknown {
+  if (!Array.isArray(raw)) {
+    return raw;
   }
-  const payload = envelope.payload as Partial<ProtocolErrorPayload>;
-  const code = typeof payload.code === "string" ? payload.code : "protocol.error";
-  const message = typeof payload.message === "string" ? payload.message : "Match runtime rejected the request.";
-  return new MatchRuntimeError("protocol", `${code}: ${message}`);
+  return raw.map((entry) => {
+    if (!entry || typeof entry !== "object" || !Array.isArray((entry as Record<string, unknown>).tile_ids)) {
+      return entry;
+    }
+    const tileIds = (entry as Record<string, unknown>).tile_ids as unknown[];
+    return [tileIds[0], tileIds[1]];
+  });
+}
+
+// ScoreResult (win_preview) has no int64/uint64 fields — raw_tai and
+// effective_tiles are int32, which protojson does not stringify — so it
+// needs no numeric normalization, only the chow_sets tuple reshape below.
+function normalizeClaim(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  const claim = raw as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {
+    ...claim,
+    state_version: toNumber(claim.state_version),
+    discard: normalizeDiscard(claim.discard),
+  };
+  if (claim.own_response && typeof claim.own_response === "object") {
+    const ownResponse = claim.own_response as Record<string, unknown>;
+    normalized.own_response = {
+      ...ownResponse,
+      state_version: toNumber(ownResponse.state_version),
+      response_revision: toNumber(ownResponse.response_revision),
+    };
+  }
+  if (claim.options && typeof claim.options === "object") {
+    const options = claim.options as Record<string, unknown>;
+    normalized.options = { ...options, chow_sets: normalizeChowSets(options.chow_sets) };
+  }
+  return normalized;
+}
+
+function normalizeSettlement(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  const settlement = raw as Record<string, unknown>;
+  const net: Record<string, number> = {};
+  if (settlement.net && typeof settlement.net === "object") {
+    for (const [seat, amount] of Object.entries(settlement.net as Record<string, unknown>)) {
+      net[seat] = toNumber(amount);
+    }
+  }
+  const transfers = Array.isArray(settlement.transfers)
+    ? settlement.transfers.map((transfer) => {
+        const item = transfer as Record<string, unknown>;
+        return {
+          ...item,
+          effective_tai: toNumber(item.effective_tai),
+          raw_amount: toNumber(item.raw_amount),
+          amount: toNumber(item.amount),
+        };
+      })
+    : undefined;
+  return {
+    ...settlement,
+    net,
+    transfers,
+    total_credits: toNumber(settlement.total_credits ?? 0),
+    total_debits: toNumber(settlement.total_debits ?? 0),
+  };
+}
+
+// normalizeMatchState converts a raw parsed MatchState JSON body (gateway
+// wire format) into the shape SeatView's readers expect: real numbers for
+// every int64/uint64 field, and chow_sets reshaped into tuples.
+function normalizeMatchState(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  const state = raw as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {
+    ...state,
+    state_version: toNumber(state.state_version),
+  };
+  if (Array.isArray(state.discards)) {
+    normalized.discards = state.discards.map(normalizeDiscard);
+  }
+  if (state.last_discard) {
+    normalized.last_discard = normalizeDiscard(state.last_discard);
+  }
+  if (state.claim) {
+    normalized.claim = normalizeClaim(state.claim);
+  }
+  if (state.settlement) {
+    normalized.settlement = normalizeSettlement(state.settlement);
+  }
+  return normalized;
 }
 
 function readSeatView(value: unknown): SeatView {
   if (!value || typeof value !== "object") {
-    throw protocolError("Match runtime sent an invalid seat view.");
+    throw protocolError("Match service sent an invalid seat view.");
   }
-  const view = value as Partial<SeatView>;
+  const view = normalizeMatchState(value) as Partial<SeatView>;
   if (
     typeof view.match_id !== "string" ||
     !["E", "S", "W", "N"].includes(view.seat ?? "") ||
@@ -135,59 +201,42 @@ function readSeatView(value: unknown): SeatView {
     !view.wall ||
     typeof view.wall !== "object"
   ) {
-    throw protocolError("Match runtime sent an invalid seat view.");
+    throw protocolError("Match service sent an invalid seat view.");
   }
   return view as SeatView;
 }
 
-function readJoinedPayload(envelope: ProtocolEnvelope): MatchJoinedPayload {
-  if (!envelope.payload || typeof envelope.payload !== "object") {
-    throw protocolError("Match runtime sent an invalid match.joined payload.");
+function readMatchStateResponse(body: unknown, matchId: string): SeatView {
+  if (!body || typeof body !== "object" || !("state" in (body as Record<string, unknown>))) {
+    throw protocolError("Match service sent an invalid response.");
   }
-  const payload = envelope.payload as Partial<MatchJoinedPayload>;
-  const view = readSeatView(payload.view);
-  if (
-    typeof payload.match_id !== "string" ||
-    !["E", "S", "W", "N"].includes(payload.seat ?? "") ||
-    payload.match_id !== view.match_id ||
-    payload.seat !== view.seat
-  ) {
-    throw protocolError("Match runtime sent an inconsistent match.joined payload.");
+  const view = readSeatView((body as Record<string, unknown>).state);
+  if (view.match_id !== matchId) {
+    throw protocolError("Match service returned a mismatched match ID.");
   }
-  return { match_id: payload.match_id, seat: payload.seat, view } as MatchJoinedPayload;
+  return view;
 }
 
-function readStatePayload(envelope: ProtocolEnvelope): MatchStatePayload {
-  if (!envelope.payload || typeof envelope.payload !== "object") {
-    throw protocolError("Match runtime sent an invalid match.state payload.");
+function errorCodeForStatus(status: number): MatchRuntimeErrorCode {
+  if (status === 401) {
+    return "configuration";
   }
-  const payload = envelope.payload as Partial<MatchStatePayload>;
-  const view = readSeatView(payload.view);
-  if (
-    typeof payload.match_id !== "string" ||
-    !["E", "S", "W", "N"].includes(payload.seat ?? "") ||
-    payload.match_id !== view.match_id ||
-    payload.seat !== view.seat
-  ) {
-    throw protocolError("Match runtime sent an inconsistent match.state payload.");
+  if (status >= 500 || status === 429) {
+    return "network";
   }
-  return { match_id: payload.match_id, seat: payload.seat, view } as MatchStatePayload;
+  return "protocol";
 }
 
-function readCommandAcceptedPayload(envelope: ProtocolEnvelope): MatchCommandAcceptedPayload {
-  if (!envelope.payload || typeof envelope.payload !== "object") {
-    throw protocolError("Match runtime sent an invalid command acknowledgement.");
+async function parseErrorBody(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: string };
+    if (typeof body.message === "string" && body.message) {
+      return body.message;
+    }
+  } catch {
+    // fall through to the generic message below
   }
-  const payload = envelope.payload as Partial<MatchCommandAcceptedPayload>;
-  if (
-    typeof payload.match_id !== "string" ||
-    !["E", "S", "W", "N"].includes(payload.seat ?? "") ||
-    typeof payload.state_version !== "number" ||
-    typeof payload.phase !== "string"
-  ) {
-    throw protocolError("Match runtime sent an invalid command acknowledgement.");
-  }
-  return payload as MatchCommandAcceptedPayload;
+  return `Match service request failed with HTTP ${response.status}.`;
 }
 
 export function createMatchRuntimeConnection(
@@ -200,153 +249,152 @@ export function createMatchRuntimeConnection(
   if (!options.url) {
     throw new MatchRuntimeError("configuration", "Match runtime URL is not configured.");
   }
+  if (!options.namespace) {
+    throw new MatchRuntimeError("configuration", "AGS namespace is not configured.");
+  }
 
-  const timeoutMs = options.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
-  const socketFactory = options.socketFactory ?? defaultSocketFactory;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const requestPrefix = "match-runtime";
   let requestSequence = 0;
   let closed = false;
-  let readyResolve: (payload: ServerReadyPayload) => void;
-  let readyReject: (error: MatchRuntimeError) => void;
-  let readySettled = false;
-  const ready = new Promise<ServerReadyPayload>((resolve, reject) => {
-    readyResolve = resolve;
-    readyReject = reject;
-  });
+  let currentMatchId: string | null = null;
 
-  const settleReadyError = (error: MatchRuntimeError): void => {
-    if (readySettled) {
-      options.onError?.(error);
-      return;
-    }
-    readySettled = true;
-    readyReject(error);
-    options.onError?.(error);
-  };
+  const nextRequestId = (requestId?: string): string => requestId ?? `${requestPrefix}-${++requestSequence}`;
 
-  let socket: MatchRuntimeSocket;
-  try {
-    // Browser WebSocket constructors cannot set Authorization headers. The
-    // token is sent only as the handshake subprotocol and is never logged.
-    socket = socketFactory(options.url, ["ags.bearer", `ags.token.${encodeBearerToken(accessToken)}`]);
-  } catch (error) {
-    const safeError = new MatchRuntimeError("network", "Match runtime could not be reached.", { cause: error });
-    settleReadyError(safeError);
-    throw safeError;
-  }
+  const matchPath = (matchId: string, suffix = ""): string =>
+    `${options.url}/v1/namespaces/${encodeURIComponent(options.namespace)}/sessions/${encodeURIComponent(matchId)}/matches/${encodeURIComponent(matchId)}${suffix}`;
 
-  const timeout = globalThis.setTimeout(() => {
-    settleReadyError(new MatchRuntimeError("timeout", "Match runtime did not become ready in time."));
-  }, timeoutMs);
-
-  socket.onopen = () => {
-    // The runtime sends server.ready immediately after authentication. Keeping
-    // the client passive here avoids racing the server's first envelope.
-  };
-  socket.onmessage = (event) => {
-    let envelope: ProtocolEnvelope;
-    try {
-      envelope = parseEnvelope(event.data);
-    } catch (error) {
-      settleReadyError(error instanceof MatchRuntimeError ? error : protocolError("Invalid runtime envelope.", error));
-      return;
-    }
-
-    options.onEnvelope?.(envelope);
-    if (envelope.type === "server.ready") {
-      try {
-        const payload = readReadyPayload(envelope);
-        if (!readySettled) {
-          readySettled = true;
-          globalThis.clearTimeout(timeout);
-          readyResolve(payload);
-        }
-      } catch (error) {
-        settleReadyError(error instanceof MatchRuntimeError ? error : protocolError("Invalid ready envelope.", error));
-      }
-      return;
-    }
-    if (envelope.type === "error") {
-      settleReadyError(readServerError(envelope));
-      return;
-    }
-    try {
-      if (envelope.type === "match.joined") {
-        const payload = readJoinedPayload(envelope);
-        options.onJoined?.(payload);
-      } else if (envelope.type === "match.state") {
-        const payload = readStatePayload(envelope);
-        options.onState?.(payload);
-      } else if (envelope.type === "match.command.accepted") {
-        const payload = readCommandAcceptedPayload(envelope);
-        options.onCommandAccepted?.(payload);
-      }
-    } catch (error) {
-      settleReadyError(error instanceof MatchRuntimeError ? error : protocolError("Invalid match payload.", error));
-    }
-  };
-  socket.onerror = (event) => {
-    settleReadyError(new MatchRuntimeError("network", "Match runtime connection failed.", { cause: event }));
-  };
-  socket.onclose = (event) => {
-    if (closed) {
-      return;
-    }
-    settleReadyError(new MatchRuntimeError(
-      "closed",
-      readySettled ? "Match runtime connection closed." : "Match runtime connection closed before it was ready.",
-      { cause: event },
-    ));
-  };
-
-  const send = (type: ClientMessageType, payload?: unknown, requestId?: string): string => {
+  const request = async (method: string, url: string, body?: unknown): Promise<unknown> => {
     if (closed) {
       throw new MatchRuntimeError("closed", "Match runtime connection is closed.");
     }
-    const id = requestId ?? `${requestPrefix}-${++requestSequence}`;
-    const envelope: ProtocolEnvelope = {
-      v: PROTOCOL_VERSION,
-      type,
-      request_id: id,
-      ...(payload === undefined ? {} : { payload }),
-    };
+    const controller = new AbortController();
+    const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+    let response: Response;
     try {
-      socket.send(JSON.stringify(envelope));
+      response = await fetchImpl(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
     } catch (error) {
-      throw new MatchRuntimeError("network", "Match runtime message could not be sent.", { cause: error });
+      if (controller.signal.aborted) {
+        throw new MatchRuntimeError("timeout", "Match service did not respond in time.", { cause: error });
+      }
+      throw new MatchRuntimeError("network", "Match service could not be reached.", { cause: error });
+    } finally {
+      globalThis.clearTimeout(timeout);
     }
-    return id;
+    if (!response.ok) {
+      const message = await parseErrorBody(response);
+      throw new MatchRuntimeError(errorCodeForStatus(response.status), message);
+    }
+    try {
+      return await response.json();
+    } catch (error) {
+      throw protocolError("Match service sent an invalid JSON response.", error);
+    }
+  };
+
+  const emitEnvelope = (type: string, payload: unknown): void => {
+    options.onEnvelope?.({ v: PROTOCOL_VERSION, type, payload } as ProtocolEnvelope);
+  };
+
+  const reportError = (error: MatchRuntimeError): void => {
+    options.onError?.(error);
   };
 
   return {
-    ready,
-    send,
+    // REST has no handshake to await; config is already validated above, so
+    // this resolves immediately. Nothing downstream reads the resolved
+    // payload's values today.
+    ready: Promise.resolve({ user_id: "", server_time: new Date().toISOString() }),
+
     join(matchId, requestId) {
-      if (!matchId.trim()) {
+      const trimmed = matchId.trim();
+      if (!trimmed) {
         throw new MatchRuntimeError("configuration", "A match Session ID is required.");
       }
-      return send("match.join", { match_id: matchId.trim() }, requestId);
+      currentMatchId = trimmed;
+      const id = nextRequestId(requestId);
+      void request("POST", matchPath(trimmed, "/join"), {})
+        .then((body) => {
+          const view = readMatchStateResponse(body, trimmed);
+          const payload: MatchJoinedPayload = { match_id: view.match_id, seat: view.seat, view };
+          emitEnvelope("match.joined", payload);
+          options.onJoined?.(payload);
+        })
+        .catch((error) => {
+          reportError(error instanceof MatchRuntimeError ? error : protocolError("Join request failed.", error));
+        });
+      return id;
     },
+
     sync(requestId) {
-      return send("match.sync", undefined, requestId);
+      const id = nextRequestId(requestId);
+      const matchId = currentMatchId;
+      if (!matchId) {
+        reportError(new MatchRuntimeError("configuration", "sync() called before join() completed."));
+        return id;
+      }
+      void request("GET", matchPath(matchId))
+        .then((body) => {
+          const view = readMatchStateResponse(body, matchId);
+          const payload: MatchStatePayload = { match_id: view.match_id, seat: view.seat, view };
+          emitEnvelope("match.state", payload);
+          options.onState?.(payload);
+        })
+        .catch((error) => {
+          reportError(error instanceof MatchRuntimeError ? error : protocolError("Sync request failed.", error));
+        });
+      return id;
     },
+
     command(command, requestId) {
-      if (!command.match_id.trim()) {
+      const trimmed = command.match_id.trim();
+      if (!trimmed) {
         throw new MatchRuntimeError("configuration", "A match Session ID is required.");
       }
-      return send("match.command", command, requestId);
+      const id = nextRequestId(requestId);
+      const body: Record<string, unknown> = {
+        request_id: id,
+        type: COMMAND_TYPE_TO_PROTO[command.type],
+        expected_version: command.expected_version,
+        tile_id: command.tile_id,
+        claim: command.claim,
+      };
+      void request("POST", matchPath(trimmed, "/commands"), body)
+        .then((raw) => {
+          if (!raw || typeof raw !== "object") {
+            throw protocolError("Match service sent an invalid command response.");
+          }
+          const response = raw as Record<string, unknown>;
+          const view = readMatchStateResponse({ state: response.state }, trimmed);
+          const accepted: MatchCommandAcceptedPayload = {
+            match_id: view.match_id,
+            seat: view.seat,
+            state_version: view.state_version,
+            phase: view.phase,
+          };
+          emitEnvelope("match.command.accepted", accepted);
+          options.onCommandAccepted?.(accepted);
+          const statePayload: MatchStatePayload = { match_id: view.match_id, seat: view.seat, view };
+          emitEnvelope("match.state", statePayload);
+          options.onState?.(statePayload);
+        })
+        .catch((error) => {
+          reportError(error instanceof MatchRuntimeError ? error : protocolError("Command request failed.", error));
+        });
+      return id;
     },
-    close(code = 1000, reason = "client disconnect") {
-      if (closed) {
-        return;
-      }
+
+    close() {
       closed = true;
-      globalThis.clearTimeout(timeout);
-      if (!readySettled) {
-        readySettled = true;
-        readyReject(new MatchRuntimeError("closed", "Match runtime connection closed before it was ready."));
-      }
-      socket.close(code, reason);
     },
   };
 }
