@@ -5,15 +5,19 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Official GitHub Pages deployment: build once, upload the static bundle as
+# a Pages artifact, and publish it. No gh-pages branch to keep in sync.
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
-  group: deploy-pages
+  group: pages
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +29,21 @@ jobs:
 
       - run: npm ci
 
+      # Enables GitHub Pages (build_type: workflow) on the first run using
+      # the workflow's own token — the repo owner is a separate account and
+      # the pushing collaborator isn't a repo admin, so Pages can't be turned
+      # on from a personal API token; the GITHUB_TOKEN's pages:write can.
+      # Idempotent on later runs.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # All values here are browser-safe: the IAM client is a public client
+      # with no secret, and the pool/template/version are the same non-secret
+      # test config committed to .env.example. Baked in (not read from repo
+      # variables) so the hosted build is self-contained and can't silently
+      # ship with an empty session template — which would break every
+      # session-creating flow (Practice vs Bots, Create table, matchmaking).
       - name: Configure production AGS client
         run: |
           {
@@ -32,14 +51,23 @@ jobs:
             echo "ACCELBYTE_NAMESPACE=gameswithout-mahjong"
             echo "ACCELBYTE_CLIENT_ID=dc7a13b683c44822905797a8d1df39e7"
             echo "ACCELBYTE_MATCH_SERVICE_URL=https://gameswithout-mahjong.prod.gamingservices.accelbyte.io/ext-gameswithout-mahjong-mahjong-match-service"
-            echo "ACCELBYTE_MATCH_POOL=${{ vars.ACCELBYTE_MATCH_POOL }}"
-            echo "ACCELBYTE_SESSION_TEMPLATE=${{ vars.ACCELBYTE_SESSION_TEMPLATE }}"
-            echo "ACCELBYTE_SESSION_CLIENT_VERSION=${{ vars.ACCELBYTE_SESSION_CLIENT_VERSION || 'web-0.0.0' }}"
+            echo "ACCELBYTE_MATCH_POOL=mahjong-test-pool"
+            echo "ACCELBYTE_SESSION_TEMPLATE=mahjong-test-none"
+            echo "ACCELBYTE_SESSION_CLIENT_VERSION=web-0.0.0"
           } >> .env.production
 
       - run: npm run build
 
-      - uses: peaceiris/actions-gh-pages@v4
+      - uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
