@@ -259,6 +259,40 @@ body {
   font-weight: 800;
   justify-content: center;
   line-height: 1;
+  overflow: hidden;
+}
+
+/* Face artwork is original inline SVG, not a sprite sheet or borrowed photo.
+   It scales with the same tile body used in hands, melds, rivers and waits. */
+.tile-face {
+  display: block;
+  height: 88%;
+  overflow: visible;
+  pointer-events: none;
+  width: 88%;
+}
+
+.tile-face-script,
+.tile-face-honor,
+.tile-face-flower-label {
+  font-family: "Noto Serif TC", "Songti TC", STSong, serif;
+  font-weight: 800;
+}
+
+.tile-face-script text:first-child {
+  font-size: 26px;
+}
+
+.tile-face-script text:last-child {
+  font-size: 31px;
+}
+
+.tile-face-honor {
+  font-size: 40px;
+}
+
+.tile-face-flower-label {
+  font-size: 15px;
 }
 
 .tile-xs {

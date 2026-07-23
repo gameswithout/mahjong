@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { TileFace } from "./TileFace";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
 import { tileTypeKey, windName } from "./matchTableTypes";
 import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
@@ -46,7 +47,7 @@ function Tile({
       aria-label={t.label}
       title={t.label}
     >
-      {t.glyph}
+      <TileFace id={t.id} size={size} />
     </span>
   );
 }
