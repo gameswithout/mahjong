@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrowserIam, IamAuthError, createBrowserIam } from "./iam";
 import { CLOSED_BETA_COUNTRIES, DEFAULT_COUNTRY_CODE } from "./countries";
@@ -32,6 +32,9 @@ import {
 import { browserMatchResumeStore, type MatchResumePointer } from "./match-resume";
 import type { ClaimType, MatchCommandRequest, SeatView } from "../protocol/envelope";
 import { MatchTable } from "./MatchTable";
+import { VideoCallPanel } from "./VideoCallPanel";
+import { useVideoCall } from "./useVideoCall";
+import type { SeatId } from "./matchTableTypes";
 import { HandResultScreen } from "./HandResultScreen";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
@@ -223,6 +226,30 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const matchmakingRequestRef = useRef(0);
   const autoJoiningSessionIdRef = useRef<string | null>(null);
   const autoDrawStateKeyRef = useRef<string | null>(null);
+
+  // Video chat: peer-to-peer camera/mic for online (human) matches. The
+  // controller is created unconditionally (rules of hooks) but stays idle until
+  // the player taps "Video chat", and only ever dials the other *human* seats —
+  // so an all-bot Practice table yields an empty seat list and never surfaces
+  // the feature at all. The stable key keeps the seat array identity steady
+  // across renders so the mesh isn't torn down on every poll tick.
+  const joinedVideoView = matchRuntimeState.status === "joined" ? matchRuntimeState.view : null;
+  const videoHumanSeatsKey = joinedVideoView
+    ? joinedVideoView.players
+        .filter((player) => !player.is_bot && player.seat !== joinedVideoView.seat)
+        .map((player) => player.seat)
+        .sort()
+        .join(",")
+    : "";
+  const videoHumanSeats = useMemo<SeatId[]>(
+    () => (videoHumanSeatsKey ? (videoHumanSeatsKey.split(",") as SeatId[]) : []),
+    [videoHumanSeatsKey],
+  );
+  const videoController = useVideoCall({
+    matchId: matchRuntimeState.status === "joined" ? matchRuntimeState.matchId : "",
+    localSeat: (matchRuntimeState.status === "joined" ? matchRuntimeState.view.seat : "E") as SeatId,
+    humanSeats: videoHumanSeats,
+  });
 
   const activeSessionId =
     state.status === "signed_in" &&
@@ -1336,6 +1363,15 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   Leave match
                 </button>
               </div>
+              {videoHumanSeats.length > 0 && (
+                <div className="video-call-dock">
+                  <VideoCallPanel
+                    controller={videoController}
+                    humanSeats={videoHumanSeats}
+                    seatName={() => "Player"}
+                  />
+                </div>
+              )}
               <div
                 className="match-table-frame"
                 data-testid="live-match"
