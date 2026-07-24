@@ -1,0 +1,172 @@
+/* Video-chat overlay for online (human) matches. It floats over the top-right
+   of the table so the felt and the player's hand stay unobstructed, and uses
+   the same dark-panel/gold-accent language as the match cockpit. */
+
+/* Docked to the top-left of the game screen — the top-right there already
+   holds the Leave-match button. */
+.video-call-dock {
+  left: max(0.75rem, env(safe-area-inset-left));
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top));
+  z-index: 35;
+}
+
+.video-call {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.video-call-collapsed {
+  align-items: flex-start;
+}
+
+.video-call-start {
+  align-items: center;
+  background: rgb(8 15 13 / 91%);
+  border: 1px solid rgb(242 198 109 / 40%);
+  border-radius: 999px;
+  color: #f7f4ee;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  padding: 7px 14px;
+}
+
+.video-call-start:hover {
+  border-color: #f2c66d;
+}
+
+.video-call-tiles {
+  background: rgb(8 15 13 / 88%);
+  border: 1px solid rgb(242 198 109 / 28%);
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 38%);
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(2, 1fr);
+  padding: 6px;
+  width: 288px;
+}
+
+.video-tile {
+  aspect-ratio: 4 / 3;
+  background: radial-gradient(circle at 50% 40%, #24304a, #10151f);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.video-tile-media {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.video-tile-mirror {
+  transform: scaleX(-1);
+}
+
+.video-tile-placeholder {
+  color: #9aa0c2;
+  font-size: 10px;
+  font-weight: 600;
+  inset: 0;
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  position: absolute;
+  text-align: center;
+}
+
+.video-tile-label {
+  background: rgb(0 0 0 / 55%);
+  border-radius: 999px;
+  bottom: 4px;
+  color: #f7f4ee;
+  font-size: 9px;
+  font-weight: 700;
+  left: 4px;
+  max-width: calc(100% - 8px);
+  overflow: hidden;
+  padding: 1px 6px;
+  position: absolute;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-call-controls {
+  background: rgb(8 15 13 / 91%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+}
+
+.video-call-control {
+  align-items: center;
+  background: #232a45;
+  border: 1px solid #3a4066;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 15px;
+  height: 34px;
+  justify-content: center;
+  line-height: 1;
+  width: 34px;
+}
+
+.video-call-control:hover {
+  border-color: #6a72a6;
+}
+
+.video-call-control-off {
+  background: #5a2330;
+  border-color: #a5424f;
+}
+
+.video-call-control-leave {
+  background: #5a2330;
+  border-color: #a5424f;
+}
+
+.video-call-control:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.video-call-error {
+  background: rgb(90 35 48 / 92%);
+  border-radius: 8px;
+  color: #ffdede;
+  font-size: 11px;
+  margin: 0;
+  max-width: 288px;
+  padding: 5px 8px;
+}
+
+.video-call-retry {
+  background: none;
+  border: 0;
+  color: #ffd27a;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* On the narrow mobile-landscape floor a 2-wide grid of tiles would crowd the
+   table, so the panel collapses to a single column of smaller tiles. */
+@media (max-height: 500px) {
+  .video-call-tiles {
+    grid-template-columns: 1fr;
+    width: 128px;
+  }
+}
