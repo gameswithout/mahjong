@@ -17,6 +17,7 @@
     "@accelbyte/sdk": "4.3.2",
     "@accelbyte/sdk-iam": "6.3.5",
     "@accelbyte/sdk-lobby": "^5.2.7",
+    "peerjs": "^1.5.5",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
