@@ -47,7 +47,7 @@ func (m *AGSWalletMirror) Balance(ctx context.Context, userID string) (int64, er
 			Context:   ctx,
 		},
 		auth.AuthInfoWriter(
-			auth.Session{m.tokens, m.config, nil},
+			auth.Session{Token: m.tokens, Config: m.config, Refresh: nil},
 			[][]string{{"bearer"}},
 			"",
 		),
@@ -94,7 +94,7 @@ func (m *AGSWalletMirror) Credit(ctx context.Context, userID string, amount int6
 			},
 		},
 		auth.AuthInfoWriter(
-			auth.Session{m.tokens, m.config, nil},
+			auth.Session{Token: m.tokens, Config: m.config, Refresh: nil},
 			[][]string{{"bearer"}},
 			"",
 		),
@@ -128,7 +128,7 @@ func (m *AGSWalletMirror) Debit(ctx context.Context, userID string, amount int64
 			},
 		},
 		auth.AuthInfoWriter(
-			auth.Session{m.tokens, m.config, nil},
+			auth.Session{Token: m.tokens, Config: m.config, Refresh: nil},
 			[][]string{{"bearer"}},
 			"",
 		),
