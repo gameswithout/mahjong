@@ -45,10 +45,18 @@ export function useVideoCall({
   matchId,
   localSeat,
   humanSeats,
+  iceConfigUrl = "",
+  getAccessToken,
 }: {
   matchId: string;
   localSeat: SeatId;
   humanSeats: SeatId[];
+  // AGS TURN Manager endpoint + a token getter for its Bearer auth. When set,
+  // the runtime fetches short-lived relay credentials so calls connect even
+  // when both peers are behind restrictive NAT; when empty it falls back to
+  // PeerJS's default STUN (host/srflx candidates only).
+  iceConfigUrl?: string;
+  getAccessToken?: () => string;
 }): VideoCallController {
   const [status, setStatus] = useState<VideoCallStatus>("off");
   const [errorMessage, setErrorMessage] = useState("");
@@ -64,6 +72,11 @@ export function useVideoCall({
   const retryTimersRef = useRef<Map<SeatId, ReturnType<typeof setTimeout>>>(new Map());
   const runtimeRef = useRef<ReturnType<typeof createVideoCallRuntime> | null>(null);
   const startedRef = useRef(false);
+  // The runtime is created once and cached, so read the token through a ref to
+  // always hand the ICE fetch the freshest access token (it can be refreshed
+  // by the SDK long after the runtime was built).
+  const getAccessTokenRef = useRef<(() => string) | undefined>(getAccessToken);
+  getAccessTokenRef.current = getAccessToken;
   // Keep the latest human-seat list reachable from stable callbacks without
   // making them dependencies that would tear the mesh down on every re-render.
   const humanSeatsRef = useRef<SeatId[]>(humanSeats);
@@ -174,7 +187,12 @@ export function useVideoCall({
 
     const runtime =
       runtimeRef.current ??
-      (runtimeRef.current = createVideoCallRuntime({ Peer, mediaDevices: navigator.mediaDevices }));
+      (runtimeRef.current = createVideoCallRuntime({
+        Peer,
+        mediaDevices: navigator.mediaDevices,
+        iceConfigUrl,
+        getAccessToken: () => getAccessTokenRef.current?.() ?? "",
+      }));
 
     void (async () => {
       let stream: MediaStream;
@@ -254,7 +272,7 @@ export function useVideoCall({
         }
       });
     })();
-  }, [matchId, localSeat, dialSeat, wireCall, clearRetry, teardown]);
+  }, [matchId, localSeat, iceConfigUrl, dialSeat, wireCall, clearRetry, teardown]);
 
   const stop = useCallback(() => {
     teardown();

@@ -249,6 +249,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     matchId: matchRuntimeState.status === "joined" ? matchRuntimeState.matchId : "",
     localSeat: (matchRuntimeState.status === "joined" ? matchRuntimeState.view.seat : "E") as SeatId,
     humanSeats: videoHumanSeats,
+    iceConfigUrl: accelByteConfig.iceConfigURL ?? "",
+    getAccessToken: () => stableIam.getAccessToken(),
   });
 
   const activeSessionId =
