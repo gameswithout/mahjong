@@ -192,7 +192,7 @@ function OpponentSeat({
 }) {
   return (
     <section
-      className={`seat seat-${slot}${state.isActive && claimSource === null ? " seat-active" : ""}${
+      className={`seat seat-${slot}${state.isActive ? " seat-active" : ""}${
         state.revealedHand ? " seat-celebrating" : ""
       }`}
       aria-label={`${windName(seat)} seat`}
@@ -581,7 +581,7 @@ function LocalSeat({
 }) {
   return (
     <section
-      className={`seat seat-bottom local-seat${state.isActive || isClaimThinking ? " seat-active" : ""}${
+      className={`seat seat-bottom local-seat${state.isActive ? " seat-active" : ""}${
         state.revealedHand ? " seat-celebrating" : ""
       }`}
       aria-label="Your seat"

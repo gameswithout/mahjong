@@ -96,7 +96,7 @@ describe("MatchTable table-first UX", () => {
     expect(container.textContent).not.toContain("CLAIM");
   });
 
-  it("moves claim-window emphasis from the discarder to the deciding player", () => {
+  it("keeps turn emphasis on the authoritative active player during a claim decision", () => {
     const state = {
       ...mockMatchTableState,
       seats: {
@@ -107,8 +107,8 @@ describe("MatchTable table-first UX", () => {
     };
     act(() => root.render(<MatchTable state={state} />));
 
-    expect(container.querySelector(".local-seat.seat-active")).not.toBeNull();
-    expect(container.querySelector(".seat-left.seat-active")).toBeNull();
+    expect(container.querySelector(".local-seat.seat-active")).toBeNull();
+    expect(container.querySelector(".seat-left.seat-active")).not.toBeNull();
     expect(container.querySelector(".seat-left .claim-badge")?.textContent).toBe("waiting");
     expect(container.querySelector(".local-seat .claim-badge")?.textContent).toBe("thinking");
   });
