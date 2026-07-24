@@ -112,7 +112,7 @@ body {
 .seat-top:not(.seat-active),
 .seat-left:not(.seat-active),
 .seat-right:not(.seat-active) {
-  background: radial-gradient(ellipse 84% 74% at 50% 40%, rgb(255 246 214 / 7%), transparent 72%);
+  background: radial-gradient(ellipse 76% 48% at 50% 50%, rgb(255 246 214 / 11%), transparent 70%);
 }
 
 /* A little wooden nameplate resting on the felt, the way a scorekeeper's
