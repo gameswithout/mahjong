@@ -187,7 +187,6 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [onlineSessionEntryMode, setOnlineSessionEntryMode] =
     useState<OnlineSessionEntryMode>("manual");
   const [joinSessionId, setJoinSessionId] = useState("");
-  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [controlRestoredNotice, setControlRestoredNotice] = useState(false);
@@ -414,25 +413,6 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }, 4000);
     return () => window.clearInterval(interval);
   }, [matchRuntimeJoined]);
-
-  // A tile selected for discard stops being valid the moment the turn
-  // moves on (our own confirmed discard, a claim stealing it, a timeout).
-  useEffect(() => {
-    if (matchRuntimeState.status !== "joined") {
-      setSelectedTileId(null);
-      return;
-    }
-    const canDiscard =
-      matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
-      matchRuntimeState.view.phase === "awaiting_discard";
-    if (!canDiscard) {
-      setSelectedTileId(null);
-      return;
-    }
-    setSelectedTileId((current) =>
-      current && matchRuntimeState.view.own_hand.some((item) => item.id === current) ? current : null,
-    );
-  }, [matchRuntimeState]);
 
   const autoDrawStateKey =
     matchRuntimeState.status === "joined"
@@ -1058,7 +1038,6 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     setOnlineSessionEntryMode("manual");
     autoJoiningSessionIdRef.current = null;
     closeMatchRuntime();
-    setSelectedTileId(null);
     setReconnectAttempt(0);
     setSessionState({ status: "loading" });
     setMatchRuntimeState({
@@ -1143,24 +1122,23 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     });
   }
 
-  // Select/confirm discard (E8.F2, §9.3/§9.6): clicking a hand tile only
-  // selects it; discarding is a separate, explicit confirm so a misclick
-  // is free to undo (select a different tile, or the same one again to
-  // deselect) any time before the confirm button is actually pressed.
-  function selectHandTile(tileId: string) {
-    setSelectedTileId((current) => (current === tileId ? null : tileId));
-  }
-
-  function confirmDiscard() {
-    if (matchRuntimeState.status !== "joined" || !selectedTileId) {
+  // Discarding is the player's primary repeated action. A hand tile is now a
+  // direct action target: one tap sends the authoritative discard command,
+  // eliminating the previous select-then-confirm round trip.
+  function discardHandTile(tileId: string) {
+    if (
+      matchRuntimeState.status !== "joined" ||
+      matchRuntimeState.commandPending ||
+      matchRuntimeState.view.active_seat !== matchRuntimeState.view.seat ||
+      matchRuntimeState.view.phase !== "awaiting_discard"
+    ) {
       return;
     }
     sendMatchCommand({
       type: "discard",
       expected_version: matchRuntimeState.view.state_version,
-      tile_id: selectedTileId,
+      tile_id: tileId,
     });
-    setSelectedTileId(null);
   }
 
   // dispatchClaimAction sends whichever legal claim response the match
@@ -1276,9 +1254,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     canDiscard:
                       matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
                       matchRuntimeState.view.phase === "awaiting_discard",
-                    selectedTileId,
-                    onSelectTile: selectHandTile,
-                    onConfirmDiscard: confirmDiscard,
+                    onDiscardTile: discardHandTile,
                     discardPending: matchRuntimeState.commandPending,
                   }}
                 />

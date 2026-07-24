@@ -94,6 +94,21 @@ function activePracticeView(matchId: string): SeatView {
   };
 }
 
+function discardPracticeView(matchId: string): SeatView {
+  const view = activePracticeView(matchId);
+  return {
+    ...view,
+    phase: "awaiting_discard",
+    state_version: 2,
+    own_hand: [
+      { id: "characters-1-1", kind: "characters", rank: 1, copy: 1 },
+    ],
+    players: view.players.map((player) =>
+      player.seat === "E" ? { ...player, hand_count: 1 } : player,
+    ),
+  };
+}
+
 function button(container: HTMLElement, label: string): HTMLButtonElement {
   const match = Array.from(container.querySelectorAll("button")).find(
     (candidate) => candidate.textContent === label,
@@ -279,6 +294,61 @@ describe("App Practice journey", () => {
       match_id: "practice-1",
       type: "draw",
       expected_version: 1,
+    });
+    expect(command).toHaveBeenCalledOnce();
+  });
+
+  it("sends a discard command from one hand-tile tap", async () => {
+    const command = vi.fn(() => "command");
+    dependencies.createMatchRuntimeConnection.mockImplementation(
+      (_accessToken: string, options: MatchRuntimeConnectionOptions) => {
+        const connection: MatchRuntimeConnection = {
+          ready: Promise.resolve({
+            protocol_version: "1",
+            server_time: "2026-07-24T00:00:00Z",
+            user_id: "guest-1",
+          }),
+          join: vi.fn((matchId: string) => {
+            queueMicrotask(() =>
+              options.onJoined?.({
+                match_id: matchId,
+                seat: "E",
+                view: discardPracticeView(matchId),
+              }),
+            );
+            return `join-${matchId}`;
+          }),
+          sync: vi.fn(() => "sync"),
+          command,
+          close: vi.fn(),
+        };
+        return connection;
+      },
+    );
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}),
+      getAccessToken: vi.fn().mockReturnValue("guest-token"),
+    } as unknown as BrowserIam;
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await clickAndFlush(container, "Practice vs Bots");
+    const discardTile = await vi.waitFor(() => {
+      const candidate = container.querySelector<HTMLButtonElement>(
+        '.local-hand-tile-button[aria-label="Discard 1 of characters, newly drawn"]',
+      );
+      expect(candidate).not.toBeNull();
+      return candidate!;
+    });
+    await act(async () => discardTile.click());
+
+    expect(command).toHaveBeenCalledWith({
+      match_id: "practice-1",
+      type: "discard",
+      expected_version: 2,
+      tile_id: "characters-1-1",
     });
     expect(command).toHaveBeenCalledOnce();
   });

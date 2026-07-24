@@ -6,7 +6,7 @@
 //   npm run dev  (in one terminal, serving client/wireframe-main.tsx at /wireframe.html)
 //   node scripts/validate-match-table-wireframe.mjs [devServerURL]
 //
-// Writes two evidence screenshots (normal turn, urgent/Pass-only claim
+// Writes two evidence screenshots (normal turn, urgent/automatic-pass
 // window) to docs/wireframe-evidence/ and prints a JSON measurement report
 // to stdout. Exits non-zero if any required element is missing, clipped
 // outside the table bounds, the table itself overflows 640x360, or any
@@ -28,7 +28,7 @@ await page.waitForSelector('[data-testid="match-table"]');
 const clip = { x: 0, y: 0, width: 640, height: 360 };
 await page.screenshot({ path: `${evidenceDir}normal-turn.png`, clip });
 
-// Toggle to the urgent-countdown / Pass-only scenario and screenshot too.
+// Toggle to the urgent-countdown / automatic-pass scenario and screenshot too.
 // The toggle button sits below the fold, so Playwright's actionability
 // check would auto-scroll it into view on a real .click(); trigger it via
 // a JS-dispatched click instead, and this page is discarded afterward
@@ -67,6 +67,7 @@ const report = await measurePage.evaluate(() => {
     "local hand (tile identity)": ".local-seat .local-hand",
     "claim badge (claim source)": ".claim-badge",
     "most recent discard (pulsing outline)": ".discard-slot-recent",
+    "current tile focus": ".current-tile-focus .tile-focus",
     "active player indicator": ".active-badge, .active-seat-callout",
     "dealer badge": ".dealer-badge",
     "seat wind labels (x4)": ".wind-badge",

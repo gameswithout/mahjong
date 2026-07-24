@@ -35,11 +35,12 @@ describe("MatchTable table-first UX", () => {
   });
 
   it("treats the hand as a cockpit and separates the newly drawn tile", () => {
+    const onDiscardTile = vi.fn();
     act(() =>
       root.render(
         <MatchTable
           state={mockMatchTableState}
-          interaction={{ canDiscard: true, selectedTileId: null }}
+          interaction={{ canDiscard: true, onDiscardTile }}
         />,
       ),
     );
@@ -54,20 +55,95 @@ describe("MatchTable table-first UX", () => {
     expect(container.textContent).toContain("All visible");
   });
 
-  it("keeps legal decisions in a contextual dock above the hand", () => {
+  it("gives the current tile a large, clearly labelled center stage", () => {
+    act(() => root.render(<MatchTable state={mockMatchTableState} />));
+
+    const focus = container.querySelector(".current-tile-focus");
+    expect(focus?.textContent).toContain("Tile in play");
+    expect(focus?.textContent).toContain("6 of dots");
+    expect(focus?.getAttribute("aria-label")).toContain("from Bot · East");
+    expect(focus?.querySelector(".tile-focus")).not.toBeNull();
+    expect(container.querySelector(".discard-slot-recent .tile-focus")).toBeNull();
+  });
+
+  it("keeps claim choices in a compact dock without duplicating the center tile", () => {
     act(() => root.render(<MatchTable state={mockMatchTableState} />));
 
     const dock = container.querySelector(".action-bar-claim");
-    expect(dock?.textContent).toContain("discarded — your move");
     expect(dock?.querySelectorAll("button")).toHaveLength(4);
+    expect(dock?.querySelector(".tile")).toBeNull();
   });
 
-  it("reorders manual-sort tiles with drag and drop", () => {
+  it("discards a hand tile in one tap without a confirm step", () => {
+    const onDiscardTile = vi.fn();
     act(() =>
       root.render(
         <MatchTable
           state={mockMatchTableState}
-          interaction={{ canDiscard: true, selectedTileId: null }}
+          interaction={{ canDiscard: true, onDiscardTile }}
+        />,
+      ),
+    );
+
+    const firstTile = container.querySelector<HTMLButtonElement>(
+      '.local-hand-tile-button[aria-label="Discard 1 of characters"]',
+    );
+    act(() => firstTile?.click());
+
+    expect(onDiscardTile).toHaveBeenCalledOnce();
+    expect(onDiscardTile).toHaveBeenCalledWith("characters-1-1");
+    expect(
+      Array.from(container.querySelectorAll("button")).some(
+        (button) => button.textContent?.trim() === "Discard",
+      ),
+    ).toBe(false);
+  });
+
+  it("automatically passes when Pass is the only legal response", () => {
+    const onPass = vi.fn();
+    const passOnlyState = {
+      ...mockMatchTableState,
+      legalActions: [{ id: "pass", label: "Pass", onClick: onPass }],
+    };
+
+    act(() => root.render(<MatchTable state={passOnlyState} />));
+    expect(onPass).toHaveBeenCalledOnce();
+    expect(container.querySelector(".action-bar")).toBeNull();
+    expect(container.querySelector(".current-tile-focus")?.textContent).toContain(
+      "No claim · passing",
+    );
+
+    act(() => root.render(<MatchTable state={{ ...passOnlyState }} />));
+    expect(onPass).toHaveBeenCalledOnce();
+  });
+
+  it("never auto-passes when another claim is available", () => {
+    const onPass = vi.fn();
+    act(() =>
+      root.render(
+        <MatchTable
+          state={{
+            ...mockMatchTableState,
+            legalActions: [
+              { id: "pong", label: "Pong", onClick: vi.fn() },
+              { id: "pass", label: "Pass", onClick: onPass },
+            ],
+          }}
+        />,
+      ),
+    );
+
+    expect(onPass).not.toHaveBeenCalled();
+    expect(container.querySelector(".action-bar-claim")).not.toBeNull();
+  });
+
+  it("reorders manual-sort tiles with drag and drop", () => {
+    const onDiscardTile = vi.fn();
+    act(() =>
+      root.render(
+        <MatchTable
+          state={mockMatchTableState}
+          interaction={{ canDiscard: true, onDiscardTile }}
         />,
       ),
     );

@@ -30,7 +30,7 @@ function Tile({
   matchesSelected = false,
 }: {
   t: WireTile;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "focus";
   faceDown?: boolean;
   matchesSelected?: boolean;
 }) {
@@ -49,11 +49,9 @@ function Tile({
   );
 }
 
-// §9.5: "Selected-tile matches receive both outline and brightness change,
-// never color alone" — any other currently-visible tile of the same type as
-// the one selected in the local hand (own melds, discards, opponents'
-// exposed melds) gets the same treatment. matchKey is the selected tile's
-// tileTypeKey(), or null when nothing is selected.
+// §9.5: matching visible tiles receive both outline and brightness change,
+// never color alone. The current tile in play is the reference, so its other
+// visible copies in the hand, melds, and rivers are easy to scan.
 function matchesKey(id: string, matchKey: string | null): boolean {
   return matchKey !== null && tileTypeKey(id) === matchKey;
 }
@@ -341,14 +339,78 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
   );
 }
 
+function CurrentTileFocus({
+  state,
+  canDiscard,
+  discardPending,
+}: {
+  state: MatchTableState;
+  canDiscard?: boolean;
+  discardPending?: boolean;
+}) {
+  const discard = state.lastDiscard;
+  const claimAvailable = state.legalActions.some(
+    (action) => action.id.toLowerCase() !== "pass",
+  );
+  const passOnly =
+    state.legalActions.length === 1 &&
+    state.legalActions[0]?.id.toLowerCase() === "pass";
+
+  if (!discard) {
+    return (
+      <div className={`current-tile-focus current-tile-focus-empty${canDiscard ? " current-tile-focus-your-turn" : ""}`}>
+        <span className="current-tile-kicker">{canDiscard ? "Your turn" : "Opening hand"}</span>
+        <strong className="current-tile-prompt">
+          {discardPending ? "Discarding…" : canDiscard ? "Tap a tile to discard" : "Waiting for the first discard"}
+        </strong>
+      </div>
+    );
+  }
+
+  const source =
+    discard.seat === state.localSeat
+      ? "You"
+      : `${state.seats[discard.seat].displayName} · ${windName(discard.seat)}`;
+  const prompt = claimAvailable
+    ? "Choose a claim or pass"
+    : passOnly
+      ? "No claim · passing"
+      : canDiscard
+        ? discardPending
+          ? "Discarding…"
+          : "Your turn · tap a tile"
+        : "Last tile played";
+
+  return (
+    <div
+      className={`current-tile-focus${claimAvailable ? " current-tile-focus-claim" : ""}${canDiscard ? " current-tile-focus-your-turn" : ""}`}
+      role="status"
+      aria-live="polite"
+      aria-label={`${claimAvailable ? "Tile in play" : "Latest discard"}: ${discard.tile.label}, from ${source}. ${prompt}`}
+    >
+      <span className="current-tile-kicker">
+        {claimAvailable ? "Tile in play" : "Latest discard"}
+      </span>
+      <Tile t={discard.tile} size="focus" />
+      <strong className="current-tile-name">{discard.tile.label}</strong>
+      <span className="current-tile-source">from {source}</span>
+      <span className="current-tile-prompt">{prompt}</span>
+    </div>
+  );
+}
+
 function TablePlayfield({
   state,
   slots,
   matchKey,
+  canDiscard,
+  discardPending,
 }: {
   state: MatchTableState;
   slots: Record<ScreenSlot, SeatId>;
   matchKey: string | null;
+  canDiscard?: boolean;
+  discardPending?: boolean;
 }) {
   const lastDiscardTileId = state.lastDiscard?.tile.id;
   const activeSeat =
@@ -377,6 +439,11 @@ function TablePlayfield({
           />
         );
       })}
+      <CurrentTileFocus
+        state={state}
+        canDiscard={canDiscard}
+        discardPending={discardPending}
+      />
       <WallAndTurnCenter state={state} />
     </div>
   );
@@ -386,15 +453,14 @@ function LocalSeat({
   state,
   displayedHand,
   selectable,
-  selectedTileId,
-  onSelectTile,
+  onDiscardTile,
   discardPending,
   canDraw,
   waits,
   matchKey,
   sortMode,
   onCycleSortMode,
-  onMoveSelected,
+  onNudgeTile,
   onReorderTile,
   drawnTileId,
   tableFxEnabled,
@@ -403,27 +469,19 @@ function LocalSeat({
   state: SeatState;
   displayedHand: WireTile[];
   selectable?: boolean;
-  selectedTileId?: string | null;
-  onSelectTile?: (tileId: string) => void;
+  onDiscardTile?: (tileId: string) => void;
   discardPending?: boolean;
   canDraw?: boolean;
   waits: WaitEntry[];
   matchKey: string | null;
   sortMode: SortMode;
   onCycleSortMode: () => void;
-  onMoveSelected: (direction: "left" | "right") => void;
+  onNudgeTile: (tileId: string, direction: "left" | "right") => void;
   onReorderTile: (tileId: string, beforeTileId: string) => void;
   drawnTileId: string | null;
   tableFxEnabled: boolean;
   onToggleTableFx: () => void;
 }) {
-  // §9.3 "manual reorder" reuses the same tile-select gesture already used
-  // for discard selection (only active in Off mode) rather than a second,
-  // parallel selection mechanism — the Move buttons act on whichever tile
-  // is currently selected.
-  const canReorder =
-    sortMode === "off" && selectable && !!selectedTileId && selectedTileId !== drawnTileId;
-
   return (
     <section className={`seat seat-bottom local-seat${selectable || canDraw ? " seat-active" : ""}`} aria-label="Your seat">
       <header className="seat-header">
@@ -466,7 +524,6 @@ function LocalSeat({
       <WaitPanel waits={waits} />
       <div className="local-hand" role="list" aria-label="Your hand">
         {displayedHand.map((item) => {
-          const selected = selectedTileId === item.id;
           const drawn = drawnTileId === item.id;
           if (!selectable) {
             return (
@@ -484,16 +541,11 @@ function LocalSeat({
               key={item.id}
               type="button"
               role="listitem"
-              className={`local-hand-tile-wrap local-hand-tile-button${selected ? " local-hand-tile-selected" : ""}${drawn ? " local-hand-tile-drawn" : ""}`}
-              aria-pressed={selected}
-              aria-label={
-                selected
-                  ? `${item.label}, selected. Activate again or confirm to discard.`
-                  : `Select ${item.label}${drawn ? ", newly drawn," : ""} to discard`
-              }
+              className={`local-hand-tile-wrap local-hand-tile-button${drawn ? " local-hand-tile-drawn" : ""}`}
+              aria-label={`Discard ${item.label}${drawn ? ", newly drawn" : ""}`}
               disabled={discardPending}
               draggable={sortMode === "off" && !discardPending && !drawn}
-              onClick={() => onSelectTile?.(item.id)}
+              onClick={() => onDiscardTile?.(item.id)}
               onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = "move";
                 event.dataTransfer.setData("application/x-mahjong-tile", item.id);
@@ -512,33 +564,23 @@ function LocalSeat({
                 }
               }}
               onKeyDown={(event) => {
-                if (!canReorder || !selected) {
+                if (sortMode !== "off" || drawn) {
                   return;
                 }
                 if (event.key === "ArrowLeft") {
                   event.preventDefault();
-                  onMoveSelected("left");
+                  onNudgeTile(item.id, "left");
                 } else if (event.key === "ArrowRight") {
                   event.preventDefault();
-                  onMoveSelected("right");
+                  onNudgeTile(item.id, "right");
                 }
               }}
             >
-              <Tile t={item} size="lg" matchesSelected={!selected && matchesKey(item.id, matchKey)} />
+              <Tile t={item} size="lg" matchesSelected={matchesKey(item.id, matchKey)} />
             </button>
           );
         })}
       </div>
-      {canReorder ? (
-        <div className="discard-confirm-row">
-          <button type="button" className="action-button action-pass reorder-button" onClick={() => onMoveSelected("left")}>
-            ← Move
-          </button>
-          <button type="button" className="action-button action-pass reorder-button" onClick={() => onMoveSelected("right")}>
-            Move →
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -579,36 +621,20 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
 // guessing where to look or what the game is waiting on.
 function ActionBar({
   legalActions,
-  claimTile,
-  claimFromLabel,
   canDraw,
   onDraw,
   drawPending,
-  canDiscard,
-  selectedTile,
-  onConfirmDiscard,
-  discardPending,
 }: {
   legalActions: MatchAction[];
-  claimTile?: WireTile;
-  claimFromLabel?: string;
   canDraw?: boolean;
   onDraw?: () => void;
   drawPending?: boolean;
-  canDiscard?: boolean;
-  selectedTile?: WireTile;
-  onConfirmDiscard?: () => void;
-  discardPending?: boolean;
 }) {
-  if (legalActions.length > 0) {
+  const passOnly =
+    legalActions.length === 1 && legalActions[0]?.id.toLowerCase() === "pass";
+  if (legalActions.length > 0 && !passOnly) {
     return (
-      <div className="action-bar action-bar-claim">
-        <div className="action-bar-context">
-          {claimTile ? <Tile t={claimTile} size="md" /> : null}
-          <span className="action-bar-prompt">
-            {claimFromLabel ? `${claimFromLabel} discarded — your move` : "Respond to the discard"}
-          </span>
-        </div>
+      <div className="action-bar action-bar-claim" aria-label="Respond to the tile in play">
         <ClaimButtons actions={legalActions} />
       </div>
     );
@@ -627,33 +653,12 @@ function ActionBar({
       </div>
     );
   }
-  if (canDiscard) {
-    return (
-      <div className="action-bar">
-        {selectedTile ? (
-          <button
-            type="button"
-            className="action-button action-primary action-discard-confirm"
-            onClick={onConfirmDiscard}
-            disabled={discardPending}
-          >
-            {discardPending ? "Discarding…" : "Discard"}
-            {!discardPending ? <Tile t={selectedTile} size="sm" /> : null}
-          </button>
-        ) : (
-          <p className="action-bar-prompt action-bar-hint">Your turn — tap a tile below to discard it</p>
-        )}
-      </div>
-    );
-  }
   return null;
 }
 
 export interface MatchTableInteraction {
   canDiscard?: boolean;
-  selectedTileId?: string | null;
-  onSelectTile?: (tileId: string) => void;
-  onConfirmDiscard?: () => void;
+  onDiscardTile?: (tileId: string) => void;
   discardPending?: boolean;
   canDraw?: boolean;
   onDraw?: () => void;
@@ -663,11 +668,19 @@ export interface MatchTableInteraction {
 export function MatchTable({ state, interaction }: { state: MatchTableState; interaction?: MatchTableInteraction }) {
   const slots = remapSeats(state.localSeat);
   const local = state.seats[state.localSeat];
-  const matchKey = interaction?.selectedTileId ? tileTypeKey(interaction.selectedTileId) : null;
+  const matchKey = state.lastDiscard ? tileTypeKey(state.lastDiscard.tile.id) : null;
 
   const localHand = local.hand ?? [];
   const localHandIds = localHand.map((t) => t.id).join(",");
-  const selectedTileId = interaction?.selectedTileId ?? null;
+  const passOnlyAction =
+    state.legalActions.length === 1 &&
+    state.legalActions[0]?.id.toLowerCase() === "pass"
+      ? state.legalActions[0]
+      : null;
+  const automaticPassKey =
+    passOnlyAction && state.lastDiscard
+      ? `${state.lastDiscard.tile.id}:${state.claimSource ?? state.lastDiscard.seat}`
+      : null;
 
   const [sortMode, setSortMode] = useState<SortMode>("off");
   const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
@@ -688,6 +701,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     (Object.values(state.seats) as SeatState[]).find((seat) => seat.isActive)?.seat,
   );
   const previousClaimCountRef = useRef(state.legalActions.length);
+  const automaticPassRef = useRef<string | null>(null);
 
   function ensureAudioContext(): AudioContext | null {
     if (audioContextRef.current) {
@@ -781,6 +795,22 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
   }, [state.legalActions.length, tableFxEnabled]);
 
   useEffect(() => {
+    if (
+      !automaticPassKey ||
+      !passOnlyAction?.onClick ||
+      passOnlyAction.disabled ||
+      automaticPassRef.current === automaticPassKey
+    ) {
+      return;
+    }
+    automaticPassRef.current = automaticPassKey;
+    passOnlyAction.onClick();
+    // The stable discard/source key, rather than the callback identity,
+    // prevents adapter re-renders from submitting the same pass twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [automaticPassKey, passOnlyAction?.disabled]);
+
+  useEffect(() => {
     const nextIds = localHand.map((tile) => tile.id);
     const previousIds = new Set(previousHandIdsRef.current);
     const added = nextIds.filter((id) => !previousIds.has(id));
@@ -792,11 +822,9 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     previousHandIdsRef.current = nextIds;
   }, [interaction?.canDiscard, localHandIds]);
 
-  // §9.3: "Auto-sort runs after deal, draw, claim, and manual toggle but
-  // never while a tile is selected." Reconciles the display order against
-  // whatever tiles are actually in hand now (deal/draw/discard/claim all
-  // change that set), then — unless a tile is currently selected — applies
-  // the active auto-sort mode on top.
+  // Reconcile the display order after deal, draw, claim, and discard, then
+  // apply the active auto-sort mode. Discard is now one tap, so there is no
+  // intermediate selected-tile state that can block sorting.
   useEffect(() => {
     setHandOrder((current) => {
       const incomingIds = localHand.map((t) => t.id);
@@ -805,7 +833,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
       const kept = current.filter((id) => incomingSet.has(id));
       const added = incomingIds.filter((id) => !currentSet.has(id));
       const reconciled = [...kept, ...added];
-      if (sortMode === "off" || selectedTileId) {
+      if (sortMode === "off") {
         return reconciled;
       }
       const byId = new Map(localHand.map((t) => [t.id, t]));
@@ -813,7 +841,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
       return applySort(sortMode, ordered).map((t) => t.id);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localHandIds, sortMode, selectedTileId]);
+  }, [localHandIds, sortMode]);
 
   const displayedHand = useMemo(() => {
     const byId = new Map(localHand.map((t) => [t.id, t]));
@@ -830,12 +858,9 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     setSortMode((current) => SORT_MODES[(SORT_MODES.indexOf(current) + 1) % SORT_MODES.length]);
   }
 
-  function moveSelected(direction: "left" | "right") {
-    if (!selectedTileId) {
-      return;
-    }
+  function nudgeTile(tileId: string, direction: "left" | "right") {
     setHandOrder((current) => {
-      const index = current.indexOf(selectedTileId);
+      const index = current.indexOf(tileId);
       const swapWith = direction === "left" ? index - 1 : index + 1;
       if (index === -1 || swapWith < 0 || swapWith >= current.length) {
         return current;
@@ -864,20 +889,6 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     });
   }
 
-  // Plain-language label for a seat: "You" for the local player, otherwise
-  // the display name plus its unique wind so two same-named bots are never
-  // ambiguous ("Bot · West").
-  function seatLabel(seat: SeatId): string {
-    if (seat === state.localSeat) {
-      return "You";
-    }
-    return `${state.seats[seat].displayName} · ${windName(seat)}`;
-  }
-
-  const claimTile = state.claimSource ? state.lastDiscard?.tile : undefined;
-  const claimFromLabel = state.claimSource ? seatLabel(state.claimSource) : undefined;
-  const selectedTile = selectedTileId ? localHand.find((t) => t.id === selectedTileId) : undefined;
-
   return (
     <div className="match-table" data-testid="match-table">
       <OpponentSeat
@@ -896,7 +907,13 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         claimSource={state.claimSource}
         matchKey={matchKey}
       />
-      <TablePlayfield state={state} slots={slots} matchKey={matchKey} />
+      <TablePlayfield
+        state={state}
+        slots={slots}
+        matchKey={matchKey}
+        canDiscard={interaction?.canDiscard}
+        discardPending={interaction?.discardPending}
+      />
       <OpponentSeat
         seat={slots.right}
         slot="right"
@@ -907,29 +924,22 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
       />
       <ActionBar
         legalActions={state.legalActions}
-        claimTile={claimTile}
-        claimFromLabel={claimFromLabel}
         canDraw={interaction?.canDraw}
         onDraw={interaction?.onDraw}
         drawPending={interaction?.drawPending}
-        canDiscard={interaction?.canDiscard}
-        selectedTile={selectedTile}
-        onConfirmDiscard={interaction?.onConfirmDiscard}
-        discardPending={interaction?.discardPending}
       />
       <LocalSeat
         state={local}
         displayedHand={displayedHand}
         selectable={interaction?.canDiscard}
-        selectedTileId={interaction?.selectedTileId}
-        onSelectTile={interaction?.onSelectTile}
+        onDiscardTile={interaction?.onDiscardTile}
         discardPending={interaction?.discardPending}
         canDraw={interaction?.canDraw}
         waits={state.waits}
         matchKey={matchKey}
         sortMode={sortMode}
         onCycleSortMode={cycleSortMode}
-        onMoveSelected={moveSelected}
+        onNudgeTile={nudgeTile}
         onReorderTile={reorderTile}
         drawnTileId={drawnTileId}
         tableFxEnabled={tableFxEnabled}

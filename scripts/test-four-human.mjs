@@ -172,19 +172,9 @@ async function driveOneLegalAction(page) {
     return "draw";
   }
 
-  const confirmDiscard = page.getByRole("button", { name: /^Discard(?:\s|$)/ }).first();
-  if (await clickIfEnabled(confirmDiscard)) {
+  const discardTile = page.locator('.local-hand-tile-button[aria-label^="Discard "]').first();
+  if (await clickIfEnabled(discardTile)) {
     return "discard";
-  }
-
-  const selectableTile = page
-    .locator('button[aria-label^="Select "][aria-label$=" to discard"]')
-    .first();
-  if (await clickIfEnabled(selectableTile)) {
-    const confirm = page.getByRole("button", { name: /^Discard(?:\s|$)/ }).first();
-    await confirm.waitFor({ state: "visible", timeout: 2_000 });
-    await confirm.click();
-    return "select-discard";
   }
 
   return null;

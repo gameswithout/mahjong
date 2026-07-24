@@ -1,4 +1,4 @@
-type TileFaceSize = "sm" | "md" | "lg";
+type TileFaceSize = "sm" | "md" | "lg" | "focus";
 
 type Point = readonly [number, number];
 
