@@ -15,6 +15,55 @@ import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 
 service Service {
+  rpc GetJadeAccount(GetJadeAccountRequest) returns (GetJadeAccountResponse) {
+    option (google.api.http) = {
+      get: "/v1/namespaces/{namespace}/jade"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the authenticated player's Jade account"
+      description: "Creates the two idempotent new-player grants when needed and returns authoritative Bamboo eligibility and available balance."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc ReserveJade(ReserveJadeRequest) returns (ReserveJadeResponse) {
+    option (google.api.http) = {
+      post: "/v1/namespaces/{namespace}/jade/reservation"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Reserve the Bamboo Courtyard debit cap"
+      description: "Atomically checks eligibility and locks 300 Jade before the player creates a public matchmaking ticket."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc ReleaseJade(ReleaseJadeRequest) returns (ReleaseJadeResponse) {
+    option (google.api.http) = {
+      delete: "/v1/namespaces/{namespace}/jade/reservation"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Release an unbound Bamboo Courtyard reservation"
+      description: "Releases the caller's queue reservation. A reservation already bound to a match remains locked until settlement."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   // JoinMatch creates the authoritative match from the fixed AGS Session
   // roster when necessary, assigns stable seats, and returns only the
   // authenticated caller's view.
@@ -83,6 +132,31 @@ message JoinMatchResponse {
   MatchState state = 1;
 }
 
+message GetJadeAccountRequest {
+  string namespace = 1;
+}
+
+message GetJadeAccountResponse {
+  JadeAccount account = 1;
+}
+
+message ReserveJadeRequest {
+  string namespace = 1;
+}
+
+message ReserveJadeResponse {
+  JadeAccount account = 1;
+  JadeReservation reservation = 2;
+}
+
+message ReleaseJadeRequest {
+  string namespace = 1;
+}
+
+message ReleaseJadeResponse {
+  JadeAccount account = 1;
+}
+
 message GetMatchStateRequest {
   string namespace = 1;
   string session_id = 2;
@@ -148,6 +222,34 @@ message MatchState {
   HandResult hand_result = 17;
   Settlement settlement = 18;
   ContinuationOutcome next_dealer = 19;
+  JadeAccount jade_account = 20;
+  JadeSettlement jade_settlement = 21;
+}
+
+message JadeAccount {
+  string currency_code = 1;
+  int64 balance = 2;
+  int64 reserved = 3;
+  int64 available = 4;
+  bool eligible = 5;
+  int64 minimum_balance = 6;
+  int64 stake_per_tai = 7;
+  int64 debit_cap = 8;
+  string wallet_sync_status = 9;
+}
+
+message JadeReservation {
+  string reservation_id = 1;
+  int64 amount = 2;
+  string status = 3;
+}
+
+message JadeSettlement {
+  string seat = 1;
+  int64 delta = 2;
+  int64 balance_before = 3;
+  int64 balance_after = 4;
+  string journal_id = 5;
 }
 
 message Tile {

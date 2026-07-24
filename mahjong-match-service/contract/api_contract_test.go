@@ -22,6 +22,21 @@ func TestMahjongServiceHTTPContract(t *testing.T) {
 		path   string
 	}{
 		{
+			method: "GetJadeAccount",
+			verb:   http.MethodGet,
+			path:   "/v1/namespaces/{namespace}/jade",
+		},
+		{
+			method: "ReserveJade",
+			verb:   http.MethodPost,
+			path:   "/v1/namespaces/{namespace}/jade/reservation",
+		},
+		{
+			method: "ReleaseJade",
+			verb:   http.MethodDelete,
+			path:   "/v1/namespaces/{namespace}/jade/reservation",
+		},
+		{
 			method: "JoinMatch",
 			verb:   http.MethodPost,
 			path:   "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join",
@@ -83,6 +98,9 @@ func TestMahjongServiceHTTPContract(t *testing.T) {
 
 func TestMahjongCommandContract_DoesNotAcceptCallerIdentityOrSeat(t *testing.T) {
 	for _, messageName := range []protoreflect.Name{
+		"GetJadeAccountRequest",
+		"ReserveJadeRequest",
+		"ReleaseJadeRequest",
 		"JoinMatchRequest",
 		"GetMatchStateRequest",
 		"SubmitMatchCommandRequest",
@@ -106,6 +124,8 @@ func httpBinding(rule *annotations.HttpRule) (string, string) {
 		return http.MethodGet, pattern.Get
 	case *annotations.HttpRule_Post:
 		return http.MethodPost, pattern.Post
+	case *annotations.HttpRule_Delete:
+		return http.MethodDelete, pattern.Delete
 	default:
 		return "", ""
 	}

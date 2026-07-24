@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
 	"github.com/gameswithout/mahjong/rulesengine"
 )
 
@@ -170,6 +171,134 @@ func TestPostgreSQLStorage_ConcurrentMatchCreationAndEventOrdering(t *testing.T)
 	}
 	if head != 2 {
 		t.Fatalf("LastSequence() = %d, want 2", head)
+	}
+}
+
+func TestPostgreSQLStorage_JadeReservationAndSettlementAreAtomicAndIdempotent(t *testing.T) {
+	connectionString := os.Getenv("TEST_DATABASE_URL")
+	if connectionString == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	store, err := NewPostgreSQLStorage(connectionString)
+	if err != nil {
+		t.Fatalf("NewPostgreSQLStorage() error = %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close(context.Background()) })
+
+	suffix := randomSuffix(t)
+	users := []string{
+		"jade-east-" + suffix,
+		"jade-south-" + suffix,
+		"jade-west-" + suffix,
+		"jade-north-" + suffix,
+	}
+	key := MatchKey{
+		Namespace: "gameswithout-mahjong",
+		SessionID: "jade-session-" + suffix,
+		MatchID:   "match-1",
+	}
+	record, _, err := store.EnsureMatch(context.Background(), key, users)
+	if err != nil {
+		t.Fatalf("EnsureMatch() error = %v", err)
+	}
+
+	for _, userID := range users {
+		account, err := store.EnsureJadeAccount(context.Background(), userID)
+		if err != nil {
+			t.Fatalf("EnsureJadeAccount(%s) error = %v", userID, err)
+		}
+		if account.Balance != economy.AccountGrant+economy.OnboardingGrant {
+			t.Fatalf("starting balance = %d, want 5000", account.Balance)
+		}
+		reserved, reservation, err := store.ReserveJade(context.Background(), userID)
+		if err != nil {
+			t.Fatalf("ReserveJade(%s) error = %v", userID, err)
+		}
+		if reserved.Reserved != economy.DebitCap || reserved.Available != 4_700 {
+			t.Fatalf("reserved account = %#v", reserved)
+		}
+		if err := store.BindJadeReservation(context.Background(), userID, record.RuntimeID); err != nil {
+			t.Fatalf("BindJadeReservation(%s) error = %v", userID, err)
+		}
+		if reservation.Amount != economy.DebitCap {
+			t.Fatalf("reservation amount = %d, want %d", reservation.Amount, economy.DebitCap)
+		}
+	}
+
+	settlement := rulesengine.Settlement{
+		Net: map[rulesengine.Seat]int64{
+			rulesengine.East:  60,
+			rulesengine.South: -60,
+			rulesengine.West:  0,
+			rulesengine.North: 0,
+		},
+		TotalCredits: 60,
+		TotalDebits:  60,
+	}
+	first, err := store.SettleJadeMatch(context.Background(), record.RuntimeID, settlement)
+	if err != nil {
+		t.Fatalf("SettleJadeMatch() error = %v", err)
+	}
+	second, err := store.SettleJadeMatch(context.Background(), record.RuntimeID, settlement)
+	if err != nil {
+		t.Fatalf("SettleJadeMatch() duplicate error = %v", err)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("duplicate settlement differs: %#v != %#v", first, second)
+	}
+
+	var total int64
+	for userID, player := range first {
+		total += player.BalanceAfter
+		wantDelta := settlement.Net[record.Seats[userID]]
+		if player.Delta != wantDelta || player.BalanceAfter != 5_000+wantDelta {
+			t.Fatalf("player settlement = %#v, want delta %d", player, wantDelta)
+		}
+		account, err := store.EnsureJadeAccount(context.Background(), userID)
+		if err != nil {
+			t.Fatalf("EnsureJadeAccount(after) error = %v", err)
+		}
+		if account.Reserved != 0 {
+			t.Fatalf("post-settlement reserve = %d, want 0", account.Reserved)
+		}
+	}
+	if total != 20_000 {
+		t.Fatalf("total Jade = %d, want 20000", total)
+	}
+
+	var settlementJournalCount int
+	if err := store.pool.QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM jade_journals
+		WHERE journal_id = $1`, "settlement:"+record.RuntimeID).Scan(&settlementJournalCount); err != nil {
+		t.Fatalf("count settlement journal: %v", err)
+	}
+	if settlementJournalCount != 1 {
+		t.Fatalf("settlement journal count = %d, want 1", settlementJournalCount)
+	}
+	if _, err := store.pool.Exec(context.Background(), `
+		UPDATE jade_postings
+		SET amount = amount
+		WHERE journal_id = $1`, "settlement:"+record.RuntimeID); err == nil {
+		t.Fatal("Jade posting update succeeded; ledger must be append-only")
+	}
+	unbalanced, err := store.pool.Begin(context.Background())
+	if err != nil {
+		t.Fatalf("begin unbalanced journal probe: %v", err)
+	}
+	if _, err := unbalanced.Exec(context.Background(), `
+		INSERT INTO jade_journals (
+			journal_id, reason_code, rules_version, actor,
+			total_debits, total_credits
+		)
+		VALUES ($1, 'probe', $2, 'integration-test', 10, 10)`,
+		"unbalanced-probe:"+suffix, economy.RulesVersion,
+	); err != nil {
+		_ = unbalanced.Rollback(context.Background())
+		t.Fatalf("insert unbalanced journal probe: %v", err)
+	}
+	if err := unbalanced.Commit(context.Background()); err == nil {
+		t.Fatal("unbalanced Jade journal commit succeeded")
 	}
 }
 

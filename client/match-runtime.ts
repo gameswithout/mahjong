@@ -173,6 +173,35 @@ function normalizeSettlement(raw: unknown): unknown {
   };
 }
 
+function normalizeJadeAccount(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  const account = raw as Record<string, unknown>;
+  return {
+    ...account,
+    balance: toNumber(account.balance),
+    reserved: toNumber(account.reserved),
+    available: toNumber(account.available),
+    minimum_balance: toNumber(account.minimum_balance),
+    stake_per_tai: toNumber(account.stake_per_tai),
+    debit_cap: toNumber(account.debit_cap),
+  };
+}
+
+function normalizeJadeSettlement(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  const settlement = raw as Record<string, unknown>;
+  return {
+    ...settlement,
+    delta: toNumber(settlement.delta),
+    balance_before: toNumber(settlement.balance_before),
+    balance_after: toNumber(settlement.balance_after),
+  };
+}
+
 // normalizeMatchState converts a raw parsed MatchState JSON body (gateway
 // wire format) into the shape SeatView's readers expect: real numbers for
 // every int64/uint64 field, and chow_sets reshaped into tuples.
@@ -196,6 +225,12 @@ function normalizeMatchState(raw: unknown): unknown {
   }
   if (state.settlement) {
     normalized.settlement = normalizeSettlement(state.settlement);
+  }
+  if (state.jade_account) {
+    normalized.jade_account = normalizeJadeAccount(state.jade_account);
+  }
+  if (state.jade_settlement) {
+    normalized.jade_settlement = normalizeJadeSettlement(state.jade_settlement);
   }
   return normalized;
 }

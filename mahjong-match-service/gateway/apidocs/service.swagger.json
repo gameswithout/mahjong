@@ -17,6 +17,123 @@
     "application/json"
   ],
   "paths": {
+    "/v1/namespaces/{namespace}/jade": {
+      "get": {
+        "summary": "Get the authenticated player's Jade account",
+        "description": "Creates the two idempotent new-player grants when needed and returns authoritative Bamboo eligibility and available balance.",
+        "operationId": "Service_GetJadeAccount",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceGetJadeAccountResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/namespaces/{namespace}/jade/reservation": {
+      "delete": {
+        "summary": "Release an unbound Bamboo Courtyard reservation",
+        "description": "Releases the caller's queue reservation. A reservation already bound to a match remains locked until settlement.",
+        "operationId": "Service_ReleaseJade",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceReleaseJadeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Reserve the Bamboo Courtyard debit cap",
+        "description": "Atomically checks eligibility and locks 300 Jade before the player creates a public matchmaking ticket.",
+        "operationId": "Service_ReserveJade",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceReserveJadeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceReserveJadeBody"
+            }
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/namespaces/{namespace}/sessions/{sessionId}/matches/{matchId}": {
       "get": {
         "summary": "Get the authenticated player's match state",
@@ -183,6 +300,9 @@
   },
   "definitions": {
     "ServiceJoinMatchBody": {
+      "type": "object"
+    },
+    "ServiceReserveJadeBody": {
       "type": "object"
     },
     "ServiceSubmitMatchCommandBody": {
@@ -385,6 +505,14 @@
         }
       }
     },
+    "serviceGetJadeAccountResponse": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/serviceJadeAccount"
+        }
+      }
+    },
     "serviceGetMatchStateResponse": {
       "type": "object",
       "properties": {
@@ -444,6 +572,82 @@
         },
         "score": {
           "$ref": "#/definitions/serviceScoreResult"
+        }
+      }
+    },
+    "serviceJadeAccount": {
+      "type": "object",
+      "properties": {
+        "currencyCode": {
+          "type": "string"
+        },
+        "balance": {
+          "type": "string",
+          "format": "int64"
+        },
+        "reserved": {
+          "type": "string",
+          "format": "int64"
+        },
+        "available": {
+          "type": "string",
+          "format": "int64"
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "minimumBalance": {
+          "type": "string",
+          "format": "int64"
+        },
+        "stakePerTai": {
+          "type": "string",
+          "format": "int64"
+        },
+        "debitCap": {
+          "type": "string",
+          "format": "int64"
+        },
+        "walletSyncStatus": {
+          "type": "string"
+        }
+      }
+    },
+    "serviceJadeReservation": {
+      "type": "object",
+      "properties": {
+        "reservationId": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "serviceJadeSettlement": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "string",
+          "format": "int64"
+        },
+        "balanceBefore": {
+          "type": "string",
+          "format": "int64"
+        },
+        "balanceAfter": {
+          "type": "string",
+          "format": "int64"
+        },
+        "journalId": {
+          "type": "string"
         }
       }
     },
@@ -549,6 +753,12 @@
         },
         "nextDealer": {
           "$ref": "#/definitions/serviceContinuationOutcome"
+        },
+        "jadeAccount": {
+          "$ref": "#/definitions/serviceJadeAccount"
+        },
+        "jadeSettlement": {
+          "$ref": "#/definitions/serviceJadeSettlement"
         }
       },
       "description": "MatchState is a privacy-filtered projection for exactly one authenticated\nplayer. It is not a serializable authoritative snapshot."
@@ -643,6 +853,25 @@
         "isBot": {
           "type": "boolean",
           "description": "is_bot reports whether this seat was never assigned to a human (AI\nPractice mode), distinct from the broader taken_over — a client uses\nthis to show \"Bot\" instead of \"Auto-playing (disconnected)\", which\nwould be misleading for a seat that was never a human to begin with."
+        }
+      }
+    },
+    "serviceReleaseJadeResponse": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/serviceJadeAccount"
+        }
+      }
+    },
+    "serviceReserveJadeResponse": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/serviceJadeAccount"
+        },
+        "reservation": {
+          "$ref": "#/definitions/serviceJadeReservation"
         }
       }
     },

@@ -8,10 +8,16 @@ import type { MatchRuntimeConnection, MatchRuntimeConnectionOptions } from "./ma
 import { SessionLookupError, type SessionClient } from "./session";
 
 const dependencies = vi.hoisted(() => ({
+  createJadeClient: vi.fn(),
   createLobbyConnection: vi.fn(),
   createMatchRuntimeConnection: vi.fn(),
   createSessionClient: vi.fn(),
 }));
+
+vi.mock("./jade", async () => {
+  const actual = await vi.importActual<typeof import("./jade")>("./jade");
+  return { ...actual, createJadeClient: dependencies.createJadeClient };
+});
 
 vi.mock("./config", async () => {
   const actual = await vi.importActual<typeof import("./config")>("./config");
@@ -179,6 +185,25 @@ describe("App Practice journey", () => {
     root = createRoot(container);
     sessionNumber = 0;
     calls = [];
+    const jadeAccount = {
+      currency_code: "JADE",
+      balance: 5000,
+      reserved: 0,
+      available: 5000,
+      eligible: true,
+      minimum_balance: 1000,
+      stake_per_tai: 10,
+      debit_cap: 300,
+      wallet_sync_status: "synced",
+    };
+    dependencies.createJadeClient.mockReturnValue({
+      getAccount: vi.fn().mockResolvedValue(jadeAccount),
+      reserve: vi.fn().mockResolvedValue({
+        account: { ...jadeAccount, reserved: 300, available: 4700 },
+        reservation: { reservation_id: "reserve-1", amount: 300, status: "active" },
+      }),
+      release: vi.fn().mockResolvedValue(jadeAccount),
+    });
 
     sessionClient = {
       listMySessions: vi.fn().mockResolvedValue([]),

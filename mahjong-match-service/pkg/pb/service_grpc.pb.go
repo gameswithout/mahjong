@@ -23,6 +23,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	Service_GetJadeAccount_FullMethodName     = "/service.Service/GetJadeAccount"
+	Service_ReserveJade_FullMethodName        = "/service.Service/ReserveJade"
+	Service_ReleaseJade_FullMethodName        = "/service.Service/ReleaseJade"
 	Service_JoinMatch_FullMethodName          = "/service.Service/JoinMatch"
 	Service_GetMatchState_FullMethodName      = "/service.Service/GetMatchState"
 	Service_SubmitMatchCommand_FullMethodName = "/service.Service/SubmitMatchCommand"
@@ -32,6 +35,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ServiceClient interface {
+	GetJadeAccount(ctx context.Context, in *GetJadeAccountRequest, opts ...grpc.CallOption) (*GetJadeAccountResponse, error)
+	ReserveJade(ctx context.Context, in *ReserveJadeRequest, opts ...grpc.CallOption) (*ReserveJadeResponse, error)
+	ReleaseJade(ctx context.Context, in *ReleaseJadeRequest, opts ...grpc.CallOption) (*ReleaseJadeResponse, error)
 	// JoinMatch creates the authoritative match from the fixed AGS Session
 	// roster when necessary, assigns stable seats, and returns only the
 	// authenticated caller's view.
@@ -50,6 +56,36 @@ type serviceClient struct {
 
 func NewServiceClient(cc grpc.ClientConnInterface) ServiceClient {
 	return &serviceClient{cc}
+}
+
+func (c *serviceClient) GetJadeAccount(ctx context.Context, in *GetJadeAccountRequest, opts ...grpc.CallOption) (*GetJadeAccountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetJadeAccountResponse)
+	err := c.cc.Invoke(ctx, Service_GetJadeAccount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) ReserveJade(ctx context.Context, in *ReserveJadeRequest, opts ...grpc.CallOption) (*ReserveJadeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReserveJadeResponse)
+	err := c.cc.Invoke(ctx, Service_ReserveJade_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) ReleaseJade(ctx context.Context, in *ReleaseJadeRequest, opts ...grpc.CallOption) (*ReleaseJadeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReleaseJadeResponse)
+	err := c.cc.Invoke(ctx, Service_ReleaseJade_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *serviceClient) JoinMatch(ctx context.Context, in *JoinMatchRequest, opts ...grpc.CallOption) (*JoinMatchResponse, error) {
@@ -86,6 +122,9 @@ func (c *serviceClient) SubmitMatchCommand(ctx context.Context, in *SubmitMatchC
 // All implementations should embed UnimplementedServiceServer
 // for forward compatibility.
 type ServiceServer interface {
+	GetJadeAccount(context.Context, *GetJadeAccountRequest) (*GetJadeAccountResponse, error)
+	ReserveJade(context.Context, *ReserveJadeRequest) (*ReserveJadeResponse, error)
+	ReleaseJade(context.Context, *ReleaseJadeRequest) (*ReleaseJadeResponse, error)
 	// JoinMatch creates the authoritative match from the fixed AGS Session
 	// roster when necessary, assigns stable seats, and returns only the
 	// authenticated caller's view.
@@ -105,6 +144,15 @@ type ServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedServiceServer struct{}
 
+func (UnimplementedServiceServer) GetJadeAccount(context.Context, *GetJadeAccountRequest) (*GetJadeAccountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetJadeAccount not implemented")
+}
+func (UnimplementedServiceServer) ReserveJade(context.Context, *ReserveJadeRequest) (*ReserveJadeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReserveJade not implemented")
+}
+func (UnimplementedServiceServer) ReleaseJade(context.Context, *ReleaseJadeRequest) (*ReleaseJadeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReleaseJade not implemented")
+}
 func (UnimplementedServiceServer) JoinMatch(context.Context, *JoinMatchRequest) (*JoinMatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinMatch not implemented")
 }
@@ -132,6 +180,60 @@ func RegisterServiceServer(s grpc.ServiceRegistrar, srv ServiceServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&Service_ServiceDesc, srv)
+}
+
+func _Service_GetJadeAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetJadeAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).GetJadeAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_GetJadeAccount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).GetJadeAccount(ctx, req.(*GetJadeAccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Service_ReserveJade_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReserveJadeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).ReserveJade(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_ReserveJade_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).ReserveJade(ctx, req.(*ReserveJadeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Service_ReleaseJade_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseJadeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).ReleaseJade(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_ReleaseJade_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).ReleaseJade(ctx, req.(*ReleaseJadeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Service_JoinMatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -195,6 +297,18 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "service.Service",
 	HandlerType: (*ServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetJadeAccount",
+			Handler:    _Service_GetJadeAccount_Handler,
+		},
+		{
+			MethodName: "ReserveJade",
+			Handler:    _Service_ReserveJade_Handler,
+		},
+		{
+			MethodName: "ReleaseJade",
+			Handler:    _Service_ReleaseJade_Handler,
+		},
 		{
 			MethodName: "JoinMatch",
 			Handler:    _Service_JoinMatch_Handler,

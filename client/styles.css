@@ -227,6 +227,22 @@ h1 {
   margin: 0;
 }
 
+.jade-balance {
+  border: 1px solid rgba(111, 183, 145, 0.36);
+  border-radius: 14px;
+  padding: 0.8rem 0.95rem;
+  background: rgba(16, 69, 51, 0.28);
+}
+
+.jade-balance p {
+  margin: 0;
+}
+
+.jade-balance strong {
+  color: #b9f1cd;
+  font-size: 1.25rem;
+}
+
 .session-input-label {
   color: #c6cbe0;
   display: block;
@@ -535,6 +551,24 @@ h1 {
   border-radius: 0.75rem;
   margin: 0.75rem 0;
   padding: 0.75rem;
+}
+
+.hand-result-jade {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(111, 183, 145, 0.42);
+  border-radius: 14px;
+  background: rgba(16, 69, 51, 0.3);
+}
+
+.hand-result-jade p {
+  margin: 0.25rem 0;
+}
+
+.hand-result-jade-delta {
+  color: #b9f1cd;
+  font-size: 1.35rem;
+  font-weight: 800;
 }
 
 .hand-result-settlement-heading {
