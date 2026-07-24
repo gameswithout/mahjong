@@ -100,6 +100,58 @@ func TestClaimPriorityMatrix(t *testing.T) {
 	}
 }
 
+func TestPongResolvesWithoutWaitingForOverriddenChow(t *testing.T) {
+	state := turnFixture(t)
+	state.Players[0].Hand = []Tile{tile("characters-2-1", Characters, 2, 1)}
+	state.Players[1].Hand = []Tile{
+		tile("characters-1-1", Characters, 1, 1),
+		tile("characters-3-1", Characters, 3, 1),
+	}
+	state.Players[2].Hand = []Tile{
+		tile("characters-2-2", Characters, 2, 2),
+		tile("characters-2-3", Characters, 2, 3),
+	}
+	engine := newTurnForClaims(t, state, nil)
+	window := discardForClaims(t, engine, "characters-2-1")
+
+	mustClaim(t, engine, ClaimResponse{
+		Seat: West, Type: ClaimPong,
+		TileIDs:      []string{"characters-2-2", "characters-2-3"},
+		StateVersion: window.StateVersion,
+	})
+	resolution, err := engine.ResolveClaims(window.StateVersion)
+	if err != nil {
+		t.Fatalf("ResolveClaims() error = %v", err)
+	}
+	if resolution.Type != ClaimPong || resolution.Claimant != West {
+		t.Fatalf("resolution = %#v, want immediate West Pong", resolution)
+	}
+	if engine.AFKStrikes(South) != 0 {
+		t.Fatal("an overridden Chow seat must not receive a timeout strike")
+	}
+}
+
+func TestPongStillWaitsForUnansweredWin(t *testing.T) {
+	state := turnFixture(t)
+	state.Players[0].Hand = []Tile{tile("characters-2-1", Characters, 2, 1)}
+	state.Players[2].Hand = []Tile{
+		tile("characters-2-2", Characters, 2, 2),
+		tile("characters-2-3", Characters, 2, 3),
+	}
+	validator := func(_ *DealState, seat Seat, _ Tile) bool { return seat == North }
+	engine := newTurnForClaims(t, state, validator)
+	window := discardForClaims(t, engine, "characters-2-1")
+
+	mustClaim(t, engine, ClaimResponse{
+		Seat: West, Type: ClaimPong,
+		TileIDs:      []string{"characters-2-2", "characters-2-3"},
+		StateVersion: window.StateVersion,
+	})
+	if _, err := engine.ResolveClaims(window.StateVersion); !errors.Is(err, ErrClaimPending) {
+		t.Fatalf("ResolveClaims() error = %v, want ErrClaimPending while Win is unanswered", err)
+	}
+}
+
 func mustClaim(t *testing.T, engine *TurnEngine, response ClaimResponse) {
 	t.Helper()
 	if err := engine.SubmitClaim(response); err != nil {

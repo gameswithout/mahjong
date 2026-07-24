@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { TileFace } from "./TileFace";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
@@ -76,6 +76,22 @@ function MeldGroup({ meld, matchKey }: { meld: WireMeld; matchKey: string | null
         <Tile key={item.id} t={item} size="sm" matchesSelected={matchesKey(item.id, matchKey)} />
       ))}
     </span>
+  );
+}
+
+function BonusTiles({ tiles, owner }: { tiles: WireTile[]; owner: "your" | "opponent" }) {
+  if (tiles.length === 0) {
+    return null;
+  }
+  return (
+    <div
+      className="bonus-tile-area"
+      aria-label={`${owner === "your" ? "Your" : "Opponent"} exposed Flowers and Seasons`}
+    >
+      {tiles.map((item) => (
+        <Tile key={item.id} t={item} size="sm" />
+      ))}
+    </div>
   );
 }
 
@@ -175,7 +191,12 @@ function OpponentSeat({
   matchKey: string | null;
 }) {
   return (
-    <section className={`seat seat-${slot}${state.isActive ? " seat-active" : ""}`} aria-label={`${windName(seat)} seat`}>
+    <section
+      className={`seat seat-${slot}${state.isActive && claimSource === null ? " seat-active" : ""}${
+        state.revealedHand ? " seat-celebrating" : ""
+      }`}
+      aria-label={`${windName(seat)} seat`}
+    >
       <header className="seat-header">
         <div className="seat-identity">
           <span className="seat-avatar" aria-hidden="true">
@@ -187,7 +208,7 @@ function OpponentSeat({
         </div>
         <div className="seat-status">
           {state.isActive ? <span className="active-badge" title="Active player">●</span> : null}
-          {claimSource === seat ? <span className="claim-badge" title="Claim source">claim</span> : null}
+          {claimSource === seat ? <span className="claim-badge" title="Waiting for responses">waiting</span> : null}
           <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
           <span className="hand-count" aria-label={`${state.handCount} tiles in hand`}>
             {state.handCount}
@@ -206,6 +227,7 @@ function OpponentSeat({
           ))}
         </div>
       ) : null}
+      <BonusTiles tiles={state.bonusTiles} owner="opponent" />
     </section>
   );
 }
@@ -251,12 +273,27 @@ function DiscardRiver({
 // until E8.F3.)
 const AMBER_THRESHOLD_SECONDS = 3;
 const RED_THRESHOLD_SECONDS = 1;
+const WALL_WARNING_TILES = 16;
+const WALL_CRITICAL_TILES = 8;
 
 function WallAndTurnCenter({ state }: { state: MatchTableState }) {
   const urgent = !state.untimed && state.countdownSeconds <= RED_THRESHOLD_SECONDS;
   const warn = !state.untimed && state.countdownSeconds <= AMBER_THRESHOLD_SECONDS && !urgent;
   const activeSeat = (Object.values(state.seats) as SeatState[]).find((s) => s.isActive)?.seat ?? state.localSeat;
   const fraction = state.countdownTotalSeconds > 0 ? state.countdownSeconds / state.countdownTotalSeconds : 0;
+  const wallRemaining = state.wall.drawableRemaining;
+  const wallCritical = wallRemaining <= WALL_CRITICAL_TILES;
+  const wallWarning = wallRemaining <= WALL_WARNING_TILES && !wallCritical;
+  const wallWarningIntensity = wallRemaining <= WALL_WARNING_TILES
+    ? Math.min(1, Math.max(0, (WALL_WARNING_TILES + 1 - wallRemaining) / (WALL_WARNING_TILES + 1)))
+    : 0;
+  const wallWarningStyle = wallRemaining <= WALL_WARNING_TILES
+    ? ({
+        "--wall-warning-glow": `${4 + wallWarningIntensity * 14}px`,
+        "--wall-warning-brightness": 1.05 + wallWarningIntensity * 0.55,
+        animationDuration: `${1.4 - wallWarningIntensity * 0.8}s`,
+      } as CSSProperties)
+    : undefined;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
@@ -282,6 +319,8 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
   // deadline counting down, so no threshold is ever crossed.
   const [announcement, setAnnouncement] = useState("");
   const announcedThresholdRef = useRef<number | null>(null);
+  const [wallAnnouncement, setWallAnnouncement] = useState("");
+  const announcedWallThresholdRef = useRef<number | null>(null);
   useEffect(() => {
     if (state.untimed || state.countdownSeconds > AMBER_THRESHOLD_SECONDS) {
       announcedThresholdRef.current = null;
@@ -295,6 +334,20 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       setAnnouncement("3 seconds remaining");
     }
   }, [state.countdownSeconds, state.untimed]);
+
+  useEffect(() => {
+    if (wallRemaining > WALL_WARNING_TILES) {
+      announcedWallThresholdRef.current = null;
+      return;
+    }
+    if (wallRemaining <= WALL_CRITICAL_TILES && announcedWallThresholdRef.current !== WALL_CRITICAL_TILES) {
+      announcedWallThresholdRef.current = WALL_CRITICAL_TILES;
+      setWallAnnouncement(`${wallRemaining} tiles left. Wall critically low.`);
+    } else if (wallRemaining <= WALL_WARNING_TILES && announcedWallThresholdRef.current === null) {
+      announcedWallThresholdRef.current = WALL_WARNING_TILES;
+      setWallAnnouncement(`${wallRemaining} tiles left. Wall running low.`);
+    }
+  }, [wallRemaining]);
 
   return (
     <div
@@ -328,11 +381,20 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       <span className="sr-only" role="status" aria-live="assertive">
         {announcement}
       </span>
-      <div className="wall-outline" aria-label={`${state.wall.drawableRemaining} drawable tiles remaining`}>
+      <span className="sr-only" role="status" aria-live="polite">
+        {wallAnnouncement}
+      </span>
+      <div
+        className={`wall-outline${wallWarning ? " wall-outline-warning" : ""}${wallCritical ? " wall-outline-critical" : ""}`}
+        style={wallWarningStyle}
+        aria-label={`${wallRemaining} drawable tiles remaining${
+          wallCritical ? ", wall critically low" : wallWarning ? ", wall running low" : ""
+        }`}
+      >
         <span className="wall-outline-icon" aria-hidden="true">
           ▤
         </span>
-        <span className="wall-count">{state.wall.drawableRemaining}</span>
+        <span className="wall-count">{wallRemaining}</span>
         <span className="wall-count-label">left</span>
       </div>
       <div className="round-status">
@@ -427,6 +489,8 @@ function TablePlayfield({
   discardPending?: boolean;
 }) {
   const lastDiscardTileId = state.lastDiscard?.tile.id;
+  const revealedSeats = (Object.values(slots) as SeatId[])
+    .filter((seat) => (state.seats[seat].revealedHand?.length ?? 0) > 0);
   return (
     <div className="table-playfield">
       {(["top", "left", "right", "bottom"] as const).map((slot) => {
@@ -451,6 +515,31 @@ function TablePlayfield({
           discardPending={discardPending}
         />
       </div>
+      {state.showdown && revealedSeats.length > 0 ? (
+        <div className="showdown-hands" aria-label="Winning hand reveal">
+          {revealedSeats.map((seat) => {
+              const revealedHand = state.seats[seat].revealedHand!;
+              return (
+                <div
+                  className="showdown-hand"
+                  key={seat}
+                  role="group"
+                  aria-label={`${seat === state.localSeat ? "Your" : windName(seat)} winning hand`}
+                >
+                  {revealedHand.map((item, index) => (
+                    <span
+                      key={item.id}
+                      className="showdown-hand-tile"
+                      style={{ "--reveal-index": index } as CSSProperties}
+                    >
+                      <Tile t={item} size="lg" />
+                    </span>
+                  ))}
+                </div>
+              );
+            })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -471,6 +560,7 @@ function LocalSeat({
   drawnTileId,
   tableFxEnabled,
   onToggleTableFx,
+  isClaimThinking,
 }: {
   state: SeatState;
   displayedHand: WireTile[];
@@ -487,9 +577,15 @@ function LocalSeat({
   drawnTileId: string | null;
   tableFxEnabled: boolean;
   onToggleTableFx: () => void;
+  isClaimThinking: boolean;
 }) {
   return (
-    <section className={`seat seat-bottom local-seat${selectable || canDraw ? " seat-active" : ""}`} aria-label="Your seat">
+    <section
+      className={`seat seat-bottom local-seat${state.isActive || isClaimThinking ? " seat-active" : ""}${
+        state.revealedHand ? " seat-celebrating" : ""
+      }`}
+      aria-label="Your seat"
+    >
       <header className="seat-header">
         <div className="seat-identity">
           <span className="seat-avatar" aria-hidden="true">
@@ -501,6 +597,7 @@ function LocalSeat({
           <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
         </div>
         <div className="seat-status">
+          {isClaimThinking ? <span className="claim-badge" title="Choose a response">thinking</span> : null}
           <button
             type="button"
             className="sort-toggle-button"
@@ -527,6 +624,7 @@ function LocalSeat({
           ))}
         </div>
       ) : null}
+      <BonusTiles tiles={state.bonusTiles} owner="your" />
       <WaitPanel waits={waits} />
       <div className="local-hand" role="list" aria-label="Your hand">
         {displayedHand.map((item) => {
@@ -943,7 +1041,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
   }
 
   return (
-    <div className="match-table" data-testid="match-table">
+    <div className={`match-table${state.showdown ? " match-table-showdown" : ""}`} data-testid="match-table">
       <OpponentSeat
         seat={slots.top}
         slot="top"
@@ -997,6 +1095,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         drawnTileId={drawnTileId}
         tableFxEnabled={tableFxEnabled}
         onToggleTableFx={toggleTableFx}
+        isClaimThinking={state.legalActions.length > 0}
       />
     </div>
   );

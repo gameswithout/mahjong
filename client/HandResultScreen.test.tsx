@@ -132,6 +132,32 @@ describe("HandResultScreen", () => {
     expect(markup).toContain("AGS Wallet synced");
   });
 
+  it("makes a discard win explicit in Chinese and shows who discarded to whom", () => {
+    const markup = renderToStaticMarkup(<HandResultScreen view={completedView()} />);
+
+    expect(markup).toContain('lang="zh-Hant">放炮</h2>');
+    expect(markup).toContain("Fan Pao · Discard Win");
+    expect(markup).toContain("You (East)");
+    expect(markup).toContain("South");
+    expect(markup).toContain("discarded to →");
+    expect(markup).toContain('aria-label="South discarded the winning tile to You (East)"');
+  });
+
+  it("celebrates a self-draw with a prominent 自摸 heading", () => {
+    const view = completedView();
+    if (!view.hand_result) {
+      throw new Error("invalid result fixture");
+    }
+    view.hand_result.kind = "zimo";
+    view.hand_result.payer = undefined;
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain('lang="zh-Hant">自摸</h2>');
+    expect(markup).toContain("Zi Mo · Self-Draw");
+    expect(markup).toContain("drew the winning tile themselves");
+    expect(markup).not.toContain("discarded to →");
+  });
+
   it("attributes a payer-side Dealer Tai bonus to the actual dealer", () => {
     const view = completedView();
     const winner = view.hand_result?.winners?.[0];

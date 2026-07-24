@@ -36,6 +36,83 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelector(".seat .discard-grid")).toBeNull();
   });
 
+  it("centers the winning hand and marks the winner seat for celebration", () => {
+    const winner = "E";
+    const state = {
+      ...mockMatchTableState,
+      showdown: true,
+      seats: {
+        ...mockMatchTableState.seats,
+        [winner]: {
+          ...mockMatchTableState.seats[winner],
+          revealedHand: [tile("dots-1-1"), tile("dots-1-2")],
+        },
+      },
+    };
+
+    act(() => root.render(<MatchTable state={state} />));
+
+    const reveal = container.querySelector(".showdown-hands");
+    expect(reveal?.closest(".table-playfield")).not.toBeNull();
+    expect(reveal?.querySelectorAll(".showdown-hand-tile")).toHaveLength(2);
+    expect(container.querySelector('[aria-label="East seat"]')?.classList).toContain("seat-celebrating");
+  });
+
+  it("escalates the wall warning from yellow at 16 tiles to red at 8", () => {
+    const withWall = (drawableRemaining: number) => ({
+      ...mockMatchTableState,
+      wall: { ...mockMatchTableState.wall, drawableRemaining },
+    });
+
+    act(() => root.render(<MatchTable state={withWall(17)} />));
+    expect(container.querySelector(".wall-outline-warning")).toBeNull();
+    expect(container.querySelector(".wall-outline-critical")).toBeNull();
+
+    act(() => root.render(<MatchTable state={withWall(16)} />));
+    expect(container.querySelector(".wall-outline-warning")).not.toBeNull();
+    expect(container.querySelector(".wall-outline")?.getAttribute("aria-label")).toContain("wall running low");
+
+    act(() => root.render(<MatchTable state={withWall(8)} />));
+    expect(container.querySelector(".wall-outline-critical")).not.toBeNull();
+    expect(container.querySelector(".wall-outline")?.getAttribute("aria-label")).toContain("wall critically low");
+
+    act(() => root.render(<MatchTable state={withWall(2)} />));
+    expect(container.querySelector(".wall-outline")?.getAttribute("style")).toContain("animation-duration");
+  });
+
+  it("highlights the active seat border and renders exposed bonus tiles", () => {
+    act(() => root.render(<MatchTable state={mockMatchTableState} />));
+
+    expect(container.querySelectorAll(".seat-active")).toHaveLength(1);
+    expect(container.querySelector(".local-seat.seat-active")).not.toBeNull();
+    expect(container.querySelectorAll(".bonus-tile-area")).toHaveLength(3);
+    expect(container.querySelector('[aria-label="Your exposed Flowers and Seasons"]')).not.toBeNull();
+    expect(
+      container.querySelectorAll('[aria-label="Your exposed Flowers and Seasons"] .tile'),
+    ).toHaveLength(2);
+    expect(
+      Array.from(container.querySelectorAll(".claim-badge")).map((badge) => badge.textContent),
+    ).toEqual(["waiting", "thinking"]);
+    expect(container.textContent).not.toContain("CLAIM");
+  });
+
+  it("moves claim-window emphasis from the discarder to the deciding player", () => {
+    const state = {
+      ...mockMatchTableState,
+      seats: {
+        ...mockMatchTableState.seats,
+        S: { ...mockMatchTableState.seats.S, isActive: false },
+        E: { ...mockMatchTableState.seats.E, isActive: true },
+      },
+    };
+    act(() => root.render(<MatchTable state={state} />));
+
+    expect(container.querySelector(".local-seat.seat-active")).not.toBeNull();
+    expect(container.querySelector(".seat-left.seat-active")).toBeNull();
+    expect(container.querySelector(".seat-left .claim-badge")?.textContent).toBe("waiting");
+    expect(container.querySelector(".local-seat .claim-badge")?.textContent).toBe("thinking");
+  });
+
   it("shows the complete tile sequence for every Chow option", () => {
     const state = {
       ...mockMatchTableState,
@@ -174,7 +251,8 @@ describe("MatchTable table-first UX", () => {
 
     const dock = container.querySelector(".action-bar-claim");
     expect(dock?.querySelectorAll("button")).toHaveLength(4);
-    expect(dock?.querySelector(".tile")).toBeNull();
+    expect(dock?.querySelector(".tile-focus")).toBeNull();
+    expect(dock?.querySelectorAll(".chow-option-preview .tile")).toHaveLength(3);
   });
 
   it("discards a hand tile in one tap without a confirm step", () => {

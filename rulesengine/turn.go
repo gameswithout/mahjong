@@ -605,7 +605,10 @@ func (e *TurnEngine) ResolveClaims(expectedVersion uint64) (ClaimResolution, err
 	if expectedVersion != window.StateVersion {
 		return ClaimResolution{}, ErrStaleAction
 	}
-	if len(window.Responses) != len(window.Eligible) && e.now().UTC().Before(window.Deadline) {
+	resolvedBeforeDeadline := len(window.Responses) != len(window.Eligible) &&
+		e.now().UTC().Before(window.Deadline) &&
+		e.pongOrKongDominatesUnanswered(window)
+	if len(window.Responses) != len(window.Eligible) && e.now().UTC().Before(window.Deadline) && !resolvedBeforeDeadline {
 		return ClaimResolution{}, ErrClaimPending
 	}
 	// §5.10/§8.7 AFK tracking: a seat that responded (even a deliberate
@@ -615,7 +618,7 @@ func (e *TurnEngine) ResolveClaims(expectedVersion uint64) (ClaimResolution, err
 	for _, seat := range window.Eligible {
 		if _, responded := window.Responses[seat]; responded {
 			e.recordGenuineAction(seat)
-		} else {
+		} else if !resolvedBeforeDeadline {
 			e.recordTimeout(seat)
 		}
 	}
@@ -703,6 +706,34 @@ func (e *TurnEngine) ResolveClaims(expectedVersion uint64) (ClaimResolution, err
 	e.Version++
 	resolution.NextSeat = next
 	return resolution, nil
+}
+
+// pongOrKongDominatesUnanswered allows a claim window to close without
+// waiting on seats whose only remaining possibility is a lower-priority
+// Chow (or Pass). This avoids leaking that the next player has a Chow-shaped
+// hand through an otherwise pointless delay. Any unanswered seat that can
+// still Win, Pong, or Kong keeps the window open.
+func (e *TurnEngine) pongOrKongDominatesUnanswered(window *ClaimWindow) bool {
+	hasDominantClaim := false
+	for _, response := range window.Responses {
+		if response.Type == ClaimPong || response.Type == ClaimKong {
+			hasDominantClaim = true
+			break
+		}
+	}
+	if !hasDominantClaim {
+		return false
+	}
+	for _, seat := range window.Eligible {
+		if _, responded := window.Responses[seat]; responded {
+			continue
+		}
+		options := e.claimOptionsFor(seat, window.Discard)
+		if options.CanWin || options.CanPong || options.CanKong {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *TurnEngine) IsWinLocked(seat Seat) bool {

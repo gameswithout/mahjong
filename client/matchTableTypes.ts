@@ -30,7 +30,13 @@ export interface SeatState {
   isActive: boolean;
   handCount: number;
   hand?: WireTile[];
+  // Populated only during the brief end-of-hand table reveal. Opponents
+  // remain face-down throughout live play.
+  revealedHand?: WireTile[];
   melds: WireMeld[];
+  // Public bonus tiles (four Seasons + four Flowers). Replacement draws are
+  // handled by the rules engine, so these display outside the concealed hand.
+  bonusTiles: WireTile[];
   discards: WireTile[];
   // takenOver is the broader "currently bot-controlled" state (disclosed
   // AFK takeover OR a permanent AI Practice bot seat) — renders as an
@@ -98,6 +104,7 @@ export interface MatchTableState {
   // waits is the local player's own §9.4 Ting/wait list, empty when they
   // aren't currently holding a waiting-shaped hand.
   waits: WaitEntry[];
+  showdown?: boolean;
 }
 
 const SUIT_GLYPHS: Record<string, string> = {

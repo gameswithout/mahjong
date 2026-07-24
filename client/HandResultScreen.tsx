@@ -6,7 +6,7 @@
 // E12), and human-queue Report/Play Again/Continue remain deferred.
 import { useState } from "react";
 
-import type { HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
+import type { HandResult, HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
 import { TileFace } from "./TileFace";
 import type { SeatId } from "./matchTableTypes";
 import { tile, windName } from "./matchTableTypes";
@@ -27,6 +27,57 @@ function currentDealer(view: SeatView): MahjongSeat | null {
   }
   const nextIndex = SEAT_ORDER.indexOf(outcome.next_dealer);
   return nextIndex < 0 ? null : SEAT_ORDER[(nextIndex + SEAT_ORDER.length - 1) % SEAT_ORDER.length];
+}
+
+const WIN_TYPE_COPY: Record<HandResult["kind"], { chinese: string; romanized: string; english: string }> = {
+  discard: { chinese: "放炮", romanized: "Fan Pao", english: "Discard Win" },
+  zimo: { chinese: "自摸", romanized: "Zi Mo", english: "Self-Draw" },
+  rob: { chinese: "搶槓", romanized: "Qiang Gang", english: "Robbing the Kong" },
+  eight_flowers: { chinese: "八仙過海", romanized: "Eight Flowers", english: "Eight Flowers Win" },
+  heavenly: { chinese: "天胡", romanized: "Tian Hu", english: "Heavenly Hand" },
+  exhaustive_draw: { chinese: "流局", romanized: "Liu Ju", english: "Exhaustive Draw" },
+};
+
+function WinTypeBanner({
+  result,
+  winners,
+  localSeat,
+}: {
+  result: HandResult;
+  winners: HandWinner[];
+  localSeat: MahjongSeat;
+}) {
+  const copy = WIN_TYPE_COPY[result.kind];
+  const winningTile = result.winning_tile_id ? tile(result.winning_tile_id) : null;
+  const winnerNames = winners.map((winner) => seatLabel(winner.seat, localSeat)).join(" & ");
+  const payerName = result.payer ? seatLabel(result.payer, localSeat) : null;
+
+  return (
+    <header className={`hand-result-win-type hand-result-win-type-${result.kind}`}>
+      <h2 className="hand-result-win-type-chinese" lang="zh-Hant">{copy.chinese}</h2>
+      <p className="hand-result-win-type-name">{copy.romanized} · {copy.english}</p>
+      {result.kind === "discard" && payerName && winnerNames ? (
+        <div className="hand-result-win-relationship" aria-label={`${payerName} discarded the winning tile to ${winnerNames}`}>
+          <strong className="hand-result-payer">{payerName}</strong>
+          <span className="hand-result-win-arrow" aria-hidden="true">discarded to →</span>
+          <strong className="hand-result-recipient">{winnerNames}</strong>
+        </div>
+      ) : result.kind === "zimo" && winnerNames ? (
+        <div className="hand-result-win-relationship hand-result-self-draw" aria-label={`${winnerNames} drew the winning tile`}>
+          <strong className="hand-result-recipient">{winnerNames}</strong>
+          <span>drew the winning tile themselves</span>
+        </div>
+      ) : null}
+      {winningTile ? (
+        <div className="hand-result-hero-tile">
+          <span>Winning tile</span>
+          <span className="tile tile-md" role="img" aria-label={winningTile.label}>
+            <TileFace id={winningTile.id} size="md" />
+          </span>
+        </div>
+      ) : null}
+    </header>
+  );
 }
 
 function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat: MahjongSeat }) {
@@ -111,7 +162,6 @@ export function HandResultScreen({
     return null;
   }
   const winners = result.winners ?? [];
-  const winningTile = result.winning_tile_id ? tile(result.winning_tile_id) : null;
   const dealer = currentDealer(view);
   const dealerTaiBonus = Math.max(
     0,
@@ -123,22 +173,11 @@ export function HandResultScreen({
 
   return (
     <div className="hand-result-screen" role="region" aria-label="Hand result">
-      <h2 className="hand-result-heading">
-        {result.kind === "exhaustive_draw" ? "Exhaustive draw" : "Hand complete"}
-      </h2>
+      <WinTypeBanner result={result} winners={winners} localSeat={view.seat} />
 
       {practice && (
         <p className="hand-result-practice-note">
           Practice result — no Jade, rating, or progression is changed.
-        </p>
-      )}
-
-      {winningTile && (
-        <p className="hand-result-winning-tile">
-          Winning tile:{" "}
-          <span className="tile tile-sm" role="img" aria-label={winningTile.label}>
-            <TileFace id={winningTile.id} size="sm" />
-          </span>
         </p>
       )}
 

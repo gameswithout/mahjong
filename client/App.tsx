@@ -42,7 +42,7 @@ import { MatchTable } from "./MatchTable";
 import { VideoCallPanel } from "./VideoCallPanel";
 import { useVideoCall } from "./useVideoCall";
 import type { SeatId } from "./matchTableTypes";
-import { HandResultScreen } from "./HandResultScreen";
+import { CompletedHandFlow } from "./CompletedHandFlow";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
 import "./styles.css";
@@ -1419,9 +1419,26 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           (matchRuntimeState.view.phase === "hand_complete" ||
           matchRuntimeState.view.phase === "exhaustive_draw" ? (
             <div className="game-screen-result">
-              <HandResultScreen
+              <CompletedHandFlow
                 view={matchRuntimeState.view}
                 practice={isPracticeMatch(matchRuntimeState.view)}
+                revealTable={
+                  <div
+                    className="match-table-frame"
+                    data-testid="winning-table-reveal"
+                    data-match-id={matchRuntimeState.matchId}
+                    data-local-seat={matchRuntimeState.view.seat}
+                  >
+                    <MatchTable
+                      state={seatViewToMatchTableState(matchRuntimeState.view, {
+                        now: nowTick,
+                        onClaimAction: dispatchClaimAction,
+                        claimActionPending: true,
+                        revealWinningHands: true,
+                      })}
+                    />
+                  </div>
+                }
                 onPlayAgain={
                   isPracticeMatch(matchRuntimeState.view) ? playPracticeAgain : undefined
                 }

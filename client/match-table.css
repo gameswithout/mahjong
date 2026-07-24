@@ -177,7 +177,10 @@ body {
    a glance across the whole table. */
 .seat-active {
   background: radial-gradient(ellipse 80% 90% at 50% 40%, rgb(242 198 109 / 14%), transparent 75%);
-  box-shadow: inset 0 0 0 1px rgb(242 198 109 / 22%);
+  box-shadow:
+    inset 0 0 0 3px #f2c66d,
+    inset 0 0 24px rgb(242 198 109 / 18%),
+    0 0 14px rgb(242 198 109 / 30%);
 }
 
 .wind-badge {
@@ -220,10 +223,12 @@ body {
   background: #f2c66d;
   border-radius: 3px;
   color: #10131f;
+  flex-shrink: 0;
   font-size: 8px;
   font-weight: 800;
   padding: 1px 3px;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .takeover-badge {
@@ -295,6 +300,12 @@ body {
 
 .tile-face-script text:last-child {
   font-size: 31px;
+}
+
+.tile-face-corner-number {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .tile-face-honor {
@@ -391,6 +402,20 @@ body {
   flex-shrink: 0;
   flex-wrap: wrap;
   gap: 2px;
+}
+
+.bonus-tile-area {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: center;
+}
+
+.bonus-tile-area .tile-sm {
+  height: 28px;
+  width: 20px;
 }
 
 .meld {
@@ -552,8 +577,40 @@ body {
 
 .wall-outline {
   align-items: baseline;
+  border: 1px solid transparent;
+  border-radius: 8px;
   display: flex;
   gap: 2px;
+  padding: 2px 5px;
+  transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+
+.wall-outline-warning,
+.wall-outline-critical {
+  animation: wall-warning-pulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 var(--wall-warning-glow) currentcolor;
+}
+
+.wall-outline-warning {
+  background: rgb(242 198 109 / 16%);
+  border-color: #f2c66d;
+  color: #ffd873;
+}
+
+.wall-outline-critical {
+  background: rgb(224 85 85 / 18%);
+  border-color: #e05555;
+  color: #ff7474;
+}
+
+@keyframes wall-warning-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(var(--wall-warning-brightness));
+  }
 }
 
 .wall-outline-icon {
@@ -1113,6 +1170,44 @@ body {
   position: relative;
 }
 
+.showdown-hands {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  left: 50%;
+  max-width: 94%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  z-index: 20;
+}
+
+.showdown-hand {
+  align-items: flex-end;
+  background: rgb(21 31 25 / 90%);
+  border: 2px solid #f2c66d;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 30px rgb(0 0 0 / 48%),
+    0 0 22px rgb(242 198 109 / 28%);
+  display: flex;
+  gap: clamp(1px, 0.25vw, 4px);
+  justify-content: center;
+  max-width: 100%;
+  padding: clamp(5px, 0.7vw, 10px);
+  perspective: 700px;
+  width: max-content;
+}
+
+.showdown-hand .tile-lg {
+  --showdown-tile-width: clamp(27px, 3.5vw, 52px);
+  height: calc(var(--showdown-tile-width) * 1.62);
+  min-width: var(--showdown-tile-width);
+  width: var(--showdown-tile-width);
+}
+
 .discard-river {
   align-items: center;
   display: flex;
@@ -1178,19 +1273,6 @@ body {
   filter: brightness(1.16);
 }
 
-.discard-river-claim-source::after {
-  background: #f2c66d;
-  border-radius: 999px;
-  color: #10131f;
-  content: "CLAIM";
-  font-size: 7px;
-  font-weight: 900;
-  padding: 1px 4px;
-  position: absolute;
-  right: 0;
-  top: 0;
-}
-
 .discard-river .tile-sm {
   height: calc(var(--river-tile-width) * 1.38);
   width: var(--river-tile-width);
@@ -1209,7 +1291,7 @@ body {
 
 .table-center-cluster {
   align-items: center;
-  background: radial-gradient(ellipse at center, rgb(5 16 12 / 76%), rgb(5 16 12 / 30%) 64%, transparent 78%);
+  background: none;
   display: flex;
   gap: 10px;
   left: 50%;
@@ -1386,6 +1468,14 @@ body {
   left: 4px;
   max-width: 26%;
   position: absolute;
+  z-index: 3;
+}
+
+.local-seat > .bonus-tile-area {
+  bottom: 4px;
+  max-width: 26%;
+  position: absolute;
+  right: 4px;
   z-index: 3;
 }
 

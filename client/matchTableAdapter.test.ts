@@ -70,6 +70,29 @@ describe("seatViewToMatchTableState", () => {
     expect(state.seats.N.isBot).toBe(false);
   });
 
+  it("maps exposed Flowers and Seasons into each seat's public bonus area", () => {
+    const state = seatViewToMatchTableState(
+      seatView({
+        own_exposed: [
+          { id: "flower-spring", kind: "flower" },
+          { id: "characters-2-1", kind: "characters", rank: 2, copy: 1 },
+        ],
+        players: [
+          { seat: "E", hand_count: 1 },
+          { seat: "S", hand_count: 16, exposed: [{ id: "flower-orchid", kind: "flower" }] },
+          { seat: "W", hand_count: 16, exposed: [{ id: "flower-winter", kind: "flower" }] },
+          { seat: "N", hand_count: 16 },
+        ],
+      }),
+      { now: Date.now(), onClaimAction: vi.fn() },
+    );
+
+    expect(state.seats.E.bonusTiles.map((item) => item.id)).toEqual(["flower-spring"]);
+    expect(state.seats.S.bonusTiles.map((item) => item.id)).toEqual(["flower-orchid"]);
+    expect(state.seats.W.bonusTiles.map((item) => item.id)).toEqual(["flower-winter"]);
+    expect(state.seats.N.bonusTiles).toEqual([]);
+  });
+
   it("groups the public discard pile by seat", () => {
     const state = seatViewToMatchTableState(
       seatView({

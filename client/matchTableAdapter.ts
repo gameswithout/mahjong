@@ -160,12 +160,25 @@ export interface MatchTableAdapterOptions {
    * the engine would reject.
    */
   claimActionPending?: boolean;
+  /** Reveal winner tiles in their existing table seat before results. */
+  revealWinningHands?: boolean;
 }
 
 export function seatViewToMatchTableState(view: SeatView, options: MatchTableAdapterOptions): MatchTableState {
   const localSeat = view.seat as SeatId;
   const playersBySeat = new Map(view.players.map((player) => [player.seat as SeatId, player]));
   const discardsBySeat = new Map<SeatId, MahjongTile[]>(SEAT_ORDER.map((seat) => [seat, []]));
+  const winningHands = new Map(
+    options.revealWinningHands
+      ? (view.hand_result?.winners ?? []).map((winner) => [
+          winner.seat as SeatId,
+          [
+            ...winner.score.shape.melds.flatMap((meld) => meld.tiles ?? []),
+            ...winner.score.shape.pair,
+          ].map(wireTile),
+        ] as const)
+      : [],
+  );
   for (const discard of view.discards ?? []) {
     discardsBySeat.get(discard.seat as SeatId)?.push(discard.tile);
   }
@@ -186,7 +199,11 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         isActive: seat === view.active_seat,
         handCount: isLocal ? view.own_hand.length : (player?.hand_count ?? 0),
         hand: isLocal ? view.own_hand.map(wireTile) : undefined,
+        revealedHand: winningHands.get(seat),
         melds,
+        bonusTiles: (isLocal ? view.own_exposed : (player?.exposed ?? []))
+          .filter((item) => item.kind === "flower")
+          .map(wireTile),
         discards: (discardsBySeat.get(seat) ?? []).map(wireTile),
         takenOver: player?.taken_over ?? false,
         isBot,
@@ -224,5 +241,6 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       tile: wireTile(entry.tile),
       visibleRemaining: entry.visible_remaining,
     })),
+    showdown: options.revealWinningHands,
   };
 }

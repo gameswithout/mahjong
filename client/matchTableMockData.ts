@@ -23,7 +23,7 @@ const localHand = [
   "wind-east-1",
   "wind-east-2",
   "dragon-red-1",
-  "flower-spring",
+  "dragon-green-1",
 ].map(tile);
 
 const eastMelds = [
@@ -45,6 +45,7 @@ const seats: Record<string, SeatState> = {
     handCount: localHand.length,
     hand: localHand,
     melds: [],
+    bonusTiles: ["flower-spring", "flower-plum"].map(tile),
     discards: discardRow(["characters-9-1", "dots-1-1", "bamboo-3-1", "wind-north-1"]),
   },
   W: {
@@ -55,6 +56,7 @@ const seats: Record<string, SeatState> = {
     isActive: false,
     handCount: 13,
     melds: [],
+    bonusTiles: ["flower-winter"].map(tile),
     discards: discardRow(["dots-9-1", "characters-4-1", "bamboo-8-1", "dragon-white-1", "characters-6-1"]),
   },
   N: {
@@ -65,6 +67,7 @@ const seats: Record<string, SeatState> = {
     isActive: false,
     handCount: 14,
     melds: [],
+    bonusTiles: [],
     discards: discardRow(["bamboo-2-1", "dots-3-1", "characters-8-1"]),
   },
   E: {
@@ -75,6 +78,7 @@ const seats: Record<string, SeatState> = {
     isActive: false,
     handCount: 8,
     melds: eastMelds,
+    bonusTiles: ["flower-summer", "flower-orchid"].map(tile),
     discards: discardRow(["dots-8-1", "wind-south-1", "characters-2-2", "bamboo-7-1", "dots-6-2", "characters-7-1"]),
   },
 };

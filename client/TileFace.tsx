@@ -14,7 +14,9 @@ const DOT_POINTS: Record<number, Point[]> = {
   // remaining four arranged as a square below.
   7: [[15, 15], [28, 27], [41, 39], [18, 58], [42, 58], [18, 76], [42, 76]],
   8: [[18, 18], [42, 18], [18, 35], [42, 35], [18, 55], [42, 55], [18, 72], [42, 72]],
-  9: [[18, 18], [30, 18], [42, 18], [18, 45], [30, 45], [42, 45], [18, 72], [30, 72], [42, 72]],
+  // A roomy three-by-three grid. The old 12-unit spacing was narrower than
+  // the pips' diameter, so adjacent circles visibly collided.
+  9: [[15, 17], [30, 17], [45, 17], [15, 45], [30, 45], [45, 45], [15, 73], [30, 73], [45, 73]],
 };
 
 const FLOWERS: Record<string, { label: string; color: string; accent: string }> = {
@@ -69,7 +71,7 @@ function Dots({ rank }: { rank: number }) {
           x={x}
           y={y}
           color={rank === 7 ? (index < 3 ? "#287244" : "#be3434") : colors[index % colors.length]}
-          scale={rank === 7 ? 0.82 : 1}
+          scale={rank === 7 ? 0.82 : rank === 9 ? 0.76 : 1}
         />
       ))}
     </>
@@ -77,6 +79,25 @@ function Dots({ rank }: { rank: number }) {
 }
 
 function Bamboo({ rank }: { rank: number }) {
+  if (rank === 1) {
+    return (
+      <g className="tile-face-one-bamboo-long">
+        <rect x="24" y="27.5" width="12" height="35" rx="6" fill="#2d7443" />
+        <path
+          d="M25.5 39h9M25.5 51h9"
+          stroke="#f4edd9"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        />
+        <path
+          d="M28 33h4M28 45h4M28 57h4"
+          stroke="#75ad75"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </g>
+    );
+  }
   return (
     <>
       {(DOT_POINTS[rank] ?? []).map(([x, y], index) => (
@@ -91,10 +112,13 @@ function Bamboo({ rank }: { rank: number }) {
 
 function Characters({ rank }: { rank: number }) {
   return (
-    <g className="tile-face-script">
-      <text x="30" y="38" textAnchor="middle" fill="#234b91">{NUMBER_WORDS[rank]}</text>
-      <text x="30" y="70" textAnchor="middle" fill="#bb302e">萬</text>
-    </g>
+    <>
+      <text className="tile-face-corner-number" x="7" y="14" fill="#b72f35">{rank}</text>
+      <g className="tile-face-script">
+        <text x="30" y="38" textAnchor="middle" fill="#234b91">{NUMBER_WORDS[rank]}</text>
+        <text x="30" y="70" textAnchor="middle" fill="#bb302e">萬</text>
+      </g>
+    </>
   );
 }
 
@@ -113,7 +137,20 @@ function Honor({ suit, name }: { suit: string; name: string }) {
     red: { text: "中", color: "#bd302e" }, green: { text: "發", color: "#287244" },
   };
   const glyph = glyphs[name] ?? { text: "?", color: "#1c130a" };
-  return <text className="tile-face-honor" x="30" y="59" textAnchor="middle" fill={glyph.color}>{glyph.text}</text>;
+  const windLetters: Record<string, string> = {
+    north: "N",
+    east: "E",
+    west: "W",
+    south: "S",
+  };
+  return (
+    <>
+      {suit === "wind" ? (
+        <text className="tile-face-corner-number" x="7" y="14" fill="#b72f35">{windLetters[name]}</text>
+      ) : null}
+      <text className="tile-face-honor" x="30" y="59" textAnchor="middle" fill={glyph.color}>{glyph.text}</text>
+    </>
+  );
 }
 
 function Flower({ name }: { name: string }) {

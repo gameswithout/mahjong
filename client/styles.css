@@ -454,9 +454,91 @@ h1 {
   text-align: left;
 }
 
-.hand-result-heading {
-  font-size: 1.1rem;
-  margin: 0 0 0.75rem;
+.hand-result-win-type {
+  background:
+    radial-gradient(circle at 50% 0%, rgb(244 199 97 / 24%), transparent 65%),
+    #121629;
+  border: 1px solid #565f8d;
+  border-radius: 0.85rem;
+  margin-bottom: 0.8rem;
+  padding: 0.9rem;
+  text-align: center;
+}
+
+.hand-result-win-type-discard {
+  border-color: #b8544f;
+  box-shadow: inset 0 0 24px rgb(184 84 79 / 12%);
+}
+
+.hand-result-win-type-zimo {
+  border-color: #e4bd58;
+  box-shadow: inset 0 0 26px rgb(228 189 88 / 16%);
+}
+
+.hand-result-win-type-chinese {
+  color: #f4c761;
+  font-family: "Noto Serif TC", "Songti TC", STSong, serif;
+  font-size: 2.35rem;
+  line-height: 1;
+  margin: 0;
+  text-shadow: 0 2px 12px rgb(244 199 97 / 35%);
+}
+
+.hand-result-win-type-name {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0.3rem 0 0;
+  text-transform: uppercase;
+}
+
+.hand-result-win-relationship {
+  align-items: center;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+.hand-result-payer {
+  background: #6f2c31;
+  border: 1px solid #c66b67;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+}
+
+.hand-result-recipient {
+  background: #204f3b;
+  border: 1px solid #5bb98b;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+}
+
+.hand-result-win-arrow {
+  color: #efaaa3;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.hand-result-self-draw {
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.hand-result-self-draw > span {
+  color: #f1d992;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.hand-result-hero-tile {
+  align-items: center;
+  display: flex;
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 0.45rem;
+  justify-content: center;
+  margin-top: 0.7rem;
 }
 
 .hand-result-winner {
@@ -696,6 +778,83 @@ h1 {
 .game-screen-result .hand-result-screen {
   margin: 0;
   width: 100%;
+}
+
+.game-screen-result:has(.winning-table-reveal) {
+  max-width: none;
+}
+
+.winning-table-reveal {
+  display: flex;
+  flex: 1;
+  width: 100%;
+}
+
+.winning-table-reveal .match-table-frame {
+  margin: 0;
+}
+
+.match-table-showdown .showdown-hand-tile {
+  animation: winning-tile-flip 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--reveal-index) * 55ms);
+  backface-visibility: hidden;
+  transform-origin: center bottom;
+}
+
+/* Celebration hook: keep the effect attached to the winning seat so future
+   cosmetic themes can replace these tokens/animation without changing the
+   table or result-flow components. */
+.match-table-showdown {
+  --winner-celebration-color: #ffe27d;
+  --winner-celebration-glow: rgb(255 211 77 / 92%);
+}
+
+.match-table-showdown .seat-celebrating {
+  animation: winner-border-celebration 0.62s ease-in-out infinite alternate;
+  border-color: var(--winner-celebration-color);
+  box-shadow:
+    inset 0 0 0 3px var(--winner-celebration-color),
+    0 0 20px var(--winner-celebration-glow),
+    0 0 44px rgb(255 191 47 / 52%);
+  z-index: 30;
+}
+
+@keyframes winner-border-celebration {
+  from {
+    filter: brightness(1.06) saturate(1.08);
+    box-shadow:
+      inset 0 0 0 3px var(--winner-celebration-color),
+      0 0 14px rgb(255 222 112 / 64%),
+      0 0 28px rgb(255 184 35 / 34%);
+  }
+  to {
+    filter: brightness(1.32) saturate(1.24);
+    box-shadow:
+      inset 0 0 0 5px #fff7c9,
+      0 0 32px var(--winner-celebration-glow),
+      0 0 64px rgb(255 184 35 / 72%);
+  }
+}
+
+@keyframes winning-tile-flip {
+  from {
+    opacity: 0;
+    transform: rotateY(90deg) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: rotateY(0) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-table-showdown .showdown-hand-tile {
+    animation: none;
+  }
+
+  .match-table-showdown .seat-celebrating {
+    animation: none;
+  }
 }
 
 /* The table itself is certified at the 640×360 landscape floor. At that

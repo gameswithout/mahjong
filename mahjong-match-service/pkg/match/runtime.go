@@ -365,6 +365,9 @@ func (r *Runtime) resolveClaimResponse(
 	result rulesengine.CommandResult,
 ) (rulesengine.CommandResult, error) {
 	resolved, err := resolveClaimsWhenReady(ctx, current.actor, result, r.now())
+	if errors.Is(err, rulesengine.ErrClaimPending) {
+		return result, nil
+	}
 	if !errors.Is(err, rulesengine.ErrEventSequence) {
 		return resolved, err
 	}
@@ -374,6 +377,9 @@ func (r *Runtime) resolveClaimResponse(
 	}
 	current.actor = restored
 	resolved, err = resolveClaimsWhenReady(ctx, restored, result, r.now())
+	if errors.Is(err, rulesengine.ErrClaimPending) {
+		return result, nil
+	}
 	return resolved, err
 }
 
@@ -704,8 +710,20 @@ func resolveClaimsWhenReady(
 	now time.Time,
 ) (rulesengine.CommandResult, error) {
 	claim := result.Snapshot.Claim
-	if claim == nil || (len(claim.Responses) != len(claim.Eligible) && !now.After(claim.Deadline)) {
+	if claim == nil {
 		return result, nil
+	}
+	if len(claim.Responses) != len(claim.Eligible) && !now.After(claim.Deadline) {
+		hasPongOrKong := false
+		for _, response := range claim.Responses {
+			if response.Type == rulesengine.ClaimPong || response.Type == rulesengine.ClaimKong {
+				hasPongOrKong = true
+				break
+			}
+		}
+		if !hasPongOrKong {
+			return result, nil
+		}
 	}
 	requestID := "server:resolve-claims:" + claim.ActionID
 	if previous, found := actor.Previous(requestID); found {

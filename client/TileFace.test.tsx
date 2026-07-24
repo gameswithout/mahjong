@@ -37,4 +37,33 @@ describe("TileFace", () => {
     expect(sevenDot).toContain("translate(15 15)");
     expect(sevenDot).toContain("translate(41 39)");
   });
+
+  it("keeps nine dots separated and labels Character tiles with Arabic numerals", () => {
+    const nineDot = renderToStaticMarkup(<TileFace id="dots-9-1" size="lg" />);
+    const fiveCharacters = renderToStaticMarkup(<TileFace id="characters-5-1" size="lg" />);
+
+    expect(nineDot.match(/scale\(0\.76\)/g)).toHaveLength(9);
+    expect(nineDot).toContain("translate(15 17)");
+    expect(nineDot).toContain("translate(45 73)");
+    expect(fiveCharacters).toContain("tile-face-corner-number");
+    expect(fiveCharacters).toContain(">5</text>");
+  });
+
+  it("renders One Bamboo as one elongated bamboo stalk", () => {
+    const oneBamboo = renderToStaticMarkup(<TileFace id="bamboo-1-1" size="lg" />);
+
+    expect(oneBamboo).toContain("tile-face-one-bamboo-long");
+    expect(oneBamboo).toContain('height="35"');
+    expect(oneBamboo).toContain('width="12"');
+    expect(oneBamboo).not.toContain("<ellipse");
+  });
+
+  it("labels each Wind tile with its English compass letter", () => {
+    const expected = { north: "N", east: "E", west: "W", south: "S" };
+    for (const [wind, letter] of Object.entries(expected)) {
+      const markup = renderToStaticMarkup(<TileFace id={`wind-${wind}-1`} size="lg" />);
+      expect(markup).toContain("tile-face-corner-number");
+      expect(markup).toContain(`>${letter}</text>`);
+    }
+  });
 });
