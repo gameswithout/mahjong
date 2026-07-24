@@ -85,7 +85,7 @@ body {
   min-height: 0;
   overflow: hidden;
   padding: 2px 3px;
-  transition: box-shadow 0.2s ease;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .seat-top {
@@ -102,6 +102,17 @@ body {
 
 .seat-bottom {
   grid-area: bottom;
+}
+
+/* Each opponent sits in a soft pool of overhead light on the felt — the same
+   light-pool language as the table centre and the active-seat glow, just
+   quieter — so a resting player reads as "someone is sitting here" and the
+   otherwise-bare side rails feel occupied rather than empty. Active seats keep
+   their brighter amber pool (below), so this paints only resting ones. */
+.seat-top:not(.seat-active),
+.seat-left:not(.seat-active),
+.seat-right:not(.seat-active) {
+  background: radial-gradient(ellipse 84% 74% at 50% 40%, rgb(255 246 214 / 7%), transparent 72%);
 }
 
 /* A little wooden nameplate resting on the felt, the way a scorekeeper's
