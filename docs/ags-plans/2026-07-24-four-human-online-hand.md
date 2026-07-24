@@ -1,7 +1,7 @@
 # Game Flow Plan — Four-Human Online Hand
 
 - Date: 2026-07-24
-- Status: Approved; implementation in progress
+- Status: Complete — live four-browser game flow verified
 - Approved feature: four distinct human guests use the existing player-facing
   **Find a table** action, enter one shared AGS Session and deployed Mahjong
   runtime automatically, play one complete hand from private seat views, and

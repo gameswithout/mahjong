@@ -1,17 +1,21 @@
-import { spawn } from "node:child_process";
+import { cpSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { extname, join, resolve, sep } from "node:path";
 
 import { chromium } from "playwright";
 
 const PLAYER_COUNT = 4;
-const DEFAULT_BASE_URL = "http://127.0.0.1:4173";
+const DEFAULT_BASE_URL = "http://127.0.0.1:4173/mahjong/";
 const FLOW_TIMEOUT_MS = Number(process.env.MAHJONG_E2E_FLOW_TIMEOUT_MS ?? 180_000);
 const HAND_TIMEOUT_MS = Number(process.env.MAHJONG_E2E_HAND_TIMEOUT_MS ?? 900_000);
 const baseURL = process.env.MAHJONG_E2E_BASE_URL ?? DEFAULT_BASE_URL;
 const externalServer = process.env.MAHJONG_E2E_EXTERNAL_SERVER === "1";
 const headless = process.env.MAHJONG_E2E_HEADLESS !== "false";
 
-let devServer;
+let previewServer;
 let browser;
+let snapshotRoot;
 const contexts = [];
 const pages = [];
 
@@ -38,31 +42,67 @@ async function waitForServer(url, timeoutMs = 30_000) {
     }
     await delay(250);
   }
-  throw new Error(`Vite did not become ready at ${url}: ${lastError?.message ?? "timeout"}`);
+  throw new Error(`Snapshot server did not become ready at ${url}: ${lastError?.message ?? "timeout"}`);
 }
 
-function startDevServer() {
-  const server = spawn(
-    "npm",
-    ["run", "dev", "--", "--host", "127.0.0.1", "--port", "4173", "--strictPort"],
-    {
-      cwd: process.cwd(),
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  let output = "";
-  const remember = (chunk) => {
-    output = `${output}${chunk}`.slice(-8_000);
-  };
-  server.stdout.on("data", remember);
-  server.stderr.on("data", remember);
-  server.once("exit", (code) => {
-    if (code && code !== 0) {
-      process.stderr.write(`Vite exited with code ${code}.\n${output}\n`);
+function snapshotBuild() {
+  const source = resolve("dist");
+  snapshotRoot = mkdtempSync(join(tmpdir(), "mahjong-four-human-"));
+  const destination = join(snapshotRoot, "dist");
+  cpSync(source, destination, { recursive: true });
+  return destination;
+}
+
+const CONTENT_TYPES = new Map([
+  [".css", "text/css; charset=utf-8"],
+  [".html", "text/html; charset=utf-8"],
+  [".ico", "image/x-icon"],
+  [".js", "text/javascript; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"],
+  [".png", "image/png"],
+  [".svg", "image/svg+xml"],
+  [".webp", "image/webp"],
+]);
+
+async function startSnapshotServer(outDir) {
+  const root = resolve(outDir);
+  const target = new URL(baseURL);
+  const host = target.hostname;
+  const port = Number(target.port || 80);
+  const basePath = target.pathname.endsWith("/") ? target.pathname : `${target.pathname}/`;
+
+  previewServer = createServer((request, response) => {
+    try {
+      const pathname = decodeURIComponent(new URL(request.url ?? "/", baseURL).pathname);
+      const pathWithinBuild = pathname.startsWith(basePath) ? pathname.slice(basePath.length) : "";
+      const relativePath = pathWithinBuild || "index.html";
+      let filePath = resolve(root, relativePath);
+      if (filePath !== root && !filePath.startsWith(`${root}${sep}`)) {
+        response.writeHead(403).end();
+        return;
+      }
+      try {
+        if (statSync(filePath).isDirectory()) {
+          filePath = join(filePath, "index.html");
+        }
+      } catch {
+        filePath = join(root, "index.html");
+      }
+      const body = readFileSync(filePath);
+      response.writeHead(200, {
+        "Cache-Control": "no-store",
+        "Content-Type": CONTENT_TYPES.get(extname(filePath)) ?? "application/octet-stream",
+      });
+      response.end(request.method === "HEAD" ? undefined : body);
+    } catch {
+      response.writeHead(404).end();
     }
   });
-  return server;
+
+  await new Promise((resolveReady, reject) => {
+    previewServer.once("error", reject);
+    previewServer.listen(port, host, resolveReady);
+  });
 }
 
 async function isVisible(locator) {
@@ -261,7 +301,7 @@ async function cleanupPage(page) {
 
 async function main() {
   if (!externalServer) {
-    devServer = startDevServer();
+    await startSnapshotServer(snapshotBuild());
   }
   await waitForServer(baseURL);
 
@@ -295,11 +335,28 @@ async function main() {
 
   await Promise.all(
     pages.map(async (page) => {
+      const leaveResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === "DELETE" &&
+          response.url().includes("/session/v1/public/namespaces/") &&
+          response.url().endsWith("/leave"),
+        { timeout: FLOW_TIMEOUT_MS },
+      );
       await page.getByRole("button", { name: "Return to Lobby" }).click();
+      const response = await leaveResponse;
+      if (!response.ok()) {
+        throw new Error(`Session leave failed with HTTP ${response.status()}.`);
+      }
       await page.getByText("Lobby connected", { exact: true }).waitFor({ timeout: FLOW_TIMEOUT_MS });
-      await page.getByRole("button", { name: "Find a table" }).waitFor({
-        timeout: FLOW_TIMEOUT_MS,
-      });
+      const findTable = page.getByRole("button", { name: "Find a table" });
+      await findTable.waitFor({ timeout: FLOW_TIMEOUT_MS });
+      const enabledDeadline = Date.now() + FLOW_TIMEOUT_MS;
+      while (!(await findTable.isEnabled()) && Date.now() < enabledDeadline) {
+        await delay(100);
+      }
+      if (!(await findTable.isEnabled())) {
+        throw new Error("Online play did not become available after leaving the Session.");
+      }
     }),
   );
 
@@ -312,7 +369,7 @@ async function main() {
         seats: [...seats].sort(),
         reconnectSeat: matches[0].seat,
         legalActions: actionCount,
-        cleanup: "returned to lobby",
+        cleanup: "four Session leave responses succeeded; returned to lobby",
       },
       null,
       2,
@@ -333,7 +390,10 @@ try {
 } finally {
   await Promise.all(contexts.map((context) => context.close().catch(() => {})));
   await browser?.close().catch(() => {});
-  if (devServer && devServer.exitCode === null) {
-    devServer.kill("SIGTERM");
+  if (previewServer) {
+    await new Promise((resolveClosed) => previewServer.close(resolveClosed));
+  }
+  if (snapshotRoot) {
+    rmSync(snapshotRoot, { recursive: true, force: true });
   }
 }

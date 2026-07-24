@@ -9,7 +9,7 @@
     "test": "vitest run",
     "test:practice": "vitest run client/App.practice.test.tsx client/practice-flow.test.ts client/PracticeLaunchCard.test.tsx client/HandResultScreen.test.tsx client/match-runtime.test.ts client/session.test.ts",
     "test:table-ux": "vitest run client/MatchTable.ux.test.tsx client/App.test.ts client/App.practice.test.tsx client/matchTableAdapter.test.ts",
-    "test:four-human": "node --env-file=.env scripts/test-four-human.mjs",
+    "test:four-human": "npm run build && node --env-file=.env scripts/test-four-human.mjs",
     "test:watch": "vitest",
     "smoke:matchmaking": "node --env-file=.env scripts/smoke-matchmaking.mjs"
   },
