@@ -54,6 +54,13 @@ export interface MatchAction {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  // Chow options carry the complete proposed sequence so the player can
+  // compare overlapping choices without translating option numbers back
+  // to tile positions in their hand.
+  chowPreview?: {
+    tiles: WireTile[];
+    claimedTileId: string;
+  };
   // preview is the §9.4 "score preview before Win" assist, set only on the
   // Win action when the server computed one.
   preview?: WinPreview;

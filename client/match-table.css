@@ -311,9 +311,9 @@ body {
 }
 
 .tile-sm {
-  font-size: 9px;
-  height: 18px;
-  width: 13px;
+  font-size: 10px;
+  height: 22px;
+  width: 16px;
 }
 
 .tile-md {
@@ -462,9 +462,8 @@ body {
   position: relative;
 }
 
-/* §5.10 untimed match (Tutorial/AI Practice): no deadline exists, so
-   there is nothing to count down — showing a ring pinned at "0" would
-   read as a permanent, false alarm rather than "no timer." */
+/* Untimed development/Practice matches use this as an elapsed move
+   stopwatch. It never expires or submits a forced action. */
 .countdown-untimed {
   align-items: center;
   border: 2px solid #2c3352;
@@ -479,6 +478,30 @@ body {
   color: #8b91b3;
   font-size: 15px;
   font-weight: 800;
+}
+
+.countdown-elapsed {
+  flex-direction: column;
+  gap: 0;
+}
+
+.countdown-elapsed-time {
+  color: #f7f4ee;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.countdown-elapsed-caption {
+  color: #8b91b3;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin-top: 2px;
+  text-transform: uppercase;
 }
 
 .countdown-ring {
@@ -513,7 +536,7 @@ body {
   align-items: center;
   color: #f7f4ee;
   display: flex;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 800;
   height: 34px;
   justify-content: center;
@@ -708,6 +731,34 @@ body {
 
 .action-bar-hint {
   color: #f2c66d;
+}
+
+.action-label-bilingual {
+  align-items: center;
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.action-label-zh {
+  font-family: "Noto Serif TC", "Songti TC", STSong, serif;
+  font-size: 1.2em;
+  font-weight: 900;
+}
+
+.action-label-en {
+  font-size: 0.62em;
+  font-weight: 700;
+  margin-top: 0.18em;
+  opacity: 0.82;
+}
+
+.action-score-preview {
+  border-left: 1px solid currentColor;
+  display: inline-flex;
+  gap: 0.22em;
+  margin-left: 0.55em;
+  padding-left: 0.55em;
 }
 
 .action-bar-waiting {
@@ -1062,37 +1113,6 @@ body {
   position: relative;
 }
 
-.turn-orbit-marker {
-  background: #f2c66d;
-  border: 2px solid rgb(255 250 221 / 88%);
-  border-radius: 999px;
-  box-shadow: 0 0 12px rgb(242 198 109 / 85%);
-  height: 9px;
-  left: 50%;
-  pointer-events: none;
-  position: absolute;
-  top: 4%;
-  transform: translate(-50%, -50%);
-  transition: left 0.28s ease, top 0.28s ease;
-  width: 9px;
-  z-index: 6;
-}
-
-.turn-orbit-marker-right {
-  left: 96%;
-  top: 50%;
-}
-
-.turn-orbit-marker-bottom {
-  left: 50%;
-  top: 96%;
-}
-
-.turn-orbit-marker-left {
-  left: 4%;
-  top: 50%;
-}
-
 .discard-river {
   align-items: center;
   display: flex;
@@ -1187,6 +1207,20 @@ body {
   transform: scale(0.96);
 }
 
+.table-center-cluster {
+  align-items: center;
+  background: radial-gradient(ellipse at center, rgb(5 16 12 / 76%), rgb(5 16 12 / 30%) 64%, transparent 78%);
+  display: flex;
+  gap: 10px;
+  left: 50%;
+  min-width: 220px;
+  padding: 18px 24px;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+}
+
 .table-playfield .center-panel {
   background:
     radial-gradient(circle at 40% 25%, rgb(255 255 255 / 8%), transparent 32%),
@@ -1198,15 +1232,12 @@ body {
     inset 0 1px 0 rgb(255 255 255 / 8%);
   gap: 1px;
   grid-area: unset;
-  left: 5px;
   min-height: 66px;
   overflow: visible;
   padding: 5px;
-  position: absolute;
-  top: 5px;
-  transform: none;
+  position: relative;
   width: 72px;
-  z-index: 4;
+  z-index: 1;
 }
 
 .center-panel-your-turn {
@@ -1221,22 +1252,21 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  left: 50%;
   min-width: 116px;
   pointer-events: none;
-  position: absolute;
+  position: relative;
   text-align: center;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 8;
+  z-index: 2;
 }
 
 .current-tile-focus::before {
-  background: radial-gradient(circle, rgb(5 16 12 / 82%), rgb(5 16 12 / 42%) 58%, transparent 74%);
-  content: "";
-  inset: -18px -32px;
-  position: absolute;
-  z-index: -1;
+  content: none;
+}
+
+.meld-area .tile-sm,
+.wait-panel .tile-sm {
+  height: 26px;
+  width: 19px;
 }
 
 .current-tile-focus .tile-focus {
@@ -1498,7 +1528,37 @@ body {
 }
 
 .action-button[class*="action-chow"] {
+  align-items: center;
   background: linear-gradient(180deg, #9ed7ed, #65afd0);
+  display: inline-flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 88px;
+  padding: 7px 9px;
+}
+
+.chow-option-preview {
+  align-items: flex-end;
+  display: inline-flex;
+  gap: 3px;
+  justify-content: center;
+}
+
+.chow-preview-tile {
+  display: inline-flex;
+  position: relative;
+}
+
+.chow-option-preview .tile-sm {
+  height: 30px;
+  width: 22px;
+}
+
+.chow-preview-claimed .tile {
+  box-shadow:
+    0 0 0 2px #ffe28e,
+    0 2px 3px rgb(0 0 0 / 30%);
+  transform: translateY(-2px);
 }
 
 @keyframes tile-arrive {
@@ -1664,6 +1724,18 @@ body {
     min-height: clamp(88px, 12vh, 108px);
     padding: 7px;
     width: clamp(88px, 8vw, 112px);
+  }
+
+  .table-center-cluster {
+    gap: clamp(16px, 2vw, 30px);
+    min-width: 340px;
+    padding: 28px 42px;
+  }
+
+  .meld-area .tile-sm,
+  .wait-panel .tile-sm {
+    height: 36px;
+    width: 26px;
   }
 
   .current-tile-focus {
@@ -1850,6 +1922,18 @@ body {
     width: 64px;
   }
 
+  .table-center-cluster {
+    gap: 7px;
+    min-width: 198px;
+    padding: 10px 14px;
+  }
+
+  .meld-area .tile-sm,
+  .wait-panel .tile-sm {
+    height: 24px;
+    width: 17px;
+  }
+
   .current-tile-focus {
     gap: 1px;
     min-width: 126px;
@@ -1927,9 +2011,5 @@ body {
   .current-tile-focus-claim .tile-focus,
   .discard-river .discard-slot-recent .tile {
     animation: none;
-  }
-
-  .turn-orbit-marker {
-    transition: none;
   }
 }

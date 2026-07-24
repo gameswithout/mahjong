@@ -26,4 +26,15 @@ describe("TileFace", () => {
     expect(markup.match(/<rect/g)).toHaveLength(2);
     expect(markup).not.toContain("白");
   });
+
+  it("uses the enlarged ornamental one-dot and traditional diagonal seven-dot layouts", () => {
+    const oneDot = renderToStaticMarkup(<TileFace id="dots-1-1" size="lg" />);
+    const sevenDot = renderToStaticMarkup(<TileFace id="dots-7-1" size="lg" />);
+
+    expect(oneDot).toContain("tile-face-one-dot");
+    expect(oneDot).toContain('r="21"');
+    expect(sevenDot.match(/<g transform="translate/g)).toHaveLength(7);
+    expect(sevenDot).toContain("translate(15 15)");
+    expect(sevenDot).toContain("translate(41 39)");
+  });
 });

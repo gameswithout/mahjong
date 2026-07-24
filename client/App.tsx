@@ -270,6 +270,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     matchId: matchRuntimeState.status === "joined" ? matchRuntimeState.matchId : "",
     localSeat: (matchRuntimeState.status === "joined" ? matchRuntimeState.view.seat : "E") as SeatId,
     humanSeats: videoHumanSeats,
+    iceConfigUrl: accelByteConfig.iceConfigURL ?? "",
+    getAccessToken: () => stableIam.getAccessToken(),
   });
 
   const activeSessionId =
@@ -1360,6 +1362,13 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       pass: "pass",
     };
     const type: ClaimType = actionId.startsWith("chow") ? "chow" : (typeByAction[actionId] ?? "pass");
+    if (type === "pass") {
+      // Passing a Chow opportunity can immediately advance the same player
+      // into awaiting_draw. Clear any prior draw guard so that transition
+      // always schedules the routine automatic draw instead of looking like
+      // Pass ended the player's turn.
+      autoDrawStateKeyRef.current = null;
+    }
     sendMatchCommand({
       type: "submit_claim",
       expected_version: matchRuntimeState.view.state_version,
