@@ -143,6 +143,10 @@ describe("App Practice journey", () => {
     (
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
+    // A joined guest match persists a reload-resume pointer (match-resume.ts);
+    // clear it between tests so one test's live match cannot make the next
+    // test's App mount try to resume it.
+    window.localStorage.clear();
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);

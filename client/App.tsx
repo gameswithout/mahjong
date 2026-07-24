@@ -29,6 +29,7 @@ import {
   isPracticeMatch,
   leaveSessionIfPresent,
 } from "./practice-flow";
+import { browserMatchResumeStore, type MatchResumePointer } from "./match-resume";
 import type { ClaimType, MatchCommandRequest, SeatView } from "../protocol/envelope";
 import { MatchTable } from "./MatchTable";
 import { HandResultScreen } from "./HandResultScreen";
@@ -207,6 +208,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     code: "",
   });
   const wasTakenOverRef = useRef(false);
+  // How the current AGS identity was established. Only a "guest" match is
+  // written to the resume store, because guest is the one identity the client
+  // can silently re-authenticate on reload (its device ID is persisted;
+  // loginAsGuest is headless). See match-resume.ts.
+  const authMethodRef = useRef<"guest" | "email" | null>(null);
+  // Guards the one-shot mount resume so React StrictMode's double effect
+  // invocation cannot start two guest logins / two joins.
+  const resumeStartedRef = useRef(false);
   const lobbyRef = useRef<LobbyConnection | null>(null);
   const matchRuntimeRef = useRef<MatchRuntimeConnection | null>(null);
   const matchRuntimeMatchIdRef = useRef<string | null>(null);
@@ -233,6 +242,23 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       matchRuntimeMatchIdRef.current = null;
       autoJoiningSessionIdRef.current = null;
     };
+  }, []);
+
+  // One-shot on mount: if a fresh guest resume pointer survives from a prior
+  // page load, rejoin that match instead of showing the sign-in screen. The
+  // ref guard keeps React StrictMode's double effect invocation from starting
+  // two resumes.
+  useEffect(() => {
+    if (resumeStartedRef.current) {
+      return;
+    }
+    resumeStartedRef.current = true;
+    const pointer = browserMatchResumeStore.load();
+    if (pointer) {
+      void resumeMatch(pointer);
+    }
+    // resumeMatch is a stable component-scoped closure; this runs once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadedSessionId =
@@ -484,7 +510,29 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     wasTakenOverRef.current = isTakenOver;
   }, [matchRuntimeState]);
 
+  // Persist a resume pointer while a guest match is live so a reload or
+  // tab-crash mid-hand can silently re-authenticate and rejoin (§8.7,
+  // abnormal termination) instead of dropping the player back at sign-in. Only
+  // guest matches are stored — email sign-in has no credential to replay on
+  // reload. Re-saving on each joined update keeps the pointer fresh through a
+  // long hand, so its staleness window is measured from last activity.
+  useEffect(() => {
+    if (
+      matchRuntimeState.status === "joined" &&
+      authMethodRef.current === "guest" &&
+      state.status === "signed_in"
+    ) {
+      browserMatchResumeStore.save({
+        sessionId: matchRuntimeState.matchId,
+        userId: state.userId,
+      });
+    }
+  }, [matchRuntimeState, state]);
+
   function resetForNewSignIn() {
+    // A new sign-in supersedes any match the previous identity was in, so its
+    // resume pointer must not survive to be replayed under a different user.
+    browserMatchResumeStore.clear();
     sessionRequestRef.current += 1;
     matchmakingRequestRef.current += 1;
     setSessionState({ status: "idle" });
@@ -555,6 +603,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
   async function signInAsGuest() {
     resetForNewSignIn();
+    authMethodRef.current = "guest";
     setState({ status: "signing_in" });
 
     try {
@@ -566,6 +615,55 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
   }
 
+  // Reload/tab-loss resume: re-establish the guest identity the pointer was
+  // written for, confirm the match's session still exists and we are still a
+  // member, then rejoin it — all behind a full-screen "Resuming…" overlay
+  // (matchRuntimeState !== "idle" owns the screen). Any dead end (sign-in
+  // fails, a different guest now owns the device, the session is gone) drops
+  // the pointer and falls back to a normal signed-in lobby or the sign-in
+  // screen, never an error panel the player cannot act on.
+  async function resumeMatch(pointer: MatchResumePointer) {
+    setMatchRuntimeState({ status: "preparing", message: "Resuming your match…" });
+    setState({ status: "signing_in" });
+    authMethodRef.current = "guest";
+
+    let identity: { userId: string };
+    try {
+      identity = await stableIam.loginAsGuest();
+    } catch (error) {
+      browserMatchResumeStore.clear();
+      setMatchRuntimeState({ status: "idle" });
+      setState({ status: "error", phase: "iam", ...errorView(error) });
+      return;
+    }
+
+    if (identity.userId !== pointer.userId) {
+      // The device now maps to a different guest (e.g. storage partially
+      // cleared). The stored match is not this user's — sign in normally.
+      browserMatchResumeStore.clear();
+      setMatchRuntimeState({ status: "idle" });
+      connectLobbyAfterSignIn(identity.userId);
+      return;
+    }
+
+    connectLobbyAfterSignIn(identity.userId);
+
+    let session: GameSessionSummary;
+    try {
+      session = await createAuthenticatedSessionClient().getSession(pointer.sessionId);
+    } catch {
+      // Session gone, ended, or we are no longer a member: nothing to resume.
+      // The lobby connect above already left the player signed in.
+      browserMatchResumeStore.clear();
+      setMatchRuntimeState({ status: "idle" });
+      return;
+    }
+
+    setJoinSessionId(session.sessionId);
+    setSessionState({ status: "loaded", session });
+    await connectMatchRuntime(session);
+  }
+
   function updateEmailForm(patch: Partial<typeof emailForm>) {
     setEmailForm((current) => ({ ...current, ...patch }));
   }
@@ -575,6 +673,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     try {
       const identity = await stableIam.loginWithEmail(emailForm.email.trim(), emailForm.password);
       resetForNewSignIn();
+      authMethodRef.current = "email";
       setEmailAuthState({ status: "idle" });
       connectLobbyAfterSignIn(identity.userId);
     } catch (error) {
@@ -626,6 +725,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       });
       const identity = await stableIam.loginWithEmail(emailForm.email.trim(), emailForm.password);
       resetForNewSignIn();
+      authMethodRef.current = "email";
       setEmailAuthState({ status: "idle" });
       connectLobbyAfterSignIn(identity.userId);
     } catch (error) {
@@ -907,6 +1007,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   }
 
   async function leaveTable(sessionIdOverride?: string) {
+    // Leaving the table ends the match for this player: drop the resume pointer
+    // so a later reload does not try to rejoin a match they left.
+    browserMatchResumeStore.clear();
     const sessionId =
       sessionIdOverride ??
       (sessionState.status === "loaded"
