@@ -3,11 +3,13 @@
 Authoritative Taiwanese Mahjong match runtime implemented as an AccelByte
 Extend Go Service Extension.
 
-The service owns three authenticated RPCs:
+The service owns six authenticated RPCs:
 
 - `JoinMatch` creates or restores a match from a fixed AGS game-session roster.
 - `GetMatchState` returns only the authenticated player's private projection.
 - `SubmitMatchCommand` durably applies an idempotent draw, discard, or claim.
+- `GetJadeAccount` creates or loads the caller's authoritative Jade account.
+- `ReserveJade` and `ReleaseJade` gate the staked public queue.
 - State and command requests lazily restore persisted matches on any replica;
   load-balancer session affinity is not required.
 - Per-match locks preserve command order without serializing unrelated tables,
@@ -19,6 +21,9 @@ The generated REST surface is mounted below `/mahjong`:
 POST /v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join
 GET  /v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}
 POST /v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/commands
+GET  /v1/namespaces/{namespace}/jade
+POST /v1/namespaces/{namespace}/jade/reservation
+DELETE /v1/namespaces/{namespace}/jade/reservation
 ```
 
 ## Architecture
@@ -27,7 +32,9 @@ POST /v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/command
 Browser → gRPC-Gateway → bearer auth → match service
                                            ├─ AGS Session roster resolver
                                            ├─ single-writer match actor
-                                           └─ PostgreSQL events + seats
+                                           ├─ PostgreSQL events + seats
+                                           ├─ PostgreSQL Jade ledger
+                                           └─ AGS Wallet balance mirror
 ```
 
 - Caller identity is derived from the validated bearer token, never from a
@@ -38,6 +45,14 @@ Browser → gRPC-Gateway → bearer auth → match service
   hand counts. It never receives wall order or another concealed hand.
 - Events are appended transactionally before a command is acknowledged.
 - Duplicate request IDs return the previously committed result.
+- Bamboo Courtyard reserves the 300 Jade maximum loss before matchmaking.
+- Completed four-human settlements update all four balances in one PostgreSQL
+  transaction. An append-only journal and runtime-derived idempotency key make
+  repeated result reads safe.
+- PostgreSQL is the gameplay authority. A retrying target-balance worker
+  reconciles committed balances to the namespace's zero-decimal `JADE`
+  virtual currency in AGS Wallet.
+- AI Practice is free and never creates a Jade reservation or settlement.
 
 ## Requirements
 
@@ -56,7 +71,13 @@ The project configuration uses:
 AB_BASE_URL=https://gameswithout-mahjong.prod.gamingservices.accelbyte.io
 AB_NAMESPACE=gameswithout-mahjong
 BASE_PATH=/mahjong
+JADE_CURRENCY_CODE=JADE
+JADE_WALLET_MIRROR_ENABLED=true
 ```
+
+Set `JADE_WALLET_MIRROR_ENABLED=false` only for isolated local testing. The
+authoritative local ledger still runs; only AGS Wallet reconciliation is
+disabled.
 
 ## Fully local test mode
 

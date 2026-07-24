@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/common"
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/match"
 	pb "github.com/gameswithout/mahjong/mahjong-match-service/pkg/pb"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
@@ -25,6 +26,7 @@ type MatchService struct {
 	pb.UnimplementedServiceServer
 	namespace  string
 	runtime    MatchRuntime
+	economy    *economy.Coordinator
 	testUserID string
 }
 
@@ -34,6 +36,64 @@ func NewMatchService(namespace string, runtime MatchRuntime, testUserID ...strin
 		service.testUserID = strings.TrimSpace(testUserID[0])
 	}
 	return service
+}
+
+func (s *MatchService) SetEconomy(coordinator *economy.Coordinator) {
+	if s != nil {
+		s.economy = coordinator
+	}
+}
+
+func (s *MatchService) GetJadeAccount(
+	ctx context.Context,
+	req *pb.GetJadeAccountRequest,
+) (*pb.GetJadeAccountResponse, error) {
+	principal, err := s.jadePrincipal(ctx, namespaceFromGetJade(req))
+	if err != nil {
+		return nil, err
+	}
+	account, err := s.economy.Account(ctx, principal.UserID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.GetJadeAccountResponse{Account: projectJadeAccount(account)}, nil
+}
+
+func (s *MatchService) ReserveJade(
+	ctx context.Context,
+	req *pb.ReserveJadeRequest,
+) (*pb.ReserveJadeResponse, error) {
+	principal, err := s.jadePrincipal(ctx, namespaceFromReserveJade(req))
+	if err != nil {
+		return nil, err
+	}
+	account, reservation, err := s.economy.Reserve(ctx, principal.UserID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.ReserveJadeResponse{
+		Account: projectJadeAccount(account),
+		Reservation: &pb.JadeReservation{
+			ReservationId: reservation.ID,
+			Amount:        reservation.Amount,
+			Status:        reservation.Status,
+		},
+	}, nil
+}
+
+func (s *MatchService) ReleaseJade(
+	ctx context.Context,
+	req *pb.ReleaseJadeRequest,
+) (*pb.ReleaseJadeResponse, error) {
+	principal, err := s.jadePrincipal(ctx, namespaceFromReleaseJade(req))
+	if err != nil {
+		return nil, err
+	}
+	account, err := s.economy.Release(ctx, principal.UserID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.ReleaseJadeResponse{Account: projectJadeAccount(account)}, nil
 }
 
 func (s *MatchService) JoinMatch(
@@ -48,7 +108,16 @@ func (s *MatchService) JoinMatch(
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	return &pb.JoinMatchResponse{State: projectState(key.MatchID, view)}, nil
+	if s.economy != nil && !economy.IsPractice(view) {
+		if err := s.economy.Bind(ctx, principal.UserID, key.RuntimeID()); err != nil {
+			return nil, rpcError(err)
+		}
+	}
+	state, err := s.projectState(ctx, key, principal.UserID, view)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.JoinMatchResponse{State: state}, nil
 }
 
 func (s *MatchService) GetMatchState(
@@ -63,7 +132,16 @@ func (s *MatchService) GetMatchState(
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	return &pb.GetMatchStateResponse{State: projectState(key.MatchID, view)}, nil
+	if s.economy != nil && !economy.IsPractice(view) {
+		if err := s.economy.Bind(ctx, principal.UserID, key.RuntimeID()); err != nil {
+			return nil, rpcError(err)
+		}
+	}
+	state, err := s.projectState(ctx, key, principal.UserID, view)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.GetMatchStateResponse{State: state}, nil
 }
 
 func (s *MatchService) SubmitMatchCommand(
@@ -81,7 +159,20 @@ func (s *MatchService) SubmitMatchCommand(
 	if err != nil {
 		return nil, err
 	}
+	current, err := s.runtime.View(ctx, key, principal.UserID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	if s.economy != nil && !economy.IsPractice(current) {
+		if err := s.economy.Bind(ctx, principal.UserID, key.RuntimeID()); err != nil {
+			return nil, rpcError(err)
+		}
+	}
 	result, view, err := s.runtime.Apply(ctx, key, principal.UserID, command)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	state, err := s.projectState(ctx, key, principal.UserID, view)
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -89,8 +180,96 @@ func (s *MatchService) SubmitMatchCommand(
 		RequestId:    req.GetRequestId(),
 		StateVersion: result.Version,
 		Phase:        string(result.Phase),
-		State:        projectState(key.MatchID, view),
+		State:        state,
 	}, nil
+}
+
+func namespaceFromGetJade(req *pb.GetJadeAccountRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetNamespace()
+}
+
+func namespaceFromReserveJade(req *pb.ReserveJadeRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetNamespace()
+}
+
+func namespaceFromReleaseJade(req *pb.ReleaseJadeRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetNamespace()
+}
+
+func (s *MatchService) jadePrincipal(
+	ctx context.Context,
+	namespace string,
+) (common.Principal, error) {
+	if s == nil || s.economy == nil {
+		return common.Principal{}, status.Error(codes.Internal, "Jade economy is not initialized")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		return common.Principal{}, status.Error(codes.InvalidArgument, "namespace is required")
+	}
+	if namespace != s.namespace {
+		return common.Principal{}, status.Error(codes.PermissionDenied, "namespace is not allowed")
+	}
+	principal, ok := common.PrincipalFromContext(ctx)
+	if !ok {
+		if s.testUserID == "" {
+			return common.Principal{}, status.Error(codes.Unauthenticated, "authenticated player identity is missing")
+		}
+		principal = common.Principal{UserID: s.testUserID}
+	}
+	return principal, nil
+}
+
+func (s *MatchService) projectState(
+	ctx context.Context,
+	key storage.MatchKey,
+	userID string,
+	view rulesengine.SeatView,
+) (*pb.MatchState, error) {
+	state := projectState(key.MatchID, view)
+	if s.economy == nil {
+		return state, nil
+	}
+	account, settlement, err := s.economy.Project(ctx, userID, key.RuntimeID(), view)
+	if err != nil {
+		return nil, err
+	}
+	if account != nil {
+		state.JadeAccount = projectJadeAccount(*account)
+	}
+	if settlement != nil {
+		state.JadeSettlement = &pb.JadeSettlement{
+			Seat:          string(settlement.Seat),
+			Delta:         settlement.Delta,
+			BalanceBefore: settlement.BalanceBefore,
+			BalanceAfter:  settlement.BalanceAfter,
+			JournalId:     settlement.JournalID,
+		}
+	}
+	return state, nil
+}
+
+func projectJadeAccount(account economy.Account) *pb.JadeAccount {
+	return &pb.JadeAccount{
+		CurrencyCode:     account.CurrencyCode,
+		Balance:          account.Balance,
+		Reserved:         account.Reserved,
+		Available:        account.Available,
+		Eligible:         account.Eligible,
+		MinimumBalance:   account.Minimum,
+		StakePerTai:      account.StakePerTai,
+		DebitCap:         account.DebitCap,
+		WalletSyncStatus: account.WalletStatus,
+	}
 }
 
 type requestIdentity struct {
@@ -189,6 +368,14 @@ func rpcError(err error) error {
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, storage.ErrRosterChanged):
 		return status.Error(codes.Aborted, err.Error())
+	case errors.Is(err, economy.ErrIneligible),
+		errors.Is(err, economy.ErrInsufficientReserve),
+		errors.Is(err, economy.ErrReservationMissing):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, economy.ErrReservationBound):
+		return status.Error(codes.Aborted, err.Error())
+	case errors.Is(err, economy.ErrSettlementPending):
+		return status.Error(codes.Unavailable, err.Error())
 	case errors.Is(err, session.ErrSessionNotFound):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, session.ErrSessionRoster):

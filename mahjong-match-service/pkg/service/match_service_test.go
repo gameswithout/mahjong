@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/common"
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/match"
 	pb "github.com/gameswithout/mahjong/mahjong-match-service/pkg/pb"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
@@ -15,6 +16,86 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+type fakeEconomyRepository struct {
+	account       economy.Account
+	reservation   economy.Reservation
+	boundUser     string
+	boundRuntime  string
+	bindErr       error
+	releaseCalled bool
+}
+
+func (f *fakeEconomyRepository) EnsureJadeAccount(
+	context.Context,
+	string,
+) (economy.Account, error) {
+	return f.account, nil
+}
+
+func (f *fakeEconomyRepository) ReserveJade(
+	context.Context,
+	string,
+) (economy.Account, economy.Reservation, error) {
+	return f.account, f.reservation, nil
+}
+
+func (f *fakeEconomyRepository) ReleaseJadeReservation(
+	context.Context,
+	string,
+) (economy.Account, error) {
+	f.releaseCalled = true
+	return f.account, nil
+}
+
+func (f *fakeEconomyRepository) BindJadeReservation(
+	_ context.Context,
+	userID string,
+	runtimeID string,
+) error {
+	f.boundUser = userID
+	f.boundRuntime = runtimeID
+	return f.bindErr
+}
+
+func (f *fakeEconomyRepository) SettleJadeMatch(
+	context.Context,
+	string,
+	rulesengine.Settlement,
+) (map[string]economy.PlayerSettlement, error) {
+	return nil, nil
+}
+
+func (f *fakeEconomyRepository) JadeSettlement(
+	context.Context,
+	string,
+	string,
+) (*economy.PlayerSettlement, error) {
+	return nil, nil
+}
+
+func (f *fakeEconomyRepository) PendingJadeWalletTargets(
+	context.Context,
+	int,
+) ([]economy.WalletTarget, error) {
+	return nil, nil
+}
+
+func (f *fakeEconomyRepository) MarkJadeWalletSynced(
+	context.Context,
+	string,
+	int64,
+) error {
+	return nil
+}
+
+func (f *fakeEconomyRepository) MarkJadeWalletSyncFailed(
+	context.Context,
+	string,
+	error,
+) error {
+	return nil
+}
 
 type fakeRuntime struct {
 	joinView  rulesengine.SeatView
@@ -92,6 +173,88 @@ func TestMatchServiceJoinMatch_ReturnsCallerProjection(t *testing.T) {
 	}
 	if got := response.GetState().GetPlayers()[1].GetHandCount(); got != 16 {
 		t.Fatalf("other hand count = %d, want 16", got)
+	}
+}
+
+func TestMatchServiceJadeEndpointsUseAuthenticatedPlayer(t *testing.T) {
+	repository := &fakeEconomyRepository{
+		account: economy.Account{
+			CurrencyCode: economy.CurrencyCode,
+			Balance:      5_000,
+			Available:    5_000,
+			Eligible:     true,
+			Minimum:      economy.MinimumBalance,
+			StakePerTai:  economy.StakePerTai,
+			DebitCap:     economy.DebitCap,
+		},
+		reservation: economy.Reservation{ID: "reserve-1", Amount: 300, Status: "active"},
+	}
+	matchService := NewMatchService("gameswithout-mahjong", &fakeRuntime{})
+	matchService.SetEconomy(economy.NewCoordinator(repository, nil))
+	ctx := common.ContextWithPrincipal(context.Background(), common.Principal{UserID: "user-east"})
+
+	accountResponse, err := matchService.GetJadeAccount(ctx, &pb.GetJadeAccountRequest{
+		Namespace: "gameswithout-mahjong",
+	})
+	if err != nil {
+		t.Fatalf("GetJadeAccount() error = %v", err)
+	}
+	if accountResponse.GetAccount().GetBalance() != 5_000 ||
+		!accountResponse.GetAccount().GetEligible() {
+		t.Fatalf("account response = %#v", accountResponse.GetAccount())
+	}
+	reserveResponse, err := matchService.ReserveJade(ctx, &pb.ReserveJadeRequest{
+		Namespace: "gameswithout-mahjong",
+	})
+	if err != nil {
+		t.Fatalf("ReserveJade() error = %v", err)
+	}
+	if reserveResponse.GetReservation().GetReservationId() != "reserve-1" {
+		t.Fatalf("reservation response = %#v", reserveResponse.GetReservation())
+	}
+	if _, err := matchService.ReleaseJade(ctx, &pb.ReleaseJadeRequest{
+		Namespace: "gameswithout-mahjong",
+	}); err != nil {
+		t.Fatalf("ReleaseJade() error = %v", err)
+	}
+	if !repository.releaseCalled {
+		t.Fatal("ReleaseJade() did not release the authenticated player's reservation")
+	}
+}
+
+func TestMatchServiceJoinMatch_BindsPublicJadeReservation(t *testing.T) {
+	runtime := &fakeRuntime{joinView: privateView()}
+	repository := &fakeEconomyRepository{
+		account: economy.Account{
+			CurrencyCode: economy.CurrencyCode,
+			Balance:      5_000,
+			Available:    4_700,
+			Eligible:     true,
+		},
+	}
+	matchService := NewMatchService("gameswithout-mahjong", runtime)
+	matchService.SetEconomy(economy.NewCoordinator(repository, nil))
+	ctx := common.ContextWithPrincipal(context.Background(), common.Principal{UserID: "user-east"})
+	req := &pb.JoinMatchRequest{
+		Namespace: "gameswithout-mahjong",
+		SessionId: "session-1",
+		MatchId:   "match-1",
+	}
+
+	response, err := matchService.JoinMatch(ctx, req)
+	if err != nil {
+		t.Fatalf("JoinMatch() error = %v", err)
+	}
+	key := storage.MatchKey{
+		Namespace: req.Namespace,
+		SessionID: req.SessionId,
+		MatchID:   req.MatchId,
+	}
+	if repository.boundUser != "user-east" || repository.boundRuntime != key.RuntimeID() {
+		t.Fatalf("bound reservation = %q/%q", repository.boundUser, repository.boundRuntime)
+	}
+	if response.GetState().GetJadeAccount().GetBalance() != 5_000 {
+		t.Fatalf("Jade account projection = %#v", response.GetState().GetJadeAccount())
 	}
 }
 
@@ -254,6 +417,30 @@ func TestSubmitMatchCommand_ForwardsAuthenticatedCommand(t *testing.T) {
 	}
 	if response.GetRequestId() != "request-1" || response.GetStateVersion() != 2 {
 		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestSubmitMatchCommand_RequiresBoundJadeReservationBeforeApply(t *testing.T) {
+	runtime := &fakeRuntime{joinView: privateView()}
+	repository := &fakeEconomyRepository{bindErr: economy.ErrReservationMissing}
+	matchService := NewMatchService("gameswithout-mahjong", runtime)
+	matchService.SetEconomy(economy.NewCoordinator(repository, nil))
+	ctx := common.ContextWithPrincipal(context.Background(), common.Principal{UserID: "user-east"})
+
+	_, err := matchService.SubmitMatchCommand(ctx, &pb.SubmitMatchCommandRequest{
+		Namespace:       "gameswithout-mahjong",
+		SessionId:       "session-1",
+		MatchId:         "match-1",
+		RequestId:       "request-1",
+		Type:            pb.MatchCommandType_MATCH_COMMAND_TYPE_DISCARD,
+		ExpectedVersion: 2,
+		TileId:          "characters-1-1",
+	})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("SubmitMatchCommand() code = %s, want FailedPrecondition", status.Code(err))
+	}
+	if runtime.applyUser != "" {
+		t.Fatalf("runtime Apply() user = %q, want no call", runtime.applyUser)
 	}
 }
 

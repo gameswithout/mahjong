@@ -74,6 +74,9 @@ func TestCorsMiddleware_AnswersPreflightWithoutReachingTheHandler(t *testing.T) 
 	if got := recorder.Header().Get("Access-Control-Allow-Headers"); got != "Authorization, Content-Type" {
 		t.Fatalf("Access-Control-Allow-Headers = %q", got)
 	}
+	if got := recorder.Header().Get("Access-Control-Allow-Methods"); got != "GET, POST, DELETE, OPTIONS" {
+		t.Fatalf("Access-Control-Allow-Methods = %q", got)
+	}
 }
 
 func TestCorsMiddleware_AddsOriginHeaderToRealRequests(t *testing.T) {

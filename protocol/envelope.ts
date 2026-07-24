@@ -186,6 +186,26 @@ export interface Settlement {
   total_debits: number;
 }
 
+export interface JadeAccount {
+  currency_code: "JADE" | string;
+  balance: number;
+  reserved: number;
+  available: number;
+  eligible: boolean;
+  minimum_balance: number;
+  stake_per_tai: number;
+  debit_cap: number;
+  wallet_sync_status?: "pending" | "syncing" | "synced" | "error" | string;
+}
+
+export interface JadeSettlement {
+  seat: MahjongSeat;
+  delta: number;
+  balance_before: number;
+  balance_after: number;
+  journal_id: string;
+}
+
 // ContinuationOutcome mirrors rulesengine's ContinuationOutcome — §9.7 item 7.
 export interface ContinuationOutcome {
   next_dealer: MahjongSeat;
@@ -222,6 +242,10 @@ export interface SeatView {
   hand_result?: HandResult;
   settlement?: Settlement;
   next_dealer?: ContinuationOutcome;
+  // Present only for public human Quick Play. Practice projections never
+  // expose or mutate Jade.
+  jade_account?: JadeAccount;
+  jade_settlement?: JadeSettlement;
   // waits is the §9.4 Ting/wait-list assist: absent whenever this seat
   // isn't currently holding a waiting-shaped hand (e.g. mid-turn holding an
   // undiscarded draw), not just when the wait list is empty.

@@ -24,13 +24,20 @@ import {
   MatchRuntimeError,
   type MatchRuntimeConnection,
 } from "./match-runtime";
+import { createJadeClient, JadeError } from "./jade";
 import {
   createFreshPracticeSession,
   isPracticeMatch,
   leaveSessionIfPresent,
 } from "./practice-flow";
 import { browserMatchResumeStore, type MatchResumePointer } from "./match-resume";
-import type { ClaimType, MatchCommandRequest, SeatView } from "../protocol/envelope";
+import { createStakedMatchmakingTicket } from "./staked-matchmaking";
+import type {
+  ClaimType,
+  JadeAccount,
+  MatchCommandRequest,
+  SeatView,
+} from "../protocol/envelope";
 import { MatchTable } from "./MatchTable";
 import { HandResultScreen } from "./HandResultScreen";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
@@ -121,6 +128,12 @@ type MatchRuntimeState =
       retryPreviousSessionId?: string;
     };
 
+type JadeState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; account: JadeAccount }
+  | { status: "error"; code: string; message: string };
+
 type OnlineSessionEntryMode = "manual" | "matchmaking";
 
 export function shouldAutomaticallyEnterHumanMatch(
@@ -171,6 +184,13 @@ function matchRuntimeErrorView(error: unknown): { code: string; message: string 
   return { code: "unknown", message: "Match runtime failed. Please retry." };
 }
 
+function jadeErrorView(error: unknown): { code: string; message: string } {
+  if (error instanceof JadeError) {
+    return { code: error.code, message: error.message };
+  }
+  return { code: "unknown", message: "Jade account could not be loaded. Please retry." };
+}
+
 function sessionIdFragment(sessionId: string): string {
   if (sessionId.length <= 16) {
     return sessionId;
@@ -185,6 +205,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [sessionState, setSessionState] = useState<SessionState>({ status: "idle" });
   const [matchmakingState, setMatchmakingState] = useState<MatchmakingState>({ status: "idle" });
   const [matchRuntimeState, setMatchRuntimeState] = useState<MatchRuntimeState>({ status: "idle" });
+  const [jadeState, setJadeState] = useState<JadeState>({ status: "idle" });
   const [onlineSessionEntryMode, setOnlineSessionEntryMode] =
     useState<OnlineSessionEntryMode>("manual");
   const [joinSessionId, setJoinSessionId] = useState("");
@@ -338,6 +359,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         }
 
         if (nextTicket.isActive === false) {
+          await releaseJadeReservation();
           setMatchmakingState({
             status: "error",
             code: "inactive",
@@ -538,6 +560,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     setSessionState({ status: "idle" });
     setMatchmakingState({ status: "idle" });
     setMatchRuntimeState({ status: "idle" });
+    setJadeState({ status: "idle" });
     setReconnectAttempt(0);
     setOnlineSessionEntryMode("manual");
     autoJoiningSessionIdRef.current = null;
@@ -553,6 +576,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // care how the player authenticated.
   function connectLobbyAfterSignIn(userId: string) {
     setState({ status: "signed_in", userId, lobbyStatus: "connecting" });
+    void loadJadeAccount();
 
     try {
       const lobby = createLobbyConnection(stableIam.getAuthenticatedSdk(), {
@@ -809,6 +833,41 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     });
   }
 
+  function createAuthenticatedJadeClient() {
+    if (!accelByteConfig.matchServiceURL) {
+      throw new JadeError("configuration", "Jade service URL is not configured.");
+    }
+    return createJadeClient(stableIam.getAccessToken(), {
+      url: accelByteConfig.matchServiceURL,
+      namespace: accelByteConfig.namespace,
+    });
+  }
+
+  async function loadJadeAccount() {
+    setJadeState({ status: "loading" });
+    try {
+      const account = await createAuthenticatedJadeClient().getAccount();
+      setJadeState({ status: "ready", account });
+    } catch (error) {
+      setJadeState({ status: "error", ...jadeErrorView(error) });
+    }
+  }
+
+  async function releaseJadeReservation() {
+    try {
+      const account = await createAuthenticatedJadeClient().release();
+      setJadeState({ status: "ready", account });
+    } catch (error) {
+      setJadeState({ status: "error", ...jadeErrorView(error) });
+    }
+  }
+
+  function adoptJadeAccount(view: SeatView) {
+    if (view.jade_account) {
+      setJadeState({ status: "ready", account: view.jade_account });
+    }
+  }
+
   async function findTable() {
     const requestId = ++matchmakingRequestRef.current;
     setOnlineSessionEntryMode("matchmaking");
@@ -816,7 +875,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     setMatchmakingState({ status: "loading" });
 
     try {
-      const ticket = await createAuthenticatedMatchmakingClient().createTicket();
+      const ticket = await createStakedMatchmakingTicket(
+        createAuthenticatedJadeClient(),
+        createAuthenticatedMatchmakingClient(),
+        (account) => setJadeState({ status: "ready", account }),
+        (account) => setJadeState({ status: "ready", account }),
+      );
       if (requestId !== matchmakingRequestRef.current) {
         return;
       }
@@ -831,7 +895,10 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         return;
       }
 
-      const safeError = matchmakingErrorView(error);
+      const safeError =
+        error instanceof JadeError
+          ? { code: `jade_${error.code}`, message: error.message }
+          : matchmakingErrorView(error);
       setMatchmakingState({ status: "error", ...safeError });
     }
   }
@@ -847,6 +914,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
     try {
       await createAuthenticatedMatchmakingClient().cancelTicket(ticket.ticketId);
+      await releaseJadeReservation();
       if (requestId !== matchmakingRequestRef.current) {
         return;
       }
@@ -910,6 +978,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       autoJoiningSessionIdRef.current = null;
       const safeError = sessionErrorView(error);
       setSessionState({ status: "error", ...safeError });
+      await releaseJadeReservation();
     }
   }
 
@@ -1042,6 +1111,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
       setSessionState({ status: "empty" });
       setJoinSessionId("");
+      await loadJadeAccount();
     } catch (error) {
       if (requestId !== sessionRequestRef.current) {
         return;
@@ -1079,6 +1149,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         namespace: accelByteConfig.namespace,
         onJoined: (payload) => {
           if (payload.match_id === matchId && matchRuntimeRef.current === connection) {
+            adoptJadeAccount(payload.view);
             setMatchRuntimeState({
               status: "joined",
               matchId,
@@ -1089,6 +1160,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         },
         onState: (payload) => {
           if (payload.match_id === matchId && matchRuntimeRef.current === connection) {
+            adoptJadeAccount(payload.view);
             setMatchRuntimeState({
               status: "joined",
               matchId,
@@ -1680,10 +1752,48 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
                 <section className="matchmaking-panel online-card" aria-labelledby="online-title">
                   <p className="status-label">Play Online</p>
-                  <h2 id="online-title">Find three players for a live hand</h2>
+                  <h2 id="online-title">Bamboo Courtyard</h2>
                   <p className="practice-description">
-                    Queue as a guest, enter the shared table automatically, and play one full hand.
+                    One live hand · 10 Jade per Tai · 300 Jade maximum loss ·
+                    1,000 Jade minimum balance.
                   </p>
+
+                  {jadeState.status === "loading" && (
+                    <p className="matchmaking-result" aria-live="polite">
+                      Loading Jade balance…
+                    </p>
+                  )}
+
+                  {jadeState.status === "error" && (
+                    <div className="matchmaking-result" role="alert">
+                      <p>{jadeState.message}</p>
+                      <button
+                        className="secondary-action session-action"
+                        type="button"
+                        onClick={() => void loadJadeAccount()}
+                      >
+                        Retry balance
+                      </button>
+                    </div>
+                  )}
+
+                  {jadeState.status === "ready" && (
+                    <div className="jade-balance" data-testid="jade-balance">
+                      <p>
+                        <strong>{jadeState.account.available.toLocaleString()}</strong> Jade available
+                      </p>
+                      {jadeState.account.reserved > 0 && (
+                        <p className="session-detail">
+                          {jadeState.account.reserved.toLocaleString()} Jade reserved for your table
+                        </p>
+                      )}
+                      {!jadeState.account.eligible && (
+                        <p className="session-detail">
+                          You need 1,000 Jade and 300 available to enter Bamboo.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {!accelByteConfig.matchPool && matchmakingState.status === "idle" && (
                     <p className="matchmaking-result" role="status" aria-live="polite">
@@ -1696,7 +1806,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       className="primary-action session-action"
                       type="button"
                       onClick={findTable}
-                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                      disabled={
+                        sessionState.status === "loading" ||
+                        hasActiveOrStrandedSession ||
+                        jadeState.status !== "ready" ||
+                        !jadeState.account.eligible
+                      }
                     >
                       Find a table
                     </button>

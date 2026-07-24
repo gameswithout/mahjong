@@ -9,10 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/match"
-	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/service"
-	matchsession "github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
-	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/storage"
 	"log"
 	"log/slog"
 	"net"
@@ -24,6 +20,12 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/match"
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/service"
+	matchsession "github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/storage"
 
 	"github.com/go-openapi/loads"
 
@@ -255,7 +257,45 @@ func main() {
 		logger.Warn("using static test user identity; do not enable MATCH_TEST_USER_ID in production")
 	}
 	matchService := service.NewMatchService(common.GetEnv("AB_NAMESPACE", ""), matchRuntime, testUserID)
+	var walletMirror economy.WalletMirror
+	walletMirrorEnabled := strings.EqualFold(
+		common.GetEnv("JADE_WALLET_MIRROR_ENABLED", "true"),
+		"true",
+	)
+	if walletMirrorEnabled {
+		walletMirror = economy.NewAGSWalletMirror(
+			common.GetEnv("AB_NAMESPACE", ""),
+			common.GetEnv("JADE_CURRENCY_CODE", economy.CurrencyCode),
+			factory.NewPlatformClient(configRepo),
+			configRepo,
+			tokenRepo,
+		)
+	} else {
+		logger.Warn("AGS Jade wallet mirroring is disabled")
+	}
+	jadeEconomy := economy.NewCoordinator(postgresStorage, walletMirror)
+	matchService.SetEconomy(jadeEconomy)
 	pb.RegisterServiceServer(s, matchService)
+
+	if walletMirror != nil {
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				syncCtx, syncCancel := context.WithTimeout(ctx, 10*time.Second)
+				err := jadeEconomy.SyncWallets(syncCtx, 20)
+				syncCancel()
+				if err != nil {
+					logger.Warn("Jade wallet reconciliation failed", "error", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+	}
 
 	// Enable gRPC Reflection
 	reflection.Register(s)
@@ -374,7 +414,7 @@ func newGRPCGatewayHTTPServer(
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 		w.Header().Set("Access-Control-Max-Age", "600")
 		if r.Method == http.MethodOptions {

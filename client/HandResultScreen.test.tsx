@@ -101,6 +101,37 @@ describe("HandResultScreen", () => {
     expect(markup).toContain("Return to Lobby");
   });
 
+  it("shows the caller's durable Jade delta and resulting balance", () => {
+    const view = completedView();
+    view.players = view.players.map((player) => ({ ...player, is_bot: false }));
+    view.jade_account = {
+      currency_code: "JADE",
+      balance: 5030,
+      reserved: 0,
+      available: 5030,
+      eligible: true,
+      minimum_balance: 1000,
+      stake_per_tai: 10,
+      debit_cap: 300,
+      wallet_sync_status: "synced",
+    };
+    view.jade_settlement = {
+      seat: "E",
+      delta: 30,
+      balance_before: 5000,
+      balance_after: 5030,
+      journal_id: "settlement:match-1",
+    };
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain("+30 Jade");
+    expect(markup).toContain("5,000");
+    expect(markup).toContain("5,030 Jade");
+    expect(markup).toContain("Settlement posted");
+    expect(markup).toContain("AGS Wallet synced");
+  });
+
   it("attributes a payer-side Dealer Tai bonus to the actual dealer", () => {
     const view = completedView();
     const winner = view.hand_result?.winners?.[0];

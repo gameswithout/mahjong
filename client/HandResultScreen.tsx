@@ -175,6 +175,39 @@ export function HandResultScreen({
         </div>
       )}
 
+      {!practice && view.jade_settlement && (
+        <div
+          className="hand-result-jade"
+          data-testid="jade-settlement"
+          data-jade-delta={view.jade_settlement.delta}
+          data-jade-before={view.jade_settlement.balance_before}
+          data-jade-after={view.jade_settlement.balance_after}
+          data-journal-id={view.jade_settlement.journal_id}
+        >
+          <p className="hand-result-settlement-heading">Your Jade</p>
+          <p className="hand-result-jade-delta">
+            {view.jade_settlement.delta > 0 ? "+" : ""}
+            {view.jade_settlement.delta.toLocaleString()} Jade
+          </p>
+          <p>
+            {view.jade_settlement.balance_before.toLocaleString()} →{" "}
+            <strong>{view.jade_settlement.balance_after.toLocaleString()} Jade</strong>
+          </p>
+          <p className="session-detail">
+            Settlement posted
+            {view.jade_account?.wallet_sync_status === "synced"
+              ? " · AGS Wallet synced"
+              : " · AGS Wallet syncing"}
+          </p>
+        </div>
+      )}
+
+      {!practice && view.jade_account && !view.jade_settlement && (
+        <p className="hand-result-continuation" role="status" aria-live="polite">
+          Posting Jade settlement…
+        </p>
+      )}
+
       {!practice && view.next_dealer && (
         <p className="hand-result-continuation">
           {view.next_dealer.dealer_retains

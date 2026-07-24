@@ -121,12 +121,19 @@ async function signInAndQueue(page) {
   await page.goto(baseURL, { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Continue as Guest" }).click();
   await page.getByText("Lobby connected", { exact: true }).waitFor({ timeout: FLOW_TIMEOUT_MS });
+  const balance = page.getByTestId("jade-balance").locator("strong");
+  await balance.waitFor({ timeout: FLOW_TIMEOUT_MS });
+  const startingBalance = Number((await balance.textContent()).replaceAll(",", ""));
+  if (!Number.isSafeInteger(startingBalance) || startingBalance < 1_000) {
+    throw new Error(`Player received an invalid Bamboo starting balance: ${startingBalance}.`);
+  }
   const findTable = page.getByRole("button", { name: "Find a table" });
   await findTable.waitFor({ timeout: FLOW_TIMEOUT_MS });
   await findTable.click();
   await page.getByText("Searching for players", { exact: true }).waitFor({
     timeout: FLOW_TIMEOUT_MS,
   });
+  return startingBalance;
 }
 
 async function waitForLiveMatch(page) {
@@ -266,6 +273,29 @@ async function driveHandToResult() {
   );
 }
 
+async function readJadeSettlement(page, playerNumber) {
+  const panel = page.getByTestId("jade-settlement");
+  await panel.waitFor({ state: "visible", timeout: FLOW_TIMEOUT_MS });
+  const delta = Number(await panel.getAttribute("data-jade-delta"));
+  const before = Number(await panel.getAttribute("data-jade-before"));
+  const after = Number(await panel.getAttribute("data-jade-after"));
+  const journalId = await panel.getAttribute("data-journal-id");
+  if (
+    !Number.isSafeInteger(delta) ||
+    !Number.isSafeInteger(before) ||
+    !Number.isSafeInteger(after) ||
+    !journalId
+  ) {
+    throw new Error(`Player ${playerNumber} received an invalid Jade settlement.`);
+  }
+  if (before + delta !== after) {
+    throw new Error(
+      `Player ${playerNumber} settlement does not add up: ${before} + ${delta} != ${after}.`,
+    );
+  }
+  return { player: playerNumber, delta, before, after, journalId };
+}
+
 async function cleanupPage(page) {
   try {
     const cancel = page.getByRole("button", { name: "Cancel" });
@@ -312,8 +342,11 @@ async function main() {
     pages.push(await context.newPage());
   }
 
-  await Promise.all(pages.map(signInAndQueue));
-  report("queued", { players: PLAYER_COUNT });
+  const startingBalances = await Promise.all(pages.map(signInAndQueue));
+  report("queued", {
+    players: PLAYER_COUNT,
+    startingBalanceTotal: startingBalances.reduce((total, balance) => total + balance, 0),
+  });
   const matches = await Promise.all(pages.map(waitForLiveMatch));
 
   const matchIds = new Set(matches.map((match) => match.matchId));
@@ -331,10 +364,33 @@ async function main() {
   await exerciseReconnect(pages[0], matches[0].seat);
   report("reconnect-verified", { seatPreserved: true });
   const actionCount = await driveHandToResult();
-  report("hand-complete", { legalActions: actionCount });
+  const jadeSettlements = await Promise.all(
+    pages.map((page, index) => readJadeSettlement(page, index + 1)),
+  );
+  const journalIds = new Set(jadeSettlements.map((settlement) => settlement.journalId));
+  const totalDelta = jadeSettlements.reduce((total, settlement) => total + settlement.delta, 0);
+  const totalBefore = jadeSettlements.reduce((total, settlement) => total + settlement.before, 0);
+  const totalAfter = jadeSettlements.reduce((total, settlement) => total + settlement.after, 0);
+  if (journalIds.size !== 1 || totalDelta !== 0 || totalBefore !== totalAfter) {
+    throw new Error(`Jade settlement failed conservation: ${JSON.stringify(jadeSettlements)}.`);
+  }
+  for (let index = 0; index < PLAYER_COUNT; index += 1) {
+    if (jadeSettlements[index].before !== startingBalances[index]) {
+      throw new Error(
+        `Player ${index + 1} starting balance changed before settlement: ` +
+          `${startingBalances[index]} != ${jadeSettlements[index].before}.`,
+      );
+    }
+  }
+  report("hand-complete", {
+    legalActions: actionCount,
+    jadeDelta: totalDelta,
+    jadeTotal: totalAfter,
+    settlementJournal: [...journalIds][0],
+  });
 
-  await Promise.all(
-    pages.map(async (page) => {
+  const returnedBalances = await Promise.all(
+    pages.map(async (page, index) => {
       const leaveResponse = page.waitForResponse(
         (response) =>
           response.request().method() === "DELETE" &&
@@ -357,6 +413,19 @@ async function main() {
       if (!(await findTable.isEnabled())) {
         throw new Error("Online play did not become available after leaving the Session.");
       }
+      const balance = Number(
+        ((await page.getByTestId("jade-balance").locator("strong").textContent()) ?? "").replaceAll(
+          ",",
+          "",
+        ),
+      );
+      if (balance !== jadeSettlements[index].after) {
+        throw new Error(
+          `Player ${index + 1} lobby balance ${balance} does not match settled balance ` +
+            `${jadeSettlements[index].after}.`,
+        );
+      }
+      return balance;
     }),
   );
 
@@ -369,6 +438,13 @@ async function main() {
         seats: [...seats].sort(),
         reconnectSeat: matches[0].seat,
         legalActions: actionCount,
+        jade: {
+          totalBefore,
+          totalAfter,
+          totalDelta,
+          journalId: [...journalIds][0],
+          returnedBalances,
+        },
         cleanup: "four Session leave responses succeeded; returned to lobby",
       },
       null,
