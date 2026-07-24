@@ -1,18 +1,31 @@
 // §9.7 "Results and explanation": the end-of-hand tally. Covers items
 // 1-7 (winning hand/tile, decomposition, patterns, raw Tai, Dealer Tai,
-// settlement transfers, dealer continuation) plus the Match ID/Return
-// slice of item 10. XP/achievements/rating (item 8, needs E11/E13),
-// Add Friend and result-card image export (item 9, needs E12), and
-// Report/Play Again/Continue (need E2.F6/E2.F7 match lifecycle, unbuilt)
-// are all deliberately out of scope — see the WBS deps for each.
+// settlement transfers, dealer continuation) plus the Match ID and
+// Practice replay/return slice of item 10. XP/achievements/rating (item 8,
+// needs E11/E13), Add Friend and result-card image export (item 9, needs
+// E12), and human-queue Report/Play Again/Continue remain deferred.
 import { useState } from "react";
 
 import type { HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
 import type { SeatId } from "./matchTableTypes";
 import { tile, windName } from "./matchTableTypes";
 
+const SEAT_ORDER: MahjongSeat[] = ["E", "S", "W", "N"];
+
 function seatLabel(seat: MahjongSeat, localSeat: MahjongSeat): string {
   return seat === localSeat ? `You (${windName(seat as SeatId)})` : windName(seat as SeatId);
+}
+
+function currentDealer(view: SeatView): MahjongSeat | null {
+  const outcome = view.next_dealer;
+  if (!outcome) {
+    return null;
+  }
+  if (outcome.dealer_retains) {
+    return outcome.next_dealer;
+  }
+  const nextIndex = SEAT_ORDER.indexOf(outcome.next_dealer);
+  return nextIndex < 0 ? null : SEAT_ORDER[(nextIndex + SEAT_ORDER.length - 1) % SEAT_ORDER.length];
 }
 
 function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat: MahjongSeat }) {
@@ -60,26 +73,50 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
   );
 }
 
-function SettlementRow({ transfer, localSeat }: { transfer: Transfer; localSeat: MahjongSeat }) {
+function SettlementRow({
+  transfer,
+  localSeat,
+  unit,
+}: {
+  transfer: Transfer;
+  localSeat: MahjongSeat;
+  unit: "Jade" | "Practice points";
+}) {
   return (
     <li className="hand-result-transfer">
-      {seatLabel(transfer.from, localSeat)} pays {seatLabel(transfer.to, localSeat)}: {transfer.amount} Jade
+      {seatLabel(transfer.from, localSeat)} pays {seatLabel(transfer.to, localSeat)}: {transfer.amount} {unit}
       {transfer.capped ? " (capped)" : ""}
     </li>
   );
 }
 
-export function HandResultScreen({ view, onReturn }: { view: SeatView; onReturn?: () => void }) {
+export interface HandResultScreenProps {
+  view: SeatView;
+  practice?: boolean;
+  onPlayAgain?: () => void;
+  onReturn?: () => void;
+}
+
+export function HandResultScreen({
+  view,
+  practice = false,
+  onPlayAgain,
+  onReturn,
+}: HandResultScreenProps) {
   const result = view.hand_result;
   if (!result) {
     return null;
   }
   const winners = result.winners ?? [];
-  const dealerWinner = winners.find((w) => view.settlement?.transfers?.some((t) => t.to === w.seat));
-  const dealerTaiBonus =
-    dealerWinner && view.settlement?.transfers?.length
-      ? Math.max(0, (view.settlement.transfers.find((t) => t.to === dealerWinner.seat)?.effective_tai ?? 0) - dealerWinner.score.raw_tai)
-      : 0;
+  const winningTile = result.winning_tile_id ? tile(result.winning_tile_id) : null;
+  const dealer = currentDealer(view);
+  const dealerTaiBonus = Math.max(
+    0,
+    ...(view.settlement?.transfers ?? []).map((transfer) => {
+      const winner = winners.find((candidate) => candidate.seat === transfer.to);
+      return winner ? transfer.effective_tai - winner.score.raw_tai : 0;
+    }),
+  );
 
   return (
     <div className="hand-result-screen" role="region" aria-label="Hand result">
@@ -87,34 +124,58 @@ export function HandResultScreen({ view, onReturn }: { view: SeatView; onReturn?
         {result.kind === "exhaustive_draw" ? "Exhaustive draw" : "Hand complete"}
       </h2>
 
+      {practice && (
+        <p className="hand-result-practice-note">
+          Practice result — no Jade, rating, or progression is changed.
+        </p>
+      )}
+
+      {winningTile && (
+        <p className="hand-result-winning-tile">
+          Winning tile:{" "}
+          <span className="tile tile-sm" role="img" aria-label={winningTile.label}>
+            {winningTile.glyph}
+          </span>
+        </p>
+      )}
+
       {winners.length === 0 ? (
         <p className="hand-result-no-winner">No winner this hand.</p>
       ) : (
         winners.map((winner) => <WinnerBreakdown key={winner.seat} winner={winner} localSeat={view.seat} />)
       )}
 
-      {dealerTaiBonus > 0 && dealerWinner && (
+      {dealerTaiBonus > 0 && dealer && (
         <p className="hand-result-dealer-tai">
-          {seatLabel(dealerWinner.seat, view.seat)} is dealer: +{dealerTaiBonus} Dealer Tai
+          Dealer Tai: +{dealerTaiBonus} when {seatLabel(dealer, view.seat)} is the winner or payer
         </p>
       )}
 
       {view.settlement && (
         <div className="hand-result-settlement">
-          <p className="hand-result-settlement-heading">Settlement</p>
+          <p className="hand-result-settlement-heading">
+            {practice ? "Practice score" : "Settlement"}
+          </p>
           {view.settlement.transfers && view.settlement.transfers.length > 0 ? (
             <ul>
               {view.settlement.transfers.map((transfer, index) => (
-                <SettlementRow key={index} transfer={transfer} localSeat={view.seat} />
+                <SettlementRow
+                  key={index}
+                  transfer={transfer}
+                  localSeat={view.seat}
+                  unit={practice ? "Practice points" : "Jade"}
+                />
               ))}
             </ul>
           ) : (
-            <p className="hand-result-no-transfers">No Jade changed hands.</p>
+            <p className="hand-result-no-transfers">
+              {practice ? "No Practice points changed." : "No Jade changed hands."}
+            </p>
           )}
         </div>
       )}
 
-      {view.next_dealer && (
+      {!practice && view.next_dealer && (
         <p className="hand-result-continuation">
           {view.next_dealer.dealer_retains
             ? `${seatLabel(view.next_dealer.next_dealer, view.seat)} remains dealer (continuation ${view.next_dealer.next_continuations}).`
@@ -124,10 +185,19 @@ export function HandResultScreen({ view, onReturn }: { view: SeatView; onReturn?
 
       <p className="hand-result-match-id">Match ID: {view.match_id}</p>
 
-      {onReturn && (
-        <button type="button" className="primary-action hand-result-return" onClick={onReturn}>
-          Return
-        </button>
+      {(onPlayAgain || onReturn) && (
+        <div className="hand-result-actions">
+          {onPlayAgain && (
+            <button type="button" className="primary-action" onClick={onPlayAgain}>
+              Play Again
+            </button>
+          )}
+          {onReturn && (
+            <button type="button" className="secondary-action hand-result-return" onClick={onReturn}>
+              Return to Lobby
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

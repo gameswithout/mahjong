@@ -345,13 +345,13 @@ describe("createMatchRuntimeConnection", () => {
     expect(errors[0]).toMatchObject({ code: "protocol" });
   });
 
-  it("maps HTTP status codes to the existing MatchRuntimeErrorCode union", async () => {
+  it("maps HTTP status codes to typed runtime failures", async () => {
     const cases: Array<{ status: number; code: string }> = [
       { status: 401, code: "configuration" },
       { status: 500, code: "network" },
       { status: 429, code: "network" },
       { status: 400, code: "protocol" },
-      { status: 404, code: "protocol" },
+      { status: 404, code: "not_found" },
     ];
     for (const { status, code } of cases) {
       const fake = new FakeFetch();

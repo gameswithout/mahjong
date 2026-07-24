@@ -55,13 +55,16 @@ npm run dev
 
 Open the printed local URL, click **Continue as Guest**, then:
 
-- **Practice vs Bots** — the fastest path to an actual playable hand solo:
-  creates a session, fills the other three seats with permanent AI bots, and
-  needs no other players. Click it, then **Connect test hand** in the "Local
-  match runtime" panel that appears.
-- **Create test table** + **Find a table** (matchmaking, needs
-  `ACCELBYTE_MATCH_POOL` configured) are for testing with real second/third/
-  fourth players instead.
+- **Practice vs Bots** — starts a playable hand immediately, fills the other
+  three seats with permanent AI bots, and needs no other players. Practice
+  results do not change Jade, rating, or progression. At the result, choose
+  **Play Again** for a fresh hand or **Return to Lobby**.
+- **Find a table** — queues for three other human players when
+  `ACCELBYTE_MATCH_POOL` is configured and enters the shared table
+  automatically after all four Session members arrive.
+
+Manual Session creation, Session-ID joining, and runtime diagnostics remain
+available under **Developer session tools**.
 
 ### Option B — full local stack (for match-service development)
 
@@ -84,10 +87,11 @@ go run .
 ACCELBYTE_MATCH_SERVICE_URL=http://127.0.0.1:8000/mahjong npm run dev
 ```
 
-Open the printed local URL, sign in as a guest, create or join a test Session,
-then select **Connect test hand**. East starts with 17 tiles after initial
-Flower replacement and should discard first. Other eligible seats can select
-**Pass claim**; after the claim window resolves, South draws next.
+Open the printed local URL, sign in as a guest, expand **Developer session
+tools**, create or join a test Session, then select **Enter table**. East
+starts with 17 tiles after initial Flower replacement and should discard
+first. Other eligible seats can select **Pass claim**; after the claim window
+resolves, South draws next.
 
 **This fixed test roster is always four real (test) IDs — `MATCH_TEST_ROSTER`
 bypasses the real AGS Session lookup entirely, so it never goes through the
@@ -97,6 +101,13 @@ works against a real AGS Session (Option A, or "AGS-backed local mode" in
 client's secret from the project secrets vault).
 
 ## Rules core and match-runtime tests
+
+Run the complete client suite, or the focused M2.5 Practice regression:
+
+```bash
+npm test
+npm run test:practice
+```
 
 The repository includes the deterministic tile/wall/deal rules core
 (`rulesengine/`) and an early Go match-runtime prototype

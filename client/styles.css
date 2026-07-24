@@ -128,6 +128,67 @@ h1 {
   padding-top: 1rem;
 }
 
+.practice-card {
+  background:
+    radial-gradient(circle at 90% 0%, rgb(242 198 109 / 18%), transparent 42%),
+    #172d2a;
+  border: 1px solid rgb(242 198 109 / 45%);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.practice-card h2 {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.practice-description {
+  color: #d8dcef;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0.65rem 0 1rem;
+}
+
+.practice-action:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.practice-unavailable {
+  color: #d8dcef;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin: 0.65rem 0 0;
+}
+
+.practice-leave-action {
+  margin-top: 0.65rem;
+  width: 100%;
+}
+
+.developer-tools {
+  border-top: 1px solid rgb(216 220 239 / 12%);
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+}
+
+.developer-tools summary {
+  color: #c6cbe0;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.developer-tools summary:focus-visible {
+  outline: 3px solid #f2c66d;
+  outline-offset: 4px;
+}
+
+.developer-tools-body {
+  margin-top: 0.85rem;
+}
+
 .session-action {
   margin-top: 0;
   width: 100%;
@@ -148,6 +209,22 @@ h1 {
   border-top: 1px solid rgb(216 220 239 / 12%);
   margin-top: 0.9rem;
   padding-top: 0.9rem;
+}
+
+.online-card {
+  background:
+    radial-gradient(circle at 90% 0%, rgb(105 184 242 / 18%), transparent 42%),
+    #17242f;
+  border: 1px solid rgb(105 184 242 / 45%);
+  border-radius: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.online-card h2 {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  margin: 0;
 }
 
 .session-input-label {
@@ -408,8 +485,21 @@ h1 {
 .hand-result-no-winner,
 .hand-result-no-transfers,
 .hand-result-continuation,
-.hand-result-match-id {
+.hand-result-match-id,
+.hand-result-winning-tile,
+.hand-result-practice-note {
   margin: 0.5rem 0;
+}
+
+.hand-result-winning-tile {
+  align-items: center;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.hand-result-practice-note {
+  color: #d8dcef;
+  line-height: 1.45;
 }
 
 .hand-result-settlement {
@@ -428,8 +518,22 @@ h1 {
   margin: 0.2rem 0;
 }
 
-.hand-result-return {
-  margin-top: 0.5rem;
+.hand-result-actions {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.9rem;
+}
+
+.hand-result-actions .secondary-action {
+  margin-top: 0;
+  width: 100%;
+}
+
+@media (max-width: 30rem) {
+  .hand-result-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .reconnect-overlay {
@@ -525,4 +629,19 @@ h1 {
 .game-screen-result .hand-result-screen {
   margin: 0;
   width: 100%;
+}
+
+/* The table itself is certified at the 640×360 landscape floor. At that
+   exact viewport the surrounding game shell cannot spend another 24px on
+   padding without making the integrated player path overflow even though
+   the isolated table still passes its compact-layout gate. */
+@media (max-width: 40rem), (max-height: 22.5rem) {
+  .game-screen {
+    gap: 0;
+    padding: 0;
+  }
+
+  .game-screen .match-table-frame {
+    margin: 0;
+  }
 }

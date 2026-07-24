@@ -10,7 +10,13 @@ import {
   type ServerReadyPayload,
 } from "../protocol/envelope";
 
-export type MatchRuntimeErrorCode = "configuration" | "protocol" | "network" | "timeout" | "closed";
+export type MatchRuntimeErrorCode =
+  | "configuration"
+  | "protocol"
+  | "not_found"
+  | "network"
+  | "timeout"
+  | "closed";
 
 export class MatchRuntimeError extends Error {
   constructor(
@@ -229,6 +235,12 @@ function readMatchStateResponse(body: unknown, matchId: string): SeatView {
 function errorCodeForStatus(status: number): MatchRuntimeErrorCode {
   if (status === 401) {
     return "configuration";
+  }
+  if (status === 404) {
+    // A just-created AGS Session can take a moment to become visible to the
+    // authoritative service. Keep this distinct from malformed 4xx requests
+    // so the App can retry only the propagation-safe case.
+    return "not_found";
   }
   if (status >= 500 || status === 429) {
     return "network";

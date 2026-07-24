@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "test:practice": "vitest run client/App.practice.test.tsx client/practice-flow.test.ts client/PracticeLaunchCard.test.tsx client/HandResultScreen.test.tsx client/match-runtime.test.ts client/session.test.ts",
+    "test:four-human": "node --env-file=.env scripts/test-four-human.mjs",
     "test:watch": "vitest",
     "smoke:matchmaking": "node --env-file=.env scripts/smoke-matchmaking.mjs"
   },

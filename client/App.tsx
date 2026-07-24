@@ -9,7 +9,6 @@ import {
   type LobbyConnection,
 } from "./lobby";
 import {
-  AI_PRACTICE_SESSION_ATTRIBUTES,
   createSessionClient,
   SessionLookupError,
   type GameSessionSummary,
@@ -25,9 +24,15 @@ import {
   MatchRuntimeError,
   type MatchRuntimeConnection,
 } from "./match-runtime";
+import {
+  createFreshPracticeSession,
+  isPracticeMatch,
+  leaveSessionIfPresent,
+} from "./practice-flow";
 import type { ClaimType, MatchCommandRequest, SeatView } from "../protocol/envelope";
 import { MatchTable } from "./MatchTable";
 import { HandResultScreen } from "./HandResultScreen";
+import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
 import "./styles.css";
 import "./match-table.css";
@@ -35,9 +40,16 @@ import "./match-table.css";
 // §8.7 auto-reconnect tuning: which MatchRuntimeErrorCode values are worth
 // retrying automatically (a dropped/stalled connection) versus surfacing
 // immediately (configuration/protocol errors that retrying cannot fix).
-const MATCH_RUNTIME_RETRYABLE_CODES = new Set(["closed", "network", "timeout"]);
+// not_found covers the short AGS Session propagation window immediately
+// after one-action Practice creation.
+const MATCH_RUNTIME_RETRYABLE_CODES = new Set(["closed", "network", "not_found", "timeout"]);
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 2000;
+const HUMAN_MATCH_SIZE = 4;
+
+export function shouldAutomaticallyRetryMatchRuntime(code: string, attempt: number): boolean {
+  return MATCH_RUNTIME_RETRYABLE_CODES.has(code) && attempt < MAX_RECONNECT_ATTEMPTS;
+}
 
 type LobbyStatus = "connecting" | "connected" | "reconnecting";
 
@@ -84,7 +96,7 @@ type SessionState =
   | { status: "loading" }
   | { status: "empty" }
   | { status: "loaded"; session: GameSessionSummary }
-  | { status: "error"; code: string; message: string };
+  | { status: "error"; code: string; message: string; retryLeaveSessionId?: string };
 
 type MatchmakingState =
   | { status: "idle" }
@@ -96,9 +108,26 @@ type MatchmakingState =
 
 type MatchRuntimeState =
   | { status: "idle" }
+  | { status: "preparing"; message: string }
   | { status: "connecting"; matchId: string }
   | { status: "joined"; matchId: string; view: SeatView; commandPending: boolean }
-  | { status: "error"; code: string; message: string };
+  | {
+      status: "error";
+      code: string;
+      message: string;
+      retry?: "runtime" | "practice";
+      retryPreviousSessionId?: string;
+    };
+
+type OnlineSessionEntryMode = "manual" | "matchmaking";
+
+export function shouldAutomaticallyEnterHumanMatch(
+  mode: OnlineSessionEntryMode,
+  memberCount: number,
+  runtimeStatus: MatchRuntimeState["status"],
+): boolean {
+  return mode === "matchmaking" && memberCount >= HUMAN_MATCH_SIZE && runtimeStatus === "idle";
+}
 
 function errorView(error: unknown): { code: string; message: string } {
   if (error instanceof IamAuthError) {
@@ -146,6 +175,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [sessionState, setSessionState] = useState<SessionState>({ status: "idle" });
   const [matchmakingState, setMatchmakingState] = useState<MatchmakingState>({ status: "idle" });
   const [matchRuntimeState, setMatchRuntimeState] = useState<MatchRuntimeState>({ status: "idle" });
+  const [onlineSessionEntryMode, setOnlineSessionEntryMode] =
+    useState<OnlineSessionEntryMode>("manual");
   const [joinSessionId, setJoinSessionId] = useState("");
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -173,6 +204,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const matchRuntimeMatchIdRef = useRef<string | null>(null);
   const sessionRequestRef = useRef(0);
   const matchmakingRequestRef = useRef(0);
+  const autoJoiningSessionIdRef = useRef<string | null>(null);
 
   const activeSessionId =
     state.status === "signed_in" &&
@@ -190,6 +222,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       matchRuntimeRef.current?.close();
       matchRuntimeRef.current = null;
       matchRuntimeMatchIdRef.current = null;
+      autoJoiningSessionIdRef.current = null;
     };
   }, []);
 
@@ -296,6 +329,49 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     };
   }, [activeTicketId, matchmakingState.status]);
 
+  const matchedSessionId =
+    matchmakingState.status === "matched" ? matchmakingState.ticket.sessionId ?? null : null;
+
+  // Match-found is a handoff, not a second player decision. The ref keeps a
+  // render or development Strict Mode effect replay from issuing a duplicate
+  // Session join while the first request is still in flight.
+  useEffect(() => {
+    if (!matchedSessionId || autoJoiningSessionIdRef.current === matchedSessionId) {
+      return;
+    }
+    void joinMatchedTable();
+    // joinMatchedTable deliberately reads the matched ticket that caused
+    // this effect; unrelated render state must not retrigger the join.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchedSessionId]);
+
+  const loadedSessionMemberCount =
+    sessionState.status === "loaded" ? sessionState.session.members.length : 0;
+
+  // The deployed runtime resolves human seats from the AGS Session roster.
+  // Wait for all four joins to propagate before opening it.
+  useEffect(() => {
+    if (
+      sessionState.status !== "loaded" ||
+      !shouldAutomaticallyEnterHumanMatch(
+        onlineSessionEntryMode,
+        sessionState.session.members.length,
+        matchRuntimeState.status,
+      )
+    ) {
+      return;
+    }
+    void connectMatchRuntime(sessionState.session);
+    // connectMatchRuntime moves the runtime away from idle before its first
+    // async boundary, making the automatic handoff idempotent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    loadedSessionId,
+    loadedSessionMemberCount,
+    onlineSessionEntryMode,
+    matchRuntimeState.status,
+  ]);
+
   const matchRuntimeJoined = matchRuntimeState.status === "joined";
 
   // The §5.10/§9.4 countdown is a pure function of (deadline, now); ticking
@@ -357,8 +433,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   useEffect(() => {
     if (
       matchRuntimeState.status !== "error" ||
-      !MATCH_RUNTIME_RETRYABLE_CODES.has(matchRuntimeState.code) ||
-      reconnectAttempt >= MAX_RECONNECT_ATTEMPTS
+      !shouldAutomaticallyRetryMatchRuntime(matchRuntimeState.code, reconnectAttempt)
     ) {
       return;
     }
@@ -400,6 +475,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     setSessionState({ status: "idle" });
     setMatchmakingState({ status: "idle" });
     setMatchRuntimeState({ status: "idle" });
+    setReconnectAttempt(0);
+    setOnlineSessionEntryMode("manual");
+    autoJoiningSessionIdRef.current = null;
     lobbyRef.current?.disconnect();
     lobbyRef.current = null;
     matchRuntimeRef.current?.close();
@@ -542,6 +620,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
   async function viewMySessions() {
     const requestId = ++sessionRequestRef.current;
+    setOnlineSessionEntryMode("manual");
     setSessionState({ status: "loading" });
 
     try {
@@ -617,6 +696,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
   async function findTable() {
     const requestId = ++matchmakingRequestRef.current;
+    setOnlineSessionEntryMode("matchmaking");
+    autoJoiningSessionIdRef.current = null;
     setMatchmakingState({ status: "loading" });
 
     try {
@@ -656,6 +737,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       }
 
       setMatchmakingState({ status: "idle" });
+      setOnlineSessionEntryMode("manual");
     } catch (error) {
       if (requestId !== matchmakingRequestRef.current) {
         return;
@@ -672,8 +754,13 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
 
     const sessionId = matchmakingState.ticket.sessionId;
+    if (autoJoiningSessionIdRef.current === sessionId) {
+      return;
+    }
+    autoJoiningSessionIdRef.current = sessionId;
     const matchmakingRequestId = ++matchmakingRequestRef.current;
     const sessionRequestId = ++sessionRequestRef.current;
+    setOnlineSessionEntryMode("matchmaking");
     setSessionState({ status: "loading" });
 
     try {
@@ -684,53 +771,64 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         matchmakingRequestId !== matchmakingRequestRef.current ||
         sessionRequestId !== sessionRequestRef.current
       ) {
+        if (autoJoiningSessionIdRef.current === sessionId) {
+          autoJoiningSessionIdRef.current = null;
+        }
         return;
       }
 
       setSessionState({ status: "loaded", session });
       setJoinSessionId(sessionId);
       setMatchmakingState({ status: "idle" });
+      autoJoiningSessionIdRef.current = null;
     } catch (error) {
       if (
         matchmakingRequestId !== matchmakingRequestRef.current ||
         sessionRequestId !== sessionRequestRef.current
       ) {
+        if (autoJoiningSessionIdRef.current === sessionId) {
+          autoJoiningSessionIdRef.current = null;
+        }
         return;
       }
 
+      autoJoiningSessionIdRef.current = null;
       const safeError = sessionErrorView(error);
       setSessionState({ status: "error", ...safeError });
     }
   }
 
-  async function createTable(attributes?: Record<string, unknown>) {
+  async function createTable(
+    attributes?: Record<string, unknown>,
+  ): Promise<GameSessionSummary | null> {
     const requestId = ++sessionRequestRef.current;
+    setOnlineSessionEntryMode("manual");
     setSessionState({ status: "loading" });
 
     try {
       const session = await createAuthenticatedSessionClient().createSession(attributes);
       if (requestId !== sessionRequestRef.current) {
-        return;
+        return null;
       }
 
       setJoinSessionId(session.sessionId);
       setSessionState({ status: "loaded", session });
+      return session;
     } catch (error) {
       if (requestId !== sessionRequestRef.current) {
-        return;
+        return null;
       }
 
       const safeError = sessionErrorView(error);
       setSessionState({ status: "error", ...safeError });
+      return null;
     }
   }
 
-  // AI Practice: a session flagged this way starts with only the local
-  // guest as a real member; the match service's roster resolver pads the
-  // other three seats with permanent bot players (rulesengine's
-  // MarkBotSeat/IsBotSeat) instead of waiting for real players to join.
-  function practiceVsBots() {
-    return createTable(AI_PRACTICE_SESSION_ATTRIBUTES);
+  function closeMatchRuntime() {
+    matchRuntimeRef.current?.close();
+    matchRuntimeRef.current = null;
+    matchRuntimeMatchIdRef.current = null;
   }
 
   async function joinTable() {
@@ -745,6 +843,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
 
     const requestId = ++sessionRequestRef.current;
+    setOnlineSessionEntryMode("manual");
     setSessionState({ status: "loading" });
 
     try {
@@ -792,20 +891,33 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
   }
 
-  async function leaveTable() {
-    if (sessionState.status !== "loaded") {
+  async function leaveTable(sessionIdOverride?: string) {
+    const sessionId =
+      sessionIdOverride ??
+      (sessionState.status === "loaded"
+        ? sessionState.session.sessionId
+        : sessionState.status === "error"
+          ? sessionState.retryLeaveSessionId
+          : undefined);
+    if (!sessionId) {
+      closeMatchRuntime();
+      setMatchRuntimeState({ status: "idle" });
+      setReconnectAttempt(0);
+      setSessionState({ status: "idle" });
+      setJoinSessionId("");
       return;
     }
 
     const requestId = ++sessionRequestRef.current;
     setSessionState({ status: "loading" });
-    matchRuntimeRef.current?.close();
-    matchRuntimeRef.current = null;
-    matchRuntimeMatchIdRef.current = null;
+    closeMatchRuntime();
     setMatchRuntimeState({ status: "idle" });
+    setReconnectAttempt(0);
+    setOnlineSessionEntryMode("manual");
+    autoJoiningSessionIdRef.current = null;
 
     try {
-      await createAuthenticatedSessionClient().leaveSession(sessionState.session.sessionId);
+      await leaveSessionIfPresent(createAuthenticatedSessionClient(), sessionId);
       if (requestId !== sessionRequestRef.current) {
         return;
       }
@@ -818,12 +930,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       }
 
       const safeError = sessionErrorView(error);
-      setSessionState({ status: "error", ...safeError });
+      setSessionState({ status: "error", ...safeError, retryLeaveSessionId: sessionId });
     }
   }
 
-  async function connectMatchRuntime() {
-    if (sessionState.status !== "loaded") {
+  async function connectMatchRuntime(sessionOverride?: GameSessionSummary) {
+    const session =
+      sessionOverride ?? (sessionState.status === "loaded" ? sessionState.session : null);
+    if (!session) {
       return;
     }
     if (!accelByteConfig.matchServiceURL) {
@@ -831,13 +945,13 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         status: "error",
         code: "configuration",
         message: "Match service URL is not configured. Restart after updating .env.",
+        retry: "runtime",
       });
       return;
     }
 
-    const matchId = sessionState.session.sessionId;
-    matchRuntimeRef.current?.close();
-    matchRuntimeRef.current = null;
+    const matchId = session.sessionId;
+    closeMatchRuntime();
     setMatchRuntimeState({ status: "connecting", matchId });
 
     let connection: MatchRuntimeConnection;
@@ -874,7 +988,11 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         },
         onError: (error) => {
           if (matchRuntimeRef.current === connection) {
-            setMatchRuntimeState({ status: "error", ...matchRuntimeErrorView(error) });
+            setMatchRuntimeState({
+              status: "error",
+              ...matchRuntimeErrorView(error),
+              retry: "runtime",
+            });
           }
         },
       });
@@ -886,12 +1004,77 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       }
     } catch (error) {
       if (matchRuntimeRef.current === connection!) {
-        matchRuntimeRef.current?.close();
-        matchRuntimeRef.current = null;
-        matchRuntimeMatchIdRef.current = null;
+        closeMatchRuntime();
       }
-      setMatchRuntimeState({ status: "error", ...matchRuntimeErrorView(error) });
+      setMatchRuntimeState({
+        status: "error",
+        ...matchRuntimeErrorView(error),
+        retry: "runtime",
+      });
     }
+  }
+
+  // AI Practice is a complete one-hand product flow: create a bot-padded AGS
+  // Session, then join its authoritative match immediately. Play Again first
+  // leaves the completed Session so every hand gets a fresh identity and wall.
+  async function startPracticeHand(previousSessionId?: string) {
+    const requestId = ++sessionRequestRef.current;
+    let previousSessionLeft = false;
+    setOnlineSessionEntryMode("manual");
+    autoJoiningSessionIdRef.current = null;
+    closeMatchRuntime();
+    setSelectedTileId(null);
+    setReconnectAttempt(0);
+    setSessionState({ status: "loading" });
+    setMatchRuntimeState({
+      status: "preparing",
+      message: previousSessionId
+        ? "Preparing another Practice hand…"
+        : "Preparing your Practice hand…",
+    });
+
+    try {
+      const client = createAuthenticatedSessionClient();
+      const session = await createFreshPracticeSession(client, previousSessionId, () => {
+        previousSessionLeft = true;
+      });
+      if (requestId !== sessionRequestRef.current) {
+        // A newer action or unmount won the race after AGS created this
+        // Session. Best-effort cleanup prevents the superseded request from
+        // leaving an invisible Practice table behind.
+        await leaveSessionIfPresent(client, session.sessionId).catch(() => undefined);
+        return;
+      }
+
+      setJoinSessionId(session.sessionId);
+      setSessionState({ status: "loaded", session });
+      await connectMatchRuntime(session);
+    } catch (error) {
+      if (requestId !== sessionRequestRef.current) {
+        return;
+      }
+
+      const safeError = sessionErrorView(error);
+      const retryLeaveSessionId = previousSessionLeft ? undefined : previousSessionId;
+      setSessionState({ status: "error", ...safeError, retryLeaveSessionId });
+      setMatchRuntimeState({
+        status: "error",
+        code: `practice_${safeError.code}`,
+        message: safeError.message,
+        retry: "practice",
+        retryPreviousSessionId: retryLeaveSessionId,
+      });
+    }
+  }
+
+  function practiceVsBots() {
+    return startPracticeHand();
+  }
+
+  function playPracticeAgain() {
+    const previousSessionId =
+      sessionState.status === "loaded" ? sessionState.session.sessionId : undefined;
+    return startPracticeHand(previousSessionId);
   }
 
   function sendMatchCommand(command: Omit<MatchCommandRequest, "match_id">) {
@@ -905,7 +1088,11 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         ...command,
       });
     } catch (error) {
-      setMatchRuntimeState({ status: "error", ...matchRuntimeErrorView(error) });
+      setMatchRuntimeState({
+        status: "error",
+        ...matchRuntimeErrorView(error),
+        retry: "runtime",
+      });
     }
   }
 
@@ -974,6 +1161,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   }
 
   const birthYearOptions = Array.from({ length: 100 }, (_, index) => new Date().getFullYear() - index);
+  const hasActiveOrStrandedSession =
+    sessionState.status === "loaded" ||
+    (sessionState.status === "error" && Boolean(sessionState.retryLeaveSessionId));
 
   // Once a player has started joining a match, the whole screen belongs to
   // the game — no session ID, roster, or lobby chrome competing for
@@ -983,6 +1173,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   if (matchRuntimeState.status !== "idle") {
     return (
       <div className="game-screen">
+        {matchRuntimeState.status === "preparing" && (
+          <div className="game-screen-status" role="status" aria-live="assertive">
+            <p className="game-screen-status-text">{matchRuntimeState.message}</p>
+          </div>
+        )}
+
         {matchRuntimeState.status === "connecting" && (
           <div className="game-screen-status" role="status" aria-live="assertive">
             <p className="game-screen-status-text">
@@ -997,7 +1193,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           (matchRuntimeState.view.phase === "hand_complete" ||
           matchRuntimeState.view.phase === "exhaustive_draw" ? (
             <div className="game-screen-result">
-              <HandResultScreen view={matchRuntimeState.view} onReturn={leaveTable} />
+              <HandResultScreen
+                view={matchRuntimeState.view}
+                practice={isPracticeMatch(matchRuntimeState.view)}
+                onPlayAgain={
+                  isPracticeMatch(matchRuntimeState.view) ? playPracticeAgain : undefined
+                }
+                onReturn={() => void leaveTable()}
+              />
             </div>
           ) : (
             <>
@@ -1007,11 +1210,20 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     Control restored — it's you again.
                   </p>
                 )}
-                <button className="leave-match-button" type="button" onClick={leaveTable}>
+                <button
+                  className="leave-match-button"
+                  type="button"
+                  onClick={() => void leaveTable()}
+                >
                   Leave match
                 </button>
               </div>
-              <div className="match-table-frame">
+              <div
+                className="match-table-frame"
+                data-testid="live-match"
+                data-match-id={matchRuntimeState.matchId}
+                data-local-seat={matchRuntimeState.view.seat}
+              >
                 <MatchTable
                   state={seatViewToMatchTableState(matchRuntimeState.view, {
                     now: nowTick,
@@ -1040,12 +1252,31 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         {matchRuntimeState.status === "error" && (
           <div className="game-screen-status" role="alert">
             <p className="game-screen-status-text">{matchRuntimeState.message}</p>
-            <p className="error-code">Error code: match_runtime_{matchRuntimeState.code}</p>
+            <p className="error-code">
+              Error code:{" "}
+              {matchRuntimeState.retry === "practice"
+                ? matchRuntimeState.code
+                : `match_runtime_${matchRuntimeState.code}`}
+            </p>
             <div className="game-screen-actions">
-              <button className="secondary-action" type="button" onClick={connectMatchRuntime}>
-                Reconnect
+              <button
+                className="secondary-action"
+                type="button"
+                onClick={() => {
+                  if (matchRuntimeState.retry === "practice") {
+                    void startPracticeHand(matchRuntimeState.retryPreviousSessionId);
+                  } else {
+                    void connectMatchRuntime();
+                  }
+                }}
+              >
+                {matchRuntimeState.retry === "practice" ? "Retry Practice" : "Reconnect"}
               </button>
-              <button className="leave-match-button" type="button" onClick={leaveTable}>
+              <button
+                className="leave-match-button"
+                type="button"
+                onClick={() => void leaveTable()}
+              >
                 Leave match
               </button>
             </div>
@@ -1319,74 +1550,37 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
             {state.lobbyStatus === "connected" && (
               <div className="session-panel">
-                <button
-                  className="secondary-action session-action"
-                  type="button"
-                  onClick={viewMySessions}
-                  disabled={sessionState.status === "loading"}
-                >
-                  {sessionState.status === "loading"
-                    ? "Loading sessions…"
-                    : sessionState.status === "error"
-                      ? "Retry session lookup"
-                      : "View my sessions"}
-                </button>
+                <PracticeLaunchCard
+                  busy={sessionState.status === "loading"}
+                  hasSelectedSession={hasActiveOrStrandedSession}
+                  cleanupRequired={
+                    sessionState.status === "error" &&
+                    Boolean(sessionState.retryLeaveSessionId)
+                  }
+                  matchServiceAvailable={Boolean(accelByteConfig.matchServiceURL)}
+                  onStart={() => void practiceVsBots()}
+                  onLeaveSelectedSession={() => void leaveTable()}
+                />
 
-                <div className="session-actions">
-                  <button
-                    className="secondary-action session-action"
-                    type="button"
-                    onClick={() => createTable()}
-                    disabled={sessionState.status === "loading" || sessionState.status === "loaded"}
-                  >
-                    Create test table
-                  </button>
-                  <button
-                    className="secondary-action session-action"
-                    type="button"
-                    onClick={practiceVsBots}
-                    disabled={sessionState.status === "loading" || sessionState.status === "loaded"}
-                  >
-                    Practice vs Bots
-                  </button>
-                  <label className="session-input-label" htmlFor="join-session-id">
-                    Join by session ID
-                  </label>
-                  <div className="session-join-row">
-                    <input
-                      id="join-session-id"
-                      className="session-input"
-                      type="text"
-                      value={joinSessionId}
-                      onChange={(event) => setJoinSessionId(event.target.value)}
-                      disabled={sessionState.status === "loading" || sessionState.status === "loaded"}
-                      placeholder="Paste session ID"
-                      autoComplete="off"
-                    />
-                    <button
-                      className="secondary-action session-join-action"
-                      type="button"
-                      onClick={joinTable}
-                      disabled={sessionState.status === "loading" || sessionState.status === "loaded"}
-                    >
-                      Join
-                    </button>
-                  </div>
-                </div>
+                <section className="matchmaking-panel online-card" aria-labelledby="online-title">
+                  <p className="status-label">Play Online</p>
+                  <h2 id="online-title">Find three players for a live hand</h2>
+                  <p className="practice-description">
+                    Queue as a guest, enter the shared table automatically, and play one full hand.
+                  </p>
 
-                <div className="matchmaking-panel">
-                  <p className="status-label">Matchmaking</p>
                   {!accelByteConfig.matchPool && matchmakingState.status === "idle" && (
                     <p className="matchmaking-result" role="status" aria-live="polite">
-                      Queue unavailable. Configure ACCELBYTE_MATCH_POOL and restart the dev server.
+                      Online play is unavailable because the matchmaking pool is not configured.
                     </p>
                   )}
 
                   {accelByteConfig.matchPool && matchmakingState.status === "idle" && (
                     <button
-                      className="secondary-action session-action"
+                      className="primary-action session-action"
                       type="button"
                       onClick={findTable}
+                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
                     >
                       Find a table
                     </button>
@@ -1425,21 +1619,20 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     <div className="matchmaking-result" role="status" aria-live="polite">
                       <p className="status-label">Match found</p>
                       {matchmakingState.ticket.sessionId ? (
-                        <p className="session-detail session-id-value">
-                          Session ID: {matchmakingState.ticket.sessionId}
-                        </p>
+                        <>
+                          <p className="session-detail">Joining the shared table automatically…</p>
+                          {sessionState.status === "error" && (
+                            <button
+                              className="secondary-action session-action"
+                              type="button"
+                              onClick={joinMatchedTable}
+                            >
+                              Retry joining table
+                            </button>
+                          )}
+                        </>
                       ) : (
-                        <p>AGS returned a match without a session ID yet.</p>
-                      )}
-                      {matchmakingState.ticket.sessionId && (
-                        <button
-                          className="secondary-action session-action"
-                          type="button"
-                          onClick={joinMatchedTable}
-                          disabled={sessionState.status === "loading"}
-                        >
-                          {sessionState.status === "loading" ? "Joining table…" : "Join table"}
-                        </button>
+                        <p>AGS returned a match without a Session yet.</p>
                       )}
                     </div>
                   )}
@@ -1453,6 +1646,56 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       </button>
                     </div>
                   )}
+                </section>
+
+                <details className="developer-tools">
+                  <summary>Developer session tools</summary>
+                  <div className="developer-tools-body">
+                <button
+                  className="secondary-action session-action"
+                  type="button"
+                  onClick={viewMySessions}
+                  disabled={sessionState.status === "loading"}
+                >
+                  {sessionState.status === "loading"
+                    ? "Loading sessions…"
+                    : sessionState.status === "error"
+                      ? "Retry session lookup"
+                      : "View my sessions"}
+                </button>
+
+                <div className="session-actions">
+                  <button
+                    className="secondary-action session-action"
+                    type="button"
+                    onClick={() => void createTable()}
+                    disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                  >
+                    Create test table
+                  </button>
+                  <label className="session-input-label" htmlFor="join-session-id">
+                    Join by session ID
+                  </label>
+                  <div className="session-join-row">
+                    <input
+                      id="join-session-id"
+                      className="session-input"
+                      type="text"
+                      value={joinSessionId}
+                      onChange={(event) => setJoinSessionId(event.target.value)}
+                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                      placeholder="Paste session ID"
+                      autoComplete="off"
+                    />
+                    <button
+                      className="secondary-action session-join-action"
+                      type="button"
+                      onClick={joinTable}
+                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                    >
+                      Join
+                    </button>
+                  </div>
                 </div>
 
                 {sessionState.status === "empty" && (
@@ -1492,33 +1735,41 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       Refresh roster
                     </button>
                     <div className="match-runtime-panel">
-                      <p className="status-label">Local match runtime</p>
+                      <p className="status-label">Match runtime</p>
 
                       {/* Every other matchRuntimeState status (connecting,
                           joined, error) takes over the whole screen — see
-                          the game-screen early return above. Only "idle"
-                          (before the player has asked to join anything)
-                          is ever reachable here. */}
+                          the game-screen early return above. */}
                       {!accelByteConfig.matchServiceURL && (
                         <p className="runtime-message">
                           Configure ACCELBYTE_MATCH_SERVICE_URL and restart the dev server.
                         </p>
                       )}
 
-                      {accelByteConfig.matchServiceURL && (
+                      {accelByteConfig.matchServiceURL &&
+                        onlineSessionEntryMode === "matchmaking" && (
+                          <p className="runtime-message" aria-live="polite">
+                            {sessionState.session.members.length < HUMAN_MATCH_SIZE
+                              ? `Waiting for players… ${sessionState.session.members.length}/${HUMAN_MATCH_SIZE}`
+                              : "Opening the table…"}
+                          </p>
+                        )}
+
+                      {accelByteConfig.matchServiceURL &&
+                        onlineSessionEntryMode === "manual" && (
                         <button
                           className="secondary-action session-action"
                           type="button"
-                          onClick={connectMatchRuntime}
+                          onClick={() => void connectMatchRuntime()}
                         >
-                          Connect test hand
+                          Enter table
                         </button>
-                      )}
+                        )}
                     </div>
                     <button
                       className="secondary-action session-leave-action"
                       type="button"
-                      onClick={leaveTable}
+                      onClick={() => void leaveTable()}
                     >
                       Leave table
                     </button>
@@ -1529,8 +1780,19 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   <div className="session-error" role="alert">
                     <p>{sessionState.message}</p>
                     <p className="error-code">Error code: session_{sessionState.code}</p>
+                    {sessionState.retryLeaveSessionId && (
+                      <button
+                        className="secondary-action session-action"
+                        type="button"
+                        onClick={() => void leaveTable()}
+                      >
+                        Retry leaving table
+                      </button>
+                    )}
                   </div>
                 )}
+                  </div>
+                </details>
               </div>
             )}
           </div>
