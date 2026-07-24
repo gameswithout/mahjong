@@ -1,7 +1,7 @@
-// Wireframe-only data shapes for the §9.2 match table validation prototype
-// (E7.F5). These intentionally mirror the rules engine's Seat/Tile/Meld
-// vocabulary loosely, without importing Go types, since this component
-// renders illustrative static/mock state, not live server data.
+// Client-facing table view models shared by the production SeatView adapter
+// and the standalone §9.2 validation harness. They intentionally avoid
+// importing server implementation types so the UI consumes only the
+// redacted, player-safe projection it needs.
 
 export type SeatId = "E" | "S" | "W" | "N";
 
@@ -47,8 +47,8 @@ export interface WallState {
 }
 
 // MatchAction is one legal-action button (§9.4/E8.F3). onClick is omitted
-// for the E7.F5 static wireframe/mock data, where buttons render but do
-// nothing; E8's live adapter always supplies one.
+// for static validation data, where buttons render but do nothing; the live
+// adapter always supplies one.
 export interface MatchAction {
   id: string;
   label: string;

@@ -1,6 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ageInYears, shouldAutomaticallyEnterHumanMatch } from "./App";
+import type { SeatView } from "../protocol/envelope";
+import {
+  ageInYears,
+  shouldAutomaticallyDraw,
+  shouldAutomaticallyEnterHumanMatch,
+} from "./App";
+
+function drawView(overrides: Partial<SeatView> = {}): SeatView {
+  return {
+    match_id: "match-1",
+    seat: "S",
+    state_version: 4,
+    phase: "awaiting_draw",
+    active_seat: "S",
+    own_hand: [],
+    own_exposed: [],
+    players: [],
+    wall: { remaining: 80, drawable_remaining: 64, reserve_remaining: 16 },
+    ...overrides,
+  };
+}
 
 // §10.3: minimum stated age is 13, computed from month/year only (never a
 // full birth date).
@@ -38,5 +58,16 @@ describe("shouldAutomaticallyEnterHumanMatch", () => {
     expect(shouldAutomaticallyEnterHumanMatch("matchmaking", 4, "connecting")).toBe(false);
     expect(shouldAutomaticallyEnterHumanMatch("matchmaking", 4, "joined")).toBe(false);
     expect(shouldAutomaticallyEnterHumanMatch("matchmaking", 4, "error")).toBe(false);
+  });
+});
+
+describe("shouldAutomaticallyDraw", () => {
+  it("draws only for the local seat's unblocked draw phase", () => {
+    expect(shouldAutomaticallyDraw(drawView(), false)).toBe(true);
+    expect(shouldAutomaticallyDraw(drawView(), true)).toBe(false);
+    expect(shouldAutomaticallyDraw(drawView({ active_seat: "E" }), false)).toBe(false);
+    expect(
+      shouldAutomaticallyDraw(drawView({ phase: "awaiting_discard" }), false),
+    ).toBe(false);
   });
 });

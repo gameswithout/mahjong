@@ -46,6 +46,7 @@ const MATCH_RUNTIME_RETRYABLE_CODES = new Set(["closed", "network", "not_found",
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 2000;
 const HUMAN_MATCH_SIZE = 4;
+const AUTO_DRAW_DELAY_MS = 320;
 
 export function shouldAutomaticallyRetryMatchRuntime(code: string, attempt: number): boolean {
   return MATCH_RUNTIME_RETRYABLE_CODES.has(code) && attempt < MAX_RECONNECT_ATTEMPTS;
@@ -129,6 +130,14 @@ export function shouldAutomaticallyEnterHumanMatch(
   return mode === "matchmaking" && memberCount >= HUMAN_MATCH_SIZE && runtimeStatus === "idle";
 }
 
+export function shouldAutomaticallyDraw(view: SeatView, commandPending: boolean): boolean {
+  return (
+    !commandPending &&
+    view.phase === "awaiting_draw" &&
+    view.active_seat === view.seat
+  );
+}
+
 function errorView(error: unknown): { code: string; message: string } {
   if (error instanceof IamAuthError) {
     return { code: error.code, message: error.message };
@@ -205,6 +214,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const sessionRequestRef = useRef(0);
   const matchmakingRequestRef = useRef(0);
   const autoJoiningSessionIdRef = useRef<string | null>(null);
+  const autoDrawStateKeyRef = useRef<string | null>(null);
 
   const activeSessionId =
     state.status === "signed_in" &&
@@ -423,6 +433,31 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       current && matchRuntimeState.view.own_hand.some((item) => item.id === current) ? current : null,
     );
   }, [matchRuntimeState]);
+
+  const autoDrawStateKey =
+    matchRuntimeState.status === "joined"
+      ? `${matchRuntimeState.matchId}:${matchRuntimeState.view.state_version}`
+      : null;
+  const autoDrawEligible =
+    matchRuntimeState.status === "joined"
+      ? shouldAutomaticallyDraw(matchRuntimeState.view, matchRuntimeState.commandPending)
+      : false;
+
+  // Drawing is routine game flow rather than a meaningful decision. Give the
+  // turn change a short visual beat, then draw automatically. The state-version
+  // key makes this idempotent across renders, command acknowledgements, and
+  // React Strict Mode effect replay; "Draw now" remains in the table as a
+  // visible fallback during the short delay.
+  useEffect(() => {
+    if (!autoDrawEligible || !autoDrawStateKey || autoDrawStateKeyRef.current === autoDrawStateKey) {
+      return;
+    }
+    const timeout = window.setTimeout(drawTile, AUTO_DRAW_DELAY_MS);
+    return () => window.clearTimeout(timeout);
+    // drawTile deliberately acts on the joined state represented by
+    // autoDrawStateKey; unrelated render changes must not restart the timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDrawEligible, autoDrawStateKey]);
 
   // §8.7 "client displays Reconnecting immediately": a transient match-
   // runtime disconnect (closed/network/timeout — not a configuration or
@@ -1100,6 +1135,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     if (matchRuntimeState.status !== "joined") {
       return;
     }
+    autoDrawStateKeyRef.current =
+      `${matchRuntimeState.matchId}:${matchRuntimeState.view.state_version}`;
     sendMatchCommand({
       type: "draw",
       expected_version: matchRuntimeState.view.state_version,

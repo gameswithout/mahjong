@@ -5,13 +5,10 @@ import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMe
 import { tileTypeKey, windName } from "./matchTableTypes";
 import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
 
-// §9.2 static wireframe: proves every simultaneous-visibility element
-// (tile identity, claim source, most recent discard, active player, dealer,
-// seat wind, continuation count, countdown, all legal actions) fits at the
-// 640x360 CSS pixel landscape minimum without opening another panel
-// (E7.F5). This is a layout prototype with mock data, not the hardened
-// production match table (E8) — no server wiring, no input handling beyond
-// what proves the layout itself.
+// Production match table and the standalone §9.2 validation harness share this
+// component. The live adapter supplies authoritative seat/action state; the
+// mock harness keeps the 640x360 simultaneous-visibility contract testable
+// without a running match service.
 
 // Screen position is fixed by seat relative to the local seat, not by
 // logical seat identity: the local seat is always "bottom", and the other
@@ -89,14 +86,16 @@ function DiscardGrid({
   highlightId,
   claimed,
   matchKey,
+  label = "Discards",
 }: {
   discards: WireTile[];
   highlightId?: string;
   claimed?: boolean;
   matchKey: string | null;
+  label?: string;
 }) {
   return (
-    <div className="discard-grid" role="list" aria-label="Discards">
+    <div className="discard-grid" role="list" aria-label={label}>
       {discards.map((item) => (
         <span
           key={item.id}
@@ -106,7 +105,11 @@ function DiscardGrid({
           <Tile t={item} size="sm" matchesSelected={matchesKey(item.id, matchKey)} />
         </span>
       ))}
-      {claimed && highlightId ? <span className="discard-slot discard-slot-claimed">claimed</span> : null}
+      {claimed && highlightId ? (
+        <span className="discard-slot discard-slot-claimed" role="listitem">
+          claimed
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -134,19 +137,24 @@ function TakeoverBadge({ takenOver, isBot }: { takenOver?: boolean; isBot?: bool
 }
 
 // §9.4 Ting/wait-list assist: every tile type that currently completes the
-// local player's hand, each with its "Visible remaining" count — zero shown
-// as "All visible" rather than removed (a structurally legal but exhausted
-// wait is still information the player can act on).
+// local player's hand, each with its live remaining count. Zero stays visible
+// rather than being removed — a structurally legal but exhausted wait is still
+// information the player can act on.
 function WaitPanel({ waits }: { waits: WaitEntry[] }) {
   if (waits.length === 0) {
     return null;
   }
   return (
     <div className="wait-panel" role="list" aria-label="Waiting on">
+      <span className="wait-label" role="presentation">
+        Ready
+      </span>
       {waits.map((entry) => (
         <span key={entry.tile.id} role="listitem" className="wait-entry">
           <Tile t={entry.tile} size="sm" />
-          <span className="wait-remaining">{entry.visibleRemaining > 0 ? entry.visibleRemaining : "All visible"}</span>
+          <span className="wait-remaining">
+            {entry.visibleRemaining > 0 ? `${entry.visibleRemaining} left` : "All visible"}
+          </span>
         </span>
       ))}
     </div>
@@ -158,7 +166,6 @@ function OpponentSeat({
   slot,
   state,
   prevailingWind,
-  lastDiscardTileId,
   claimSource,
   matchKey,
 }: {
@@ -166,7 +173,6 @@ function OpponentSeat({
   slot: ScreenSlot;
   state: SeatState;
   prevailingWind: SeatId;
-  lastDiscardTileId?: string;
   claimSource: SeatId | null;
   matchKey: string | null;
 }) {
@@ -191,7 +197,7 @@ function OpponentSeat({
         </div>
       </header>
       <div className="opponent-hand-backs" aria-hidden="true">
-        {Array.from({ length: Math.min(state.handCount, slot === "top" ? 17 : 8) }).map((_, index) => (
+        {Array.from({ length: Math.min(state.handCount, 17) }).map((_, index) => (
           <span key={index} className="tile tile-back tile-xs" />
         ))}
       </div>
@@ -202,7 +208,41 @@ function OpponentSeat({
           ))}
         </div>
       ) : null}
-      <DiscardGrid discards={state.discards} highlightId={lastDiscardTileId} matchKey={matchKey} />
+    </section>
+  );
+}
+
+function DiscardRiver({
+  seat,
+  slot,
+  state,
+  lastDiscardTileId,
+  claimSource,
+  matchKey,
+}: {
+  seat: SeatId;
+  slot: ScreenSlot;
+  state: SeatState;
+  lastDiscardTileId?: string;
+  claimSource: SeatId | null;
+  matchKey: string | null;
+}) {
+  const label =
+    slot === "bottom"
+      ? "Your discard river"
+      : `${state.displayName} · ${windName(seat)} discard river`;
+  return (
+    <section
+      className={`discard-river discard-river-${slot}${claimSource === seat ? " discard-river-claim-source" : ""}`}
+      aria-label={label}
+    >
+      <DiscardGrid
+        discards={state.discards}
+        highlightId={lastDiscardTileId}
+        claimed={claimSource === seat}
+        matchKey={matchKey}
+        label={label}
+      />
     </section>
   );
 }
@@ -244,7 +284,10 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
   }, [state.countdownSeconds, state.untimed]);
 
   return (
-    <div className="center-panel" aria-label="Table status">
+    <div
+      className={`center-panel${activeSeat === state.localSeat ? " center-panel-your-turn" : ""}`}
+      aria-label="Table status"
+    >
       {state.untimed ? (
         <div className="countdown countdown-untimed" role="status" aria-label="No turn timer">
           <span className="countdown-untimed-icon" aria-hidden="true">
@@ -282,14 +325,59 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       </div>
       <div className="round-status">
         <span className="round-wind">Round {windName(state.prevailingWind)}</span>
-        <span className="round-continuation">k={state.continuation}</span>
+        <span className="round-continuation">
+          {state.continuation === 0 ? "Opening hand" : `${state.continuation} continuation${state.continuation === 1 ? "" : "s"}`}
+        </span>
       </div>
       <div
         className={`active-seat-callout${activeSeat === state.localSeat ? " active-seat-callout-you" : ""}`}
         aria-live="polite"
       >
-        {activeSeat === state.localSeat ? "Your turn" : `${windName(activeSeat)} thinking`}
+        {activeSeat === state.localSeat
+          ? "Your turn"
+          : `${state.seats[activeSeat].displayName} · ${windName(activeSeat)}`}
       </div>
+    </div>
+  );
+}
+
+function TablePlayfield({
+  state,
+  slots,
+  matchKey,
+}: {
+  state: MatchTableState;
+  slots: Record<ScreenSlot, SeatId>;
+  matchKey: string | null;
+}) {
+  const lastDiscardTileId = state.lastDiscard?.tile.id;
+  const activeSeat =
+    (Object.values(state.seats) as SeatState[]).find((seat) => seat.isActive)?.seat ??
+    state.localSeat;
+  const activeSlot =
+    (Object.entries(slots) as [ScreenSlot, SeatId][]).find(([, seat]) => seat === activeSeat)?.[0] ??
+    "bottom";
+  return (
+    <div className="table-playfield">
+      <span
+        className={`turn-orbit-marker turn-orbit-marker-${activeSlot}`}
+        aria-hidden="true"
+      />
+      {(["top", "left", "right", "bottom"] as const).map((slot) => {
+        const seat = slots[slot];
+        return (
+          <DiscardRiver
+            key={slot}
+            seat={seat}
+            slot={slot}
+            state={state.seats[seat]}
+            lastDiscardTileId={state.lastDiscard?.seat === seat ? lastDiscardTileId : undefined}
+            claimSource={state.claimSource}
+            matchKey={matchKey}
+          />
+        );
+      })}
+      <WallAndTurnCenter state={state} />
     </div>
   );
 }
@@ -297,7 +385,6 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
 function LocalSeat({
   state,
   displayedHand,
-  lastDiscardTileId,
   selectable,
   selectedTileId,
   onSelectTile,
@@ -308,10 +395,13 @@ function LocalSeat({
   sortMode,
   onCycleSortMode,
   onMoveSelected,
+  onReorderTile,
+  drawnTileId,
+  tableFxEnabled,
+  onToggleTableFx,
 }: {
   state: SeatState;
   displayedHand: WireTile[];
-  lastDiscardTileId?: string;
   selectable?: boolean;
   selectedTileId?: string | null;
   onSelectTile?: (tileId: string) => void;
@@ -322,12 +412,17 @@ function LocalSeat({
   sortMode: SortMode;
   onCycleSortMode: () => void;
   onMoveSelected: (direction: "left" | "right") => void;
+  onReorderTile: (tileId: string, beforeTileId: string) => void;
+  drawnTileId: string | null;
+  tableFxEnabled: boolean;
+  onToggleTableFx: () => void;
 }) {
   // §9.3 "manual reorder" reuses the same tile-select gesture already used
   // for discard selection (only active in Off mode) rather than a second,
   // parallel selection mechanism — the Move buttons act on whichever tile
   // is currently selected.
-  const canReorder = sortMode === "off" && selectable && !!selectedTileId;
+  const canReorder =
+    sortMode === "off" && selectable && !!selectedTileId && selectedTileId !== drawnTileId;
 
   return (
     <section className={`seat seat-bottom local-seat${selectable || canDraw ? " seat-active" : ""}`} aria-label="Your seat">
@@ -350,6 +445,15 @@ function LocalSeat({
           >
             Sort: {sortModeLabel(sortMode)}
           </button>
+          <button
+            type="button"
+            className={`table-fx-toggle${tableFxEnabled ? " table-fx-toggle-on" : ""}`}
+            onClick={onToggleTableFx}
+            aria-pressed={tableFxEnabled}
+            aria-label={`Table sounds and haptics ${tableFxEnabled ? "on" : "off"}`}
+          >
+            FX {tableFxEnabled ? "On" : "Off"}
+          </button>
         </div>
       </header>
       {state.melds.length > 0 ? (
@@ -360,13 +464,17 @@ function LocalSeat({
         </div>
       ) : null}
       <WaitPanel waits={waits} />
-      <DiscardGrid discards={state.discards} highlightId={lastDiscardTileId} matchKey={matchKey} />
       <div className="local-hand" role="list" aria-label="Your hand">
         {displayedHand.map((item) => {
           const selected = selectedTileId === item.id;
+          const drawn = drawnTileId === item.id;
           if (!selectable) {
             return (
-              <span key={item.id} role="listitem" className="local-hand-tile-wrap">
+              <span
+                key={item.id}
+                role="listitem"
+                className={`local-hand-tile-wrap${drawn ? " local-hand-tile-drawn" : ""}`}
+              >
                 <Tile t={item} size="lg" />
               </span>
             );
@@ -376,11 +484,33 @@ function LocalSeat({
               key={item.id}
               type="button"
               role="listitem"
-              className={`local-hand-tile-wrap local-hand-tile-button${selected ? " local-hand-tile-selected" : ""}`}
+              className={`local-hand-tile-wrap local-hand-tile-button${selected ? " local-hand-tile-selected" : ""}${drawn ? " local-hand-tile-drawn" : ""}`}
               aria-pressed={selected}
-              aria-label={selected ? `${item.label}, selected. Activate again or confirm to discard.` : `Select ${item.label} to discard`}
+              aria-label={
+                selected
+                  ? `${item.label}, selected. Activate again or confirm to discard.`
+                  : `Select ${item.label}${drawn ? ", newly drawn," : ""} to discard`
+              }
               disabled={discardPending}
+              draggable={sortMode === "off" && !discardPending && !drawn}
               onClick={() => onSelectTile?.(item.id)}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("application/x-mahjong-tile", item.id);
+              }}
+              onDragOver={(event) => {
+                if (sortMode === "off") {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const draggedTileId = event.dataTransfer.getData("application/x-mahjong-tile");
+                if (draggedTileId && draggedTileId !== item.id) {
+                  onReorderTile(draggedTileId, item.id);
+                }
+              }}
               onKeyDown={(event) => {
                 if (!canReorder || !selected) {
                   return;
@@ -458,7 +588,6 @@ function ActionBar({
   selectedTile,
   onConfirmDiscard,
   discardPending,
-  activeSeatLabel,
 }: {
   legalActions: MatchAction[];
   claimTile?: WireTile;
@@ -470,7 +599,6 @@ function ActionBar({
   selectedTile?: WireTile;
   onConfirmDiscard?: () => void;
   discardPending?: boolean;
-  activeSeatLabel: string;
 }) {
   if (legalActions.length > 0) {
     return (
@@ -487,15 +615,15 @@ function ActionBar({
   }
   if (canDraw) {
     return (
-      <div className="action-bar">
-        <button
-          type="button"
-          className="action-button action-primary"
-          onClick={onDraw}
-          disabled={drawPending}
-        >
-          {drawPending ? "Drawing…" : "Draw a tile"}
-        </button>
+      <div className="action-bar action-bar-draw">
+        <p className="action-bar-prompt action-bar-hint" role="status" aria-live="polite">
+          {drawPending ? "Drawing your tile…" : "Your tile will draw automatically"}
+        </p>
+        {!drawPending ? (
+          <button type="button" className="action-button action-pass action-draw-fallback" onClick={onDraw}>
+            Draw now
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -518,14 +646,7 @@ function ActionBar({
       </div>
     );
   }
-  return (
-    <div className="action-bar">
-      <p className="action-bar-prompt action-bar-waiting" aria-live="polite">
-        {activeSeatLabel} is thinking
-        <span className="thinking-dots" aria-hidden="true" />
-      </p>
-    </div>
-  );
+  return null;
 }
 
 export interface MatchTableInteraction {
@@ -542,7 +663,6 @@ export interface MatchTableInteraction {
 export function MatchTable({ state, interaction }: { state: MatchTableState; interaction?: MatchTableInteraction }) {
   const slots = remapSeats(state.localSeat);
   const local = state.seats[state.localSeat];
-  const lastDiscardTileId = state.lastDiscard?.tile.id;
   const matchKey = interaction?.selectedTileId ? tileTypeKey(interaction.selectedTileId) : null;
 
   const localHand = local.hand ?? [];
@@ -551,6 +671,126 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
 
   const [sortMode, setSortMode] = useState<SortMode>("off");
   const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
+  const [drawnTileId, setDrawnTileId] = useState<string | null>(() =>
+    interaction?.canDiscard ? (localHand.at(-1)?.id ?? null) : null,
+  );
+  const previousHandIdsRef = useRef(localHand.map((tile) => tile.id));
+  const [tableFxEnabled, setTableFxEnabled] = useState(() => {
+    try {
+      return window.localStorage.getItem("mahjong-table-fx") === "on";
+    } catch {
+      return false;
+    }
+  });
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const previousDiscardRef = useRef(state.lastDiscard?.tile.id);
+  const previousActiveSeatRef = useRef(
+    (Object.values(state.seats) as SeatState[]).find((seat) => seat.isActive)?.seat,
+  );
+  const previousClaimCountRef = useRef(state.legalActions.length);
+
+  function ensureAudioContext(): AudioContext | null {
+    if (audioContextRef.current) {
+      return audioContextRef.current;
+    }
+    const AudioContextConstructor =
+      window.AudioContext ??
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) {
+      return null;
+    }
+    audioContextRef.current = new AudioContextConstructor();
+    return audioContextRef.current;
+  }
+
+  function playFeedbackTone(frequency: number, duration = 0.055) {
+    if (!tableFxEnabled) {
+      return;
+    }
+    const context = ensureAudioContext();
+    if (!context || context.state === "closed") {
+      return;
+    }
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + duration + 0.01);
+  }
+
+  function toggleTableFx() {
+    const next = !tableFxEnabled;
+    setTableFxEnabled(next);
+    try {
+      window.localStorage.setItem("mahjong-table-fx", next ? "on" : "off");
+    } catch {
+      // Preference persistence is optional; the in-memory setting still works.
+    }
+    if (next) {
+      const context = ensureAudioContext();
+      void context?.resume();
+      navigator.vibrate?.(12);
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      void audioContextRef.current?.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    const currentDiscard = state.lastDiscard?.tile.id;
+    if (currentDiscard && currentDiscard !== previousDiscardRef.current) {
+      playFeedbackTone(290);
+    }
+    previousDiscardRef.current = currentDiscard;
+    // Sound preference deliberately triggers this effect without replaying an
+    // unchanged discard because previousDiscardRef is updated every time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.lastDiscard?.tile.id, tableFxEnabled]);
+
+  useEffect(() => {
+    const activeSeat = (Object.values(state.seats) as SeatState[]).find((seat) => seat.isActive)?.seat;
+    if (activeSeat === state.localSeat && activeSeat !== previousActiveSeatRef.current) {
+      playFeedbackTone(540, 0.08);
+      if (tableFxEnabled) {
+        navigator.vibrate?.([14, 30, 14]);
+      }
+    }
+    previousActiveSeatRef.current = activeSeat;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.localSeat, state.seats, tableFxEnabled]);
+
+  useEffect(() => {
+    if (state.legalActions.length > 0 && previousClaimCountRef.current === 0) {
+      playFeedbackTone(680, 0.09);
+      if (tableFxEnabled) {
+        navigator.vibrate?.(20);
+      }
+    }
+    previousClaimCountRef.current = state.legalActions.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.legalActions.length, tableFxEnabled]);
+
+  useEffect(() => {
+    const nextIds = localHand.map((tile) => tile.id);
+    const previousIds = new Set(previousHandIdsRef.current);
+    const added = nextIds.filter((id) => !previousIds.has(id));
+    if (interaction?.canDiscard && added.length === 1) {
+      setDrawnTileId(added[0]);
+    } else if (!interaction?.canDiscard) {
+      setDrawnTileId(null);
+    }
+    previousHandIdsRef.current = nextIds;
+  }, [interaction?.canDiscard, localHandIds]);
 
   // §9.3: "Auto-sort runs after deal, draw, claim, and manual toggle but
   // never while a tile is selected." Reconciles the display order against
@@ -577,9 +817,14 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
 
   const displayedHand = useMemo(() => {
     const byId = new Map(localHand.map((t) => [t.id, t]));
-    return handOrder.map((id) => byId.get(id)).filter((t): t is WireTile => Boolean(t));
+    const ordered = handOrder.map((id) => byId.get(id)).filter((t): t is WireTile => Boolean(t));
+    if (!drawnTileId) {
+      return ordered;
+    }
+    const drawn = byId.get(drawnTileId);
+    return drawn ? [...ordered.filter((tile) => tile.id !== drawnTileId), drawn] : ordered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handOrder, localHandIds]);
+  }, [handOrder, localHandIds, drawnTileId]);
 
   function cycleSortMode() {
     setSortMode((current) => SORT_MODES[(SORT_MODES.indexOf(current) + 1) % SORT_MODES.length]);
@@ -601,6 +846,24 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     });
   }
 
+  function reorderTile(tileId: string, beforeTileId: string) {
+    if (sortMode !== "off" || tileId === drawnTileId) {
+      return;
+    }
+    setHandOrder((current) => {
+      const fromIndex = current.indexOf(tileId);
+      const targetIndex = current.indexOf(beforeTileId);
+      if (fromIndex === -1 || targetIndex === -1 || fromIndex === targetIndex) {
+        return current;
+      }
+      const next = [...current];
+      next.splice(fromIndex, 1);
+      const insertionIndex = next.indexOf(beforeTileId);
+      next.splice(insertionIndex, 0, tileId);
+      return next;
+    });
+  }
+
   // Plain-language label for a seat: "You" for the local player, otherwise
   // the display name plus its unique wind so two same-named bots are never
   // ambiguous ("Bot · West").
@@ -611,7 +874,6 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     return `${state.seats[seat].displayName} · ${windName(seat)}`;
   }
 
-  const activeSeat = (Object.values(state.seats) as SeatState[]).find((s) => s.isActive)?.seat ?? state.localSeat;
   const claimTile = state.claimSource ? state.lastDiscard?.tile : undefined;
   const claimFromLabel = state.claimSource ? seatLabel(state.claimSource) : undefined;
   const selectedTile = selectedTileId ? localHand.find((t) => t.id === selectedTileId) : undefined;
@@ -623,7 +885,6 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         slot="top"
         state={state.seats[slots.top]}
         prevailingWind={state.prevailingWind}
-        lastDiscardTileId={state.lastDiscard?.seat === slots.top ? lastDiscardTileId : undefined}
         claimSource={state.claimSource}
         matchKey={matchKey}
       />
@@ -632,34 +893,17 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         slot="left"
         state={state.seats[slots.left]}
         prevailingWind={state.prevailingWind}
-        lastDiscardTileId={state.lastDiscard?.seat === slots.left ? lastDiscardTileId : undefined}
         claimSource={state.claimSource}
         matchKey={matchKey}
       />
-      <WallAndTurnCenter state={state} />
+      <TablePlayfield state={state} slots={slots} matchKey={matchKey} />
       <OpponentSeat
         seat={slots.right}
         slot="right"
         state={state.seats[slots.right]}
         prevailingWind={state.prevailingWind}
-        lastDiscardTileId={state.lastDiscard?.seat === slots.right ? lastDiscardTileId : undefined}
         claimSource={state.claimSource}
         matchKey={matchKey}
-      />
-      <LocalSeat
-        state={local}
-        displayedHand={displayedHand}
-        lastDiscardTileId={state.lastDiscard?.seat === state.localSeat ? lastDiscardTileId : undefined}
-        selectable={interaction?.canDiscard}
-        selectedTileId={interaction?.selectedTileId}
-        onSelectTile={interaction?.onSelectTile}
-        discardPending={interaction?.discardPending}
-        canDraw={interaction?.canDraw}
-        waits={state.waits}
-        matchKey={matchKey}
-        sortMode={sortMode}
-        onCycleSortMode={cycleSortMode}
-        onMoveSelected={moveSelected}
       />
       <ActionBar
         legalActions={state.legalActions}
@@ -672,7 +916,24 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         selectedTile={selectedTile}
         onConfirmDiscard={interaction?.onConfirmDiscard}
         discardPending={interaction?.discardPending}
-        activeSeatLabel={seatLabel(activeSeat)}
+      />
+      <LocalSeat
+        state={local}
+        displayedHand={displayedHand}
+        selectable={interaction?.canDiscard}
+        selectedTileId={interaction?.selectedTileId}
+        onSelectTile={interaction?.onSelectTile}
+        discardPending={interaction?.discardPending}
+        canDraw={interaction?.canDraw}
+        waits={state.waits}
+        matchKey={matchKey}
+        sortMode={sortMode}
+        onCycleSortMode={cycleSortMode}
+        onMoveSelected={moveSelected}
+        onReorderTile={reorderTile}
+        drawnTileId={drawnTileId}
+        tableFxEnabled={tableFxEnabled}
+        onToggleTableFx={toggleTableFx}
       />
     </div>
   );

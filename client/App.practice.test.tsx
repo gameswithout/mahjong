@@ -75,6 +75,25 @@ function completedPracticeView(matchId: string): SeatView {
   };
 }
 
+function activePracticeView(matchId: string): SeatView {
+  return {
+    match_id: matchId,
+    seat: "E",
+    state_version: 1,
+    phase: "awaiting_draw",
+    active_seat: "E",
+    own_hand: [],
+    own_exposed: [],
+    players: [
+      { seat: "E", hand_count: 16 },
+      { seat: "S", hand_count: 16, is_bot: true },
+      { seat: "W", hand_count: 16, is_bot: true },
+      { seat: "N", hand_count: 16, is_bot: true },
+    ],
+    wall: { remaining: 80, drawable_remaining: 64, reserve_remaining: 16 },
+  };
+}
+
 function button(container: HTMLElement, label: string): HTMLButtonElement {
   const match = Array.from(container.querySelectorAll("button")).find(
     (candidate) => candidate.textContent === label,
@@ -213,6 +232,101 @@ describe("App Practice journey", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     expect(calls.at(-1)).toBe("leave:practice-2");
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
+  });
+
+  it("automatically draws when the local seat enters its draw phase", async () => {
+    const command = vi.fn(() => "command");
+    dependencies.createMatchRuntimeConnection.mockImplementation(
+      (_accessToken: string, options: MatchRuntimeConnectionOptions) => {
+        const connection: MatchRuntimeConnection = {
+          ready: Promise.resolve({
+            protocol_version: "1",
+            server_time: "2026-07-24T00:00:00Z",
+            user_id: "guest-1",
+          }),
+          join: vi.fn((matchId: string) => {
+            queueMicrotask(() =>
+              options.onJoined?.({
+                match_id: matchId,
+                seat: "E",
+                view: activePracticeView(matchId),
+              }),
+            );
+            return `join-${matchId}`;
+          }),
+          sync: vi.fn(() => "sync"),
+          command,
+          close: vi.fn(),
+        };
+        return connection;
+      },
+    );
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}),
+      getAccessToken: vi.fn().mockReturnValue("guest-token"),
+    } as unknown as BrowserIam;
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await clickAndFlush(container, "Practice vs Bots");
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 360));
+    });
+
+    expect(command).toHaveBeenCalledWith({
+      match_id: "practice-1",
+      type: "draw",
+      expected_version: 1,
+    });
+    expect(command).toHaveBeenCalledOnce();
+  });
+
+  it("does not race automatic drawing after the fallback is used", async () => {
+    const command = vi.fn(() => "command");
+    dependencies.createMatchRuntimeConnection.mockImplementation(
+      (_accessToken: string, options: MatchRuntimeConnectionOptions) => {
+        const connection: MatchRuntimeConnection = {
+          ready: Promise.resolve({
+            protocol_version: "1",
+            server_time: "2026-07-24T00:00:00Z",
+            user_id: "guest-1",
+          }),
+          join: vi.fn((matchId: string) => {
+            queueMicrotask(() =>
+              options.onJoined?.({
+                match_id: matchId,
+                seat: "E",
+                view: activePracticeView(matchId),
+              }),
+            );
+            return `join-${matchId}`;
+          }),
+          sync: vi.fn(() => "sync"),
+          command,
+          close: vi.fn(),
+        };
+        return connection;
+      },
+    );
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}),
+      getAccessToken: vi.fn().mockReturnValue("guest-token"),
+    } as unknown as BrowserIam;
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Draw now"));
+    await clickAndFlush(container, "Draw now");
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+    });
+
+    expect(command).toHaveBeenCalledOnce();
   });
 
   it("does not create a replacement until a failed leave is retried", async () => {

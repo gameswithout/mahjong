@@ -108,12 +108,12 @@ const report = await measurePage.evaluate(() => {
     return { width: rect.width, height: rect.height };
   });
 
-  // Every discard tile across all four seats should be visible (no
-  // clipped/overflow-hidden loss of a discard) at this snapshot's counts.
-  results.discardCounts = Array.from(doc.querySelectorAll(".seat")).map((seat) => {
-    const grid = seat.querySelector(".discard-grid");
+  // Every discard tile across all four central rivers should be visible
+  // (no clipped/overflow-hidden loss of a discard) at this snapshot's counts.
+  results.discardCounts = Array.from(doc.querySelectorAll(".discard-river")).map((river) => {
+    const grid = river.querySelector(".discard-grid");
     const visibleTiles = grid ? grid.querySelectorAll(".discard-slot .tile").length : 0;
-    return { seat: seat.getAttribute("aria-label"), visibleDiscardTiles: visibleTiles };
+    return { river: river.getAttribute("aria-label"), visibleDiscardTiles: visibleTiles };
   });
 
   return results;

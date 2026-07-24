@@ -19,6 +19,10 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function report(stage, details = {}) {
+  process.stdout.write(`${JSON.stringify({ stage, ...details })}\n`);
+}
+
 async function waitForServer(url, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
@@ -151,17 +155,19 @@ async function driveOneLegalAction(page) {
     return "result";
   }
 
-  const win = page.getByRole("button", { name: /^Win(?:\s|$)/ }).first();
+  // A submitted claim remains revisable and is labelled with "✓". Do not
+  // keep resubmitting that same response; let the other eligible seats answer.
+  const win = page.getByRole("button", { name: /^Win(?: · \d+ Tai)?$/ }).first();
   if (await clickIfEnabled(win)) {
     return "win";
   }
 
-  const pass = page.getByRole("button", { name: /^Pass(?:\s|$)/ }).first();
+  const pass = page.getByRole("button", { name: "Pass", exact: true }).first();
   if (await clickIfEnabled(pass)) {
     return "pass";
   }
 
-  const draw = page.getByRole("button", { name: "Draw a tile" });
+  const draw = page.getByRole("button", { name: /^(Draw a tile|Draw now)$/ });
   if (await clickIfEnabled(draw)) {
     return "draw";
   }
@@ -203,6 +209,9 @@ async function driveHandToResult() {
       const action = await driveOneLegalAction(page);
       if (action && action !== "result") {
         actionCount += 1;
+        if (actionCount % 25 === 0) {
+          report("hand-progress", { legalActions: actionCount });
+        }
         acted = true;
         break;
       }
@@ -210,7 +219,21 @@ async function driveHandToResult() {
     await delay(acted ? 120 : 250);
   }
 
-  throw new Error(`The hand did not reach a result within ${HAND_TIMEOUT_MS}ms.`);
+  const tableStates = await Promise.all(
+    pages.map(async (page, index) => ({
+      player: index + 1,
+      tableVisible: await isVisible(page.getByTestId("live-match")),
+      resultVisible: await isVisible(page.getByRole("region", { name: "Hand result" })),
+      actionText: await page.locator(".action-bar").textContent().catch(() => null),
+      enabledActions: await page
+        .locator(".action-bar button:enabled")
+        .allTextContents()
+        .catch(() => []),
+    })),
+  );
+  throw new Error(
+    `The hand did not reach a result within ${HAND_TIMEOUT_MS}ms after ${actionCount} legal actions: ${JSON.stringify(tableStates)}.`,
+  );
 }
 
 async function cleanupPage(page) {
@@ -260,6 +283,7 @@ async function main() {
   }
 
   await Promise.all(pages.map(signInAndQueue));
+  report("queued", { players: PLAYER_COUNT });
   const matches = await Promise.all(pages.map(waitForLiveMatch));
 
   const matchIds = new Set(matches.map((match) => match.matchId));
@@ -270,10 +294,14 @@ async function main() {
   if (seats.size !== PLAYER_COUNT || seats.has(null)) {
     throw new Error(`Players did not receive four distinct seats: ${JSON.stringify(matches)}.`);
   }
+  report("runtime-joined", { players: PLAYER_COUNT, distinctSeats: seats.size });
 
   await Promise.all(pages.map((page, index) => verifyPrivateTable(page, index + 1)));
+  report("private-views-verified", { players: PLAYER_COUNT });
   await exerciseReconnect(pages[0], matches[0].seat);
+  report("reconnect-verified", { seatPreserved: true });
   const actionCount = await driveHandToResult();
+  report("hand-complete", { legalActions: actionCount });
 
   await Promise.all(
     pages.map(async (page) => {
@@ -305,12 +333,12 @@ async function main() {
 try {
   await main();
 } catch (error) {
-  await Promise.all(pages.map(cleanupPage));
   for (let index = 0; index < pages.length; index += 1) {
     await pages[index]
       .screenshot({ path: `/tmp/mahjong-four-human-player-${index + 1}.png`, fullPage: true })
       .catch(() => {});
   }
+  await Promise.all(pages.map(cleanupPage));
   throw error;
 } finally {
   await Promise.all(contexts.map((context) => context.close().catch(() => {})));

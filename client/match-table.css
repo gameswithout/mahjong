@@ -1,8 +1,7 @@
-/* §9.2 match table wireframe styles. Validated against the mandatory
-   640x360 CSS pixel landscape minimum viewport (E7.F5) only — the center
-   column's 1fr track is written to be fluid, but broader responsive
-   behavior across "every supported match viewport" (larger phones,
-   tablet, desktop) is E8.F1's device-lab pass, not exercised here. */
+/* Match-table foundation shared by the production game and the standalone
+   §9.2 harness. The compact rules establish the mandatory 640x360 floor;
+   the M2.6 composition at the end of this file adds the viewport-scaled
+   playfield, player cockpit, and short-landscape/desktop tiers. */
 
 html,
 body {
@@ -1008,5 +1007,718 @@ body {
     font-size: 16px;
     gap: 8px;
     padding: 0 28px;
+  }
+}
+
+/* M2.6 table-first composition ------------------------------------------------
+   The earlier grid proved every rules element could fit at 640x360, but it
+   left the growing 1fr centre almost empty on desktop. The playfield now owns
+   all four discard rivers, the local rail becomes a real player cockpit, and
+   fixed-size game pieces scale with the available viewport. */
+
+.match-table {
+  --hand-tile-width: 22px;
+  --river-tile-width: 13px;
+  grid-template-areas:
+    "top top top"
+    "left playfield right"
+    "actions actions actions"
+    "bottom bottom bottom";
+  grid-template-columns: 82px minmax(0, 1fr) 82px;
+  grid-template-rows: 44px minmax(0, 1fr) auto 92px;
+  position: relative;
+}
+
+.table-playfield {
+  background:
+    radial-gradient(circle at 50% 50%, rgb(255 246 214 / 9%), transparent 42%),
+    linear-gradient(90deg, transparent 49.8%, rgb(255 255 255 / 4%) 50%, transparent 50.2%),
+    linear-gradient(transparent 49.8%, rgb(255 255 255 / 4%) 50%, transparent 50.2%);
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 5%);
+  grid-area: playfield;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.turn-orbit-marker {
+  background: #f2c66d;
+  border: 2px solid rgb(255 250 221 / 88%);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgb(242 198 109 / 85%);
+  height: 9px;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 4%;
+  transform: translate(-50%, -50%);
+  transition: left 0.28s ease, top 0.28s ease;
+  width: 9px;
+  z-index: 6;
+}
+
+.turn-orbit-marker-right {
+  left: 96%;
+  top: 50%;
+}
+
+.turn-orbit-marker-bottom {
+  left: 50%;
+  top: 96%;
+}
+
+.turn-orbit-marker-left {
+  left: 4%;
+  top: 50%;
+}
+
+.discard-river {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+  position: absolute;
+  transition: filter 0.18s ease;
+  z-index: 1;
+}
+
+.discard-river-top,
+.discard-river-bottom {
+  height: 38%;
+  left: 20%;
+  right: 20%;
+}
+
+.discard-river-top {
+  top: 1px;
+}
+
+.discard-river-bottom {
+  bottom: 1px;
+}
+
+.discard-river-left,
+.discard-river-right {
+  bottom: 20%;
+  top: 20%;
+  width: 30%;
+}
+
+.discard-river-left {
+  left: 1px;
+}
+
+.discard-river-right {
+  right: 1px;
+}
+
+.discard-river .discard-grid {
+  align-content: center;
+  display: grid;
+  flex: 0 1 auto;
+  gap: 2px;
+  justify-content: center;
+  overflow: visible;
+  padding: 3px;
+}
+
+.discard-river-top .discard-grid,
+.discard-river-bottom .discard-grid {
+  grid-template-columns: repeat(6, var(--river-tile-width));
+}
+
+.discard-river-left .discard-grid,
+.discard-river-right .discard-grid {
+  grid-template-columns: repeat(3, var(--river-tile-width));
+}
+
+.discard-river-claim-source {
+  filter: brightness(1.16);
+}
+
+.discard-river-claim-source::after {
+  background: #f2c66d;
+  border-radius: 999px;
+  color: #10131f;
+  content: "CLAIM";
+  font-size: 7px;
+  font-weight: 900;
+  padding: 1px 4px;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.discard-river .tile-sm {
+  height: calc(var(--river-tile-width) * 1.38);
+  width: var(--river-tile-width);
+}
+
+.discard-river .discard-slot-recent {
+  z-index: 3;
+}
+
+.discard-river .discard-slot-recent .tile {
+  animation:
+    discard-land 0.2s ease-out both,
+    discard-pulse 1.1s ease-in-out 0.2s infinite;
+  transform: scale(1.1);
+}
+
+.table-playfield .center-panel {
+  background:
+    radial-gradient(circle at 40% 25%, rgb(255 255 255 / 8%), transparent 32%),
+    linear-gradient(155deg, rgb(18 27 24 / 96%), rgb(8 16 13 / 96%));
+  border: 1px solid rgb(242 198 109 / 28%);
+  border-radius: 12px;
+  box-shadow:
+    0 8px 20px rgb(0 0 0 / 32%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+  gap: 2px;
+  grid-area: unset;
+  left: 50%;
+  min-height: 74px;
+  overflow: visible;
+  padding: 5px;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 82px;
+  z-index: 4;
+}
+
+.center-panel-your-turn {
+  border-color: #f2c66d;
+  box-shadow:
+    0 0 0 2px rgb(242 198 109 / 18%),
+    0 8px 24px rgb(0 0 0 / 38%);
+}
+
+.seat-top {
+  align-items: center;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.seat-top .seat-header,
+.seat-top .opponent-hand-backs {
+  align-self: center;
+}
+
+.seat-left,
+.seat-right {
+  align-items: center;
+  justify-content: center;
+}
+
+.seat-left .seat-header,
+.seat-right .seat-header {
+  align-self: center;
+}
+
+.seat-left .opponent-hand-backs,
+.seat-right .opponent-hand-backs {
+  align-items: center;
+  flex-direction: column;
+}
+
+.seat-left .opponent-hand-backs .tile-xs + .tile-xs,
+.seat-right .opponent-hand-backs .tile-xs + .tile-xs {
+  margin-top: -7px;
+}
+
+.seat-left .meld-area,
+.seat-right .meld-area {
+  justify-content: center;
+}
+
+.local-seat {
+  display: grid;
+  grid-template-areas:
+    "local-meta waits"
+    "hand hand";
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 22px minmax(0, 1fr);
+  overflow: visible;
+  padding: 2px 5px 4px;
+  position: relative;
+}
+
+.local-seat > .seat-header {
+  grid-area: local-meta;
+  z-index: 2;
+}
+
+.local-seat > .meld-area {
+  bottom: 4px;
+  left: 4px;
+  max-width: 26%;
+  position: absolute;
+  z-index: 3;
+}
+
+.local-seat > .wait-panel {
+  align-items: center;
+  grid-area: waits;
+  justify-content: flex-end;
+  padding-right: 4px;
+  z-index: 2;
+}
+
+.wait-label {
+  color: #f2c66d;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  margin-right: 2px;
+  text-transform: uppercase;
+}
+
+.local-hand {
+  align-items: flex-end;
+  grid-area: hand;
+  gap: 0;
+  overflow: visible;
+}
+
+.local-hand-tile-wrap {
+  min-width: 32px;
+}
+
+.local-hand-tile-drawn {
+  margin-left: 8px;
+  position: relative;
+}
+
+.local-hand-tile-drawn::after {
+  background: #f2c66d;
+  border-radius: 999px;
+  content: "";
+  height: 4px;
+  left: 50%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 4px;
+}
+
+.local-hand-tile-drawn .tile {
+  animation: tile-arrive 0.25s ease-out;
+}
+
+.local-hand-tile-button[draggable="true"] {
+  cursor: grab;
+}
+
+.local-hand-tile-button[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.discard-confirm-row {
+  background: rgb(8 14 12 / 88%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  bottom: 4px;
+  padding: 3px;
+  position: absolute;
+  right: 4px;
+  z-index: 8;
+}
+
+.sort-toggle-button,
+.table-fx-toggle {
+  background: #232a45;
+  border: 1px solid #3a4066;
+  border-radius: 999px;
+  color: #f7f4ee;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+}
+
+.table-fx-toggle-on {
+  background: #285b43;
+  border-color: #4a9b72;
+}
+
+.table-fx-toggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.action-bar {
+  align-self: center;
+  background: rgb(8 15 13 / 91%);
+  border: 1px solid rgb(242 198 109 / 30%);
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 28%);
+  flex-direction: row;
+  justify-self: center;
+  max-width: calc(100% - 12px);
+  min-height: 44px;
+  padding: 4px 8px;
+  width: max-content;
+  z-index: 12;
+}
+
+.action-bar-claim {
+  animation: action-dock-arrive 0.2s ease-out both;
+}
+
+.action-bar-draw {
+  gap: 7px;
+}
+
+.action-bar-context {
+  flex-shrink: 0;
+}
+
+.action-draw-fallback {
+  font-size: 10px;
+  min-height: 44px;
+}
+
+.action-win {
+  background: linear-gradient(180deg, #ffed9d, #f2c84b);
+  box-shadow:
+    0 0 0 2px rgb(255 237 157 / 25%),
+    0 2px 8px rgb(242 200 75 / 35%);
+}
+
+.action-pong {
+  background: linear-gradient(180deg, #8de0ad, #52b77c);
+}
+
+.action-kong {
+  background: linear-gradient(180deg, #b9a6f4, #8c73d6);
+}
+
+.action-button[class*="action-chow"] {
+  background: linear-gradient(180deg, #9ed7ed, #65afd0);
+}
+
+@keyframes tile-arrive {
+  from {
+    opacity: 0;
+    transform: translate(14px, -10px) rotate(3deg);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+}
+
+@keyframes action-dock-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes discard-land {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(1.18);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1.1);
+  }
+}
+
+@media (min-width: 700px) {
+  .match-table {
+    --hand-tile-width: clamp(34px, 3.6vw, 52px);
+    --river-tile-width: clamp(18px, 1.9vw, 28px);
+    gap: clamp(5px, 0.65vw, 11px);
+    grid-template-columns:
+      clamp(118px, 12.5vw, 210px)
+      minmax(0, 1fr)
+      clamp(118px, 12.5vw, 210px);
+    grid-template-rows:
+      clamp(66px, 11vh, 98px)
+      minmax(0, 1fr)
+      auto
+      clamp(132px, 25vh, 220px);
+    padding: clamp(6px, 0.75vw, 12px);
+  }
+
+  .tile-lg {
+    height: calc(var(--hand-tile-width) * 1.62);
+    min-width: var(--hand-tile-width);
+    width: var(--hand-tile-width);
+  }
+
+  .local-hand-tile-wrap {
+    min-height: calc(var(--hand-tile-width) * 1.72);
+    min-width: calc(var(--hand-tile-width) + 4px);
+  }
+
+  .local-hand-tile-drawn {
+    margin-left: clamp(10px, 1.4vw, 22px);
+  }
+
+  .local-hand-tile-drawn::after {
+    height: 6px;
+    top: 1px;
+    width: 6px;
+  }
+
+  .local-seat {
+    grid-template-rows: 34px minmax(0, 1fr);
+    padding: 5px 12px 8px;
+  }
+
+  .local-seat > .wait-panel {
+    gap: 7px;
+    justify-content: center;
+  }
+
+  .wait-label {
+    font-size: 11px;
+  }
+
+  .wait-entry {
+    flex-direction: row;
+    gap: 3px;
+  }
+
+  .wait-remaining {
+    font-size: 11px;
+  }
+
+  .seat-left .opponent-hand-backs .tile-xs + .tile-xs,
+  .seat-right .opponent-hand-backs .tile-xs + .tile-xs {
+    margin-top: -9px;
+  }
+
+  .seat-left .tile-xs,
+  .seat-right .tile-xs {
+    height: 18px;
+    width: 24px;
+  }
+
+  .table-playfield .center-panel {
+    border-radius: 18px;
+    gap: 5px;
+    min-height: clamp(112px, 16vh, 150px);
+    padding: 10px;
+    width: clamp(112px, 10vw, 148px);
+  }
+
+  .discard-river .discard-grid {
+    gap: clamp(2px, 0.25vw, 4px);
+  }
+
+  .discard-river-claim-source::after {
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+
+  .sort-toggle-button,
+  .table-fx-toggle {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+
+  .action-bar {
+    gap: 10px;
+    min-height: 56px;
+    padding: 5px 10px;
+  }
+
+  .action-bar-claim {
+    flex-direction: row;
+  }
+
+  .action-draw-fallback {
+    font-size: 12px;
+    min-height: 48px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .seat-top {
+    gap: 14px;
+  }
+
+  .seat-left,
+  .seat-right {
+    gap: 9px;
+  }
+
+  .seat-left .opponent-hand-backs .tile-xs + .tile-xs,
+  .seat-right .opponent-hand-backs .tile-xs + .tile-xs {
+    margin-top: -7px;
+  }
+
+  .active-seat-callout {
+    font-size: 13px;
+    padding: 4px 12px;
+  }
+}
+
+/* Short landscape phones can be wider than the desktop breakpoint while
+   offering only 360–430px of height. Height wins here: keep the cockpit and
+   touch targets comfortable without letting tablet-sized rails consume the
+   playfield. */
+@media (max-height: 500px) {
+  .match-table {
+    --hand-tile-width: clamp(26px, 3.6vw, 36px);
+    --river-tile-width: clamp(12px, 1.8vw, 18px);
+    gap: 3px;
+    grid-template-columns: 96px minmax(0, 1fr) 96px;
+    grid-template-rows: 48px minmax(0, 1fr) auto 112px;
+    padding: 4px;
+  }
+
+  .seat {
+    gap: 2px;
+    padding: 2px 4px;
+  }
+
+  .seat-header {
+    gap: 3px;
+    padding: 2px 5px;
+  }
+
+  .seat-left .seat-status,
+  .seat-right .seat-status {
+    flex-basis: auto;
+  }
+
+  .seat-identity,
+  .seat-status {
+    gap: 3px;
+  }
+
+  .seat-avatar,
+  .wind-badge {
+    font-size: 10px;
+    height: 18px;
+    width: 18px;
+  }
+
+  .seat-name,
+  .hand-count {
+    font-size: 10px;
+  }
+
+  .dealer-badge,
+  .takeover-badge,
+  .claim-badge {
+    font-size: 8px;
+    padding: 1px 3px;
+  }
+
+  .tile-lg {
+    height: calc(var(--hand-tile-width) * 1.58);
+    min-width: var(--hand-tile-width);
+    width: var(--hand-tile-width);
+  }
+
+  .local-hand-tile-wrap {
+    min-height: 48px;
+    min-width: max(32px, calc(var(--hand-tile-width) + 4px));
+  }
+
+  .local-seat {
+    grid-template-rows: 26px minmax(0, 1fr);
+    padding: 3px 6px 4px;
+  }
+
+  .local-seat > .wait-panel {
+    gap: 4px;
+    justify-content: flex-end;
+  }
+
+  .wait-entry {
+    flex-direction: column;
+  }
+
+  .wait-label,
+  .wait-remaining {
+    font-size: 8px;
+  }
+
+  .table-playfield .center-panel {
+    border-radius: 12px;
+    gap: 2px;
+    min-height: 82px;
+    padding: 5px;
+    width: 90px;
+  }
+
+  .countdown-ring,
+  .countdown-untimed,
+  .countdown-number {
+    height: 36px;
+    width: 36px;
+  }
+
+  .countdown-untimed-icon {
+    font-size: 16px;
+  }
+
+  .wall-count {
+    font-size: 15px;
+  }
+
+  .round-status,
+  .active-seat-callout {
+    font-size: 8px;
+  }
+
+  .action-bar {
+    gap: 5px;
+    min-height: 48px;
+    padding: 2px 7px;
+  }
+
+  .action-bar-prompt {
+    font-size: 10px;
+  }
+
+  .action-button {
+    font-size: 12px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 11px;
+  }
+
+  .action-row {
+    gap: 4px;
+  }
+
+  .sort-toggle-button,
+  .table-fx-toggle {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+
+  .seat-left .opponent-hand-backs .tile-xs + .tile-xs,
+  .seat-right .opponent-hand-backs .tile-xs + .tile-xs {
+    margin-top: -9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .local-hand-tile-drawn .tile,
+  .action-bar-claim,
+  .discard-river .discard-slot-recent .tile {
+    animation: none;
+  }
+
+  .turn-orbit-marker {
+    transition: none;
   }
 }

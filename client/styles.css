@@ -410,18 +410,23 @@ h1 {
 }
 
 .match-table-frame {
-  /* Grows with the viewport instead of staying pinned at the §9.2 E7.F5
-     validated *minimum* (640x360) — that number is a floor a real desktop
-     window has no reason to be capped at. aspect-ratio keeps the table's
-     proportions sane while it scales; min-width/min-height are the actual
-     floor, with overflow-x as the safety net below that. */
-  aspect-ratio: 16 / 9;
-  margin: 0 auto;
-  max-width: 1200px;
+  /* A live table is the product, not a card inside the product. It owns the
+     viewport and lets the inner playfield adapt to wide desktop, tablet
+     landscape, and the certified 640x360 compact floor. */
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  max-width: none;
   min-height: 360px;
   min-width: 640px;
-  overflow-x: auto;
-  width: min(100%, 1200px);
+  overflow: hidden;
+  padding:
+    env(safe-area-inset-top)
+    env(safe-area-inset-right)
+    env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  width: 100vw;
+  width: 100dvw;
 }
 
 .hand-result-screen {
@@ -563,10 +568,11 @@ h1 {
   background: radial-gradient(ellipse at 50% 15%, #1b2033 0%, #0c0e18 65%);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0;
   justify-content: center;
   min-height: 100vh;
-  padding: 0.75rem;
+  overflow: auto;
+  padding: 0;
   position: relative;
 }
 
@@ -575,8 +581,9 @@ h1 {
   display: flex;
   gap: 0.75rem;
   position: absolute;
-  right: 0.75rem;
-  top: 0.75rem;
+  right: max(0.75rem, env(safe-area-inset-right));
+  top: max(0.75rem, env(safe-area-inset-top));
+  z-index: 40;
 }
 
 .game-screen-topbar .control-restored-toast {
@@ -584,8 +591,11 @@ h1 {
 }
 
 .leave-match-button {
-  background: transparent;
-  border: 1px solid rgb(247 244 238 / 25%);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  background: rgb(8 13 12 / 68%);
+  border: 1px solid rgb(247 244 238 / 28%);
+  border-radius: 999px;
   color: #c6cbe0;
   font-size: 0.8rem;
   padding: 0.5rem 1rem;
@@ -643,5 +653,15 @@ h1 {
 
   .game-screen .match-table-frame {
     margin: 0;
+  }
+
+  .game-screen-topbar {
+    right: max(0.35rem, env(safe-area-inset-right));
+    top: max(0.35rem, env(safe-area-inset-top));
+  }
+
+  .leave-match-button {
+    font-size: 0.7rem;
+    padding: 0.35rem 0.65rem;
   }
 }
