@@ -25,6 +25,7 @@ export default defineConfig(({ mode, command }) => {
       "import.meta.env.ACCELBYTE_NAMESPACE": JSON.stringify(env.ACCELBYTE_NAMESPACE),
       "import.meta.env.ACCELBYTE_CLIENT_ID": JSON.stringify(env.ACCELBYTE_CLIENT_ID),
       "import.meta.env.ACCELBYTE_MATCH_SERVICE_URL": JSON.stringify(env.ACCELBYTE_MATCH_SERVICE_URL),
+      "import.meta.env.ACCELBYTE_ICE_CONFIG_URL": JSON.stringify(env.ACCELBYTE_ICE_CONFIG_URL),
       "import.meta.env.ACCELBYTE_MATCH_POOL": JSON.stringify(env.ACCELBYTE_MATCH_POOL),
       "import.meta.env.ACCELBYTE_SESSION_TEMPLATE": JSON.stringify(env.ACCELBYTE_SESSION_TEMPLATE),
       "import.meta.env.ACCELBYTE_SESSION_CLIENT_VERSION": JSON.stringify(
