@@ -136,8 +136,9 @@ describe("HandResultScreen", () => {
 
     const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
 
+    expect(markup).toContain('lang="zh-Hant">台</span><small>(Tai)</small>');
     expect(markup).toContain(
-      "Dealer Tai: +5 when You (East) is the winner or payer",
+      ": +5 when You (East) is the winner or payer",
     );
     expect(markup).not.toContain("South is dealer");
   });

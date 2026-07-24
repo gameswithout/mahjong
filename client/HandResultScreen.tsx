@@ -7,6 +7,7 @@
 import { useState } from "react";
 
 import type { HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
+import { TileFace } from "./TileFace";
 import type { SeatId } from "./matchTableTypes";
 import { tile, windName } from "./matchTableTypes";
 
@@ -38,7 +39,7 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
           <span key={index} className="hand-result-meld">
             {meld.tiles?.map((item) => (
               <span key={item.id} className="tile tile-sm" role="img" aria-label={tile(item.id).label}>
-                {tile(item.id).glyph}
+                <TileFace id={item.id} size="sm" />
               </span>
             ))}
           </span>
@@ -46,12 +47,14 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
         <span className="hand-result-pair">
           {winner.score.shape.pair.map((item) => (
             <span key={item.id} className="tile tile-sm" role="img" aria-label={tile(item.id).label}>
-              {tile(item.id).glyph}
+              <TileFace id={item.id} size="sm" />
             </span>
           ))}
         </span>
       </div>
-      <p className="hand-result-tai-total">Raw Tai: {winner.score.raw_tai}</p>
+      <p className="hand-result-tai-total">
+        Raw <span className="bilingual-term"><span lang="zh-Hant">台</span><small>(Tai)</small></span>: {winner.score.raw_tai}
+      </p>
       <button
         type="button"
         className="secondary-action hand-result-why-toggle"
@@ -64,7 +67,7 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
         <ul className="hand-result-patterns">
           {winner.score.patterns.map((pattern) => (
             <li key={pattern.name}>
-              {pattern.name}: {pattern.tai} Tai
+              {pattern.name}: {pattern.tai} <span lang="zh-Hant">台</span> (Tai)
             </li>
           ))}
         </ul>
@@ -134,7 +137,7 @@ export function HandResultScreen({
         <p className="hand-result-winning-tile">
           Winning tile:{" "}
           <span className="tile tile-sm" role="img" aria-label={winningTile.label}>
-            {winningTile.glyph}
+            <TileFace id={winningTile.id} size="sm" />
           </span>
         </p>
       )}
@@ -147,7 +150,8 @@ export function HandResultScreen({
 
       {dealerTaiBonus > 0 && dealer && (
         <p className="hand-result-dealer-tai">
-          Dealer Tai: +{dealerTaiBonus} when {seatLabel(dealer, view.seat)} is the winner or payer
+          Dealer <span className="bilingual-term"><span lang="zh-Hant">台</span><small>(Tai)</small></span>: +{dealerTaiBonus} when{" "}
+          {seatLabel(dealer, view.seat)} is the winner or payer
         </p>
       )}
 

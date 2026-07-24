@@ -472,8 +472,31 @@ h1 {
 }
 
 .hand-result-tai-total {
+  align-items: center;
+  display: flex;
+  gap: 0.25rem;
   font-weight: 700;
   margin: 0.4rem 0;
+}
+
+.bilingual-term {
+  align-items: center;
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 0.9;
+  vertical-align: middle;
+}
+
+.bilingual-term > span {
+  font-family: "Noto Serif TC", "Songti TC", STSong, serif;
+  font-size: 1.1em;
+  font-weight: 900;
+}
+
+.bilingual-term small {
+  font-size: 0.62em;
+  margin-top: 0.2em;
+  opacity: 0.75;
 }
 
 .hand-result-why-toggle {

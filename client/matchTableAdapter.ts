@@ -4,7 +4,7 @@
 // it real match state instead.
 import type { MahjongTile, MeldView, SeatView } from "../protocol/envelope";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WireMeld } from "./matchTableTypes";
-import { tile } from "./matchTableTypes";
+import { tile, tileTypeKey } from "./matchTableTypes";
 
 const SEAT_ORDER: SeatId[] = ["E", "S", "W", "N"];
 
@@ -121,7 +121,14 @@ function claimLegalActions(
   (claim.options.chow_sets ?? []).forEach(([first, second], index) => {
     const id = `chow-${index}`;
     const label = claim.options.chow_sets!.length > 1 ? `Chow ${index + 1}` : "Chow";
-    actions.push(action(id, label, () => dispatch("chow", [first, second])));
+    const chowAction = action(id, label, () => dispatch("chow", [first, second]));
+    chowAction.chowPreview = {
+      tiles: [first, second, claim.discard.tile.id]
+        .map(tile)
+        .sort((left, right) => tileTypeKey(left.id).localeCompare(tileTypeKey(right.id))),
+      claimedTileId: claim.discard.tile.id,
+    };
+    actions.push(chowAction);
   });
   actions.push(action("pass", "Pass", () => dispatch("pass")));
   return actions;

@@ -307,16 +307,21 @@ describe("seatViewToMatchTableState", () => {
 
     it("marks the chosen chow set specifically, not just any chow button", () => {
       const view = claimView({
+        discard: {
+          seat: "S",
+          tile: { id: "characters-3-2", kind: "characters", rank: 3, copy: 2 },
+          sequence: 1,
+        },
         options: {
           chow_sets: [
-            ["characters-2-1", "characters-3-1"],
-            ["characters-3-1", "characters-4-1"],
+            ["characters-1-1", "characters-2-1"],
+            ["characters-2-1", "characters-4-1"],
           ],
         },
         own_response: {
           seat: "E",
           type: "chow",
-          tile_ids: ["characters-3-1", "characters-4-1"],
+          tile_ids: ["characters-2-1", "characters-4-1"],
           state_version: 2,
           response_revision: 0,
         },
@@ -324,6 +329,11 @@ describe("seatViewToMatchTableState", () => {
       const state = seatViewToMatchTableState(view, { now: Date.now(), onClaimAction: vi.fn() });
       const chowActions = state.legalActions.filter((a) => a.id.startsWith("chow"));
       expect(chowActions.map((a) => a.label)).toEqual(["Chow 1", "Chow 2 ✓"]);
+      expect(chowActions.map((a) => a.chowPreview?.tiles.map((item) => item.id))).toEqual([
+        ["characters-1-1", "characters-2-1", "characters-3-2"],
+        ["characters-2-1", "characters-3-2", "characters-4-1"],
+      ]);
+      expect(chowActions.every((a) => a.chowPreview?.claimedTileId === "characters-3-2")).toBe(true);
     });
 
     it("disables every claim action while a previous one is still pending", () => {

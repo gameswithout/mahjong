@@ -10,7 +10,9 @@ const DOT_POINTS: Record<number, Point[]> = {
   4: [[18, 28], [42, 28], [18, 62], [42, 62]],
   5: [[18, 28], [42, 28], [30, 45], [18, 62], [42, 62]],
   6: [[18, 22], [42, 22], [18, 45], [42, 45], [18, 68], [42, 68]],
-  7: [[18, 18], [30, 29], [42, 18], [18, 46], [42, 46], [18, 68], [42, 68]],
+  // Traditional seven-dot layout: three pips descend diagonally, with the
+  // remaining four arranged as a square below.
+  7: [[15, 15], [28, 27], [41, 39], [18, 58], [42, 58], [18, 76], [42, 76]],
   8: [[18, 18], [42, 18], [18, 35], [42, 35], [18, 55], [42, 55], [18, 72], [42, 72]],
   9: [[18, 18], [30, 18], [42, 18], [18, 45], [30, 45], [42, 45], [18, 72], [30, 72], [42, 72]],
 };
@@ -34,9 +36,9 @@ function parsedTile(id: string): { suit: string; rank?: number; name?: string } 
   return { suit, rank: Number(second) };
 }
 
-function Dot({ x, y, color }: { x: number; y: number; color: string }) {
+function Dot({ x, y, color, scale = 1 }: { x: number; y: number; color: string; scale?: number }) {
   return (
-    <g transform={`translate(${x} ${y})`}>
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
       <circle r="8" fill={color} />
       <circle r="5.3" fill="#f6eed9" />
       <circle r="3.3" fill={color} />
@@ -47,7 +49,31 @@ function Dot({ x, y, color }: { x: number; y: number; color: string }) {
 
 function Dots({ rank }: { rank: number }) {
   const colors = ["#be3434", "#224d92", "#287244"];
-  return <>{(DOT_POINTS[rank] ?? []).map(([x, y], index) => <Dot key={`${x}-${y}`} x={x} y={y} color={colors[index % colors.length]} />)}</>;
+  if (rank === 1) {
+    return (
+      <g className="tile-face-one-dot" transform="translate(30 45)">
+        <circle r="21" fill="#287244" />
+        <circle r="17" fill="#f6eed9" />
+        <circle r="14" fill="none" stroke="#287244" strokeWidth="3" strokeDasharray="2 2.5" />
+        <circle r="9" fill="#be3434" />
+        <circle r="5.6" fill="#f6eed9" />
+        <circle r="3.2" fill="#be3434" />
+      </g>
+    );
+  }
+  return (
+    <>
+      {(DOT_POINTS[rank] ?? []).map(([x, y], index) => (
+        <Dot
+          key={`${x}-${y}`}
+          x={x}
+          y={y}
+          color={rank === 7 ? (index < 3 ? "#287244" : "#be3434") : colors[index % colors.length]}
+          scale={rank === 7 ? 0.82 : 1}
+        />
+      ))}
+    </>
+  );
 }
 
 function Bamboo({ rank }: { rank: number }) {

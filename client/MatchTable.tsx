@@ -257,6 +257,21 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
   const warn = !state.untimed && state.countdownSeconds <= AMBER_THRESHOLD_SECONDS && !urgent;
   const activeSeat = (Object.values(state.seats) as SeatState[]).find((s) => s.isActive)?.seat ?? state.localSeat;
   const fraction = state.countdownTotalSeconds > 0 ? state.countdownSeconds / state.countdownTotalSeconds : 0;
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    setElapsedSeconds(0);
+    if (!state.untimed) {
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeSeat, state.untimed]);
+
+  const elapsedLabel = `${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
 
   // §9.4: "At 3 seconds it changes from neutral to amber, announces '3
   // seconds' to assistive technology... at 1 second it changes to red and
@@ -287,10 +302,9 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       aria-label="Table status"
     >
       {state.untimed ? (
-        <div className="countdown countdown-untimed" role="status" aria-label="No turn timer">
-          <span className="countdown-untimed-icon" aria-hidden="true">
-            ∞
-          </span>
+        <div className="countdown countdown-untimed countdown-elapsed" role="timer" aria-label={`${elapsedSeconds} seconds elapsed`}>
+          <span className="countdown-elapsed-time" aria-hidden="true">{elapsedLabel}</span>
+          <span className="countdown-elapsed-caption" aria-hidden="true">elapsed</span>
         </div>
       ) : (
         <div
@@ -413,18 +427,8 @@ function TablePlayfield({
   discardPending?: boolean;
 }) {
   const lastDiscardTileId = state.lastDiscard?.tile.id;
-  const activeSeat =
-    (Object.values(state.seats) as SeatState[]).find((seat) => seat.isActive)?.seat ??
-    state.localSeat;
-  const activeSlot =
-    (Object.entries(slots) as [ScreenSlot, SeatId][]).find(([, seat]) => seat === activeSeat)?.[0] ??
-    "bottom";
   return (
     <div className="table-playfield">
-      <span
-        className={`turn-orbit-marker turn-orbit-marker-${activeSlot}`}
-        aria-hidden="true"
-      />
       {(["top", "left", "right", "bottom"] as const).map((slot) => {
         const seat = slots[slot];
         return (
@@ -439,12 +443,14 @@ function TablePlayfield({
           />
         );
       })}
-      <CurrentTileFocus
-        state={state}
-        canDiscard={canDiscard}
-        discardPending={discardPending}
-      />
-      <WallAndTurnCenter state={state} />
+      <div className="table-center-cluster">
+        <WallAndTurnCenter state={state} />
+        <CurrentTileFocus
+          state={state}
+          canDiscard={canDiscard}
+          discardPending={discardPending}
+        />
+      </div>
     </div>
   );
 }
@@ -594,6 +600,26 @@ function winButtonTitle(preview: NonNullable<MatchAction["preview"]>): string {
 }
 
 function ClaimButtons({ actions }: { actions: MatchAction[] }) {
+  const localizedAction = (action: MatchAction) => {
+    const key = action.id.toLowerCase();
+    const terms: Record<string, { glyph: string; english: string }> = {
+      chow: { glyph: "吃", english: "Chow" },
+      pong: { glyph: "碰", english: "Pong" },
+      kong: { glyph: "槓", english: "Gang" },
+      gang: { glyph: "槓", english: "Gang" },
+    };
+    const term = Object.entries(terms).find(([prefix]) => key === prefix || key.startsWith(`${prefix}-`))?.[1];
+    if (!term) {
+      return <span className="action-label-single">{action.label}</span>;
+    }
+    const suffix = action.label.replace(/^(Chow|Pong|Kong|Gang)\b/i, "").trim();
+    return (
+      <span className="action-label-bilingual">
+        <span className="action-label-zh" lang="zh-Hant">{term.glyph}{suffix ? ` ${suffix}` : ""}</span>
+        <span className="action-label-en">({term.english})</span>
+      </span>
+    );
+  };
   return (
     <div className="action-row" role="group" aria-label="Legal actions">
       {actions.map((action) => (
@@ -604,9 +630,32 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
           onClick={action.onClick}
           disabled={action.disabled}
           title={action.preview ? winButtonTitle(action.preview) : undefined}
+          aria-label={
+            action.chowPreview
+              ? `${action.label}: ${action.chowPreview.tiles.map((item) => item.label).join(", ")}`
+              : undefined
+          }
         >
-          {action.label}
-          {action.preview ? ` · ${action.preview.rawTai} Tai` : ""}
+          {localizedAction(action)}
+          {action.chowPreview ? (
+            <span className="chow-option-preview" aria-hidden="true">
+              {action.chowPreview.tiles.map((item) => (
+                <span
+                  key={item.id}
+                  className={`chow-preview-tile${
+                    item.id === action.chowPreview!.claimedTileId ? " chow-preview-claimed" : ""
+                  }`}
+                >
+                  <Tile t={item} size="sm" />
+                </span>
+              ))}
+            </span>
+          ) : null}
+          {action.preview ? (
+            <span className="action-score-preview">
+              {action.preview.rawTai} <span lang="zh-Hant">台</span> <small>(Tai)</small>
+            </span>
+          ) : null}
         </button>
       ))}
     </div>
@@ -682,7 +731,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
       ? `${state.lastDiscard.tile.id}:${state.claimSource ?? state.lastDiscard.seat}`
       : null;
 
-  const [sortMode, setSortMode] = useState<SortMode>("off");
+  const [sortMode, setSortMode] = useState<SortMode>("suit-rank");
   const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
   const [drawnTileId, setDrawnTileId] = useState<string | null>(() =>
     interaction?.canDiscard ? (localHand.at(-1)?.id ?? null) : null,
@@ -822,9 +871,9 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     previousHandIdsRef.current = nextIds;
   }, [interaction?.canDiscard, localHandIds]);
 
-  // Reconcile the display order after deal, draw, claim, and discard, then
-  // apply the active auto-sort mode. Discard is now one tap, so there is no
-  // intermediate selected-tile state that can block sorting.
+  // Reconcile the display order after deal, draw, claim, and discard. A new
+  // draw is staged at the far right without disturbing the current hand.
+  // Auto-sort runs only after the hand shrinks, or when sort mode changes.
   useEffect(() => {
     setHandOrder((current) => {
       const incomingIds = localHand.map((t) => t.id);
@@ -834,6 +883,10 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
       const added = incomingIds.filter((id) => !currentSet.has(id));
       const reconciled = [...kept, ...added];
       if (sortMode === "off") {
+        return reconciled;
+      }
+      const removed = current.some((id) => !incomingSet.has(id));
+      if (added.length > 0 && !removed) {
         return reconciled;
       }
       const byId = new Map(localHand.map((t) => [t.id, t]));

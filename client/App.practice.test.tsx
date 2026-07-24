@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SeatView } from "../protocol/envelope";
+import type { MatchCommandRequest, SeatView } from "../protocol/envelope";
 import type { BrowserIam } from "./iam";
 import type { MatchRuntimeConnection, MatchRuntimeConnectionOptions } from "./match-runtime";
 import { SessionLookupError, type SessionClient } from "./session";
@@ -106,6 +106,33 @@ function discardPracticeView(matchId: string): SeatView {
     players: view.players.map((player) =>
       player.seat === "E" ? { ...player, hand_count: 1 } : player,
     ),
+  };
+}
+
+function chowOpportunityView(matchId: string): SeatView {
+  const view = activePracticeView(matchId);
+  return {
+    ...view,
+    seat: "S",
+    active_seat: "E",
+    phase: "claim_window",
+    state_version: 12,
+    own_hand: [
+      { id: "characters-1-1", kind: "characters", rank: 1, copy: 1 },
+      { id: "characters-2-1", kind: "characters", rank: 2, copy: 1 },
+    ],
+    claim: {
+      action_id: "claim-12",
+      state_version: 12,
+      discard: {
+        seat: "E",
+        tile: { id: "characters-3-1", kind: "characters", rank: 3, copy: 1 },
+        sequence: 12,
+      },
+      deadline: "2026-07-25T00:00:00Z",
+      eligible: ["S"],
+      options: { chow_sets: [["characters-1-1", "characters-2-1"]] },
+    },
   };
 }
 
@@ -401,6 +428,81 @@ describe("App Practice journey", () => {
     });
 
     expect(command).toHaveBeenCalledOnce();
+  });
+
+  it("draws after passing a Chow opportunity when play advances to this seat", async () => {
+    const command = vi.fn((request: MatchCommandRequest) => {
+      if (request.type === "submit_claim") {
+        queueMicrotask(() => {
+          const next = activePracticeView(request.match_id);
+          optionsRef?.onCommandAccepted?.({
+            match_id: request.match_id,
+            seat: "S",
+            state_version: 13,
+            phase: "awaiting_draw",
+          });
+          optionsRef?.onState?.({
+            match_id: request.match_id,
+            seat: "S",
+            view: { ...next, seat: "S", active_seat: "S", state_version: 13 },
+          });
+        });
+      }
+      return "command";
+    });
+    let optionsRef: MatchRuntimeConnectionOptions | undefined;
+    dependencies.createMatchRuntimeConnection.mockImplementation(
+      (_accessToken: string, options: MatchRuntimeConnectionOptions) => {
+        optionsRef = options;
+        return {
+          ready: Promise.resolve({
+            protocol_version: "1",
+            server_time: "2026-07-24T00:00:00Z",
+            user_id: "guest-1",
+          }),
+          join: vi.fn((matchId: string) => {
+            queueMicrotask(() =>
+              options.onJoined?.({
+                match_id: matchId,
+                seat: "S",
+                view: chowOpportunityView(matchId),
+              }),
+            );
+            return `join-${matchId}`;
+          }),
+          sync: vi.fn(() => "sync"),
+          command,
+          close: vi.fn(),
+        };
+      },
+    );
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}),
+      getAccessToken: vi.fn().mockReturnValue("guest-token"),
+    } as unknown as BrowserIam;
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("(Chow)"));
+    await clickAndFlush(container, "Pass");
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 360));
+    });
+
+    expect(command).toHaveBeenNthCalledWith(1, {
+      match_id: "practice-1",
+      type: "submit_claim",
+      expected_version: 12,
+      claim: expect.objectContaining({ type: "pass" }),
+    });
+    expect(command).toHaveBeenNthCalledWith(2, {
+      match_id: "practice-1",
+      type: "draw",
+      expected_version: 13,
+    });
   });
 
   it("does not create a replacement until a failed leave is retried", async () => {

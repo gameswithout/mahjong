@@ -90,7 +90,19 @@ export const mockMatchTableState: MatchTableState = {
   countdownSeconds: 7,
   countdownTotalSeconds: 15,
   untimed: false,
-  legalActions: ["Pass", "Chow", "Pong", "Win"].map((label) => ({ id: label, label })),
+  legalActions: [
+    { id: "Pass", label: "Pass" },
+    {
+      id: "Chow",
+      label: "Chow",
+      chowPreview: {
+        tiles: ["dots-4-1", "dots-5-1", "dots-6-2"].map(tile),
+        claimedTileId: "dots-6-2",
+      },
+    },
+    { id: "Pong", label: "Pong" },
+    { id: "Win", label: "Win" },
+  ],
   waits: [
     { tile: tile("characters-4-2"), visibleRemaining: 2 },
     { tile: tile("dots-9-3"), visibleRemaining: 0 },
