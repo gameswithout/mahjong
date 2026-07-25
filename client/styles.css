@@ -662,6 +662,40 @@ h1 {
   margin: 0.2rem 0;
 }
 
+/* §10.2 end-of-match guest upgrade offer. Framed as an aside to the result
+   rather than a second result panel: it sits between the tally and the
+   Play Again / Return actions without competing with either. */
+.account-upgrade-card {
+  background: rgb(26 35 56 / 55%);
+  border: 1px solid rgb(242 198 109 / 35%);
+  border-radius: 14px;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  text-align: left;
+}
+
+.account-upgrade-card h3 {
+  font-size: 1.05rem;
+  margin: 0.2rem 0 0;
+}
+
+.account-upgrade-intro {
+  color: #c6cbe0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  margin: 0.5rem 0 0;
+}
+
+.account-upgrade-open {
+  margin-top: 0.85rem;
+  width: 100%;
+}
+
+.account-upgrade-dismiss {
+  margin-top: 0.55rem;
+  width: 100%;
+}
+
 .hand-result-actions {
   display: grid;
   gap: 0.65rem;

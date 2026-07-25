@@ -63,6 +63,12 @@ Open the printed local URL, click **Continue as Guest**, then:
   `ACCELBYTE_MATCH_POOL` is configured and enters the shared table
   automatically after all four Session members arrive.
 
+At the end of every hand — Practice or online — a guest is offered
+**Create a full account**: an email/password identity is attached to the
+*same* AGS account via IAM's headless-account upgrade, so Jade, rating, and
+progression carry over. Signing back in later with that email reaches the
+same account, from any device.
+
 Manual Session creation, Session-ID joining, and runtime diagnostics remain
 available under **Developer session tools**.
 
