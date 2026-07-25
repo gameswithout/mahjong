@@ -1199,6 +1199,44 @@ body {
   width: max-content;
 }
 
+.showdown-winning-discard {
+  align-items: center;
+  background: rgb(8 16 13 / 94%);
+  border-radius: 12px;
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 42%),
+    0 0 0 3px #f2c66d,
+    0 0 26px rgb(242 198 109 / 64%);
+  display: flex;
+  gap: clamp(8px, 1vw, 14px);
+  padding: clamp(6px, 0.7vw, 10px) clamp(9px, 1vw, 14px);
+}
+
+.showdown-winning-discard-copy {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
+.showdown-winning-discard-copy span {
+  color: #f2c66d;
+  font-size: clamp(8px, 0.8vw, 12px);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.showdown-winning-discard-copy strong {
+  font-size: clamp(10px, 1vw, 15px);
+}
+
+.showdown-winning-discard .tile-focus {
+  height: calc(var(--focus-tile-width) * 1.48);
+  min-width: var(--focus-tile-width);
+  width: var(--focus-tile-width);
+}
+
 .showdown-hand .tile-lg {
   --showdown-tile-width: clamp(27px, 3.5vw, 52px);
   height: calc(var(--showdown-tile-width) * 1.62);
@@ -1746,15 +1784,15 @@ body {
     position: relative;
   }
 
-  /* Identity + Sort/FX rest as a small tag on the near corner of your rail,
-     clearing the centre so the hand rack is the one thing you look at. Its
-     bottom edge follows the bottom of the local-hand rail, keeping it out of
-     the tile row even when every tile and the drawn-tile gap are present. */
+  /* Identity + Sort/FX sit directly beneath the concealed hand. Exposed
+     melds keep their own left-side lane, so Chow/Pong/Kang tiles can grow
+     without covering the controls. */
   .local-seat > .seat-header {
     bottom: 8px;
-    left: 14px;
+    left: 50%;
     position: absolute;
     top: auto;
+    transform: translateX(-50%);
   }
 
   .local-seat > .wait-panel {
@@ -1978,6 +2016,7 @@ body {
     left: auto;
     position: static;
     top: auto;
+    transform: none;
   }
 
   .local-hand {

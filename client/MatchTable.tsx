@@ -391,17 +391,14 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
           wallCritical ? ", wall critically low" : wallWarning ? ", wall running low" : ""
         }`}
       >
-        <span className="wall-outline-icon" aria-hidden="true">
-          ▤
-        </span>
         <span className="wall-count">{wallRemaining}</span>
         <span className="wall-count-label">left</span>
       </div>
       <div className="round-status">
         <span className="round-wind">Round {windName(state.prevailingWind)}</span>
-        <span className="round-continuation">
-          {state.continuation === 0 ? "Opening hand" : `${state.continuation} continuation${state.continuation === 1 ? "" : "s"}`}
-        </span>
+        {state.continuation > 0 ? (
+          <span className="round-continuation">Dealer repeat ×{state.continuation}</span>
+        ) : null}
       </div>
       <div
         className={`active-seat-callout${activeSeat === state.localSeat ? " active-seat-callout-you" : ""}`}
@@ -438,7 +435,7 @@ function CurrentTileFocus({
   if (!discard) {
     return (
       <div className={`current-tile-focus current-tile-focus-empty${canDiscard ? " current-tile-focus-your-turn" : ""}`}>
-        <span className="current-tile-kicker">{canDiscard ? "Your turn" : "Opening hand"}</span>
+        <span className="current-tile-kicker">{canDiscard ? "Your turn" : "Waiting"}</span>
         <strong className="current-tile-prompt">
           {discardPending ? "Discarding…" : canDiscard ? "Tap a tile to discard" : "Waiting for the first discard"}
         </strong>
@@ -522,6 +519,25 @@ function TablePlayfield({
       </div>
       {state.showdown && revealedSeats.length > 0 ? (
         <div className="showdown-hands" aria-label="Winning hand reveal">
+          {state.showdownWinningDiscard ? (
+            <div
+              className="showdown-winning-discard"
+              role="group"
+              aria-label={`Winning discard: ${state.showdownWinningDiscard.tile.label}, from ${
+                state.showdownWinningDiscard.seat === state.localSeat
+                  ? "you"
+                  : `${state.seats[state.showdownWinningDiscard.seat].displayName} · ${windName(
+                      state.showdownWinningDiscard.seat,
+                    )}`
+              }`}
+            >
+              <div className="showdown-winning-discard-copy">
+                <span>Winning discard</span>
+                <strong>{state.showdownWinningDiscard.tile.label}</strong>
+              </div>
+              <Tile t={state.showdownWinningDiscard.tile} size="focus" />
+            </div>
+          ) : null}
           {revealedSeats.map((seat) => {
               const revealedHand = state.seats[seat].revealedHand!;
               return (

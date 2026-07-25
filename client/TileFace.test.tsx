@@ -49,12 +49,15 @@ describe("TileFace", () => {
     expect(fiveCharacters).toContain(">5</text>");
   });
 
-  it("renders One Bamboo as one elongated bamboo stalk", () => {
+  it("renders bamboo with straight shafts and distinct indented segment nodes", () => {
     const oneBamboo = renderToStaticMarkup(<TileFace id="bamboo-1-1" size="lg" />);
+    const twoBamboo = renderToStaticMarkup(<TileFace id="bamboo-2-1" size="lg" />);
 
     expect(oneBamboo).toContain("tile-face-one-bamboo-long");
-    expect(oneBamboo).toContain('height="35"');
-    expect(oneBamboo).toContain('width="12"');
+    expect(oneBamboo).toContain("tile-face-bamboo-stick");
+    expect(oneBamboo).toContain('scale(1.45 2.15)');
+    expect(twoBamboo.match(/tile-face-bamboo-stick/g)).toHaveLength(2);
+    expect(twoBamboo).toContain('width="7.3"');
     expect(oneBamboo).not.toContain("<ellipse");
   });
 

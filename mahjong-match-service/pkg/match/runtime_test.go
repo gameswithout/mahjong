@@ -411,6 +411,75 @@ func TestRuntimeApply_FinalClaimDuplicateReturnsResolution(t *testing.T) {
 	}
 }
 
+func TestRuntimeApply_HumanPassImmediatelyDrivesBotClaimResponses(t *testing.T) {
+	clock := func() time.Time { return time.Date(2026, 7, 24, 18, 0, 0, 0, time.UTC) }
+	key := storage.MatchKey{Namespace: "gameswithout-mahjong", SessionID: "session-bot-pass", MatchID: "match-bot-pass"}
+	runtime := NewRuntime(
+		session.StaticResolver{Members: []string{"bot:practice:east", "bot:practice:south", "bot:practice:west", "human"}},
+		&fakeMatchRepository{},
+		rulesengine.NewMemoryEventStore(),
+		clock,
+	)
+	ctx := context.Background()
+
+	view, err := runtime.Join(ctx, key, "human")
+	if err != nil {
+		t.Fatalf("Join() error = %v", err)
+	}
+	// Skip the opening presentation delay, then let the three bots play
+	// until North reaches a claim decision or their own turn.
+	runtime.actors[key.RuntimeID()].openingBotReadyAt = time.Time{}
+	for step := 0; step < 40; step++ {
+		view, err = runtime.View(ctx, key, "human")
+		if err != nil {
+			t.Fatalf("View() step %d error = %v", step, err)
+		}
+		if view.Phase == rulesengine.PhaseClaimWindow && view.Claim != nil &&
+			view.Claim.OwnResponse == nil && seatIn(view.Claim.Eligible, rulesengine.North) {
+			_, next, applyErr := runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
+				RequestID:       "human-pass",
+				Type:            rulesengine.CommandSubmitClaim,
+				ExpectedVersion: view.StateVersion,
+				Claim: &rulesengine.ClaimResponse{
+					ActionID: view.Claim.ActionID,
+					Type:     rulesengine.ClaimPass,
+				},
+			})
+			if applyErr != nil {
+				t.Fatalf("Pass() error = %v", applyErr)
+			}
+			if next.Phase == rulesengine.PhaseClaimWindow && next.Claim != nil &&
+				next.Claim.OwnResponse != nil {
+				t.Fatalf("Pass() returned a pending claim window after own response: %#v", next.Claim)
+			}
+			return
+		}
+		if view.ActiveSeat == rulesengine.North &&
+			(view.Phase == rulesengine.PhaseAwaitingDraw || view.Phase == rulesengine.PhaseAwaitingDiscard) {
+			// Discard a tile so bots can create another cycle before North's
+			// next potential claim opportunity.
+			if view.Phase == rulesengine.PhaseAwaitingDraw {
+				if _, view, err = runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
+					RequestID:       fmt.Sprintf("draw-%d", step),
+					Type:            rulesengine.CommandDraw,
+					ExpectedVersion: view.StateVersion,
+				}); err != nil {
+					t.Fatalf("Draw() step %d error = %v", step, err)
+				}
+			}
+			if _, _, err = runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
+				RequestID:       fmt.Sprintf("discard-%d", step),
+				Type:            rulesengine.CommandDiscard,
+				ExpectedVersion: view.StateVersion,
+				TileID:          view.OwnHand[0].ID,
+			}); err != nil {
+				t.Fatalf("Discard() step %d error = %v", step, err)
+			}
+		}
+	}
+	t.Fatal("did not reach a North claim opportunity")
+}
+
 func TestAuthorizeCommand_RejectsMismatchedClaimAction(t *testing.T) {
 	view := rulesengine.SeatView{
 		StateVersion: 4,
@@ -430,6 +499,62 @@ func TestAuthorizeCommand_RejectsMismatchedClaimAction(t *testing.T) {
 	}
 	if err := authorizeCommand(view, rulesengine.South, &command); !errors.Is(err, ErrActionNotAllowed) {
 		t.Fatalf("authorizeCommand() error = %v, want ErrActionNotAllowed", err)
+	}
+}
+
+func TestAuthorizeCommand_AllowsProjectedSelfTurnWinAndKongs(t *testing.T) {
+	view := rulesengine.SeatView{
+		StateVersion: 9,
+		Phase:        rulesengine.PhaseAwaitingDiscard,
+		ActiveSeat:   rulesengine.South,
+		SelfTurnOptions: &rulesengine.SelfTurnOptionsView{
+			CanWin: true,
+			ConcealedKongs: [][]string{{
+				"dots-4-1", "dots-4-2", "dots-4-3", "dots-4-4",
+			}},
+			AddedKongTileIDs: []string{"characters-7-4"},
+		},
+	}
+	commands := []rulesengine.MatchCommand{
+		{Type: rulesengine.CommandDeclareZimo},
+		{
+			Type:    rulesengine.CommandDeclareConcealedKong,
+			TileIDs: []string{"dots-4-4", "dots-4-2", "dots-4-1", "dots-4-3"},
+		},
+		{Type: rulesengine.CommandDeclareAddedKong, TileID: "characters-7-4"},
+	}
+	for _, command := range commands {
+		command := command
+		if err := authorizeCommand(view, rulesengine.South, &command); err != nil {
+			t.Fatalf("authorizeCommand(%s) error = %v", command.Type, err)
+		}
+	}
+}
+
+func TestAuthorizeCommand_RejectsUnprojectedSelfTurnKong(t *testing.T) {
+	view := rulesengine.SeatView{
+		StateVersion: 9,
+		Phase:        rulesengine.PhaseAwaitingDiscard,
+		ActiveSeat:   rulesengine.South,
+		SelfTurnOptions: &rulesengine.SelfTurnOptionsView{
+			ConcealedKongs: [][]string{{
+				"dots-4-1", "dots-4-2", "dots-4-3", "dots-4-4",
+			}},
+			AddedKongTileIDs: []string{"characters-7-4"},
+		},
+	}
+	commands := []rulesengine.MatchCommand{
+		{
+			Type:    rulesengine.CommandDeclareConcealedKong,
+			TileIDs: []string{"dots-5-1", "dots-5-2", "dots-5-3", "dots-5-4"},
+		},
+		{Type: rulesengine.CommandDeclareAddedKong, TileID: "characters-8-4"},
+	}
+	for _, command := range commands {
+		command := command
+		if err := authorizeCommand(view, rulesengine.South, &command); !errors.Is(err, ErrActionNotAllowed) {
+			t.Fatalf("authorizeCommand(%s) error = %v, want ErrActionNotAllowed", command.Type, err)
+		}
 	}
 }
 

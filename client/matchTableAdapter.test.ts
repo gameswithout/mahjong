@@ -75,6 +75,38 @@ describe("seatViewToMatchTableState", () => {
     expect(state.wall.reserveRemaining).toBe(16);
   });
 
+  it("preserves the decisive discard for the winning-hand reveal, but not for Zimo", () => {
+    const last_discard = {
+      seat: "S" as const,
+      tile: { id: "dots-5-1", kind: "dots" as const, rank: 5, copy: 1 },
+      sequence: 1,
+    };
+    const options = {
+      now: Date.now(),
+      onClaimAction: vi.fn(),
+      revealWinningHands: true,
+    };
+
+    const discardWin = seatViewToMatchTableState(
+      seatView({
+        last_discard,
+        hand_result: { kind: "discard", winners: [], winning_tile_id: "dots-5-1" },
+      }),
+      options,
+    );
+    expect(discardWin.showdownWinningDiscard?.tile.id).toBe("dots-5-1");
+    expect(discardWin.showdownWinningDiscard?.seat).toBe("S");
+
+    const zimo = seatViewToMatchTableState(
+      seatView({
+        last_discard,
+        hand_result: { kind: "zimo", winners: [], winning_tile_id: "dots-7-1" },
+      }),
+      options,
+    );
+    expect(zimo.showdownWinningDiscard).toBeUndefined();
+  });
+
   it("maps takenOver from each player's public taken_over flag, defaulting to false", () => {
     const state = seatViewToMatchTableState(
       seatView({

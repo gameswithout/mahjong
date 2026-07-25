@@ -41,6 +41,7 @@ describe("MatchTable table-first UX", () => {
     const state = {
       ...mockMatchTableState,
       showdown: true,
+      showdownWinningDiscard: mockMatchTableState.lastDiscard ?? undefined,
       seats: {
         ...mockMatchTableState.seats,
         [winner]: {
@@ -55,6 +56,9 @@ describe("MatchTable table-first UX", () => {
     const reveal = container.querySelector(".showdown-hands");
     expect(reveal?.closest(".table-playfield")).not.toBeNull();
     expect(reveal?.querySelectorAll(".showdown-hand-tile")).toHaveLength(2);
+    expect(reveal?.querySelector(".showdown-winning-discard")?.textContent).toContain(
+      mockMatchTableState.lastDiscard?.tile.label,
+    );
     expect(container.querySelector('[aria-label="East seat"]')?.classList).toContain("seat-celebrating");
   });
 

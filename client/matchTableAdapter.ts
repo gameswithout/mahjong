@@ -260,6 +260,10 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
     });
   }
 
+  const lastDiscard = view.last_discard
+    ? { seat: view.last_discard.seat as SeatId, tile: wireTile(view.last_discard.tile) }
+    : null;
+
   return {
     localSeat,
     prevailingWind: HARDCODED_PREVAILING_WIND,
@@ -269,9 +273,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       reserveRemaining: view.wall.reserve_remaining,
     },
     seats,
-    lastDiscard: view.last_discard
-      ? { seat: view.last_discard.seat as SeatId, tile: wireTile(view.last_discard.tile) }
-      : null,
+    lastDiscard,
     claimSource: claimant ?? null,
     countdownSeconds: countdown?.seconds ?? 0,
     countdownTotalSeconds: countdown?.total ?? TURN_TOTAL_SECONDS,
@@ -282,5 +284,9 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       visibleRemaining: entry.visible_remaining,
     })),
     showdown: options.revealWinningHands,
+    showdownWinningDiscard:
+      options.revealWinningHands && view.hand_result?.kind === "discard" && lastDiscard
+        ? lastDiscard
+        : undefined,
   };
 }

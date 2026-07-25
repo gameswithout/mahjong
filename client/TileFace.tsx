@@ -81,20 +81,8 @@ function Dots({ rank }: { rank: number }) {
 function Bamboo({ rank }: { rank: number }) {
   if (rank === 1) {
     return (
-      <g className="tile-face-one-bamboo-long">
-        <rect x="24" y="27.5" width="12" height="35" rx="6" fill="#2d7443" />
-        <path
-          d="M25.5 39h9M25.5 51h9"
-          stroke="#f4edd9"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-        />
-        <path
-          d="M28 33h4M28 45h4M28 57h4"
-          stroke="#75ad75"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
+      <g className="tile-face-one-bamboo-long" transform="translate(30 45) scale(1.45 2.15)">
+        <BambooStick color="#2d7443" />
       </g>
     );
   }
@@ -102,11 +90,29 @@ function Bamboo({ rank }: { rank: number }) {
     <>
       {(DOT_POINTS[rank] ?? []).map(([x, y], index) => (
         <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
-          <rect x="-3.6" y="-8" width="7.2" height="16" rx="3.6" fill={index % 5 === 2 ? "#bd3434" : "#2d7443"} />
-          <path d="M-2.1 -3.2h4.2M-2.1 3.2h4.2" stroke="#f4edd9" strokeWidth="1.25" strokeLinecap="round" />
+          <BambooStick color={index % 5 === 2 ? "#bd3434" : "#2d7443"} />
         </g>
       ))}
     </>
+  );
+}
+
+function BambooStick({ color }: { color: string }) {
+  return (
+    <g className="tile-face-bamboo-stick">
+      <rect x="-2.65" y="-7" width="5.3" height="14" rx="0.7" fill={color} />
+      <rect x="-4" y="-8" width="8" height="2" rx="0.55" fill={color} />
+      <rect x="-3.65" y="-3.7" width="7.3" height="1.8" rx="0.45" fill={color} />
+      <rect x="-3.65" y="1.9" width="7.3" height="1.8" rx="0.45" fill={color} />
+      <rect x="-4" y="6" width="8" height="2" rx="0.55" fill={color} />
+      <path
+        d="M-1.1 -6.2v1.7M-1.1 -1.1v2.2M-1.1 4.5v1"
+        stroke="#75ad75"
+        strokeWidth="0.8"
+        strokeLinecap="round"
+        opacity="0.72"
+      />
+    </g>
   );
 }
 

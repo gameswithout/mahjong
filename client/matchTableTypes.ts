@@ -105,6 +105,9 @@ export interface MatchTableState {
   // aren't currently holding a waiting-shaped hand.
   waits: WaitEntry[];
   showdown?: boolean;
+  // During a discard-win celebration, repeat the decisive discard beside
+  // the enlarged winning hand so the hand overlay cannot obscure it.
+  showdownWinningDiscard?: { seat: SeatId; tile: WireTile };
 }
 
 const SUIT_GLYPHS: Record<string, string> = {

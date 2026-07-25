@@ -289,6 +289,9 @@ func (r *Runtime) Apply(
 			if err != nil {
 				return previous, rulesengine.SeatView{}, err
 			}
+			if err = r.driveLocked(ctx, current); err != nil {
+				return previous, rulesengine.SeatView{}, err
+			}
 		}
 		view, err := enrichedView(current.actor, seat)
 		return previous, view, err
@@ -322,6 +325,12 @@ func (r *Runtime) Apply(
 	if command.Type == rulesengine.CommandSubmitClaim {
 		result, err = r.resolveClaimResponse(ctx, current, result)
 		if err != nil {
+			return result, rulesengine.SeatView{}, err
+		}
+		// A human Pass can leave bot-controlled eligible seats unanswered.
+		// Finish those responses in this same request instead of making the
+		// table wait for its next polling tick to call driveLocked.
+		if err = r.driveLocked(ctx, current); err != nil {
 			return result, rulesengine.SeatView{}, err
 		}
 	}
@@ -738,10 +747,67 @@ func authorizeCommand(view rulesengine.SeatView, seat rulesengine.Seat, command 
 		claim.StateVersion = view.StateVersion
 		claim.TileIDs = append([]string(nil), claim.TileIDs...)
 		command.Claim = &claim
+	case rulesengine.CommandDeclareZimo:
+		if view.ActiveSeat != seat || view.Phase != rulesengine.PhaseAwaitingDiscard ||
+			view.SelfTurnOptions == nil || !view.SelfTurnOptions.CanWin {
+			return ErrActionNotAllowed
+		}
+	case rulesengine.CommandDeclareConcealedKong:
+		if view.ActiveSeat != seat || view.Phase != rulesengine.PhaseAwaitingDiscard ||
+			view.SelfTurnOptions == nil ||
+			!containsTileIDSet(view.SelfTurnOptions.ConcealedKongs, command.TileIDs) {
+			return ErrActionNotAllowed
+		}
+		command.TileIDs = append([]string(nil), command.TileIDs...)
+	case rulesengine.CommandDeclareAddedKong:
+		if view.ActiveSeat != seat || view.Phase != rulesengine.PhaseAwaitingDiscard ||
+			view.SelfTurnOptions == nil ||
+			!containsTileID(view.SelfTurnOptions.AddedKongTileIDs, command.TileID) {
+			return ErrActionNotAllowed
+		}
 	default:
 		return ErrActionNotAllowed
 	}
 	return nil
+}
+
+func containsTileID(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
+func containsTileIDSet(options [][]string, requested []string) bool {
+	if len(requested) != 4 {
+		return false
+	}
+	requestedCounts := make(map[string]int, len(requested))
+	for _, tileID := range requested {
+		requestedCounts[tileID]++
+	}
+	for _, option := range options {
+		if len(option) != len(requested) {
+			continue
+		}
+		optionCounts := make(map[string]int, len(option))
+		for _, tileID := range option {
+			optionCounts[tileID]++
+		}
+		matches := true
+		for tileID, count := range requestedCounts {
+			if optionCounts[tileID] != count {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveClaimsWhenReady(
