@@ -725,6 +725,17 @@ h1 {
   z-index: 40;
 }
 
+.game-screen-fullscreen {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  left: max(0.75rem, env(safe-area-inset-left));
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top));
+  z-index: 40;
+}
+
 .game-screen-topbar .control-restored-toast {
   margin-bottom: 0;
 }
@@ -738,6 +749,31 @@ h1 {
   color: #c6cbe0;
   font-size: 0.8rem;
   padding: 0.5rem 1rem;
+}
+
+.fullscreen-match-button {
+  -webkit-backdrop-filter: blur(8px);
+  align-items: center;
+  backdrop-filter: blur(8px);
+  background: rgb(8 13 12 / 68%);
+  border: 1px solid rgb(247 244 238 / 28%);
+  border-radius: 999px;
+  color: #e9edf8;
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 750;
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
+}
+
+.fullscreen-help {
+  background: rgb(8 13 12 / 94%);
+  border-radius: 0.65rem;
+  color: #fff2bd;
+  font-size: 0.72rem;
+  margin: 0;
+  max-width: 15rem;
+  padding: 0.45rem 0.65rem;
 }
 
 .leave-match-button:hover {
@@ -911,5 +947,14 @@ h1 {
   .leave-match-button {
     font-size: 0.7rem;
     padding: 0.35rem 0.65rem;
+  }
+
+  .fullscreen-match-button {
+    font-size: 0.7rem;
+    padding: 0.35rem 0.55rem;
+  }
+
+  .fullscreen-match-button span:last-child {
+    display: none;
   }
 }
