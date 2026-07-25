@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MatchCommandRequest, SeatView } from "../protocol/envelope";
 import type { BrowserIam } from "./iam";
+import { MatchRuntimeError } from "./match-runtime";
 import type { MatchRuntimeConnection, MatchRuntimeConnectionOptions } from "./match-runtime";
 import { SessionLookupError, type SessionClient } from "./session";
 
@@ -171,6 +172,7 @@ describe("App Practice journey", () => {
   let sessionNumber: number;
   let calls: string[];
   let sessionClient: SessionClient;
+  let runtimeOptions: MatchRuntimeConnectionOptions | undefined;
 
   beforeEach(() => {
     (
@@ -229,6 +231,7 @@ describe("App Practice journey", () => {
     });
     dependencies.createMatchRuntimeConnection.mockImplementation(
       (_accessToken: string, options: MatchRuntimeConnectionOptions) => {
+        runtimeOptions = options;
         let closed = false;
         const connection: MatchRuntimeConnection = {
           ready: Promise.resolve({
@@ -303,6 +306,45 @@ describe("App Practice journey", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     expect(calls.at(-1)).toBe("leave:practice-2");
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
+  });
+
+  it("keeps a live table on screen when a poll fails, and recovers on the next good state", async () => {
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}),
+      getAccessToken: vi.fn().mockReturnValue("guest-token"),
+    } as unknown as BrowserIam;
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
+
+    // The live four-human stall: the service answered a routine poll with a
+    // 4xx, which the runtime reports as a non-retryable "protocol" error.
+    // That used to replace the whole table with the error panel — every seat
+    // lost the hand at once, with no way back.
+    await act(async () => {
+      runtimeOptions?.onError?.(
+        new MatchRuntimeError("protocol", "Match service request failed with HTTP 400."),
+      );
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="table-stalled-notice"]')).not.toBeNull();
+    expect(container.textContent).toContain("Practice result");
+    expect(container.textContent).not.toContain("Match service request failed with HTTP 400.");
+
+    // A single good poll clears the notice; nothing was torn down.
+    await act(async () => {
+      const view = completedPracticeView("practice-1");
+      runtimeOptions?.onState?.({ match_id: "practice-1", seat: "E", view });
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="table-stalled-notice"]')).toBeNull();
+    expect(container.textContent).toContain("Practice result");
   });
 
   it("automatically draws when the local seat enters its draw phase", async () => {

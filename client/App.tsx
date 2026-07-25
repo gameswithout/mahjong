@@ -59,6 +59,12 @@ import "./match-table.css";
 const MATCH_RUNTIME_RETRYABLE_CODES = new Set(["closed", "network", "not_found", "timeout"]);
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 2000;
+// How long a live table may keep showing its last authoritative view while
+// its polls keep failing, before the player is moved to the manual error
+// panel. Long enough to ride out a transient server-side error without the
+// player noticing; short enough that a genuinely dead match does not leave
+// them staring at a frozen board.
+const STALLED_TABLE_GRACE_MS = 30_000;
 const HUMAN_MATCH_SIZE = 4;
 const AUTO_DRAW_DELAY_MS = 320;
 
@@ -112,7 +118,17 @@ type MatchRuntimeState =
   | { status: "idle" }
   | { status: "preparing"; message: string }
   | { status: "connecting"; matchId: string }
-  | { status: "joined"; matchId: string; view: SeatView; commandPending: boolean }
+  // stalled records the most recent failed request while the table is up.
+  // The table keeps rendering its last authoritative view: polling continues
+  // underneath, so a server-side error that clears on its own recovers
+  // silently instead of ejecting the player from a live hand.
+  | {
+      status: "joined";
+      matchId: string;
+      view: SeatView;
+      commandPending: boolean;
+      stalled?: { code: string; message: string; since: number };
+    }
   | {
       status: "error";
       code: string;
@@ -553,6 +569,22 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       setReconnectAttempt(0);
     }
   }, [matchRuntimeState.status]);
+
+  // A table whose polls never start succeeding again is genuinely lost, so
+  // escalate to the manual error panel rather than leaving the player on a
+  // board that will never move.
+  useEffect(() => {
+    if (matchRuntimeState.status !== "joined" || !matchRuntimeState.stalled) {
+      return;
+    }
+    const { code, message, since } = matchRuntimeState.stalled;
+    const remaining = STALLED_TABLE_GRACE_MS - (Date.now() - since);
+    const timeout = window.setTimeout(
+      () => setMatchRuntimeState({ status: "error", code, message, retry: "runtime" }),
+      Math.max(remaining, 0),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [matchRuntimeState]);
 
   // §8.7 "control-restored toast": detects this seat's own taken_over flag
   // going true -> false (the runtime called RestoreControl at this seat's
@@ -1221,13 +1253,23 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           }
         },
         onError: (error) => {
-          if (matchRuntimeRef.current === connection) {
-            setMatchRuntimeState({
-              status: "error",
-              ...matchRuntimeErrorView(error),
-              retry: "runtime",
-            });
+          if (matchRuntimeRef.current !== connection) {
+            return;
           }
+          const view = matchRuntimeErrorView(error);
+          setMatchRuntimeState((current) =>
+            // Once the table is up it stays up. Tearing it down on a single
+            // failed poll is what made an ordinary server-side error
+            // unrecoverable: every seat lost the hand at once with no way
+            // back. Hold the last good view and let polling retry.
+            current.status === "joined"
+              ? {
+                  ...current,
+                  commandPending: false,
+                  stalled: current.stalled ?? { ...view, since: Date.now() },
+                }
+              : { status: "error", ...view, retry: "runtime" },
+          );
         },
       });
       matchRuntimeRef.current = connection;
@@ -1484,6 +1526,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
               {reconnectAttempt > 0
                 ? `Reconnecting… (attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`
                 : "Joining the table…"}
+            </p>
+          </div>
+        )}
+
+        {matchRuntimeState.status === "joined" && matchRuntimeState.stalled && (
+          <div className="game-screen-stalled" role="status" aria-live="polite" data-testid="table-stalled-notice">
+            <p className="game-screen-stalled-text">
+              Reconnecting to the table… showing the last state we received.
             </p>
           </div>
         )}

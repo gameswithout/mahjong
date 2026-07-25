@@ -101,3 +101,36 @@ Items 2–4 remain open. Note that item 3 exercises settlement through the
 authoritative PostgreSQL ledger, which is a separate question from item 2's
 AGS Wallet mirror — a green four-human run does not by itself prove the wallet
 mirror is working, only that the ledger is.
+
+## Four-human stall — root cause (2026-07-25)
+
+The stall that blocked item 3 was the Jade economy tearing the table down at
+the moment the hand ended. Chain, confirmed end to end:
+
+1. `GetMatchState` calls `economy.Bind` on **every** poll for any non-Practice
+   match (`pkg/service/match_service.go`). Practice is exempt, which is why
+   only the four-human online journey ever stalled.
+2. Settlement marks that match's reservations `consumed`
+   (`SettleJadeMatch`, `pkg/storage/jade.go`).
+3. `BindJadeReservation` only accepted `active` or `bound`, so from the first
+   post-settlement poll onward it returned `ErrReservationMissing`.
+4. `rpcError` maps that to `FailedPrecondition` → **HTTP 400**.
+5. The client's `errorCodeForStatus` maps any such 4xx to `protocol`, which is
+   absent from `MATCH_RUNTIME_RETRYABLE_CODES`, so every client left `joined`
+   and unmounted the table — all four at once, with no recovery path.
+
+Clients poll precisely because they are showing the result screen, so this
+fired every time, for everyone, immediately after the hand it was meant to
+settle.
+
+Fixed on both sides:
+
+- **Server** — `BindJadeReservation` treats a reservation already consumed by
+  *this* match as success. A player who never reserved is still rejected;
+  covered by `TestPostgreSQLStorage_JadeReservationAndSettlementAreAtomicAndIdempotent`,
+  which reproduces the exact live error without the fix.
+- **Client** — a failed poll no longer tears down a live table. The last
+  authoritative view stays on screen behind a "Reconnecting" notice while
+  polling retries, and only escalates to the manual error panel after
+  `STALLED_TABLE_GRACE_MS`. This makes the whole class of transient
+  server-side error survivable, not just this one.

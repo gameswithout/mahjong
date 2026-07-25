@@ -261,6 +261,24 @@ func (p *PostgreSQLStorage) BindJadeReservation(
 	if err := releaseExpiredReservations(ctx, tx, userID); err != nil {
 		return err
 	}
+	// Settlement consumes this match's reservations, but clients keep
+	// polling match state afterwards to read the result. Treat a
+	// reservation already spent on *this* match as the success it is:
+	// without this, every seat's first post-settlement poll fails
+	// ErrReservationMissing, which surfaces as HTTP 400 and tears the
+	// finished table down under all four players at once.
+	var settledStatus string
+	err = tx.QueryRow(ctx, `
+		SELECT status
+		FROM jade_reservations
+		WHERE user_id = $1 AND runtime_id = $2 AND status = 'consumed'
+		LIMIT 1`, userID, runtimeID).Scan(&settledStatus)
+	if err == nil {
+		return tx.Commit(ctx)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("read settled Jade reservation for bind: %w", err)
+	}
 	var reservationID, status, boundRuntime string
 	err = tx.QueryRow(ctx, `
 		SELECT reservation_id, status, COALESCE(runtime_id, '')

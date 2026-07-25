@@ -831,6 +831,20 @@ h1 {
   margin: 0;
 }
 
+/* Sits above the still-rendered table while its polls are failing, so the
+   board visibly reads as "last known state", not as live play. */
+.game-screen-stalled {
+  background: rgb(120 82 16 / 92%);
+  color: #fdf6e6;
+  padding: 0.5rem 1rem;
+  text-align: center;
+}
+
+.game-screen-stalled-text {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
 .match-loading-screen {
   align-items: center;
   background:

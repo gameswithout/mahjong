@@ -266,6 +266,32 @@ func TestPostgreSQLStorage_JadeReservationAndSettlementAreAtomicAndIdempotent(t 
 		t.Fatalf("total Jade = %d, want 20000", total)
 	}
 
+	// Clients keep polling match state after the hand ends, to read the
+	// result — and GetMatchState binds the reservation on every poll.
+	// Settlement has just marked these reservations 'consumed', so a bind
+	// that only accepts 'active'/'bound' fails ErrReservationMissing here.
+	// That surfaced as HTTP 400 and tore the finished table down under all
+	// four players at once (the 2026-07-25 four-human stall).
+	for _, userID := range users {
+		if err := store.BindJadeReservation(context.Background(), userID, record.RuntimeID); err != nil {
+			t.Fatalf("BindJadeReservation(%s) after settlement error = %v, want nil", userID, err)
+		}
+	}
+
+	// A player who never reserved must still be rejected — the fix above
+	// must not turn the entry gate into a no-op.
+	unreserved := "jade-never-reserved-" + suffix
+	if _, err := store.EnsureJadeAccount(context.Background(), unreserved); err != nil {
+		t.Fatalf("EnsureJadeAccount(unreserved) error = %v", err)
+	}
+	if err := store.BindJadeReservation(
+		context.Background(),
+		unreserved,
+		record.RuntimeID,
+	); !errors.Is(err, economy.ErrReservationMissing) {
+		t.Fatalf("BindJadeReservation(unreserved) error = %v, want ErrReservationMissing", err)
+	}
+
 	var settlementJournalCount int
 	if err := store.pool.QueryRow(context.Background(), `
 		SELECT COUNT(*)
