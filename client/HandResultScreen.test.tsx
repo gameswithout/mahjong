@@ -132,15 +132,19 @@ describe("HandResultScreen", () => {
     expect(markup).toContain("AGS Wallet synced");
   });
 
-  it("makes a discard win explicit in Chinese and shows who discarded to whom", () => {
+  it("labels a discard win as Hu and combines payer, winning tile, and winner", () => {
     const markup = renderToStaticMarkup(<HandResultScreen view={completedView()} />);
 
-    expect(markup).toContain('lang="zh-Hant">放炮</h2>');
-    expect(markup).toContain("Fan Pao · Discard Win");
+    expect(markup).toContain('lang="zh-Hant">胡</h2>');
+    expect(markup).toContain('hand-result-win-type-name">Hu</p>');
     expect(markup).toContain("You (East)");
     expect(markup).toContain("South");
-    expect(markup).toContain("discarded to →");
+    expect(markup).toContain("discarded winning tile");
+    expect(markup).toContain('aria-label="1 of dots"');
     expect(markup).toContain('aria-label="South discarded the winning tile to You (East)"');
+    expect(markup).not.toContain("Winning tile</span>");
+    expect(markup).toContain("Score Breakdown");
+    expect(markup).not.toContain("Why this scored");
   });
 
   it("celebrates a self-draw with a prominent 自摸 heading", () => {
@@ -155,7 +159,7 @@ describe("HandResultScreen", () => {
     expect(markup).toContain('lang="zh-Hant">自摸</h2>');
     expect(markup).toContain("Zi Mo · Self-Draw");
     expect(markup).toContain("drew the winning tile themselves");
-    expect(markup).not.toContain("discarded to →");
+    expect(markup).not.toContain("discarded winning tile");
   });
 
   it("attributes a payer-side Dealer Tai bonus to the actual dealer", () => {

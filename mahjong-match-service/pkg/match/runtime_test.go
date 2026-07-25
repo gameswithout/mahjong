@@ -1006,6 +1006,60 @@ func TestRuntimeAIPractice_BotsPlaySoloMatchAutomatically(t *testing.T) {
 	// once called Apply with a "bot:*" userID.
 }
 
+func TestRuntimeAIPractice_DelaysOnlyOpeningBotTurn(t *testing.T) {
+	clock := time.Date(2026, 7, 24, 16, 0, 0, 0, time.UTC)
+	now := func() time.Time { return clock }
+	key := storage.MatchKey{
+		Namespace: "gameswithout-mahjong",
+		SessionID: "session-bot-opener",
+		MatchID:   "match-bot-opener",
+	}
+	runtime := NewRuntime(
+		session.StaticResolver{Members: []string{"bot:practice:1", "human", "bot:practice:2", "bot:practice:3"}},
+		&fakeMatchRepository{},
+		rulesengine.NewMemoryEventStore(),
+		now,
+	)
+	ctx := context.Background()
+
+	opening, err := runtime.Join(ctx, key, "human")
+	if err != nil {
+		t.Fatalf("human Join() error = %v", err)
+	}
+	if opening.ActiveSeat != rulesengine.East {
+		t.Fatalf("opening active seat = %s, want bot dealer East", opening.ActiveSeat)
+	}
+	openingVersion := opening.StateVersion
+
+	clock = clock.Add(openingBotTurnDelay - time.Millisecond)
+	beforeDelay, err := runtime.View(ctx, key, "human")
+	if err != nil {
+		t.Fatalf("View() before opening delay error = %v", err)
+	}
+	if beforeDelay.StateVersion != openingVersion || beforeDelay.ActiveSeat != rulesengine.East {
+		t.Fatalf(
+			"opening bot moved early: version/seat = %d/%s, want %d/%s",
+			beforeDelay.StateVersion,
+			beforeDelay.ActiveSeat,
+			openingVersion,
+			rulesengine.East,
+		)
+	}
+
+	clock = clock.Add(time.Millisecond)
+	afterDelay, err := runtime.View(ctx, key, "human")
+	if err != nil {
+		t.Fatalf("View() at opening delay error = %v", err)
+	}
+	if afterDelay.StateVersion <= openingVersion {
+		t.Fatalf("opening bot did not move after delay: version = %d, want > %d", afterDelay.StateVersion, openingVersion)
+	}
+	current := runtime.actor(key.RuntimeID())
+	if current == nil || !current.openingBotReadyAt.IsZero() {
+		t.Fatal("opening bot delay was not consumed after the first bot move")
+	}
+}
+
 func TestRuntimeMatchLock_DifferentMatchesDoNotBlock(t *testing.T) {
 	runtime := NewRuntime(nil, nil, nil, nil)
 	first := runtime.matchLock("match-a")

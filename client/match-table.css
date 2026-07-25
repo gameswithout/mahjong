@@ -1695,7 +1695,7 @@ body {
 
 @media (min-width: 700px) {
   .match-table {
-    --hand-tile-width: clamp(38px, 4vw, 60px);
+    --hand-tile-width: clamp(36px, 3.8vw, 56px);
     --river-tile-width: clamp(20px, 2.4vw, 34px);
     --focus-tile-width: clamp(58px, 5.4vw, 82px);
     gap: clamp(5px, 0.65vw, 11px);
@@ -1747,11 +1747,14 @@ body {
   }
 
   /* Identity + Sort/FX rest as a small tag on the near corner of your rail,
-     clearing the centre so the hand rack is the one thing you look at. */
+     clearing the centre so the hand rack is the one thing you look at. Its
+     bottom edge follows the bottom of the local-hand rail, keeping it out of
+     the tile row even when every tile and the drawn-tile gap are present. */
   .local-seat > .seat-header {
+    bottom: 8px;
     left: 14px;
     position: absolute;
-    top: 8px;
+    top: auto;
   }
 
   .local-seat > .wait-panel {

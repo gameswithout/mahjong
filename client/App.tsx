@@ -45,6 +45,7 @@ import type { SeatId } from "./matchTableTypes";
 import { CompletedHandFlow } from "./CompletedHandFlow";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
+import { MATCH_LOADING_SCREEN_MS, MatchLoadingScreen } from "./MatchLoadingScreen";
 import "./styles.css";
 import "./match-table.css";
 
@@ -216,6 +217,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [controlRestoredNotice, setControlRestoredNotice] = useState(false);
   const [fullscreenHelp, setFullscreenHelp] = useState(false);
+  const [introducedMatchId, setIntroducedMatchId] = useState<string | null>(null);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -460,6 +462,21 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   ]);
 
   const matchRuntimeJoined = matchRuntimeState.status === "joined";
+  const joinedMatchId = matchRuntimeState.status === "joined" ? matchRuntimeState.matchId : null;
+
+  useEffect(() => {
+    if (!joinedMatchId || introducedMatchId === joinedMatchId) {
+      return;
+    }
+    const timer = window.setTimeout(
+      () => setIntroducedMatchId(joinedMatchId),
+      // The loading screen is a presentation beat, not application state.
+      // Skip its wall-clock pause in unit journeys so those tests continue
+      // exercising the table interaction instead of waiting 2.4 seconds.
+      import.meta.env.MODE === "test" ? 0 : MATCH_LOADING_SCREEN_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [introducedMatchId, joinedMatchId]);
 
   // The §5.10/§9.4 countdown is a pure function of (deadline, now); ticking
   // a render clock while a hand is live is enough to keep it accurate
@@ -1505,6 +1522,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                 onReturn={() => void leaveTable()}
               />
             </div>
+          ) : introducedMatchId !== matchRuntimeState.matchId ? (
+            <MatchLoadingScreen view={matchRuntimeState.view} />
           ) : (
             <>
               <div className="game-screen-fullscreen">
