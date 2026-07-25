@@ -10,6 +10,7 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:4173/mahjong/";
 const FLOW_TIMEOUT_MS = Number(process.env.MAHJONG_E2E_FLOW_TIMEOUT_MS ?? 180_000);
 const HAND_TIMEOUT_MS = Number(process.env.MAHJONG_E2E_HAND_TIMEOUT_MS ?? 900_000);
 const baseURL = process.env.MAHJONG_E2E_BASE_URL ?? DEFAULT_BASE_URL;
+const STALL_ARTIFACT_DIR = process.env.MAHJONG_E2E_ARTIFACT_DIR ?? "tmp";
 const externalServer = process.env.MAHJONG_E2E_EXTERNAL_SERVER === "1";
 const headless = process.env.MAHJONG_E2E_HEADLESS !== "false";
 
@@ -227,6 +228,65 @@ async function driveOneLegalAction(page) {
   return null;
 }
 
+// Per-page diagnostics. A stalled hand used to report only that the table was
+// gone, which is the symptom and never the cause; these buffers are what the
+// failure message below reads from.
+const pageDiagnostics = new Map();
+
+function instrumentPage(page, playerNumber) {
+  const diagnostics = { errors: [], failedRequests: [], consoleErrors: [] };
+  pageDiagnostics.set(page, diagnostics);
+
+  page.on("pageerror", (error) => {
+    diagnostics.errors.push(String(error?.stack ?? error?.message ?? error).slice(0, 600));
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      diagnostics.consoleErrors.push(message.text().slice(0, 400));
+    }
+  });
+  page.on("requestfailed", (request) => {
+    diagnostics.failedRequests.push(
+      `${request.method()} ${request.url()} — ${request.failure()?.errorText ?? "failed"}`.slice(0, 400),
+    );
+  });
+  page.on("response", (response) => {
+    if (response.status() < 400) {
+      return;
+    }
+    const line = `${response.status()} ${response.request().method()} ${response.url()}`;
+    // The status alone doesn't say why the runtime rejected the call; the
+    // gRPC-gateway puts the real reason in the body.
+    response
+      .text()
+      .then((body) => {
+        diagnostics.failedRequests.push(`${line} :: ${body.replace(/\s+/g, " ").trim().slice(0, 300)}`.slice(0, 700));
+      })
+      .catch(() => {
+        diagnostics.failedRequests.push(line.slice(0, 400));
+      });
+  });
+  return page;
+}
+
+// Keep only the tail of each buffer: a stalled run can repeat the same polling
+// failure hundreds of times, and the last few are the informative ones.
+function summarizeDiagnostics(page) {
+  const diagnostics = pageDiagnostics.get(page);
+  if (!diagnostics) {
+    return {};
+  }
+  const tail = (entries, keep) => {
+    const unique = [...new Set(entries)];
+    return { total: entries.length, distinct: unique.length, recent: unique.slice(-keep) };
+  };
+  return {
+    pageErrors: tail(diagnostics.errors, 3),
+    consoleErrors: tail(diagnostics.consoleErrors, 5),
+    failedRequests: tail(diagnostics.failedRequests, 5),
+  };
+}
+
 async function driveHandToResult() {
   const deadline = Date.now() + HAND_TIMEOUT_MS;
   let actionCount = 0;
@@ -259,6 +319,7 @@ async function driveHandToResult() {
   const tableStates = await Promise.all(
     pages.map(async (page, index) => ({
       player: index + 1,
+      url: page.url(),
       tableVisible: await isVisible(page.getByTestId("live-match")),
       resultVisible: await isVisible(page.getByRole("region", { name: "Hand result" })),
       actionText: await page.locator(".action-bar").textContent().catch(() => null),
@@ -266,10 +327,26 @@ async function driveHandToResult() {
         .locator(".action-bar button:enabled")
         .allTextContents()
         .catch(() => []),
+      // When the table is gone, whatever replaced it is the actual evidence.
+      visibleText: await page
+        .locator("body")
+        .innerText()
+        .then((text) => text.replace(/\s+/g, " ").trim().slice(0, 500))
+        .catch(() => null),
+      ...summarizeDiagnostics(page),
     })),
   );
+
+  for (const [index, page] of pages.entries()) {
+    await page
+      .screenshot({ path: `${STALL_ARTIFACT_DIR}/stalled-player-${index + 1}.png`, fullPage: true })
+      .catch(() => undefined);
+  }
+
   throw new Error(
-    `The hand did not reach a result within ${HAND_TIMEOUT_MS}ms after ${actionCount} legal actions: ${JSON.stringify(tableStates)}.`,
+    `The hand did not reach a result within ${HAND_TIMEOUT_MS}ms after ${actionCount} legal actions.\n` +
+      `Screenshots: ${STALL_ARTIFACT_DIR}/stalled-player-*.png\n` +
+      `${JSON.stringify(tableStates, null, 2)}`,
   );
 }
 
@@ -339,7 +416,9 @@ async function main() {
   for (let index = 0; index < PLAYER_COUNT; index += 1) {
     const context = await browser.newContext();
     contexts.push(context);
-    pages.push(await context.newPage());
+    const page = await context.newPage();
+    instrumentPage(page, index + 1);
+    pages.push(page);
   }
 
   const startingBalances = await Promise.all(pages.map(signInAndQueue));

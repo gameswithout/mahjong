@@ -85,7 +85,19 @@ claimed as live evidence until the new Service Extension image is deployed.
 
 ## Remaining live release gate
 
-1. Deploy the new `mahjong-match-service` image.
+1. ~~Deploy the new `mahjong-match-service` image.~~ **Done** — confirmed
+   2026-07-25. The live service's generated OpenAPI document exposes
+   `/v1/namespaces/{namespace}/jade` and
+   `/v1/namespaces/{namespace}/jade/reservation` (POST + DELETE) along with
+   the `jade_account` and `jade_settlement` projection fields, and its whole
+   definition surface matches this tree at `c90b3bb` with zero differences.
+   See `mahjong-match-service/IMPLEMENTATION_PLAN.md`, "Reading deployment
+   state", for how to re-check this without credentials.
 2. Confirm the runtime IAM client can read, credit, and debit `JADE` wallets.
 3. Run the four-human browser journey against the deployed base path.
 4. Record the shared settlement journal and four converged wallet balances.
+
+Items 2–4 remain open. Note that item 3 exercises settlement through the
+authoritative PostgreSQL ledger, which is a separate question from item 2's
+AGS Wallet mirror — a green four-human run does not by itself prove the wallet
+mirror is working, only that the ledger is.

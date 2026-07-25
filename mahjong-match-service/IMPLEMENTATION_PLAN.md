@@ -213,8 +213,14 @@ image, event log, or public payload.
 
 ## Deployment record
 
-Deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
+First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
 ahead of the append-latency benchmark and full Session smoke test above.
+Redeployed at least once since without a record entry — see "Image tag" below.
+
+**Keep this block current.** Its staleness caused a 2026-07-25 mis-diagnosis:
+the record said 2026-07-20 while the live service already carried the Jade
+economy, so the hosted client was wrongly suspected of calling endpoints that
+did not exist. Anyone deploying this app updates this block in the same change.
 
 ```text
 App:            mahjong-match-service (service-extension scenario)
@@ -225,7 +231,25 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      ai-practice-b5314bd (2026-07-20, supersedes ai-practice-
+Image tag:      UNRECORDED — a later image than ai-practice-b5314bd is live.
+                On 2026-07-25 the deployed service's own generated OpenAPI
+                document (GET {service URL}/apidocs/api.json, served
+                unauthenticated) was compared against this tree's
+                gateway/apidocs/service.swagger.json at c90b3bb: identical
+                path set and identical definition/property/enum surface,
+                zero differences. The live binary therefore carries at least
+                every proto-affecting change through 6c8c18a — the Staked
+                Bamboo Jade economy (0b1f8b4: /jade, /jade/reservation,
+                jade_account, jade_settlement) and self-turn win + Gang
+                (6c8c18a: DECLARE_ZIMO, DECLARE_CONCEALED_KONG,
+                DECLARE_ADDED_KONG, self_turn_options, tile_ids).
+                Whoever deployed it did not update this record, and the
+                exact tag cannot be read back without EXTEND:IMAGE [READ]
+                (see "Reading deployment state" below). Non-proto commits
+                after 6c8c18a (notably c90b3bb's runtime.go changes) cannot
+                be confirmed or ruled out this way.
+                Superseded record: ai-practice-b5314bd (2026-07-20, itself
+                superseding ai-practice-
                 ca9d3d2, which supersedes cors-fix-1; adds AI Practice
                 solo-vs-bots — ai_practice roster padding with bot seats,
                 untimed §5.10 preset, is_bot projection — plus driveLocked
@@ -266,6 +290,49 @@ Not verified:   Append latency against the real Aurora cluster; a real
                 four-member match with four distinct human players played
                 end-to-end against the live deployed URL.
 ```
+
+### Reading deployment state
+
+Two ways to ask the live deployment what it is, in preference order:
+
+1. **Authenticated (authoritative, gives the image tag).** Needs an account
+   with `ADMIN:NAMESPACE:gameswithout-mahjong:EXTEND:IMAGE [READ]`:
+
+   ```shell
+   AGS_PROFILE=mahjong-admin ags csm images list \
+     --app mahjong-match-service --namespace gameswithout-mahjong
+   ```
+
+   As of 2026-07-25 no local profile can do this. `mahjong-admin` has the
+   right base URL but no `client_id` (its stored authorization-code token is
+   not enough for the CLI), and `mahjong-match-service` authenticates but
+   returns error 20013 — its client holds only IAM bootstrap and Session-read
+   permissions. Use the `mahjong` profile and you get error 20030
+   `subdomain mismatch` instead: that profile's base URL is the publisher
+   domain `gameswithout.prod...`, while CSM resources for this namespace live
+   under `gameswithout-mahjong.prod...`. The mismatch is a wrong-profile
+   symptom, not a broken CSM API. `extend-helper-cli` has the same problem
+   from the other end — it ships logged in to an unrelated studio
+   (`seal-chessags`), so check `extend-helper-cli status` before trusting any
+   deploy command.
+
+2. **Unauthenticated (no credentials, gives the API surface, not the tag).**
+   The service serves its own generated OpenAPI document publicly:
+
+   ```shell
+   curl -s "$SERVICE_URL/apidocs/api.json"
+   ```
+
+   Diff its path set and definition/property/enum surface against this tree's
+   `gateway/apidocs/service.swagger.json`. Equality proves the live binary
+   carries every proto-affecting commit in the tree. It says nothing about
+   non-proto changes, so it bounds the deployed commit from below rather than
+   pinning it. This is what established the current record entry.
+
+   Routing runs before auth, which is what makes this probe readable at all:
+   an unknown path under the base path returns 404 while a real one returns
+   401. So `curl -o /dev/null -w '%{http_code}'` against a specific route
+   distinguishes "not deployed" (404) from "deployed, needs a token" (401).
 
 **IAM permission verification (2026-07-19):** the platform-provisioned
 confidential client the live deployment runs as
