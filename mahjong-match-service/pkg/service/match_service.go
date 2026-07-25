@@ -356,6 +356,19 @@ func toRulesCommand(req *pb.SubmitMatchCommandRequest) (rulesengine.MatchCommand
 			ResponseRevision: claim.GetResponseRevision(),
 			Deliberate:       claim.GetDeliberate(),
 		}
+	case pb.MatchCommandType_MATCH_COMMAND_TYPE_DECLARE_ZIMO:
+		command.Type = rulesengine.CommandDeclareZimo
+	case pb.MatchCommandType_MATCH_COMMAND_TYPE_DECLARE_CONCEALED_KONG:
+		if len(req.GetTileIds()) != 4 {
+			return rulesengine.MatchCommand{}, status.Error(codes.InvalidArgument, "four tile_ids are required for concealed Kong")
+		}
+		command.Type = rulesengine.CommandDeclareConcealedKong
+		command.TileIDs = append([]string(nil), req.GetTileIds()...)
+	case pb.MatchCommandType_MATCH_COMMAND_TYPE_DECLARE_ADDED_KONG:
+		if strings.TrimSpace(command.TileID) == "" {
+			return rulesengine.MatchCommand{}, status.Error(codes.InvalidArgument, "tile_id is required for added Kong")
+		}
+		command.Type = rulesengine.CommandDeclareAddedKong
 	default:
 		return rulesengine.MatchCommand{}, status.Error(codes.InvalidArgument, "unsupported match command type")
 	}
@@ -458,6 +471,21 @@ func projectState(matchID string, view rulesengine.SeatView) *pb.MatchState {
 			NextDealer:        string(view.NextDealer.NextDealer),
 			NextContinuations: int32(view.NextDealer.NextContinuations),
 			DealerRetains:     view.NextDealer.DealerRetains,
+		}
+	}
+	if view.SelfTurnOptions != nil {
+		state.SelfTurnOptions = &pb.SelfTurnOptions{
+			CanWin:           view.SelfTurnOptions.CanWin,
+			AddedKongTileIds: append([]string(nil), view.SelfTurnOptions.AddedKongTileIDs...),
+		}
+		if view.SelfTurnOptions.WinPreview != nil {
+			state.SelfTurnOptions.WinPreview = projectScoreResult(*view.SelfTurnOptions.WinPreview)
+		}
+		for _, ids := range view.SelfTurnOptions.ConcealedKongs {
+			state.SelfTurnOptions.ConcealedKongs = append(
+				state.SelfTurnOptions.ConcealedKongs,
+				&pb.TileIDSet{TileIds: append([]string(nil), ids...)},
+			)
 		}
 	}
 	return state

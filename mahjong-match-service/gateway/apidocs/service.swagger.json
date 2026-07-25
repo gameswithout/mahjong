@@ -323,6 +323,12 @@
         },
         "claim": {
           "$ref": "#/definitions/serviceClaimCommand"
+        },
+        "tileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -665,7 +671,10 @@
         "MATCH_COMMAND_TYPE_UNSPECIFIED",
         "MATCH_COMMAND_TYPE_DRAW",
         "MATCH_COMMAND_TYPE_DISCARD",
-        "MATCH_COMMAND_TYPE_SUBMIT_CLAIM"
+        "MATCH_COMMAND_TYPE_SUBMIT_CLAIM",
+        "MATCH_COMMAND_TYPE_DECLARE_ZIMO",
+        "MATCH_COMMAND_TYPE_DECLARE_CONCEALED_KONG",
+        "MATCH_COMMAND_TYPE_DECLARE_ADDED_KONG"
       ],
       "default": "MATCH_COMMAND_TYPE_UNSPECIFIED"
     },
@@ -759,6 +768,9 @@
         },
         "jadeSettlement": {
           "$ref": "#/definitions/serviceJadeSettlement"
+        },
+        "selfTurnOptions": {
+          "$ref": "#/definitions/serviceSelfTurnOptions"
         }
       },
       "description": "MatchState is a privacy-filtered projection for exactly one authenticated\nplayer. It is not a serializable authoritative snapshot."
@@ -939,6 +951,30 @@
         }
       }
     },
+    "serviceSelfTurnOptions": {
+      "type": "object",
+      "properties": {
+        "canWin": {
+          "type": "boolean"
+        },
+        "winPreview": {
+          "$ref": "#/definitions/serviceScoreResult"
+        },
+        "concealedKongs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceTileIDSet"
+          }
+        },
+        "addedKongTileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "serviceSettlement": {
       "type": "object",
       "properties": {
@@ -1000,6 +1036,17 @@
         "copy": {
           "type": "integer",
           "format": "int64"
+        }
+      }
+    },
+    "serviceTileIDSet": {
+      "type": "object",
+      "properties": {
+        "tileIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

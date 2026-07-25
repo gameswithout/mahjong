@@ -172,6 +172,9 @@ enum MatchCommandType {
   MATCH_COMMAND_TYPE_DRAW = 1;
   MATCH_COMMAND_TYPE_DISCARD = 2;
   MATCH_COMMAND_TYPE_SUBMIT_CLAIM = 3;
+  MATCH_COMMAND_TYPE_DECLARE_ZIMO = 4;
+  MATCH_COMMAND_TYPE_DECLARE_CONCEALED_KONG = 5;
+  MATCH_COMMAND_TYPE_DECLARE_ADDED_KONG = 6;
 }
 
 message SubmitMatchCommandRequest {
@@ -183,6 +186,7 @@ message SubmitMatchCommandRequest {
   uint64 expected_version = 6;
   string tile_id = 7;
   ClaimCommand claim = 8;
+  repeated string tile_ids = 9;
 }
 
 message ClaimCommand {
@@ -224,6 +228,18 @@ message MatchState {
   ContinuationOutcome next_dealer = 19;
   JadeAccount jade_account = 20;
   JadeSettlement jade_settlement = 21;
+  SelfTurnOptions self_turn_options = 22;
+}
+
+message TileIDSet {
+  repeated string tile_ids = 1;
+}
+
+message SelfTurnOptions {
+  bool can_win = 1;
+  ScoreResult win_preview = 2;
+  repeated TileIDSet concealed_kongs = 3;
+  repeated string added_kong_tile_ids = 4;
 }
 
 message JadeAccount {

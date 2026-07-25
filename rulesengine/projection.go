@@ -9,16 +9,16 @@ import (
 // that seat's concealed hand, public zones, and counts for every other hand;
 // it never contains the unrevealed wall or another seat's concealed tile IDs.
 type SeatView struct {
-	MatchID      string         `json:"match_id"`
-	Seat         Seat           `json:"seat"`
-	StateVersion uint64         `json:"state_version"`
-	Phase        TurnPhase      `json:"phase"`
-	ActiveSeat   Seat           `json:"active_seat"`
-	OwnHand      []Tile         `json:"own_hand"`
-	OwnExposed   []Tile         `json:"own_exposed"`
-	OwnMelds     []Meld         `json:"own_melds,omitempty"`
-	Players      []PlayerView   `json:"players"`
-	Wall         WallView       `json:"wall"`
+	MatchID      string       `json:"match_id"`
+	Seat         Seat         `json:"seat"`
+	StateVersion uint64       `json:"state_version"`
+	Phase        TurnPhase    `json:"phase"`
+	ActiveSeat   Seat         `json:"active_seat"`
+	OwnHand      []Tile       `json:"own_hand"`
+	OwnExposed   []Tile       `json:"own_exposed"`
+	OwnMelds     []Meld       `json:"own_melds,omitempty"`
+	Players      []PlayerView `json:"players"`
+	Wall         WallView     `json:"wall"`
 	// Discards is the full public discard pile for every seat, chronological
 	// by Sequence (§9.2's per-seat discard grids) — every discard is public
 	// information in this ruleset, so no redaction is needed here.
@@ -52,6 +52,10 @@ type SeatView struct {
 	// hand (e.g. mid-turn holding an undiscarded draw), not just when the
 	// wait list is empty.
 	Waits []WaitTileView `json:"waits,omitempty"`
+	// SelfTurnOptions contains only server-validated actions the requesting
+	// seat may take during its own discard window. Keeping these authoritative
+	// prevents the browser from reimplementing hand-completion or Kong rules.
+	SelfTurnOptions *SelfTurnOptionsView `json:"self_turn_options,omitempty"`
 }
 
 // WaitTileView is one tile type in the §9.4 wait list. Tile is a concrete,
@@ -63,6 +67,59 @@ type SeatView struct {
 type WaitTileView struct {
 	Tile             Tile `json:"tile"`
 	VisibleRemaining int  `json:"visible_remaining"`
+}
+
+type SelfTurnOptionsView struct {
+	CanWin           bool         `json:"can_win,omitempty"`
+	WinPreview       *ScoreResult `json:"win_preview,omitempty"`
+	ConcealedKongs   [][]string   `json:"concealed_kongs,omitempty"`
+	AddedKongTileIDs []string     `json:"added_kong_tile_ids,omitempty"`
+}
+
+func (e *TurnEngine) selfTurnOptionsFor(seat Seat, player *PlayerState) *SelfTurnOptionsView {
+	if e.Phase != PhaseAwaitingDiscard || e.ActiveSeat != seat {
+		return nil
+	}
+	options := &SelfTurnOptionsView{}
+	if e.lastDraw != nil && e.lastDraw.Seat == seat && CanWin(player.Hand, player.Melds) {
+		context := ScoreContext{
+			Seat:        seat,
+			Zimo:        true,
+			Replacement: e.lastDraw.Replacement,
+			LastTile:    e.lastDraw.LastTile,
+			EarthlyHand: e.lastDraw.EarthlyEligible,
+			SingleWait:  e.singleWaitExcluding(player, e.lastDraw.TileID),
+		}
+		if score, err := ScoreHand(*player, context); err == nil && score.Winning {
+			options.CanWin = true
+			options.WinPreview = &score
+		}
+	}
+	groups := make(map[string][]string)
+	for _, item := range player.Hand {
+		key := tileTypeKey(item)
+		groups[key] = append(groups[key], item.ID)
+	}
+	for _, ids := range groups {
+		if len(ids) == 4 {
+			options.ConcealedKongs = append(options.ConcealedKongs, append([]string(nil), ids...))
+		}
+	}
+	for _, meld := range player.Melds {
+		if meld.Type != MeldPong || meld.Concealed || len(meld.Tiles) == 0 {
+			continue
+		}
+		for _, item := range player.Hand {
+			if sameTileType(meld.Tiles[0], item) {
+				options.AddedKongTileIDs = append(options.AddedKongTileIDs, item.ID)
+				break
+			}
+		}
+	}
+	if !options.CanWin && len(options.ConcealedKongs) == 0 && len(options.AddedKongTileIDs) == 0 {
+		return nil
+	}
+	return options
 }
 
 type PlayerView struct {
@@ -217,6 +274,7 @@ func (e *TurnEngine) ProjectSeat(matchID string, seat Seat) (SeatView, error) {
 		WinLocked: e.winLocks[seat],
 		OwnMelds:  append([]Meld(nil), player.Melds...),
 	}
+	view.SelfTurnOptions = e.selfTurnOptionsFor(seat, player)
 	if waits, err := WaitingTiles(player.Hand, player.Melds); err == nil {
 		for _, candidate := range waits {
 			view.Waits = append(view.Waits, WaitTileView{

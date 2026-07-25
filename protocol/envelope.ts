@@ -41,7 +41,13 @@ export type TurnPhase =
   | "replacement_chain"
   | "exhaustive_draw"
   | "hand_complete";
-export type MatchCommandType = "draw" | "discard" | "submit_claim";
+export type MatchCommandType =
+  | "draw"
+  | "discard"
+  | "submit_claim"
+  | "declare_zimo"
+  | "declare_concealed_kong"
+  | "declare_added_kong";
 export type ClaimType = "pass" | "win" | "pong" | "kong" | "chow";
 
 export interface MahjongTile {
@@ -250,6 +256,12 @@ export interface SeatView {
   // isn't currently holding a waiting-shaped hand (e.g. mid-turn holding an
   // undiscarded draw), not just when the wait list is empty.
   waits?: WaitTileView[];
+  self_turn_options?: {
+    can_win?: boolean;
+    win_preview?: ScoreResult;
+    concealed_kongs?: { tile_ids: string[] }[];
+    added_kong_tile_ids?: string[];
+  };
 }
 
 // WaitTileView is one tile type in the §9.4 wait list — tile is a concrete
@@ -277,6 +289,7 @@ export interface MatchCommandRequest {
   type: MatchCommandType;
   expected_version?: number;
   tile_id?: string;
+  tile_ids?: string[];
   claim?: ClaimResponse;
 }
 

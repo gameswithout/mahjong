@@ -420,6 +420,49 @@ func TestSubmitMatchCommand_ForwardsAuthenticatedCommand(t *testing.T) {
 	}
 }
 
+func TestToRulesCommandMapsSelfTurnActions(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *pb.SubmitMatchCommandRequest
+		want rulesengine.CommandType
+	}{
+		{
+			name: "zimo",
+			req: &pb.SubmitMatchCommandRequest{
+				Type: pb.MatchCommandType_MATCH_COMMAND_TYPE_DECLARE_ZIMO,
+			},
+			want: rulesengine.CommandDeclareZimo,
+		},
+		{
+			name: "concealed Kong",
+			req: &pb.SubmitMatchCommandRequest{
+				Type:    pb.MatchCommandType_MATCH_COMMAND_TYPE_DECLARE_CONCEALED_KONG,
+				TileIds: []string{"dots-4-1", "dots-4-2", "dots-4-3", "dots-4-4"},
+			},
+			want: rulesengine.CommandDeclareConcealedKong,
+		},
+		{
+			name: "added Kong",
+			req: &pb.SubmitMatchCommandRequest{
+				Type:   pb.MatchCommandType_MATCH_COMMAND_TYPE_DECLARE_ADDED_KONG,
+				TileId: "dots-4-4",
+			},
+			want: rulesengine.CommandDeclareAddedKong,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := toRulesCommand(test.req)
+			if err != nil {
+				t.Fatalf("toRulesCommand() error = %v", err)
+			}
+			if got.Type != test.want {
+				t.Fatalf("command type = %s, want %s", got.Type, test.want)
+			}
+		})
+	}
+}
+
 func TestSubmitMatchCommand_RequiresBoundJadeReservationBeforeApply(t *testing.T) {
 	runtime := &fakeRuntime{joinView: privateView()}
 	repository := &fakeEconomyRepository{bindErr: economy.ErrReservationMissing}

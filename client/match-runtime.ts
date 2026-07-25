@@ -57,6 +57,9 @@ const COMMAND_TYPE_TO_PROTO: Record<MatchCommandType, string> = {
   draw: "MATCH_COMMAND_TYPE_DRAW",
   discard: "MATCH_COMMAND_TYPE_DISCARD",
   submit_claim: "MATCH_COMMAND_TYPE_SUBMIT_CLAIM",
+  declare_zimo: "MATCH_COMMAND_TYPE_DECLARE_ZIMO",
+  declare_concealed_kong: "MATCH_COMMAND_TYPE_DECLARE_CONCEALED_KONG",
+  declare_added_kong: "MATCH_COMMAND_TYPE_DECLARE_ADDED_KONG",
 };
 
 function protocolError(message: string, cause?: unknown): MatchRuntimeError {
@@ -438,6 +441,7 @@ export function createMatchRuntimeConnection(
         type: COMMAND_TYPE_TO_PROTO[command.type],
         expected_version: command.expected_version,
         tile_id: command.tile_id,
+        tile_ids: command.tile_ids,
         claim,
       };
       void request("POST", matchPath(trimmed, "/commands"), body)

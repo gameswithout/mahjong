@@ -787,11 +787,43 @@ h1 {
 .winning-table-reveal {
   display: flex;
   flex: 1;
+  position: relative;
   width: 100%;
 }
 
 .winning-table-reveal .match-table-frame {
   margin: 0;
+}
+
+.winning-table-win-type {
+  align-items: center;
+  color: #fff5c7;
+  display: flex;
+  flex-direction: column;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  text-shadow:
+    0 2px 8px rgb(0 0 0 / 92%),
+    0 0 18px rgb(255 202 72 / 72%);
+  top: 50%;
+  transform: translate(-50%, calc(-50% - clamp(70px, 8vw, 116px)));
+  z-index: 24;
+}
+
+.winning-table-win-type strong {
+  color: #ffd75e;
+  font-family: "Noto Serif TC", "Songti TC", STSong, serif;
+  font-size: clamp(1.8rem, 3vw, 3.25rem);
+  font-weight: 900;
+  line-height: 0.95;
+}
+
+.winning-table-win-type span {
+  font-size: clamp(0.72rem, 1vw, 1rem);
+  font-weight: 850;
+  margin-top: 0.35rem;
+  white-space: nowrap;
 }
 
 .match-table-showdown .showdown-hand-tile {

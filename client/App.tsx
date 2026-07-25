@@ -1386,6 +1386,39 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     });
   }
 
+  function dispatchSelfTurnAction(actionId: string, tileIds?: string[]) {
+    if (
+      matchRuntimeState.status !== "joined" ||
+      matchRuntimeState.commandPending ||
+      matchRuntimeState.view.phase !== "awaiting_discard" ||
+      matchRuntimeState.view.active_seat !== matchRuntimeState.view.seat
+    ) {
+      return;
+    }
+    if (actionId === "win-self") {
+      sendMatchCommand({
+        type: "declare_zimo",
+        expected_version: matchRuntimeState.view.state_version,
+      });
+      return;
+    }
+    if (actionId === "kong-concealed" && tileIds?.length === 4) {
+      sendMatchCommand({
+        type: "declare_concealed_kong",
+        expected_version: matchRuntimeState.view.state_version,
+        tile_ids: tileIds,
+      });
+      return;
+    }
+    if (actionId === "kong-added" && tileIds?.length === 1) {
+      sendMatchCommand({
+        type: "declare_added_kong",
+        expected_version: matchRuntimeState.view.state_version,
+        tile_id: tileIds[0],
+      });
+    }
+  }
+
   const birthYearOptions = Array.from({ length: 100 }, (_, index) => new Date().getFullYear() - index);
   const hasActiveOrStrandedSession =
     sessionState.status === "loaded" ||
@@ -1433,6 +1466,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       state={seatViewToMatchTableState(matchRuntimeState.view, {
                         now: nowTick,
                         onClaimAction: dispatchClaimAction,
+                        onSelfTurnAction: dispatchSelfTurnAction,
                         claimActionPending: true,
                         revealWinningHands: true,
                       })}
@@ -1480,6 +1514,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   state={seatViewToMatchTableState(matchRuntimeState.view, {
                     now: nowTick,
                     onClaimAction: dispatchClaimAction,
+                    onSelfTurnAction: dispatchSelfTurnAction,
                     claimActionPending: matchRuntimeState.commandPending,
                   })}
                   interaction={{

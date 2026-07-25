@@ -153,6 +153,7 @@ export interface MatchTableAdapterOptions {
   now: number;
   /** Called with a stable claim-action id (and Chow's tile pair, if any). */
   onClaimAction: (actionId: string, tileIds?: [string, string]) => void;
+  onSelfTurnAction?: (actionId: string, tileIds?: string[]) => void;
   /**
    * Disables every claim action while a previous one is still in flight —
    * without this, a fast double-click could send two responses before the
@@ -219,6 +220,45 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       ? deadlineCountdown(view.turn_deadline, TURN_TOTAL_SECONDS, options.now)
       : null;
   const countdown = claimCountdown ?? turnCountdown;
+  const legalActions = claimLegalActions(view, options.onClaimAction, options.claimActionPending ?? false);
+  if (
+    view.phase === "awaiting_discard" &&
+    view.active_seat === view.seat &&
+    view.self_turn_options &&
+    options.onSelfTurnAction
+  ) {
+    const self = view.self_turn_options;
+    if (self.can_win) {
+      legalActions.unshift({
+        id: "win-self",
+        label: "Self-Draw",
+        onClick: () => options.onSelfTurnAction?.("win-self"),
+        disabled: options.claimActionPending,
+        preview: self.win_preview
+          ? {
+              rawTai: self.win_preview.raw_tai,
+              patterns: self.win_preview.patterns.map((pattern) => ({ name: pattern.name, tai: pattern.tai })),
+            }
+          : undefined,
+      });
+    }
+    (self.concealed_kongs ?? []).forEach((choice, index) => {
+      legalActions.push({
+        id: `kong-concealed-${index}`,
+        label: "Gang",
+        onClick: () => options.onSelfTurnAction?.("kong-concealed", choice.tile_ids),
+        disabled: options.claimActionPending,
+      });
+    });
+    (self.added_kong_tile_ids ?? []).forEach((tileId, index) => {
+      legalActions.push({
+        id: `kong-added-${index}`,
+        label: "Gang",
+        onClick: () => options.onSelfTurnAction?.("kong-added", [tileId]),
+        disabled: options.claimActionPending,
+      });
+    });
+  }
 
   return {
     localSeat,
@@ -236,7 +276,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
     countdownSeconds: countdown?.seconds ?? 0,
     countdownTotalSeconds: countdown?.total ?? TURN_TOTAL_SECONDS,
     untimed: countdown === null,
-    legalActions: claimLegalActions(view, options.onClaimAction, options.claimActionPending ?? false),
+    legalActions,
     waits: (view.waits ?? []).map((entry) => ({
       tile: wireTile(entry.tile),
       visibleRemaining: entry.visible_remaining,

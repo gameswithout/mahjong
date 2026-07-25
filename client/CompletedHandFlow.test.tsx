@@ -77,12 +77,30 @@ describe("CompletedHandFlow", () => {
 
     expect(container.querySelector('[data-testid="table-stays-visible"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Winning hand revealed"]')).not.toBeNull();
+    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("自摸");
+    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("Zi Mo · Self-Draw");
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
 
     act(() => vi.advanceTimersByTime(WINNING_HAND_REVEAL_MS));
 
     expect(container.querySelector(".winning-table-reveal")).toBeNull();
     expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull();
+  });
+
+  it("labels a discard win as Fan Pao during the table reveal", () => {
+    const view = winningView();
+    view.hand_result!.kind = "discard";
+    act(() => root.render(
+      <CompletedHandFlow
+        view={view}
+        practice
+        revealTable={<div>table</div>}
+        onReturn={vi.fn()}
+      />,
+    ));
+
+    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("放炮");
+    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("Fan Pao · Discard Win");
   });
 
   it("skips the reveal for an exhaustive draw", () => {

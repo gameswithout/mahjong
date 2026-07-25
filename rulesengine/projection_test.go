@@ -293,6 +293,72 @@ func TestProjectSeatComputesClaimOptionsServerSide(t *testing.T) {
 	}
 }
 
+func TestProjectSeatComputesAuthoritativeSelfTurnOptions(t *testing.T) {
+	t.Run("concealed and added Kong", func(t *testing.T) {
+		state := turnFixture(t)
+		state.Players[0].Hand = []Tile{
+			tile("dots-4-1", Dots, 4, 1),
+			tile("dots-4-2", Dots, 4, 2),
+			tile("dots-4-3", Dots, 4, 3),
+			tile("dots-4-4", Dots, 4, 4),
+			tile("characters-7-4", Characters, 7, 4),
+		}
+		state.Players[0].Melds = []Meld{{
+			Type: MeldPong,
+			Tiles: []Tile{
+				tile("characters-7-1", Characters, 7, 1),
+				tile("characters-7-2", Characters, 7, 2),
+				tile("characters-7-3", Characters, 7, 3),
+			},
+			Claimed: true,
+		}}
+		engine := fixedClockEngine(t, state)
+		engine.Phase = PhaseAwaitingDiscard
+		engine.ActiveSeat = East
+
+		view, err := engine.ProjectSeat("match-1", East)
+		if err != nil {
+			t.Fatalf("ProjectSeat() error = %v", err)
+		}
+		if view.SelfTurnOptions == nil || len(view.SelfTurnOptions.ConcealedKongs) != 1 {
+			t.Fatalf("SelfTurnOptions = %#v, want concealed Kong", view.SelfTurnOptions)
+		}
+		if got := view.SelfTurnOptions.AddedKongTileIDs; len(got) != 1 || got[0] != "characters-7-4" {
+			t.Fatalf("AddedKongTileIDs = %v", got)
+		}
+	})
+
+	t.Run("self draw win", func(t *testing.T) {
+		state := turnFixture(t)
+		state.Players[0].Hand = append(
+			append(
+				append(
+					append(
+						append(concealedPongTiles(Characters, 1), concealedPongTiles(Characters, 2)...),
+						concealedPongTiles(Characters, 3)...,
+					),
+					concealedPongTiles(Bamboo, 1)...,
+				),
+				concealedPongTiles(Bamboo, 2)...,
+			),
+			tile("dots-8-1", Dots, 8, 1),
+			tile("dots-8-2", Dots, 8, 2),
+		)
+		engine := fixedClockEngine(t, state)
+		engine.Phase = PhaseAwaitingDiscard
+		engine.ActiveSeat = East
+		engine.lastDraw = &DrawContext{Seat: East, TileID: "dots-8-2"}
+
+		view, err := engine.ProjectSeat("match-1", East)
+		if err != nil {
+			t.Fatalf("ProjectSeat() error = %v", err)
+		}
+		if view.SelfTurnOptions == nil || !view.SelfTurnOptions.CanWin || view.SelfTurnOptions.WinPreview == nil {
+			t.Fatalf("SelfTurnOptions = %#v, want self-draw Win with preview", view.SelfTurnOptions)
+		}
+	})
+}
+
 // TestProjectSeatComputesTingWaitListWithVisibleRemainingCount covers the
 // §9.4 assist: a seat holding a single-wait hand gets exactly the tile type
 // it needs, and VisibleRemaining correctly subtracts every publicly visible

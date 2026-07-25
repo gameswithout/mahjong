@@ -425,9 +425,12 @@ function CurrentTileFocus({
   discardPending?: boolean;
 }) {
   const discard = state.lastDiscard;
-  const claimAvailable = state.legalActions.some(
+  const claimAvailable = state.claimSource !== null && state.legalActions.some(
     (action) => action.id.toLowerCase() !== "pass",
   );
+  const selfTurnActionAvailable =
+    state.claimSource === null &&
+    state.legalActions.some((action) => action.id === "win-self" || action.id.startsWith("kong-"));
   const passOnly =
     state.legalActions.length === 1 &&
     state.legalActions[0]?.id.toLowerCase() === "pass";
@@ -454,7 +457,9 @@ function CurrentTileFocus({
       : canDiscard
         ? discardPending
           ? "Discarding…"
-          : "Your turn · tap a tile"
+          : selfTurnActionAvailable
+            ? "Choose Win/Gang or discard"
+            : "Your turn · tap a tile"
         : "Last tile played";
 
   return (
@@ -705,6 +710,7 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
       pong: { glyph: "碰", english: "Pong" },
       kong: { glyph: "槓", english: "Gang" },
       gang: { glyph: "槓", english: "Gang" },
+      "win-self": { glyph: "自摸", english: "Self-Draw" },
     };
     const term = Object.entries(terms).find(([prefix]) => key === prefix || key.startsWith(`${prefix}-`))?.[1];
     if (!term) {
@@ -780,8 +786,14 @@ function ActionBar({
   const passOnly =
     legalActions.length === 1 && legalActions[0]?.id.toLowerCase() === "pass";
   if (legalActions.length > 0 && !passOnly) {
+    const selfTurnActions = legalActions.some(
+      (action) => action.id === "win-self" || action.id.startsWith("kong-"),
+    );
     return (
-      <div className="action-bar action-bar-claim" aria-label="Respond to the tile in play">
+      <div
+        className={`action-bar ${selfTurnActions ? "action-bar-self-turn" : "action-bar-claim"}`}
+        aria-label={selfTurnActions ? "Self-turn actions" : "Respond to the tile in play"}
+      >
         <ClaimButtons actions={legalActions} />
       </div>
     );

@@ -329,6 +329,41 @@ describe("createMatchRuntimeConnection", () => {
     expect(body.claim).not.toHaveProperty("state_version");
   });
 
+  it("sends self-turn Win and concealed Gang commands through the authoritative API", async () => {
+    const fake = new FakeFetch();
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+    });
+    await connection.ready;
+
+    fake.enqueue(200, { state: wireMatchState({ state_version: "8", phase: "hand_complete" }) });
+    connection.command({
+      match_id: "session-1",
+      type: "declare_zimo",
+      expected_version: 7,
+    }, "zimo-1");
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+    expect(fake.calls[0].body).toMatchObject({
+      type: "MATCH_COMMAND_TYPE_DECLARE_ZIMO",
+      expected_version: 7,
+    });
+
+    fake.enqueue(200, { state: wireMatchState({ state_version: "9", phase: "awaiting_discard" }) });
+    connection.command({
+      match_id: "session-1",
+      type: "declare_concealed_kong",
+      expected_version: 8,
+      tile_ids: ["dots-4-1", "dots-4-2", "dots-4-3", "dots-4-4"],
+    }, "kong-1");
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(2));
+    expect(fake.calls[1].body).toMatchObject({
+      type: "MATCH_COMMAND_TYPE_DECLARE_CONCEALED_KONG",
+      tile_ids: ["dots-4-1", "dots-4-2", "dots-4-3", "dots-4-4"],
+    });
+  });
+
   it("rejects a response whose match_id does not match the requested match", async () => {
     const fake = new FakeFetch();
     fake.enqueue(200, { state: wireMatchState({ match_id: "wrong-match" }) });

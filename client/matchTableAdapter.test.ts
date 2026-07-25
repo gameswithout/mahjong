@@ -24,6 +24,46 @@ function seatView(overrides: Partial<SeatView> = {}): SeatView {
 }
 
 describe("seatViewToMatchTableState", () => {
+  it("maps authoritative self-turn Win and Gang options during discard", () => {
+    const onSelfTurnAction = vi.fn();
+    const state = seatViewToMatchTableState(
+      seatView({
+        phase: "awaiting_discard",
+        self_turn_options: {
+          can_win: true,
+          win_preview: {
+            winning: true,
+            raw_tai: 3,
+            patterns: [{ name: "Concealed Zimo", tai: 3 }],
+            shape: { melds: [], pair: [] },
+            effective_tiles: 17,
+          },
+          concealed_kongs: [{
+            tile_ids: ["dots-4-1", "dots-4-2", "dots-4-3", "dots-4-4"],
+          }],
+          added_kong_tile_ids: ["characters-7-4"],
+        },
+      }),
+      { now: Date.now(), onClaimAction: vi.fn(), onSelfTurnAction },
+    );
+
+    expect(state.legalActions.map((action) => action.id)).toEqual([
+      "win-self",
+      "kong-concealed-0",
+      "kong-added-0",
+    ]);
+    state.legalActions[0].onClick?.();
+    state.legalActions[1].onClick?.();
+    state.legalActions[2].onClick?.();
+    expect(onSelfTurnAction).toHaveBeenNthCalledWith(1, "win-self");
+    expect(onSelfTurnAction).toHaveBeenNthCalledWith(
+      2,
+      "kong-concealed",
+      ["dots-4-1", "dots-4-2", "dots-4-3", "dots-4-4"],
+    );
+    expect(onSelfTurnAction).toHaveBeenNthCalledWith(3, "kong-added", ["characters-7-4"]);
+  });
+
   it("maps own hand, seat metadata, and wall counts", () => {
     const state = seatViewToMatchTableState(seatView(), { now: Date.now(), onClaimAction: vi.fn() });
     expect(state.localSeat).toBe("E");

@@ -2,8 +2,6 @@
 
 set -eou pipefail
 
-shopt -s globstar
-
 find_all_proto_files() {
   find "${PROTO_DIR}" -name "*.proto" -type f
 }
@@ -37,4 +35,3 @@ protoc \
   --openapiv2_out "${APIDOCS_DIR}" \
   --openapiv2_opt=logtostderr=true \
   "${PROTO_DIR}"/service.proto
-
