@@ -146,8 +146,8 @@ function isNetworkFailure(error: unknown): boolean {
 
 // AGS's OAuth token endpoint uses {error, error_description}; its plain
 // REST endpoints (registration, verification codes) use {errorMessage}.
-// Both are safe, user-facing strings (e.g. "email already exists"), unlike
-// the raw error object, which must never reach the UI.
+// Both are mostly safe, user-facing strings (e.g. "email already exists"),
+// unlike the raw error object, which must never reach the UI.
 function apiErrorDescription(error: unknown): string {
   if (!error || typeof error !== "object" || !("response" in error)) {
     return "";
@@ -172,7 +172,37 @@ function apiErrorDescription(error: unknown): string {
   return "";
 }
 
-type IamOperation =
+// …"mostly": the headless-upgrade endpoint appends an internal identifier to
+// its message ("…: code not match, userID: 69c9c424c6d2…"), observed live
+// against the gameswithout-mahjong namespace on 2026-07-25. Rendering that
+// would put an opaque account ID in front of the player, so any message
+// carrying one is dropped in favour of our own copy.
+function playerSafeDescription(error: unknown): string {
+  const description = apiErrorDescription(error);
+  return /userid\s*:/i.test(description) ? "" : description;
+}
+
+// AGS returns 403 — not 400 — for a verification code that is missing or
+// wrong (10152 "verification code not found", 10138 "code not match"), so
+// status alone cannot separate a bad code from a non-upgradable account.
+const UPGRADE_CODE_REJECTED_ERROR_CODES = new Set([10138, 10152]);
+
+function apiErrorCode(error: unknown): number | undefined {
+  if (!error || typeof error !== "object" || !("response" in error)) {
+    return undefined;
+  }
+  const response = error.response;
+  if (!response || typeof response !== "object" || !("data" in response)) {
+    return undefined;
+  }
+  const data = response.data;
+  if (!data || typeof data !== "object" || !("errorCode" in data)) {
+    return undefined;
+  }
+  return typeof data.errorCode === "number" ? data.errorCode : undefined;
+}
+
+export type IamOperation =
   | "login"
   | "current_user"
   | "email_login"
@@ -191,7 +221,10 @@ const UNKNOWN_MESSAGE_BY_OPERATION: Record<IamOperation, string> = {
   request_upgrade_code: "Could not send a verification code. Please retry.",
 };
 
-function mapAuthError(error: unknown, operation: IamOperation): IamAuthError {
+// Exported for tests: this is where every AGS failure shape is turned into
+// the one string a player sees, so it is worth pinning against the payloads
+// AGS actually returns.
+export function mapAuthError(error: unknown, operation: IamOperation): IamAuthError {
   if (error instanceof IamAuthError) {
     return error;
   }
@@ -229,31 +262,42 @@ function mapAuthError(error: unknown, operation: IamOperation): IamAuthError {
     );
   }
 
-  // AGS answers an upgrade attempt on an already-upgraded account with 403.
-  // Retrying cannot fix that, so it gets its own code and its own copy
-  // instead of the generic "please retry" message.
-  if (operation === "upgrade" && status === 403) {
-    return new IamAuthError("not_a_guest", "This account already has email sign-in.", {
-      cause: error,
-    });
+  if (operation === "upgrade" && status !== undefined && status < 500) {
+    if (UPGRADE_CODE_REJECTED_ERROR_CODES.has(apiErrorCode(error) ?? -1)) {
+      return new IamAuthError(
+        "upgrade_failed",
+        "That verification code is not valid or has expired. Request a new one.",
+        { cause: error },
+      );
+    }
+
+    // An account that already carries an email identity cannot be upgraded
+    // again. Retrying will not help, so it gets its own code and copy.
+    if (/already|not headless|not a headless/i.test(apiErrorDescription(error))) {
+      return new IamAuthError("not_a_guest", "This account already has email sign-in.", {
+        cause: error,
+      });
+    }
+
+    return new IamAuthError(
+      "upgrade_failed",
+      playerSafeDescription(error) || UNKNOWN_MESSAGE_BY_OPERATION.upgrade,
+      { cause: error },
+    );
   }
 
-  if (
-    (operation === "upgrade" || operation === "request_upgrade_code") &&
-    status !== undefined &&
-    status < 500
-  ) {
-    const description = apiErrorDescription(error);
-    return new IamAuthError("upgrade_failed", description || UNKNOWN_MESSAGE_BY_OPERATION[operation], {
-      cause: error,
-    });
+  if (operation === "request_upgrade_code" && status !== undefined && status < 500) {
+    return new IamAuthError(
+      "upgrade_failed",
+      playerSafeDescription(error) || UNKNOWN_MESSAGE_BY_OPERATION.request_upgrade_code,
+      { cause: error },
+    );
   }
 
   if ((operation === "register" || operation === "request_code") && status !== undefined && status < 500) {
-    const description = apiErrorDescription(error);
     return new IamAuthError(
       "registration_failed",
-      description || UNKNOWN_MESSAGE_BY_OPERATION[operation],
+      playerSafeDescription(error) || UNKNOWN_MESSAGE_BY_OPERATION[operation],
       { cause: error },
     );
   }

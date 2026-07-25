@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { BrowserIam, IamAuthError, type IamTransport } from "./iam";
+import { BrowserIam, IamAuthError, mapAuthError, type IamTransport } from "./iam";
 import { DEVICE_ID_STORAGE_KEY } from "./device-id";
 
 describe("BrowserIam", () => {
@@ -54,6 +54,23 @@ describe("BrowserIam", () => {
     ]);
     expect(window.localStorage.getItem(DEVICE_ID_STORAGE_KEY)).toBe("stable-device-id");
     expect(iam.getAccessToken()).toBe("in-memory-access-token");
+  });
+
+  // Live AGS returns emailAddress as an empty string for a headless account,
+  // not by omitting the field (gameswithout-mahjong, 2026-07-25).
+  it("still counts an empty AGS emailAddress as a guest", async () => {
+    const transport: IamTransport = {
+      async loginWithDeviceId() {
+        return { access_token: "device-access-token" };
+      },
+      async getCurrentUser() {
+        return { userId: "guest-user-123", emailAddress: "" };
+      },
+    };
+
+    const iam = new BrowserIam(transport);
+    await expect(iam.loginAsGuest()).resolves.toMatchObject({ isGuest: true });
+    expect(iam.isGuest()).toBe(true);
   });
 
   it("treats a device login that lands on an upgraded account as no longer a guest", async () => {
@@ -290,6 +307,70 @@ describe("BrowserIam", () => {
         message: "Email address is already used.",
       });
       expect(iam.isGuest()).toBe(true);
+    });
+
+    // Payloads copied from live calls against the gameswithout-mahjong
+    // namespace on 2026-07-25 — the shapes that drove these mappings.
+    describe("upgrade failures observed against live AGS", () => {
+      function agsError(status: number, data: unknown) {
+        return { response: { status, data } };
+      }
+
+      it("reads a rejected verification code as a bad code, not a used-up account", () => {
+        for (const data of [
+          {
+            errorCode: 10152,
+            errorMessage:
+              "unable to upgrade headless account with verification code: verification code not found, userID: 69c9c424c6d249c1a8605b452b812f71",
+          },
+          {
+            errorCode: 10138,
+            errorMessage:
+              "unable to upgrade headless account with verification code: code not match, userID: 69c9c424c6d249c1a8605b452b812f71",
+          },
+        ]) {
+          // AGS answers a bad code with 403, so status alone would have
+          // read this as "this account already has email sign-in".
+          const mapped = mapAuthError(agsError(403, data), "upgrade");
+          expect(mapped.code).toBe("upgrade_failed");
+          expect(mapped.message).toBe(
+            "That verification code is not valid or has expired. Request a new one.",
+          );
+        }
+      });
+
+      it("never puts an AGS-internal userID in front of the player", () => {
+        const mapped = mapAuthError(
+          agsError(400, {
+            errorCode: 20000,
+            errorMessage: "internal server error, userID: 69c9c424c6d249c1a8605b452b812f71",
+          }),
+          "upgrade",
+        );
+
+        expect(mapped.message).toBe("Account creation failed. Please retry.");
+        expect(mapped.message).not.toContain("69c9c424");
+      });
+
+      it("still separates an account that cannot be upgraded again", () => {
+        const mapped = mapAuthError(
+          agsError(403, { errorCode: 10141, errorMessage: "user already has email account" }),
+          "upgrade",
+        );
+
+        expect(mapped.code).toBe("not_a_guest");
+        expect(mapped.message).toBe("This account already has email sign-in.");
+      });
+
+      it("keeps a clean AGS message for the upgrade code request", () => {
+        const mapped = mapAuthError(
+          agsError(409, { errorCode: 10133, errorMessage: "email already used" }),
+          "request_upgrade_code",
+        );
+
+        expect(mapped.code).toBe("upgrade_failed");
+        expect(mapped.message).toBe("email already used");
+      });
     });
 
     it("keeps raw transport errors out of the email-login failure", async () => {
