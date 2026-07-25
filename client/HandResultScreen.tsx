@@ -30,7 +30,7 @@ function currentDealer(view: SeatView): MahjongSeat | null {
 }
 
 const WIN_TYPE_COPY: Record<HandResult["kind"], { chinese: string; romanized: string; english: string }> = {
-  discard: { chinese: "放炮", romanized: "Fan Pao", english: "Discard Win" },
+  discard: { chinese: "胡", romanized: "Hu", english: "" },
   zimo: { chinese: "自摸", romanized: "Zi Mo", english: "Self-Draw" },
   rob: { chinese: "搶槓", romanized: "Qiang Gang", english: "Robbing the Kong" },
   eight_flowers: { chinese: "八仙過海", romanized: "Eight Flowers", english: "Eight Flowers Win" },
@@ -55,11 +55,19 @@ function WinTypeBanner({
   return (
     <header className={`hand-result-win-type hand-result-win-type-${result.kind}`}>
       <h2 className="hand-result-win-type-chinese" lang="zh-Hant">{copy.chinese}</h2>
-      <p className="hand-result-win-type-name">{copy.romanized} · {copy.english}</p>
+      <p className="hand-result-win-type-name">
+        {copy.romanized}{copy.english ? ` · ${copy.english}` : ""}
+      </p>
       {result.kind === "discard" && payerName && winnerNames ? (
         <div className="hand-result-win-relationship" aria-label={`${payerName} discarded the winning tile to ${winnerNames}`}>
           <strong className="hand-result-payer">{payerName}</strong>
-          <span className="hand-result-win-arrow" aria-hidden="true">discarded to →</span>
+          <span className="hand-result-win-arrow">discarded winning tile</span>
+          {winningTile ? (
+            <span className="tile tile-md" role="img" aria-label={winningTile.label}>
+              <TileFace id={winningTile.id} size="md" />
+            </span>
+          ) : null}
+          <span className="hand-result-win-arrow">to</span>
           <strong className="hand-result-recipient">{winnerNames}</strong>
         </div>
       ) : result.kind === "zimo" && winnerNames ? (
@@ -68,7 +76,7 @@ function WinTypeBanner({
           <span>drew the winning tile themselves</span>
         </div>
       ) : null}
-      {winningTile ? (
+      {winningTile && result.kind !== "discard" ? (
         <div className="hand-result-hero-tile">
           <span>Winning tile</span>
           <span className="tile tile-md" role="img" aria-label={winningTile.label}>
@@ -112,7 +120,7 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
       >
-        {expanded ? "Hide" : "Why this scored"}
+        {expanded ? "Hide Score Breakdown" : "Score Breakdown"}
       </button>
       {expanded && (
         <ul className="hand-result-patterns">

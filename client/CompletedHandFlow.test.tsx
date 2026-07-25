@@ -87,7 +87,7 @@ describe("CompletedHandFlow", () => {
     expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull();
   });
 
-  it("labels a discard win as Fan Pao during the table reveal", () => {
+  it("labels a discard win as Hu during the table reveal", () => {
     const view = winningView();
     view.hand_result!.kind = "discard";
     act(() => root.render(
@@ -99,8 +99,9 @@ describe("CompletedHandFlow", () => {
       />,
     ));
 
-    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("放炮");
-    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("Fan Pao · Discard Win");
+    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("胡");
+    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("Hu");
+    expect(container.querySelector(".winning-table-win-type")?.textContent).not.toContain("Fan Pao");
   });
 
   it("skips the reveal for an exhaustive draw", () => {

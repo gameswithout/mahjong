@@ -28,6 +28,7 @@ var takeoverSeatOrder = []rulesengine.Seat{rulesengine.East, rulesengine.South, 
 // once real rotation and tier selection exist.
 const matchDealer = rulesengine.East
 const matchContinuations = 0
+const openingBotTurnDelay = 2 * time.Second
 
 var matchTier = rulesengine.TierBambooCourtyard
 
@@ -118,6 +119,12 @@ type Runtime struct {
 type loadedMatch struct {
 	record storage.MatchRecord
 	actor  *rulesengine.MatchActor
+	// openingBotReadyAt holds the one-time presentation grace period for a
+	// match whose dealer is bot-controlled. driveLocked returns the untouched
+	// opening state until this time so clients can render the table before the
+	// first move. The deadline is derived from the persisted match.created
+	// event, keeping it consistent across runtime replicas and restarts.
+	openingBotReadyAt time.Time
 	// pendingRestore marks a seat whose rightful owner has been observed
 	// present (an authenticated Join/View/Apply call) while that seat was
 	// taken over (§8.7). It is only ever set while the seat is actually
@@ -415,6 +422,14 @@ func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 		}
 		version := engine.Version
 		now := r.now()
+		if !current.openingBotReadyAt.IsZero() {
+			if now.Before(current.openingBotReadyAt) {
+				return nil
+			}
+			// The grace period is strictly an opening presentation delay.
+			// Clear it before driving so no later bot turn can inherit it.
+			current.openingBotReadyAt = time.Time{}
+		}
 
 		if engine.TurnDeadline != nil && !now.Before(*engine.TurnDeadline) {
 			switch engine.Phase {
@@ -669,7 +684,33 @@ func (r *Runtime) loadLocked(ctx context.Context, record storage.MatchRecord) (*
 			}
 		}
 	}
-	current := &loadedMatch{record: record, actor: actor, pendingRestore: map[rulesengine.Seat]bool{}}
+	// Re-read after initialization because this call may have created the
+	// actor and committed initial replacement events. A persisted takeover
+	// command proves the opening bot has already acted, so a restarted
+	// runtime must not introduce a second delay.
+	committedEvents, eventsErr := r.events.Events(ctx, record.RuntimeID)
+	if eventsErr != nil {
+		return nil, fmt.Errorf("read initialized match events: %w", eventsErr)
+	}
+	var openingBotReadyAt time.Time
+	openingBotAlreadyActed := false
+	for _, event := range committedEvents {
+		if strings.HasPrefix(event.RequestID, "system:takeover:"+string(matchDealer)+":") {
+			openingBotAlreadyActed = true
+			break
+		}
+	}
+	engine := actor.Peek()
+	if !openingBotAlreadyActed && len(committedEvents) > 0 && engine != nil &&
+		engine.ActiveSeat == matchDealer && engine.IsTakenOver(matchDealer) {
+		openingBotReadyAt = committedEvents[0].OccurredAt.Add(openingBotTurnDelay)
+	}
+	current := &loadedMatch{
+		record:            record,
+		actor:             actor,
+		openingBotReadyAt: openingBotReadyAt,
+		pendingRestore:    map[rulesengine.Seat]bool{},
+	}
 	r.mu.Lock()
 	r.actors[record.RuntimeID] = current
 	r.mu.Unlock()
