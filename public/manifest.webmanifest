@@ -1,0 +1,9 @@
+{
+  "name": "Mahjong Online",
+  "short_name": "Mahjong",
+  "start_url": "./",
+  "display": "fullscreen",
+  "background_color": "#0c0e18",
+  "theme_color": "#145f3f",
+  "orientation": "landscape"
+}

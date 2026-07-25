@@ -215,6 +215,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [controlRestoredNotice, setControlRestoredNotice] = useState(false);
+  const [fullscreenHelp, setFullscreenHelp] = useState(false);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -1419,6 +1420,31 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
   }
 
+  async function enterGameFullscreen() {
+    const root = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    try {
+      if (document.fullscreenElement) {
+        return;
+      }
+      if (root.requestFullscreen) {
+        await root.requestFullscreen();
+        return;
+      }
+      if (root.webkitRequestFullscreen) {
+        await root.webkitRequestFullscreen();
+        return;
+      }
+    } catch {
+      // iPhone Safari may expose the API but reject it outside installed
+      // web-app mode. Fall through to the Add to Home Screen instruction.
+    }
+    window.scrollTo({ top: 1, behavior: "smooth" });
+    setFullscreenHelp(true);
+    window.setTimeout(() => setFullscreenHelp(false), 8_000);
+  }
+
   const birthYearOptions = Array.from({ length: 100 }, (_, index) => new Date().getFullYear() - index);
   const hasActiveOrStrandedSession =
     sessionState.status === "loaded" ||
@@ -1481,6 +1507,22 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
             </div>
           ) : (
             <>
+              <div className="game-screen-fullscreen">
+                {fullscreenHelp ? (
+                  <p className="fullscreen-help" role="status">
+                    For full screen on iPhone: Share → Add to Home Screen
+                  </p>
+                ) : null}
+                <button
+                  className="fullscreen-match-button"
+                  type="button"
+                  onClick={() => void enterGameFullscreen()}
+                  aria-label="Enter full screen"
+                >
+                  <span aria-hidden="true">⛶</span>
+                  <span>Full screen</span>
+                </button>
+              </div>
               <div className="game-screen-topbar">
                 {controlRestoredNotice && (
                   <p className="control-restored-toast" role="status" aria-live="polite">

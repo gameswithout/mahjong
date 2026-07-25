@@ -133,6 +133,18 @@ describe("seatViewToMatchTableState", () => {
     expect(state.seats.N.bonusTiles).toEqual([]);
   });
 
+  it("treats an omitted empty own_exposed list as no bonus tiles", () => {
+    const view = seatView();
+    delete (view as Partial<SeatView>).own_exposed;
+
+    const state = seatViewToMatchTableState(view, {
+      now: Date.now(),
+      onClaimAction: vi.fn(),
+    });
+
+    expect(state.seats.E.bonusTiles).toEqual([]);
+  });
+
   it("groups the public discard pile by seat", () => {
     const state = seatViewToMatchTableState(
       seatView({

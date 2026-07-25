@@ -202,7 +202,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         hand: isLocal ? view.own_hand.map(wireTile) : undefined,
         revealedHand: winningHands.get(seat),
         melds,
-        bonusTiles: (isLocal ? view.own_exposed : (player?.exposed ?? []))
+        bonusTiles: (isLocal ? (view.own_exposed ?? []) : (player?.exposed ?? []))
           .filter((item) => item.kind === "flower")
           .map(wireTile),
         discards: (discardsBySeat.get(seat) ?? []).map(wireTile),
