@@ -4,7 +4,7 @@
 // Practice replay/return slice of item 10. XP/achievements/rating (item 8,
 // needs E11/E13), Add Friend and result-card image export (item 9, needs
 // E12), and human-queue Report/Play Again/Continue remain deferred.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
 import { TileFace } from "./TileFace";
@@ -98,6 +98,10 @@ export interface HandResultScreenProps {
   practice?: boolean;
   onPlayAgain?: () => void;
   onReturn?: () => void;
+  // §10.2: the end-of-match slot where a guest is offered a full account.
+  // Passed in rather than built here so this screen stays presentational and
+  // knows nothing about IAM.
+  accountUpgrade?: ReactNode;
 }
 
 export function HandResultScreen({
@@ -105,6 +109,7 @@ export function HandResultScreen({
   practice = false,
   onPlayAgain,
   onReturn,
+  accountUpgrade,
 }: HandResultScreenProps) {
   const result = view.hand_result;
   if (!result) {
@@ -221,6 +226,8 @@ export function HandResultScreen({
       )}
 
       <p className="hand-result-match-id">Match ID: {view.match_id}</p>
+
+      {accountUpgrade}
 
       {(onPlayAgain || onReturn) && (
         <div className="hand-result-actions">

@@ -12,6 +12,8 @@ export type IamAuthErrorCode =
   | "current_user"
   | "invalid_credentials"
   | "registration_failed"
+  | "not_a_guest"
+  | "upgrade_failed"
   | "unknown";
 
 export class IamAuthError extends Error {
@@ -28,6 +30,11 @@ export class IamAuthError extends Error {
 export interface GuestIdentity {
   userId: string;
   deviceId: string;
+  // False when the device ID resolves to an account that was already
+  // upgraded: device login keeps working after an upgrade, so returning
+  // players still arrive through loginAsGuest and must not be re-offered an
+  // account they already have.
+  isGuest: boolean;
 }
 
 export interface EmailIdentity {
@@ -50,6 +57,23 @@ export interface EmailRegistrationInput {
   code: string;
 }
 
+// §10.2 guest→account migration: AGS IAM's *headless upgrade*, deliberately
+// not a second registerWithEmailPassword. Upgrading attaches the email
+// identity to the account the device ID already owns, so the userId — and
+// with it Jade, the wallet, and every other per-user record — survives.
+// Registering instead would mint a second, empty account and strand the
+// guest's balance on the old one. Same field set as registration (§10.3:
+// birthYear/birthMonth only, never a full birth date).
+export interface GuestUpgradeInput {
+  email: string;
+  username: string;
+  password: string;
+  country: string;
+  birthYear: number;
+  birthMonth: number;
+  code: string;
+}
+
 interface TokenResponse {
   access_token?: unknown;
   refresh_token?: unknown;
@@ -57,6 +81,9 @@ interface TokenResponse {
 
 interface UserResponse {
   userId?: unknown;
+  // Present only once an email identity is attached, which is exactly what
+  // separates a headless (guest) account from a full one.
+  emailAddress?: unknown;
 }
 
 export interface IamTransport {
@@ -66,6 +93,8 @@ export interface IamTransport {
   requestEmailVerificationCode?(email: string): Promise<void>;
   registerWithEmailPassword?(input: EmailRegistrationInput): Promise<void>;
   loginWithEmailPassword?(email: string, password: string): Promise<TokenResponse>;
+  requestGuestUpgradeCode?(accessToken: string, email: string): Promise<void>;
+  upgradeGuestAccount?(accessToken: string, input: GuestUpgradeInput): Promise<void>;
 }
 
 export type AccelByteWebSdk = ReturnType<typeof AccelByte.SDK>;
@@ -143,7 +172,14 @@ function apiErrorDescription(error: unknown): string {
   return "";
 }
 
-type IamOperation = "login" | "current_user" | "email_login" | "register" | "request_code";
+type IamOperation =
+  | "login"
+  | "current_user"
+  | "email_login"
+  | "register"
+  | "request_code"
+  | "upgrade"
+  | "request_upgrade_code";
 
 const UNKNOWN_MESSAGE_BY_OPERATION: Record<IamOperation, string> = {
   login: "Guest sign-in failed. Please retry.",
@@ -151,6 +187,8 @@ const UNKNOWN_MESSAGE_BY_OPERATION: Record<IamOperation, string> = {
   email_login: "Sign-in failed. Please retry.",
   register: "Account creation failed. Please retry.",
   request_code: "Could not send a verification code. Please retry.",
+  upgrade: "Account creation failed. Please retry.",
+  request_upgrade_code: "Could not send a verification code. Please retry.",
 };
 
 function mapAuthError(error: unknown, operation: IamOperation): IamAuthError {
@@ -189,6 +227,26 @@ function mapAuthError(error: unknown, operation: IamOperation): IamAuthError {
       "Incorrect email or password.",
       { cause: error },
     );
+  }
+
+  // AGS answers an upgrade attempt on an already-upgraded account with 403.
+  // Retrying cannot fix that, so it gets its own code and its own copy
+  // instead of the generic "please retry" message.
+  if (operation === "upgrade" && status === 403) {
+    return new IamAuthError("not_a_guest", "This account already has email sign-in.", {
+      cause: error,
+    });
+  }
+
+  if (
+    (operation === "upgrade" || operation === "request_upgrade_code") &&
+    status !== undefined &&
+    status < 500
+  ) {
+    const description = apiErrorDescription(error);
+    return new IamAuthError("upgrade_failed", description || UNKNOWN_MESSAGE_BY_OPERATION[operation], {
+      cause: error,
+    });
   }
 
   if ((operation === "register" || operation === "request_code") && status !== undefined && status < 500) {
@@ -298,11 +356,49 @@ export function createSdkIamTransport(config: AccelByteWebConfig = accelByteConf
         throw mapAuthError(error, "email_login");
       }
     },
+
+    // Unlike the registration code request, this one is authenticated as the
+    // guest and carries the "upgradeHeadlessAccount" context, so AGS issues a
+    // code that only the headless/code/verify endpoint below will accept.
+    async requestGuestUpgradeCode(accessToken, email) {
+      try {
+        const sdk = createSdk(config);
+        sdk.setToken({ accessToken });
+        await UsersApi(sdk).createUserMeCodeRequest_v3({
+          emailAddress: email,
+          context: "upgradeHeadlessAccount",
+        });
+      } catch (error) {
+        throw mapAuthError(error, "request_upgrade_code");
+      }
+    },
+
+    async upgradeGuestAccount(accessToken, input) {
+      try {
+        const sdk = createSdk(config);
+        sdk.setToken({ accessToken });
+        const dateOfBirth = `${input.birthYear}-${String(input.birthMonth).padStart(2, "0")}-01`;
+        await UsersV4Api(sdk).createUserMeHeadlesCodeVerify_v4({
+          code: input.code,
+          emailAddress: input.email,
+          username: input.username,
+          password: input.password,
+          country: input.country,
+          dateOfBirth,
+          reachMinimumAge: true,
+        });
+      } catch (error) {
+        throw mapAuthError(error, "upgrade");
+      }
+    },
   };
 }
 
+type IdentityKind = "guest" | "full";
+
 export class BrowserIam {
   private accessToken: string | null = null;
+  private identityKind: IdentityKind | null = null;
 
   constructor(
     private readonly transport: IamTransport,
@@ -321,8 +417,16 @@ export class BrowserIam {
       throw new IamAuthError("current_user", "AGS returned an invalid guest profile.");
     }
 
+    const hasEmailIdentity = typeof user.emailAddress === "string" && user.emailAddress.length > 0;
     this.accessToken = token.access_token;
-    return { deviceId, userId: user.userId };
+    this.identityKind = hasEmailIdentity ? "full" : "guest";
+    return { deviceId, userId: user.userId, isGuest: !hasEmailIdentity };
+  }
+
+  // A guest is exactly a headless account: signed in by device ID with no
+  // email identity attached yet. Only such an account can be upgraded.
+  isGuest(): boolean {
+    return this.identityKind === "guest";
   }
 
   async requestEmailVerificationCode(email: string): Promise<void> {
@@ -354,7 +458,33 @@ export class BrowserIam {
     }
 
     this.accessToken = token.access_token;
+    this.identityKind = "full";
     return { userId: user.userId };
+  }
+
+  async requestGuestUpgradeCode(email: string): Promise<void> {
+    if (!this.transport.requestGuestUpgradeCode) {
+      throw new IamAuthError("configuration", "Account creation is not available.");
+    }
+    if (!this.isGuest()) {
+      throw new IamAuthError("not_a_guest", "This account already has email sign-in.");
+    }
+    await this.transport.requestGuestUpgradeCode(this.getAccessToken(), email);
+  }
+
+  // The guest's access token stays valid across the upgrade — AGS attaches
+  // the email identity to the same account rather than issuing a new one —
+  // so nothing here re-authenticates. That keeps the live Lobby connection
+  // and any match the player is sitting in untouched.
+  async upgradeGuestAccount(input: GuestUpgradeInput): Promise<void> {
+    if (!this.transport.upgradeGuestAccount) {
+      throw new IamAuthError("configuration", "Account creation is not available.");
+    }
+    if (!this.isGuest()) {
+      throw new IamAuthError("not_a_guest", "This account already has email sign-in.");
+    }
+    await this.transport.upgradeGuestAccount(this.getAccessToken(), input);
+    this.identityKind = "full";
   }
 
   getAuthenticatedSdk(): AccelByteWebSdk {

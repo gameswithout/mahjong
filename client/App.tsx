@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { BrowserIam, IamAuthError, createBrowserIam } from "./iam";
+import { BrowserIam, IamAuthError, createBrowserIam, type GuestIdentity } from "./iam";
 import { CLOSED_BETA_COUNTRIES, DEFAULT_COUNTRY_CODE } from "./countries";
 import { accelByteConfig } from "./config";
 import {
@@ -43,6 +43,8 @@ import { VideoCallPanel } from "./VideoCallPanel";
 import { useVideoCall } from "./useVideoCall";
 import type { SeatId } from "./matchTableTypes";
 import { HandResultScreen } from "./HandResultScreen";
+import { AccountUpgradeCard } from "./AccountUpgradeCard";
+import { MINIMUM_ACCOUNT_AGE, ageInYears } from "./age-gate";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
 import "./styles.css";
@@ -82,19 +84,6 @@ type EmailAuthState =
   | { status: "idle" }
   | { status: "working" }
   | { status: "error"; message: string };
-
-// §10.3: minimum stated age is 13; only month/year are collected (never a
-// full birth date), so age is computed to the precision that data allows.
-const MINIMUM_ACCOUNT_AGE = 13;
-
-export function ageInYears(birthYear: number, birthMonth: number): number {
-  const now = new Date();
-  let age = now.getFullYear() - birthYear;
-  if (now.getMonth() + 1 < birthMonth) {
-    age -= 1;
-  }
-  return age;
-}
 
 function emailAuthErrorMessage(error: unknown): string {
   if (error instanceof IamAuthError) {
@@ -215,6 +204,10 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [controlRestoredNotice, setControlRestoredNotice] = useState(false);
+  // Whether the signed-in AGS account is still headless (device ID only).
+  // Drives the end-of-match "create a full account" offer, and is cleared the
+  // moment the upgrade succeeds so the offer stops after the next hand.
+  const [isGuestAccount, setIsGuestAccount] = useState(false);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -661,6 +654,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
     try {
       const identity = await stableIam.loginAsGuest();
+      setIsGuestAccount(identity.isGuest);
       connectLobbyAfterSignIn(identity.userId);
     } catch (error) {
       const safeError = errorView(error);
@@ -680,9 +674,10 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     setState({ status: "signing_in" });
     authMethodRef.current = "guest";
 
-    let identity: { userId: string };
+    let identity: GuestIdentity;
     try {
       identity = await stableIam.loginAsGuest();
+      setIsGuestAccount(identity.isGuest);
     } catch (error) {
       browserMatchResumeStore.clear();
       setMatchRuntimeState({ status: "idle" });
@@ -726,6 +721,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     try {
       const identity = await stableIam.loginWithEmail(emailForm.email.trim(), emailForm.password);
       resetForNewSignIn();
+      setIsGuestAccount(false);
       authMethodRef.current = "email";
       setEmailAuthState({ status: "idle" });
       connectLobbyAfterSignIn(identity.userId);
@@ -778,6 +774,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       });
       const identity = await stableIam.loginWithEmail(emailForm.email.trim(), emailForm.password);
       resetForNewSignIn();
+      setIsGuestAccount(false);
       authMethodRef.current = "email";
       setEmailAuthState({ status: "idle" });
       connectLobbyAfterSignIn(identity.userId);
@@ -1426,6 +1423,15 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   isPracticeMatch(matchRuntimeState.view) ? playPracticeAgain : undefined
                 }
                 onReturn={() => void leaveTable()}
+                accountUpgrade={
+                  isGuestAccount ? (
+                    <AccountUpgradeCard
+                      onRequestCode={(email) => stableIam.requestGuestUpgradeCode(email)}
+                      onUpgrade={(input) => stableIam.upgradeGuestAccount(input)}
+                      onUpgraded={() => setIsGuestAccount(false)}
+                    />
+                  ) : undefined
+                }
               />
             </div>
           ) : (
@@ -1525,8 +1531,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         <p className="eyebrow">Mahjong Online</p>
         <h1 id="bootstrap-title">Play a hand with friends.</h1>
         <p className="intro">
-          Start with a guest identity. You can upgrade the account later when account recovery is
-          available.
+          Start with a guest identity — you can add an email and password to it after any match,
+          keeping the Jade and progression you already earned.
         </p>
 
         {state.status === "idle" && (
@@ -1774,7 +1780,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         {state.status === "signed_in" && (
           <div className="success-panel" role="status" aria-live="polite">
             <p className="status-label">Signed in</p>
-            <p className="user-id">Guest ID: {state.userId}</p>
+            <p className="user-id">
+              {isGuestAccount ? "Guest ID" : "Player ID"}: {state.userId}
+            </p>
             <p className="lobby-status">
               {state.lobbyStatus === "connecting" && "Connecting to Lobby…"}
               {state.lobbyStatus === "connected" && "Lobby connected"}

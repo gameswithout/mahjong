@@ -174,6 +174,26 @@ describe("HandResultScreen", () => {
     expect(markup).not.toContain("South is dealer");
   });
 
+  it("carries the end-of-match account offer between the tally and the actions", () => {
+    const markup = renderToStaticMarkup(
+      <HandResultScreen
+        view={completedView()}
+        onReturn={vi.fn()}
+        accountUpgrade={<p>Keep this progress</p>}
+      />,
+    );
+
+    const offerAt = markup.indexOf("Keep this progress");
+    expect(offerAt).toBeGreaterThan(markup.indexOf("Settlement"));
+    expect(offerAt).toBeLessThan(markup.indexOf("Return to Lobby"));
+  });
+
+  it("omits the account offer once there is nothing to upgrade", () => {
+    const markup = renderToStaticMarkup(<HandResultScreen view={completedView()} onReturn={vi.fn()} />);
+
+    expect(markup).not.toContain("Keep this progress");
+  });
+
   it("dispatches both Practice result actions", () => {
     const onPlayAgain = vi.fn();
     const onReturn = vi.fn();

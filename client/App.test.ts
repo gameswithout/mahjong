@@ -1,11 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SeatView } from "../protocol/envelope";
-import {
-  ageInYears,
-  shouldAutomaticallyDraw,
-  shouldAutomaticallyEnterHumanMatch,
-} from "./App";
+import { ageInYears } from "./age-gate";
+import { shouldAutomaticallyDraw, shouldAutomaticallyEnterHumanMatch } from "./App";
 
 function drawView(overrides: Partial<SeatView> = {}): SeatView {
   return {
