@@ -3,7 +3,8 @@
 // settlement transfers, dealer continuation) plus the Match ID and
 // Practice replay/return slice of item 10. XP/achievements/rating (item 8,
 // needs E11/E13), Add Friend and result-card image export (item 9, needs
-// E12), and human-queue Report/Play Again/Continue remain deferred.
+// E12) and human-queue Report remain deferred. Play Again now covers both
+// Practice and staked requeue (§P1.3 session closure).
 import { useState, type ReactNode } from "react";
 
 import type { HandResult, HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
@@ -311,6 +312,11 @@ export interface HandResultScreenProps {
   view: SeatView;
   practice?: boolean;
   onPlayAgain?: () => void;
+  // Play Again means something different per mode: Practice deals a new wall
+  // for free, while a staked table queues for a new seat and commits Jade. The
+  // note carries that difference so the stake is stated before the click, not
+  // discovered after it.
+  playAgainNote?: string;
   onReturn?: () => void;
   // §10.2: the end-of-match slot where a guest is offered a full account.
   // Passed in rather than built here so this screen stays presentational and
@@ -322,6 +328,7 @@ export function HandResultScreen({
   view,
   practice = false,
   onPlayAgain,
+  playAgainNote,
   onReturn,
   accountUpgrade,
 }: HandResultScreenProps) {
@@ -442,9 +449,21 @@ export function HandResultScreen({
       {(onPlayAgain || onReturn) && (
         <div className="hand-result-actions">
           {onPlayAgain && (
-            <button type="button" className="primary-action" onClick={onPlayAgain}>
-              Play Again
-            </button>
+            <div className="hand-result-play-again">
+              <button
+                type="button"
+                className="primary-action"
+                onClick={onPlayAgain}
+                aria-describedby={playAgainNote ? "play-again-note" : undefined}
+              >
+                Play Again
+              </button>
+              {playAgainNote && (
+                <p className="hand-result-play-again-note" id="play-again-note">
+                  {playAgainNote}
+                </p>
+              )}
+            </div>
           )}
           {onReturn && (
             <button type="button" className="secondary-action hand-result-return" onClick={onReturn}>

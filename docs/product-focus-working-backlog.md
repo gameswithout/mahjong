@@ -119,6 +119,11 @@ Acceptance:
 
 ## Priority 1 — onboarding and repeat play
 
+**Implemented 2026-07-26.** Implementation, test coverage, and the open
+follow-ups (no rendered captures; account level deferred to P2.1; tutorial
+completion not persisted) are recorded in
+[`p1-onboarding-and-repeat-play.md`](p1-onboarding-and-repeat-play.md).
+
 ### P1.1 Three-chapter tutorial vertical slice
 
 1. Build five sets and one pair.
