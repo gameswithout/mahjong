@@ -705,6 +705,7 @@ function LocalSeat({
               }${selected ? " local-hand-tile-selected" : ""}`}
               aria-label={`${actionLabel}${drawn ? " Newly drawn." : ""}`}
               aria-pressed={selected}
+              data-tile-id={item.id}
               disabled={discardPending}
               draggable={sortMode === "off" && !discardPending && !drawn}
               onClick={() => onActivateTile(item.id)}

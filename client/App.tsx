@@ -30,6 +30,7 @@ import { LobbyHeader } from "./LobbyHeader";
 import { LockedTiers } from "./LockedTiers";
 import { playableTier, tierSummary } from "./lobby-tiers";
 import { queueElapsedLabel, queueHealth, queueHealthMessage } from "./queue-health";
+import { TutorialScreen } from "./tutorial/TutorialScreen";
 import {
   createFreshPracticeSession,
   isPracticeMatch,
@@ -235,6 +236,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // Drives the end-of-match "create a full account" offer, and is cleared the
   // moment the upgrade succeeds so the offer stops after the next hand.
   const [isGuestAccount, setIsGuestAccount] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -1601,6 +1603,17 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     sessionState.status === "loaded" ||
     (sessionState.status === "error" && Boolean(sessionState.retryLeaveSessionId));
 
+  // The tutorial owns the screen for the same reason a live match does, and
+  // takes precedence over the lobby beneath it. It cannot open over a live
+  // match: the lobby is the only place it can be started from.
+  if (tutorialOpen) {
+    return (
+      <div className="game-screen">
+        <TutorialScreen onExit={() => setTutorialOpen(false)} />
+      </div>
+    );
+  }
+
   // Once a player has started joining a match, the whole screen belongs to
   // the game — no session ID, roster, or lobby chrome competing for
   // attention. This covers the join/reconnect wait, the live table, the
@@ -2058,6 +2071,21 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
             {state.lobbyStatus === "connected" && (
               <div className="session-panel">
+                <section className="tutorial-card" aria-labelledby="tutorial-title">
+                  <p className="status-label">Learn</p>
+                  <h2 id="tutorial-title">How to play</h2>
+                  <p className="practice-description">
+                    Three short chapters on the real table. Untimed, skippable, and replayable.
+                  </p>
+                  <button
+                    className="secondary-action session-action"
+                    type="button"
+                    onClick={() => setTutorialOpen(true)}
+                  >
+                    Start the tutorial
+                  </button>
+                </section>
+
                 <PracticeLaunchCard
                   busy={sessionState.status === "loading"}
                   hasSelectedSession={hasActiveOrStrandedSession}
