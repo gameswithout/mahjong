@@ -47,7 +47,10 @@ const seats: Record<string, SeatState> = {
     handCount: localHand.length,
     hand: localHand,
     melds: [],
-    bonusTiles: ["flower-spring", "flower-plum"].map(tile),
+    // South's own Flowers are summer and orchid, so summer scores here and
+    // plum does not — the mixed case is the one worth showing, since it is
+    // what makes the "only your own Flowers pay" distinction visible.
+    bonusTiles: ["flower-summer", "flower-plum"].map(tile),
     discards: discardRow(["characters-9-1", "dots-1-1", "bamboo-3-1", "wind-north-1"]),
   },
   W: {

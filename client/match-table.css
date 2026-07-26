@@ -511,6 +511,59 @@ body {
   justify-content: center;
 }
 
+/* Flowers are earned Tai, not decoration, so the local player's set gets a
+   tray of its own rather than dissolving into the felt beside the melds. */
+.bonus-tile-area-local {
+  background: rgb(10 30 24 / 55%);
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgb(242 198 109 / 30%);
+  gap: 3px;
+  padding: 2px 5px;
+}
+
+.bonus-tile {
+  border-radius: 4px;
+  display: inline-flex;
+  line-height: 0;
+}
+
+/* Only two of the eight Flowers pay this seat. Marking them stops the set
+   reading as one undifferentiated row where the scoring ones are invisible.
+   The ring is a shape cue, not color alone — the title text and the badge's
+   accessible name carry the same fact. */
+.bonus-tile-matching {
+  box-shadow:
+    0 0 0 2px #f2c66d,
+    0 0 7px rgb(242 198 109 / 55%);
+}
+
+/* The running Tai total, sitting with the tiles that earned it. */
+.flower-tai-badge {
+  align-items: baseline;
+  background: rgb(0 0 0 / 45%);
+  border-radius: 999px;
+  color: #cdd3c9;
+  display: inline-flex;
+  font-weight: 800;
+  gap: 2px;
+  line-height: 1;
+  padding: 3px 7px;
+}
+
+.flower-tai-badge-scoring {
+  background: #f2c66d;
+  color: #10131f;
+}
+
+.flower-tai-value {
+  font-size: 13px;
+}
+
+.flower-tai-unit {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
 .bonus-tile-area .tile-sm {
   height: 28px;
   width: 20px;
@@ -1254,9 +1307,15 @@ body {
    and the local rail gives more of the viewport to the hand and table. */
 
 .match-table {
-  --hand-tile-width: 22px;
-  --river-tile-width: 14px;
-  --focus-tile-width: 42px;
+  /* Sized for legibility rather than density. The compact tier is the one an
+     older player is most likely to be squinting at, and the discard rivers
+     were the worst of it — a 14px-wide tile is roughly a grain of rice at
+     arm's length. Every value here is bounded by the §9.2 simultaneous-
+     visibility certification at 640x360, which scripts/validate-match-table-
+     wireframe.mjs enforces; these are the largest sizes that still clear it. */
+  --hand-tile-width: 24px;
+  --river-tile-width: 17px;
+  --focus-tile-width: 46px;
   grid-template-areas:
     "top top top"
     "left playfield right"
@@ -1497,8 +1556,8 @@ body {
 
 .meld-area .tile-sm,
 .wait-panel .tile-sm {
-  height: 26px;
-  width: 19px;
+  height: 30px;
+  width: 22px;
 }
 
 .current-tile-focus .tile-focus {
@@ -1623,7 +1682,13 @@ body {
 
 .local-seat > .bonus-tile-area {
   bottom: 4px;
-  max-width: 26%;
+  /* This tray floats over the seat's bottom-right corner, so its width comes
+     straight out of the hand's. The hand cannot yield any: 17 tiles at the
+     §9.9 32px minimum touch target is a fixed 544px whatever the tile art
+     measures. Keep the tray narrow enough that the Tai badge wraps under the
+     Flowers rather than widening the row — growing downward is free here,
+     growing sideways is not. */
+  max-width: 58px;
   position: absolute;
   right: 4px;
   z-index: 3;
@@ -2085,9 +2150,16 @@ body {
    playfield. */
 @media (max-height: 500px) {
   .match-table {
-    --hand-tile-width: clamp(26px, 3.7vw, 34px);
-    --river-tile-width: clamp(13px, 2vw, 19px);
-    --focus-tile-width: clamp(46px, 6.5vw, 54px);
+    /* This tier — not the base block above — is what actually governs the
+       certified 640x360 viewport, since any 360px-tall phone matches it. The
+       floors are what an older player reads at arm's length, so they are
+       raised well above the previous 13px river tile; the vw terms and ceilings
+       let a roomier short-landscape phone grow further still. Bounded by
+       scripts/validate-match-table-wireframe.mjs, which fails on clipping or
+       overflow at 640x360. */
+    --hand-tile-width: clamp(28px, 4vw, 38px);
+    --river-tile-width: clamp(17px, 2.6vw, 23px);
+    --focus-tile-width: clamp(52px, 7.2vw, 60px);
     gap: 3px;
     grid-template-columns: 72px minmax(0, 1fr) 72px;
     grid-template-rows: 42px minmax(0, 1fr) auto 88px;
@@ -2167,7 +2239,10 @@ body {
     box-shadow: none;
     gap: 0;
     max-width: none;
-    padding: 0;
+    /* Shift clear of the Flower tray that overlays this corner; the hand
+       itself cannot shrink, since 17 tiles at the 32px touch-target minimum
+       is a fixed width. */
+    padding: 0 52px 0 0;
     width: auto;
   }
 
@@ -2219,8 +2294,8 @@ body {
 
   .meld-area .tile-sm,
   .wait-panel .tile-sm {
-    height: 24px;
-    width: 17px;
+    height: 30px;
+    width: 21px;
   }
 
   .current-tile-focus {

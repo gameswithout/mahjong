@@ -4,6 +4,7 @@ import { TileFace } from "./TileFace";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
 import { tileTypeKey, windName } from "./matchTableTypes";
 import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
+import { isMatchingFlower, summarizeFlowerTai } from "./flowerTai";
 
 // Production match table and the standalone §9.2 validation harness share this
 // component. The live adapter supplies authoritative seat/action state; the
@@ -79,18 +80,75 @@ function MeldGroup({ meld, matchKey }: { meld: WireMeld; matchKey: string | null
   );
 }
 
-function BonusTiles({ tiles, owner }: { tiles: WireTile[]; owner: "your" | "opponent" }) {
+// Flowers are free Tai sitting in plain sight, but they used to render as
+// undifferentiated small tiles pushed to the edge of a seat — easy to miss
+// entirely, and impossible to tell a scoring one from a decorative one. Mark
+// the seat's own matching Flowers, and for the local player carry a running
+// Tai total so the reward is legible while the hand is still being played.
+function BonusTiles({
+  tiles,
+  owner,
+  seat,
+}: {
+  tiles: WireTile[];
+  owner: "your" | "opponent";
+  seat: SeatId;
+}) {
   if (tiles.length === 0) {
     return null;
   }
+  const local = owner === "your";
+  const summary = summarizeFlowerTai(
+    tiles.map((item) => item.id),
+    seat,
+  );
+  const taiLabel = summary.total === 1 ? "1 Tai" : `${summary.total} Tai`;
   return (
     <div
-      className="bonus-tile-area"
-      aria-label={`${owner === "your" ? "Your" : "Opponent"} exposed Flowers and Seasons`}
+      className={`bonus-tile-area${local ? " bonus-tile-area-local" : ""}`}
+      aria-label={
+        local
+          ? `Your exposed Flowers and Seasons, worth ${taiLabel} so far`
+          : "Opponent exposed Flowers and Seasons"
+      }
     >
-      {tiles.map((item) => (
-        <Tile key={item.id} t={item} size="sm" />
-      ))}
+      {tiles.map((item) => {
+        const matching = isMatchingFlower(item.id, seat);
+        return (
+          <span
+            key={item.id}
+            className={`bonus-tile${matching ? " bonus-tile-matching" : ""}`}
+            // The seat's own Flower is the one that actually pays, so say so
+            // rather than leaving it to be inferred from the tile face.
+            title={matching ? `${item.label} — your Flower, +1 Tai` : item.label}
+          >
+            <Tile t={item} size="sm" />
+          </span>
+        );
+      })}
+      {local && (
+        <span
+          className={`flower-tai-badge${summary.total > 0 ? " flower-tai-badge-scoring" : ""}`}
+          data-testid="flower-tai-badge"
+          data-flower-tai={summary.total}
+          title={
+            summary.patterns.length > 0
+              ? summary.patterns
+                  .map((pattern) =>
+                    pattern.flower
+                      ? `${pattern.name} (${pattern.flower}) +${pattern.tai}`
+                      : `${pattern.name} +${pattern.tai}`,
+                  )
+                  .join("\n")
+              : "No Flower Tai yet — your seat's own Flowers score 1 Tai each"
+          }
+        >
+          <span className="flower-tai-value">{summary.total}</span>
+          <span className="flower-tai-unit" lang="zh-Hant">
+            台
+          </span>
+        </span>
+      )}
     </div>
   );
 }
@@ -245,7 +303,7 @@ function OpponentSeat({
           ))}
         </div>
       ) : null}
-      <BonusTiles tiles={state.bonusTiles} owner="opponent" />
+      <BonusTiles tiles={state.bonusTiles} owner="opponent" seat={state.seat} />
     </section>
   );
 }
@@ -683,7 +741,7 @@ function LocalSeat({
           ))}
         </div>
       ) : null}
-      <BonusTiles tiles={state.bonusTiles} owner="your" />
+      <BonusTiles tiles={state.bonusTiles} owner="your" seat={state.seat} />
       <WaitPanel waits={waits} />
       <div className="local-hand" role="group" aria-label="Your hand">
         {displayedHand.map((item) => {
