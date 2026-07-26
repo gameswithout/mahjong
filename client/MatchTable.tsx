@@ -429,7 +429,7 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       >
         {activeSeat === state.localSeat
           ? "Your turn"
-          : `${state.seats[activeSeat].displayName} · ${windName(activeSeat)}`}
+          : `${state.seats[activeSeat].displayName}'s turn · ${windName(activeSeat)}`}
       </div>
     </div>
   );

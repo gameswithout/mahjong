@@ -113,8 +113,35 @@ describe("MatchTable table-first UX", () => {
 
     expect(container.querySelector(".local-seat.seat-active")).toBeNull();
     expect(container.querySelector(".seat-left.seat-active")).not.toBeNull();
+    expect(container.querySelector(".active-seat-callout")?.textContent).toBe(
+      "Bot's turn · East",
+    );
     expect(container.querySelector(".seat-left .claim-badge")?.textContent).toBe("waiting");
     expect(container.querySelector(".local-seat .claim-badge")?.textContent).toBe("thinking");
+  });
+
+  it("states the turn owner, latest discard, and local decision in plain language", () => {
+    const state = {
+      ...mockMatchTableState,
+      seats: {
+        ...mockMatchTableState.seats,
+        S: { ...mockMatchTableState.seats.S, isActive: false },
+        E: { ...mockMatchTableState.seats.E, isActive: true },
+      },
+    };
+
+    act(() => root.render(<MatchTable state={state} />));
+
+    expect(container.querySelector(".active-seat-callout")?.textContent).toContain(
+      "Bot's turn",
+    );
+    const tileFocus = container.querySelector(".current-tile-focus");
+    expect(tileFocus?.textContent).toContain("Tile in play");
+    expect(tileFocus?.textContent).toContain("6 of dots");
+    expect(tileFocus?.textContent).toContain("Choose a claim or pass");
+    expect(container.querySelector(".action-bar")?.getAttribute("aria-label")).toBe(
+      "Respond to the tile in play",
+    );
   });
 
   it("shows the complete tile sequence for every Chow option", () => {

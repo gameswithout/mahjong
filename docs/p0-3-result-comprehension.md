@@ -79,7 +79,8 @@ git diff --check
 
 Results:
 
-- full client suite: 23 files, 180 tests passed;
+- full client suite: 23 files, 181 tests passed after the subsequent P0.1
+  comprehension regression was added;
 - production TypeScript/Vite build: passed;
 - root Go suite: passed;
 - Match Service Go suite: passed.

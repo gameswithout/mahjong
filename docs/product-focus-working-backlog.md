@@ -62,6 +62,10 @@ stakes presentation, legal/platform review before implementation planning.
 
 ### P0.1 Table comprehension pass
 
+**Completed 2026-07-25.** Implementation, responsive evidence, and the current
+browser-capture limitation are recorded in
+[`p0-1-table-comprehension.md`](p0-1-table-comprehension.md).
+
 - Establish one visual hierarchy for turn owner, latest discard, claim urgency,
   wall count, dealer/round state, and local legal actions.
 - Make every state understandable without opening developer diagnostics.
