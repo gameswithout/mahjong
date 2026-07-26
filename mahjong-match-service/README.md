@@ -3,13 +3,15 @@
 Authoritative Taiwanese Mahjong match runtime implemented as an AccelByte
 Extend Go Service Extension.
 
-The service owns six authenticated RPCs:
+The service owns seven authenticated RPCs:
 
 - `JoinMatch` creates or restores a match from a fixed AGS game-session roster.
 - `GetMatchState` returns only the authenticated player's private projection.
 - `SubmitMatchCommand` durably applies an idempotent draw, discard, or claim.
 - `GetJadeAccount` creates or loads the caller's authoritative Jade account.
 - `ReserveJade` and `ReleaseJade` gate the staked public queue.
+- `ClaimJadeWelfare` restores an eligible locked-out account to the Bamboo
+  minimum after a same-day AI Practice hand.
 - State and command requests lazily restore persisted matches on any replica;
   load-balancer session affinity is not required.
 - Per-match locks preserve command order without serializing unrelated tables,
@@ -24,6 +26,7 @@ POST /v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/command
 GET  /v1/namespaces/{namespace}/jade
 POST /v1/namespaces/{namespace}/jade/reservation
 DELETE /v1/namespaces/{namespace}/jade/reservation
+POST /v1/namespaces/{namespace}/jade/welfare
 ```
 
 ## Architecture
@@ -53,6 +56,9 @@ Browser → gRPC-Gateway → bearer auth → match service
   reconciles committed balances to the namespace's zero-decimal `JADE`
   virtual currency in AGS Wallet.
 - AI Practice is free and never creates a Jade reservation or settlement.
+- Completed public hands award the 250-Jade first-hand and 500-Jade
+  three-hand daily grants exactly once per UTC day. Completed Practice hands
+  award no Jade, but unlock that day's welfare recovery.
 
 ## Requirements
 
@@ -158,6 +164,11 @@ TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:5432/mahjong_match?ssl
 GOCACHE=/tmp/mahjong-match-service-go-cache \
 go test -tags=integration ./pkg/storage -v
 ```
+
+The integration suite applies migrations to PostgreSQL, reaches welfare
+lockout through real capped settlements, proves same-day Practice gating and
+one-claim idempotency, verifies daily play grants, and checks that every faucet
+remains balanced against the issuance treasury.
 
 ## Protobuf workflow
 
