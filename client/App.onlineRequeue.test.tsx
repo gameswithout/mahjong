@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { JadeAccount, SeatView } from "../protocol/envelope";
 import type { BrowserIam } from "./iam";
+import { JadeError } from "./jade";
 import { SessionLookupError, type SessionClient } from "./session";
 import type { MatchRuntimeConnection, MatchRuntimeConnectionOptions } from "./match-runtime";
 
@@ -275,6 +276,7 @@ describe("App staked requeue (P1.3 session closure)", () => {
 
     // Under 90 seconds the wait is reported without an escape hatch.
     expect(container.textContent).not.toContain("Practice instead");
+    expect(button(container, "Practice vs Bots").disabled).toBe(true);
 
     const realNow = Date.now;
     try {
@@ -297,6 +299,110 @@ describe("App staked requeue (P1.3 session closure)", () => {
     expect(cancelTicket).toHaveBeenCalledWith("ticket-1");
     expect(release).toHaveBeenCalled();
     expect(calls.indexOf("create:practice")).toBeGreaterThan(calls.indexOf("ticket:1"));
+  });
+
+  it("does not start another table until a failed Jade release is retried", async () => {
+    const cancelTicket = vi.fn().mockResolvedValue(undefined);
+    createTicket = vi.fn().mockResolvedValue({ ticketId: "ticket-1", isActive: true });
+    dependencies.createMatchmakingClient.mockReturnValue({
+      createTicket,
+      getTicket: vi.fn(async () => ({ ticketId: "ticket-1", isActive: true })),
+      cancelTicket,
+    });
+    const release = vi
+      .fn()
+      .mockRejectedValueOnce(new JadeError("network", "Jade service could not be reached."))
+      .mockResolvedValue(ELIGIBLE_ACCOUNT);
+    dependencies.createJadeClient.mockReturnValue({
+      getAccount,
+      reserve: vi.fn().mockResolvedValue({
+        account: { ...ELIGIBLE_ACCOUNT, reserved: 300, available: 4_700 },
+        reservation: { reservation_id: "reserve-1", amount: 300, status: "active" },
+      }),
+      release,
+    });
+    sessionClient.createSession = vi.fn().mockResolvedValue({
+      sessionId: "practice-1",
+      status: "JOINED",
+      members: [{ userId: "guest-1" }],
+    });
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await clickAndFlush(container, "Find a table");
+    await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
+
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow() + 91_000;
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1_100));
+      });
+      await clickAndFlush(container, "Practice instead");
+    } finally {
+      Date.now = realNow;
+    }
+
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain("your Jade reservation may still be held"),
+    );
+    expect(cancelTicket).toHaveBeenCalledWith("ticket-1");
+    expect(sessionClient.createSession).not.toHaveBeenCalled();
+    expect(button(container, "Practice vs Bots").disabled).toBe(true);
+    expect(button(container, "Create test table").disabled).toBe(true);
+    expect(button(container, "Retry releasing Jade")).toBeInstanceOf(HTMLButtonElement);
+    expect(container.textContent).not.toContain("Retry matchmaking");
+
+    await clickAndFlush(container, "Retry releasing Jade");
+    await vi.waitFor(() => expect(button(container, "Practice vs Bots").disabled).toBe(false));
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries an unconfirmed cancellation instead of opening a second ticket", async () => {
+    const cancelTicket = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("temporary cancellation failure"))
+      .mockResolvedValue(undefined);
+    createTicket = vi.fn().mockResolvedValue({ ticketId: "ticket-1", isActive: true });
+    dependencies.createMatchmakingClient.mockReturnValue({
+      createTicket,
+      getTicket: vi.fn(async () => ({ ticketId: "ticket-1", isActive: true })),
+      cancelTicket,
+    });
+    const release = vi.fn().mockResolvedValue(ELIGIBLE_ACCOUNT);
+    dependencies.createJadeClient.mockReturnValue({
+      getAccount,
+      reserve: vi.fn().mockResolvedValue({
+        account: { ...ELIGIBLE_ACCOUNT, reserved: 300, available: 4_700 },
+        reservation: { reservation_id: "reserve-1", amount: 300, status: "active" },
+      }),
+      release,
+    });
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await clickAndFlush(container, "Find a table");
+    await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
+    await clickAndFlush(container, "Cancel");
+
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain("could not confirm that you left the queue"),
+    );
+    expect(createTicket).toHaveBeenCalledTimes(1);
+    expect(release).not.toHaveBeenCalled();
+    expect(button(container, "Practice vs Bots").disabled).toBe(true);
+    expect(button(container, "Retry leaving queue")).toBeInstanceOf(HTMLButtonElement);
+    expect(container.textContent).not.toContain("Retry matchmaking");
+
+    await clickAndFlush(container, "Retry leaving queue");
+    await vi.waitFor(() => expect(button(container, "Practice vs Bots").disabled).toBe(false));
+    expect(cancelTicket).toHaveBeenCalledTimes(2);
+    expect(cancelTicket).toHaveBeenNthCalledWith(1, "ticket-1");
+    expect(cancelTicket).toHaveBeenNthCalledWith(2, "ticket-1");
+    expect(release).toHaveBeenCalledOnce();
+    expect(createTicket).toHaveBeenCalledTimes(1);
   });
 
   it("offers Play Again on a staked result and states the stake before the click", async () => {
@@ -372,5 +478,32 @@ describe("App staked requeue (P1.3 session closure)", () => {
     // A stranded seat still holds its Jade reservation; taking a second one
     // would double-commit the player.
     expect(calls).not.toContain("ticket:2");
+  });
+
+  it("does not offer matchmaking requeue for a manually joined developer table", async () => {
+    sessionClient.createSession = vi.fn().mockResolvedValue({
+      sessionId: "manual-table",
+      status: "JOINED",
+      members: [
+        { userId: "guest-1" },
+        { userId: "guest-2" },
+        { userId: "guest-3" },
+        { userId: "guest-4" },
+      ],
+    });
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await clickAndFlush(container, "Create test table");
+    await vi.waitFor(() => expect(container.textContent).toContain("Session found"));
+    await clickAndFlush(container, "Enter table");
+    await vi.waitFor(() =>
+      expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull(),
+    );
+
+    expect(container.textContent).not.toContain("Play Again");
+    expect(button(container, "Return to Lobby")).toBeInstanceOf(HTMLButtonElement);
+    expect(createTicket).not.toHaveBeenCalled();
   });
 });

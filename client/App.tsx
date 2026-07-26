@@ -115,10 +115,17 @@ type SessionState =
 type MatchmakingState =
   | { status: "idle" }
   | { status: "loading" }
+  | { status: "releasing" }
   | { status: "searching"; ticket: MatchmakingTicket }
   | { status: "canceling"; ticket: MatchmakingTicket }
   | { status: "matched"; ticket: MatchmakingTicket }
-  | { status: "error"; code: string; message: string };
+  | {
+      status: "error";
+      code: string;
+      message: string;
+      recovery?: "cancel_ticket" | "release_reservation";
+      ticket?: MatchmakingTicket;
+    };
 
 type MatchRuntimeState =
   | { status: "idle" }
@@ -410,7 +417,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         }
 
         if (nextTicket.isActive === false) {
-          await releaseJadeReservation();
+          const release = await releaseJadeReservation();
+          if (cancelled || requestId !== matchmakingRequestRef.current) {
+            return;
+          }
+          if (!release.released) {
+            setMatchmakingState(reservationReleaseError(release));
+            return;
+          }
           setMatchmakingState({
             status: "error",
             code: "inactive",
@@ -441,6 +455,13 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     matchmakingState.status === "loading" ||
     matchmakingState.status === "searching" ||
     matchmakingState.status === "canceling";
+  const matchmakingRecoveryRequired =
+    matchmakingState.status === "error" && Boolean(matchmakingState.recovery);
+  const matchmakingBlocksSessionActions =
+    queueing ||
+    matchmakingState.status === "releasing" ||
+    matchmakingState.status === "matched" ||
+    matchmakingRecoveryRequired;
 
   // Derived rather than cleared at each exit: matchmaking leaves the queue from
   // a dozen places (matched, canceled, failed, superseded, signed out), and a
@@ -962,13 +983,46 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
   }
 
-  async function releaseJadeReservation() {
+  async function releaseJadeReservation(): Promise<
+    { released: true } | { released: false; code: string; message: string }
+  > {
     try {
       const account = await createAuthenticatedJadeClient().release();
       setJadeState({ status: "ready", account });
+      return { released: true };
     } catch (error) {
-      setJadeState({ status: "error", ...jadeErrorView(error) });
+      const safeError = jadeErrorView(error);
+      setJadeState({ status: "error", ...safeError });
+      return { released: false, ...safeError };
     }
+  }
+
+  function reservationReleaseError(
+    release: { released: false; code: string; message: string },
+  ): MatchmakingState {
+    return {
+      status: "error",
+      code: `jade_release_${release.code}`,
+      message:
+        `You left the queue, but your Jade reservation may still be held. ${release.message} ` +
+        "Retry the release before playing or joining another table.",
+      recovery: "release_reservation",
+    };
+  }
+
+  async function retryJadeReservationRelease() {
+    const requestId = ++matchmakingRequestRef.current;
+    setMatchmakingState({ status: "releasing" });
+    const release = await releaseJadeReservation();
+    if (requestId !== matchmakingRequestRef.current) {
+      return;
+    }
+    if (!release.released) {
+      setMatchmakingState(reservationReleaseError(release));
+      return;
+    }
+    setOnlineSessionEntryMode("manual");
+    setMatchmakingState({ status: "idle" });
   }
 
   function adoptJadeAccount(view: SeatView) {
@@ -1014,24 +1068,30 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
   }
 
-  async function cancelMatchmaking(): Promise<boolean> {
-    if (matchmakingState.status !== "searching") {
+  async function cancelMatchmaking(ticketOverride?: MatchmakingTicket): Promise<boolean> {
+    const ticket =
+      ticketOverride ??
+      (matchmakingState.status === "searching" ? matchmakingState.ticket : undefined);
+    if (!ticket) {
       return false;
     }
 
-    const ticket = matchmakingState.ticket;
     const requestId = ++matchmakingRequestRef.current;
     setMatchmakingState({ status: "canceling", ticket });
 
     try {
       await createAuthenticatedMatchmakingClient().cancelTicket(ticket.ticketId);
-      await releaseJadeReservation();
+      const release = await releaseJadeReservation();
       if (requestId !== matchmakingRequestRef.current) {
+        return false;
+      }
+      setOnlineSessionEntryMode("manual");
+      if (!release.released) {
+        setMatchmakingState(reservationReleaseError(release));
         return false;
       }
 
       setMatchmakingState({ status: "idle" });
-      setOnlineSessionEntryMode("manual");
       return true;
     } catch (error) {
       if (requestId !== matchmakingRequestRef.current) {
@@ -1039,9 +1099,28 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       }
 
       const safeError = matchmakingErrorView(error);
-      setMatchmakingState({ status: "error", ...safeError });
+      setMatchmakingState({
+        status: "error",
+        code: `cancel_${safeError.code}`,
+        message:
+          `We could not confirm that you left the queue. ${safeError.message} ` +
+          "Retry leaving this queue before playing or joining another table.",
+        recovery: "cancel_ticket",
+        ticket,
+      });
       return false;
     }
+  }
+
+  async function retryMatchmakingCancellation() {
+    if (
+      matchmakingState.status !== "error" ||
+      matchmakingState.recovery !== "cancel_ticket" ||
+      !matchmakingState.ticket
+    ) {
+      return;
+    }
+    await cancelMatchmaking(matchmakingState.ticket);
   }
 
   // §8.7's alternative to an open-ended wait. The ticket is canceled first so
@@ -1677,7 +1756,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     : // Online Play Again requeues through matchmaking, so it
                       // is only honest to offer it where a pool exists to queue
                       // into. Manually joined dev tables fall through to Return.
-                      accelByteConfig.matchPool
+                      onlineSessionEntryMode === "matchmaking" && accelByteConfig.matchPool
                       ? () => void playOnlineAgain()
                       : undefined
                 }
@@ -2087,7 +2166,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                 </section>
 
                 <PracticeLaunchCard
-                  busy={sessionState.status === "loading"}
+                  busy={
+                    sessionState.status === "loading" || matchmakingBlocksSessionActions
+                  }
                   hasSelectedSession={hasActiveOrStrandedSession}
                   cleanupRequired={
                     sessionState.status === "error" &&
@@ -2171,6 +2252,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     </p>
                   )}
 
+                  {matchmakingState.status === "releasing" && (
+                    <p className="matchmaking-result" role="status" aria-live="polite">
+                      Releasing Jade reservation…
+                    </p>
+                  )}
+
                   {(matchmakingState.status === "searching" ||
                     matchmakingState.status === "canceling") && (
                     <div
@@ -2201,7 +2288,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       <button
                         className="secondary-action session-action"
                         type="button"
-                        onClick={cancelMatchmaking}
+                        onClick={() => void cancelMatchmaking()}
                         disabled={matchmakingState.status === "canceling"}
                       >
                         {matchmakingState.status === "canceling" ? "Leaving queue…" : "Cancel"}
@@ -2242,11 +2329,27 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       {/* An ineligible balance is not a transient failure:
                           retrying queues the same rejection. Offer the retry
                           only where retrying can actually succeed. */}
-                      {matchmakingState.code !== "jade_ineligible" && (
+                      {matchmakingState.recovery === "cancel_ticket" ? (
+                        <button
+                          className="secondary-action session-action"
+                          type="button"
+                          onClick={() => void retryMatchmakingCancellation()}
+                        >
+                          Retry leaving queue
+                        </button>
+                      ) : matchmakingState.recovery === "release_reservation" ? (
+                        <button
+                          className="secondary-action session-action"
+                          type="button"
+                          onClick={() => void retryJadeReservationRelease()}
+                        >
+                          Retry releasing Jade
+                        </button>
+                      ) : matchmakingState.code !== "jade_ineligible" ? (
                         <button className="secondary-action session-action" type="button" onClick={findTable}>
                           Retry matchmaking
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   )}
                 </section>
@@ -2279,7 +2382,11 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     className="secondary-action session-action"
                     type="button"
                     onClick={() => void createTable()}
-                    disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                    disabled={
+                      sessionState.status === "loading" ||
+                      hasActiveOrStrandedSession ||
+                      matchmakingBlocksSessionActions
+                    }
                   >
                     Create test table
                   </button>
@@ -2293,7 +2400,11 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       type="text"
                       value={joinSessionId}
                       onChange={(event) => setJoinSessionId(event.target.value)}
-                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                      disabled={
+                        sessionState.status === "loading" ||
+                        hasActiveOrStrandedSession ||
+                        matchmakingBlocksSessionActions
+                      }
                       placeholder="Paste session ID"
                       autoComplete="off"
                     />
@@ -2301,7 +2412,11 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       className="secondary-action session-join-action"
                       type="button"
                       onClick={joinTable}
-                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                      disabled={
+                        sessionState.status === "loading" ||
+                        hasActiveOrStrandedSession ||
+                        matchmakingBlocksSessionActions
+                      }
                     >
                       Join
                     </button>

@@ -3,7 +3,7 @@
 - Date: 2026-07-26
 - Scope: P1.1 tutorial vertical slice, P1.2 player-facing lobby hub,
   P1.3 session closure
-- Branch: `worktree-p1-loop`
+- Branch: `worktree-p1-loop`, merged to `main`
 - Result: implemented and covered by unit, component, and App-level
   integration tests
 
@@ -41,6 +41,10 @@ The Play Again button carries the stake it is about to commit
 per-Tai and cap values so the lobby, the result screen, and the table cannot
 quote different numbers for the same tier.
 
+Only a table entered through matchmaking offers this requeue. A manually
+created or joined developer table returns to the lobby instead of silently
+turning its result into a staked public-queue entry.
+
 ## P1.2 Player-facing lobby hub
 
 The signed-in entry screen led with `Signed in`, a raw account UUID, and
@@ -73,6 +77,13 @@ queue now:
 - past 90 seconds offers a Practice hand instead, cancelling the ticket and
   releasing the Jade **before** starting the free hand, so a hand that costs
   nothing never sits on a reservation it does not need.
+
+The ordinary Practice and developer-session controls are also disabled while
+matchmaking owns the session transition. If ticket cancellation succeeds but
+Jade release fails, the lobby stays blocked and offers **Retry releasing Jade**;
+it cannot start another table until release is confirmed. If cancellation
+itself cannot be confirmed, **Retry leaving queue** retries the original ticket
+instead of creating a second one.
 
 No queue message quotes a wait estimate. The client cannot see queue depth, and
 an invented number is the one players would hold us to — `queue-health.test.ts`
@@ -128,10 +139,11 @@ both East's and South's discard rivers in chapter 1, step 3.
 ## Verification
 
 ```shell
-npx vitest run          # 31 files, 222 tests passed
+npx vitest run          # 32 files, 238 tests passed
 npx tsc -p tsconfig.app.json --noEmit
 npm run build           # production build passed
-go build ./... && go test ./...   # root Go suite passed
+go test ./...            # root Go suite passed
+(cd mahjong-match-service && go test ./...)  # service Go suite passed
 git diff --check
 ```
 
