@@ -362,11 +362,56 @@ body {
 }
 
 /* §9.5: "Selected-tile matches receive both outline and brightness change,
-   never color alone." Outline + filter, not a color-only cue. */
+   never color alone." Outline + filter, not a color-only cue.
+
+   The previous cue was a thin white ring, which had to compete with the cream
+   tile faces it sat on — at the certified 640x360 minimum the match was almost
+   invisible, exactly where scanning matters most.
+
+   Cyan rather than the obvious gold: gold is already overloaded on this table,
+   marking both the tile you have selected (.local-hand-tile-selected) and the
+   latest discard (.discard-slot-recent, which carries a near-identical ring and
+   glow). Reusing it for a third meaning would have made "this is the tile just
+   discarded" and "this matches what you are holding" indistinguishable. Cyan is
+   unused here and separates cleanly from both the gold accents and the green
+   felt. The dark inner ring keeps it legible against a pale tile face, and
+   lifting the stacking order stops a neighbouring tile in a tight discard grid
+   from clipping the glow. */
 .tile-match {
-  filter: brightness(1.25);
-  outline: 2px solid #fff;
-  outline-offset: 1px;
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px rgb(10 30 38 / 88%),
+    0 0 10px 3px rgb(95 217 240 / 75%);
+  filter: brightness(1.22);
+  outline: 3px solid #5fd9f0;
+  outline-offset: 2px;
+  position: relative;
+  z-index: 2;
+}
+
+/* A single short bloom when a match appears, so the eye is pulled to copies
+   sitting outside where the player is already looking. One iteration, well
+   under the §9.9 three-flashes-per-second ceiling, and removed entirely for
+   players who ask for reduced motion — for whom the static ring above is
+   already the full cue. */
+@media (prefers-reduced-motion: no-preference) {
+  .tile-match {
+    animation: tile-match-bloom 0.45s ease-out 1;
+  }
+}
+
+@keyframes tile-match-bloom {
+  from {
+    box-shadow:
+      0 0 0 1px rgb(10 30 38 / 88%),
+      0 0 0 0 rgb(95 217 240 / 95%);
+  }
+
+  to {
+    box-shadow:
+      0 0 0 1px rgb(10 30 38 / 88%),
+      0 0 10px 3px rgb(95 217 240 / 75%);
+  }
 }
 
 .wait-panel {
