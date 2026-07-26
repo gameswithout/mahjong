@@ -17,6 +17,7 @@ export default defineConfig(({ mode, command }) => {
         input: {
           main: "index.html",
           wireframe: "wireframe.html",
+          resultWireframe: "result-wireframe.html",
         },
       },
     },

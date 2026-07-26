@@ -65,8 +65,55 @@ for East, South, West, and North are shown even when a seat's change is zero.
   on narrow screens.
 - The only new reveal animation is removed by `prefers-reduced-motion`.
 
-The in-app browser runtime was unavailable during this implementation session,
-so screenshot capture remains a follow-up rather than an unverified claim.
+## Rendered evidence
+
+Captured 2026-07-25 from the real `HandResultScreen` in headless Chromium,
+closing this document's earlier open follow-up (the implementation session had
+no browser runtime, so the captures were deferred rather than claimed).
+
+| Scenario | Desktop 1280x720 | Minimum width 640 |
+| --- | --- | --- |
+| Jade, debit cap applied | [`result-jade-capped-desktop.png`](wireframe-evidence/result-jade-capped-desktop.png) | [`result-jade-capped-360-landscape.png`](wireframe-evidence/result-jade-capped-360-landscape.png) |
+| Jade, standard hand | [`result-jade-standard-desktop.png`](wireframe-evidence/result-jade-standard-desktop.png) | [`result-jade-standard-360-landscape.png`](wireframe-evidence/result-jade-standard-360-landscape.png) |
+| Practice | [`result-practice-desktop.png`](wireframe-evidence/result-practice-desktop.png) | [`result-practice-360-landscape.png`](wireframe-evidence/result-practice-360-landscape.png) |
+
+Regenerate with the dev server running:
+
+```shell
+npm run dev
+node scripts/capture-result-evidence.mjs
+```
+
+The script is an assertion, not just a screenshotter. It fails if any
+acceptance-critical string is absent from the rendered DOM — the uncapped
+calculation, the applied cap, the paid-equals-received reconciliation, and the
+Practice non-persistence wording — or if the result surface scrolls
+horizontally at the certified 640 CSS-pixel minimum width. A result may scroll
+vertically, so the compact captures are full-column rather than clipped to the
+fold; what they certify is that nothing becomes unreadable or truncated at that
+width.
+
+The three scenarios live in `client/resultWireframeMockData.ts` and are
+rendered by `result-wireframe.html`. Each is internally coherent: the capped
+hand genuinely scores 44 raw Tai plus 1 Dealer Tai, because pairing a large
+effective Tai with a small raw Tai makes the screen derive an absurd dealer
+bonus (it computes the bonus as effective − raw, there being no separate
+server-sent breakdown). Worth knowing before reusing these numbers.
+
+What the captures show against the acceptance criteria:
+
+- **All four balance changes reconcile visibly to zero.** The net-change grid
+  names East, South, West, and North, showing `0` for the two seats that
+  neither paid nor received, above the explicit "300,000 Jade paid = 300,000
+  received. No Jade was created or removed."
+- **Capped settlements show both the uncapped calculation and the applied
+  cap.** `10,000 Jade per Tai × 45 Tai = 450,000 Jade` sits directly above
+  `Debit cap applied: 450,000 → 300,000 Jade`, with the final 300,000 Jade
+  transfer beside them.
+- **Practice never implies persistent rewards.** The Practice capture carries
+  the "No Jade, rating, or progression is changed" banner, titles the chapter
+  "Practice score only", denominates every amount in Practice points, ends on
+  "Nothing persists.", and shows no Jade balance or Wallet state at all.
 
 ## Verification
 
