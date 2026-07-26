@@ -321,6 +321,72 @@ describe("createMatchRuntimeConnection", () => {
     expect(states).toHaveLength(1);
   });
 
+  // A cellular round trip regularly outlasts the 4s poll interval, so the loop
+  // asks for another sync while one is still outstanding. Issuing it would put
+  // two requests on the same connection competing to answer the same question.
+  it("drops a sync issued while one is still in flight, and resumes once it settles", async () => {
+    const fake = new FakeFetch();
+    const states: unknown[] = [];
+    const errors: MatchRuntimeError[] = [];
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+      // Short enough that the hung poll below times out promptly under the
+      // real timers this suite runs on.
+      timeoutMs: 20,
+      onState: (payload) => states.push(payload),
+      onError: (error) => errors.push(error),
+    });
+    await connection.ready;
+
+    fake.enqueue(200, { state: wireMatchState() });
+    connection.join("session-1");
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+    // A slow poll that has not come back yet.
+    fake.enqueueHang();
+    connection.sync();
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(2));
+
+    connection.sync();
+    connection.sync();
+    expect(fake.calls).toHaveLength(2);
+
+    // Once the slow poll settles — here by timing out, as it would on a link
+    // that went away — the loop is free to try again.
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(errors[0].code).toBe("timeout");
+
+    fake.enqueue(200, { state: wireMatchState({ state_version: "3" }) });
+    connection.sync();
+    await vi.waitFor(() => expect(states).toHaveLength(1));
+    expect(fake.calls).toHaveLength(3);
+  });
+
+  // The service replays a committed result for a repeated request_id, and
+  // rebuilds that map from the event log, so ids must not restart at 1 when a
+  // dropped mobile connection is re-established: the resumed connection's
+  // first command would otherwise be answered with the dropped connection's
+  // first command's result, silently discarding the player's actual move.
+  it("generates request ids that do not repeat across reconnections", async () => {
+    const requestIdFor = async (): Promise<string> => {
+      const fake = new FakeFetch();
+      const connection = createMatchRuntimeConnection("player-token", {
+        url: "https://match.test/mahjong",
+        namespace: "gameswithout-mahjong",
+        fetchImpl: fake.fetchImpl,
+      });
+      await connection.ready;
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.command({ match_id: "session-1", type: "draw", expected_version: 2 });
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+      return (fake.calls[0].body as { request_id: string }).request_id;
+    };
+
+    expect(await requestIdFor()).not.toBe(await requestIdFor());
+  });
+
   it("sends only the ClaimCommand proto fields, dropping seat/state_version the parser rejects", async () => {
     const fake = new FakeFetch();
     const connection = createMatchRuntimeConnection("player-token", {

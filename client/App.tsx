@@ -38,6 +38,7 @@ import {
   leaveSessionIfPresent,
 } from "./practice-flow";
 import { browserMatchResumeStore, type MatchResumePointer } from "./match-resume";
+import { MAX_RECONNECT_ATTEMPTS, pollDelayMs, reconnectDelayMs } from "./poll-backoff";
 import { createStakedMatchmakingTicket } from "./staked-matchmaking";
 import type {
   ClaimType,
@@ -64,14 +65,22 @@ import "./match-table.css";
 // not_found covers the short AGS Session propagation window immediately
 // after one-action Practice creation.
 const MATCH_RUNTIME_RETRYABLE_CODES = new Set(["closed", "network", "not_found", "timeout"]);
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY_MS = 2000;
 // How long a live table may keep showing its last authoritative view while
 // its polls keep failing, before the player is moved to the manual error
-// panel. Long enough to ride out a transient server-side error without the
-// player noticing; short enough that a genuinely dead match does not leave
-// them staring at a frozen board.
-export const STALLED_TABLE_GRACE_MS = 30_000;
+// panel. Long enough to ride out a cellular blackout — a tunnel, a lift, an
+// LTE/5G handover — without the player noticing; short enough that a
+// genuinely dead match does not leave them staring at a frozen board.
+export const STALLED_TABLE_GRACE_MS = 60_000;
+// The lobby-side polls are cheaper and shorter-lived than the match poll, and
+// both are waiting on another person to act, so they stay at three seconds
+// when healthy and back off from there.
+const ROSTER_POLL_INTERVAL_MS = 3_000;
+const TICKET_POLL_INTERVAL_MS = 3_000;
+// How many consecutive ticket-poll failures to absorb before pulling the
+// player out of the queue. A single dropped request on a phone is noise, not a
+// matchmaking failure, and ejecting them from the queue for it means losing
+// their place in it.
+const TICKET_POLL_FAILURE_TOLERANCE = 3;
 const HUMAN_MATCH_SIZE = 4;
 const AUTO_DRAW_DELAY_MS = 320;
 
@@ -276,6 +285,11 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const lobbyRef = useRef<LobbyConnection | null>(null);
   const matchRuntimeRef = useRef<MatchRuntimeConnection | null>(null);
   const matchRuntimeMatchIdRef = useRef<string | null>(null);
+  // Consecutive failed match-runtime requests, which set how long the poll
+  // loop waits before trying again. A ref rather than state: the loop reads it
+  // when it schedules the next tick, and re-rendering on every failed poll
+  // would only churn the table.
+  const syncFailuresRef = useRef(0);
   const sessionRequestRef = useRef(0);
   const matchmakingRequestRef = useRef(0);
   const autoJoiningSessionIdRef = useRef<string | null>(null);
@@ -307,10 +321,16 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     getAccessToken: () => stableIam.getAccessToken(),
   });
 
+  // The roster poll below exists to notice the other three seats arriving so
+  // the table can open itself. Once the runtime has joined, the seat view is
+  // the authority on who is at the table and the roster is read by nothing —
+  // so polling it there is a second request every three seconds, on the same
+  // cellular link as the match poll, for data the hand does not use.
   const activeSessionId =
     state.status === "signed_in" &&
     state.lobbyStatus === "connected" &&
-    sessionState.status === "loaded"
+    sessionState.status === "loaded" &&
+    matchRuntimeState.status !== "joined"
       ? sessionState.session.sessionId
       : null;
 
@@ -369,6 +389,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     const requestId = sessionRequestRef.current;
     let cancelled = false;
 
+    let failures = 0;
+    let timer = 0;
+
     async function refreshRosterInBackground() {
       try {
         const session = await createAuthenticatedSessionClient().getSession(sessionId);
@@ -376,6 +399,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           return;
         }
 
+        failures = 0;
         setSessionState((current) =>
           current.status === "loaded" && current.session.sessionId === sessionId
             ? { status: "loaded", session }
@@ -383,13 +407,26 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         );
       } catch {
         // Keep the last known roster visible during transient polling failures.
+        failures += 1;
       }
     }
 
-    const interval = window.setInterval(refreshRosterInBackground, 3000);
+    // Awaiting each poll before scheduling the next keeps a slow cellular
+    // round trip from stacking requests behind itself, and the backoff stops a
+    // link that is down from being hammered every three seconds.
+    const schedule = (): void => {
+      if (cancelled) {
+        return;
+      }
+      timer = window.setTimeout(async () => {
+        await refreshRosterInBackground();
+        schedule();
+      }, pollDelayMs(failures, Math.random, ROSTER_POLL_INTERVAL_MS));
+    };
+    schedule();
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      window.clearTimeout(timer);
     };
   }, [activeSessionId]);
 
@@ -406,6 +443,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     const ticketId = activeTicketId;
     const requestId = matchmakingRequestRef.current;
     let cancelled = false;
+    let failures = 0;
+    let timer = 0;
 
     async function refreshTicketInBackground() {
       try {
@@ -437,9 +476,18 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           return;
         }
 
+        failures = 0;
         setMatchmakingState({ status: "searching", ticket: nextTicket });
       } catch (error) {
         if (cancelled || requestId !== matchmakingRequestRef.current) {
+          return;
+        }
+
+        // Losing one poll is not losing the ticket: AGS is still holding the
+        // player's place in the queue, so retry a few times before giving up
+        // their spot over what may be a single dropped request.
+        failures += 1;
+        if (failures < TICKET_POLL_FAILURE_TOLERANCE) {
           return;
         }
 
@@ -448,10 +496,19 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       }
     }
 
-    const interval = window.setInterval(refreshTicketInBackground, 3000);
+    const schedule = (): void => {
+      if (cancelled) {
+        return;
+      }
+      timer = window.setTimeout(async () => {
+        await refreshTicketInBackground();
+        schedule();
+      }, pollDelayMs(failures, Math.random, TICKET_POLL_INTERVAL_MS));
+    };
+    schedule();
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      window.clearTimeout(timer);
     };
   }, [activeTicketId, matchmakingState.status]);
 
@@ -558,18 +615,63 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // move, a resolved claim window) even when this player is not otherwise
   // acting, matching what another seat's own polling would already do for
   // them.
+  // Self-scheduling rather than a fixed interval: the gap between polls has to
+  // widen while the network is failing (see poll-backoff), which a setInterval
+  // cannot express. syncFailuresRef is updated by the runtime callbacks below.
   useEffect(() => {
     if (!matchRuntimeJoined) {
       return;
     }
-    const interval = window.setInterval(() => {
+    let cancelled = false;
+    let timer = 0;
+    const schedule = (): void => {
+      if (cancelled) {
+        return;
+      }
+      timer = window.setTimeout(() => {
+        try {
+          matchRuntimeRef.current?.sync();
+        } catch {
+          // onError already routes connection failures into matchRuntimeState.
+        }
+        schedule();
+      }, pollDelayMs(syncFailuresRef.current));
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [matchRuntimeJoined]);
+
+  // A phone that regains its link — leaving a tunnel, or the player returning
+  // to a backgrounded tab — should show a current board immediately. Waiting
+  // out a backed-off timer here is the difference between a table that looks
+  // alive on return and one that looks abandoned. Mobile browsers also throttle
+  // background timers to about once a minute, so the visibility case is not
+  // merely an optimisation.
+  useEffect(() => {
+    if (!matchRuntimeJoined) {
+      return;
+    }
+    const resync = (): void => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+      // The backoff exists to spare a dead network, not a recovered one.
+      syncFailuresRef.current = 0;
       try {
         matchRuntimeRef.current?.sync();
       } catch {
         // onError already routes connection failures into matchRuntimeState.
       }
-    }, 4000);
-    return () => window.clearInterval(interval);
+    };
+    window.addEventListener("online", resync);
+    document.addEventListener("visibilitychange", resync);
+    return () => {
+      window.removeEventListener("online", resync);
+      document.removeEventListener("visibilitychange", resync);
+    };
   }, [matchRuntimeJoined]);
 
   const autoDrawStateKey =
@@ -613,7 +715,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     const timeout = window.setTimeout(() => {
       setReconnectAttempt((attempt) => attempt + 1);
       void connectMatchRuntime();
-    }, RECONNECT_DELAY_MS);
+    }, reconnectDelayMs(reconnectAttempt));
     return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchRuntimeState, reconnectAttempt]);
@@ -1391,6 +1493,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         namespace: accelByteConfig.namespace,
         onJoined: (payload) => {
           if (payload.match_id === matchId && matchRuntimeRef.current === connection) {
+            syncFailuresRef.current = 0;
             adoptJadeAccount(payload.view);
             setMatchRuntimeState({
               status: "joined",
@@ -1402,6 +1505,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         },
         onState: (payload) => {
           if (payload.match_id === matchId && matchRuntimeRef.current === connection) {
+            // One good response means the link is back; drop straight to the
+            // healthy cadence rather than decaying towards it.
+            syncFailuresRef.current = 0;
             adoptJadeAccount(payload.view);
             setMatchRuntimeState({
               status: "joined",
@@ -1422,6 +1528,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           if (matchRuntimeRef.current !== connection) {
             return;
           }
+          syncFailuresRef.current += 1;
           const view = matchRuntimeErrorView(error);
           setMatchRuntimeState((current) =>
             // Once the table is up it stays up. Tearing it down on a single

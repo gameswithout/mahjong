@@ -336,12 +336,24 @@ export interface AdaptationCounters {
   goodSamples?: number;
 }
 
+/**
+ * Steps the send profile toward what the link is actually carrying.
+ *
+ * `ceilingProfile` is the best profile this call may climb to. A two-party
+ * call can afford the top of the range, but the mahjong table is a four-seat
+ * full mesh: every seat sends its own stream to three peers, so the uplink
+ * cost is three times whatever this returns. Handing a phone the "high"
+ * profile there asks for ~4.8 Mbps up, which no ordinary cellular uplink
+ * carries — and the match polling shares that link.
+ */
 export function nextAdaptiveProfile(
   currentProfile: string,
   quality: CallQuality,
   counters: AdaptationCounters = {},
+  ceilingProfile: ProfileName = "high",
 ): { profile: string; poorSamples: number; goodSamples: number; changed: boolean } {
-  const currentIndex = Math.max(0, PROFILE_ORDER.indexOf(currentProfile as ProfileName));
+  const ceilingIndex = Math.max(0, PROFILE_ORDER.indexOf(ceilingProfile));
+  const currentIndex = Math.max(ceilingIndex, PROFILE_ORDER.indexOf(currentProfile as ProfileName));
   let poorSamples = Math.max(0, Number(counters.poorSamples) || 0);
   let goodSamples = Math.max(0, Number(counters.goodSamples) || 0);
 
@@ -360,7 +372,7 @@ export function nextAdaptiveProfile(
   if (poorSamples >= 2 && currentIndex < PROFILE_ORDER.length - 1) {
     nextIndex += 1;
     poorSamples = 0;
-  } else if (goodSamples >= 5 && currentIndex > 0) {
+  } else if (goodSamples >= 5 && currentIndex > ceilingIndex) {
     nextIndex -= 1;
     goodSamples = 0;
   }
@@ -393,6 +405,8 @@ export interface CallMonitor {
 export interface MonitorOptions {
   intervalMs?: number;
   initialProfile?: string;
+  // The best profile this call may climb to; see nextAdaptiveProfile.
+  maxProfile?: ProfileName;
   onSample?: (sample: CallStatsSample) => void;
   onProfileChange?: (profile: string) => void;
 }
@@ -522,7 +536,13 @@ export function createVideoCallRuntime({
 
   function monitorCall(
     call: MediaConnection,
-    { intervalMs = 3_000, initialProfile = "high", onSample = () => {}, onProfileChange = () => {} }: MonitorOptions = {},
+    {
+      intervalMs = 3_000,
+      initialProfile = "high",
+      maxProfile = "high",
+      onSample = () => {},
+      onProfileChange = () => {},
+    }: MonitorOptions = {},
   ): CallMonitor {
     let stopped = false;
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -541,7 +561,7 @@ export function createVideoCallRuntime({
         previousById = nextById;
         sample.connection.state = pc.connectionState || pc.iceConnectionState || "";
         sample.quality = classifyCallQuality(sample);
-        const adaptation = nextAdaptiveProfile(profile, sample.quality, counters);
+        const adaptation = nextAdaptiveProfile(profile, sample.quality, counters, maxProfile);
         counters = { poorSamples: adaptation.poorSamples, goodSamples: adaptation.goodSamples };
         if (adaptation.changed) {
           profile = adaptation.profile;

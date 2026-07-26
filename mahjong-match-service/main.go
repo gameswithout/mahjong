@@ -398,10 +398,26 @@ func newGRPCGatewayHTTPServer(
 	// request ever reaches the gRPC-gateway handler.
 	corsHandler := corsMiddleware(loggedMux)
 
+	// Compression wraps CORS rather than the reverse: preflight replies have no
+	// body to compress, and the CORS headers still have to reach the browser on
+	// a compressed response.
+	compressedHandler := common.CompressionMiddleware(corsHandler)
+
 	return &http.Server{
-		Addr:     addr,
-		Handler:  corsHandler,
-		ErrorLog: log.New(os.Stderr, "httpSrv: ", log.LstdFlags), // Configure the logger for the HTTP server
+		Addr:    addr,
+		Handler: compressedHandler,
+		// A seat view is polled continuously over cellular links, where a
+		// half-open connection is routine. Without a header timeout those
+		// sockets accumulate; the read and write timeouts are generous enough
+		// that a slow mobile client is never cut off mid-request.
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		// Longer than the client's 4s poll interval so a mobile client reuses
+		// its established TLS connection between polls instead of paying a new
+		// handshake each time.
+		IdleTimeout: 120 * time.Second,
+		ErrorLog:    log.New(os.Stderr, "httpSrv: ", log.LstdFlags), // Configure the logger for the HTTP server
 	}
 }
 
