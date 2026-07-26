@@ -202,6 +202,7 @@ export interface JadeAccount {
   stake_per_tai: number;
   debit_cap: number;
   wallet_sync_status?: "pending" | "syncing" | "synced" | "error" | string;
+  wallet_sync_error?: "unauthorized" | "forbidden" | "not_found" | "timeout" | "balance_mismatch" | "query_failed" | "credit_failed" | "debit_failed" | "unknown" | string;
 }
 
 export interface JadeSettlement {

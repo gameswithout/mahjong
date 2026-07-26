@@ -616,6 +616,9 @@
         },
         "walletSyncStatus": {
           "type": "string"
+        },
+        "walletSyncError": {
+          "type": "string"
         }
       }
     },

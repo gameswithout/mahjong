@@ -393,10 +393,23 @@ async function driveHandToResult() {
 async function readJadeSettlement(page, playerNumber) {
   const panel = page.getByTestId("jade-settlement");
   await panel.waitFor({ state: "visible", timeout: FLOW_TIMEOUT_MS });
-  await page
-    .getByTestId("jade-settlement")
-    .filter({ has: page.getByText("AGS Wallet synced", { exact: true }) })
-    .waitFor({ state: "visible", timeout: FLOW_TIMEOUT_MS });
+  try {
+    await page
+      .locator('[data-testid="jade-settlement"][data-wallet-sync-status="synced"]')
+      .waitFor({ state: "visible", timeout: FLOW_TIMEOUT_MS });
+  } catch (cause) {
+    const status = await panel.getAttribute("data-wallet-sync-status").catch(() => null);
+    const error = await panel.getAttribute("data-wallet-sync-error").catch(() => null);
+    const text = await panel
+      .innerText()
+      .then((value) => value.replace(/\s+/g, " ").trim())
+      .catch(() => null);
+    throw new Error(
+      `Player ${playerNumber} Wallet did not sync within ${FLOW_TIMEOUT_MS}ms: ` +
+        `${JSON.stringify({ status, error, text })}.`,
+      { cause },
+    );
+  }
   const delta = Number(await panel.getAttribute("data-jade-delta"));
   const before = Number(await panel.getAttribute("data-jade-before"));
   const after = Number(await panel.getAttribute("data-jade-after"));

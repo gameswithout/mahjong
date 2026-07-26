@@ -30,6 +30,33 @@ function currentDealer(view: SeatView): MahjongSeat | null {
   return nextIndex < 0 ? null : SEAT_ORDER[(nextIndex + SEAT_ORDER.length - 1) % SEAT_ORDER.length];
 }
 
+function walletSyncPresentation(status: string | undefined, error: string | undefined): {
+  icon: string;
+  message: string;
+} {
+  switch (status) {
+    case "synced":
+      return { icon: "✓", message: "Settlement posted · AGS Wallet synced" };
+    case "pending":
+      return { icon: "…", message: "Settlement posted · AGS Wallet queued" };
+    case "syncing":
+      return { icon: "↻", message: "Settlement posted · AGS Wallet syncing" };
+    case "error":
+      if (error === "unauthorized" || error === "forbidden") {
+        return {
+          icon: "!",
+          message: "Settlement posted · Wallet sync needs service attention; your Jade is safe",
+        };
+      }
+      return {
+        icon: "!",
+        message: "Settlement posted · Wallet sync delayed; retrying automatically",
+      };
+    default:
+      return { icon: "?", message: "Settlement posted · Wallet status unavailable" };
+  }
+}
+
 const WIN_TYPE_COPY: Record<HandResult["kind"], { chinese: string; romanized: string; english: string }> = {
   discard: { chinese: "胡", romanized: "Hu", english: "" },
   zimo: { chinese: "自摸", romanized: "Zi Mo", english: "Self-Draw" },
@@ -318,6 +345,9 @@ export function HandResultScreen({
       return winner ? transfer.effective_tai - winner.score.raw_tai : 0;
     }),
   );
+  const walletSyncStatus = view.jade_account?.wallet_sync_status;
+  const walletSyncError = view.jade_account?.wallet_sync_error;
+  const walletStatus = walletSyncPresentation(walletSyncStatus, walletSyncError);
 
   return (
     <div className="hand-result-screen" role="region" aria-label="Hand result">
@@ -365,7 +395,8 @@ export function HandResultScreen({
           data-jade-before={view.jade_settlement.balance_before}
           data-jade-after={view.jade_settlement.balance_after}
           data-journal-id={view.jade_settlement.journal_id}
-          data-wallet-sync-status={view.jade_account?.wallet_sync_status ?? "unknown"}
+          data-wallet-sync-status={walletSyncStatus ?? "unknown"}
+          data-wallet-sync-error={walletSyncError ?? ""}
         >
           <p className="hand-result-kicker">Your balance</p>
           <p className="hand-result-jade-delta">
@@ -384,12 +415,9 @@ export function HandResultScreen({
             <span className="hand-result-balance-operator" aria-hidden="true">=</span>
             <strong><small>New balance</small>{view.jade_settlement.balance_after.toLocaleString()} Jade</strong>
           </div>
-          <p className="hand-result-wallet-status">
-            <span aria-hidden="true">{view.jade_account?.wallet_sync_status === "synced" ? "✓" : "↻"}</span>
-            Settlement posted
-            {view.jade_account?.wallet_sync_status === "synced"
-              ? " · AGS Wallet synced"
-              : " · AGS Wallet syncing"}
+          <p className="hand-result-wallet-status" role="status" aria-live="polite">
+            <span aria-hidden="true">{walletStatus.icon}</span>
+            {walletStatus.message}
           </p>
         </div>
       )}

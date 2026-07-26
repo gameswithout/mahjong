@@ -146,6 +146,41 @@ describe("HandResultScreen", () => {
     expect(markup).toContain('data-wallet-sync-status="synced"');
   });
 
+  it.each([
+    ["pending", "", "AGS Wallet queued"],
+    ["syncing", "", "AGS Wallet syncing"],
+    ["error", "credit_failed", "Wallet sync delayed; retrying automatically"],
+    ["error", "forbidden", "Wallet sync needs service attention; your Jade is safe"],
+  ])("explains the %s Wallet state without claiming success", (status, error, expected) => {
+    const view = completedView();
+    view.players = view.players.map((player) => ({ ...player, is_bot: false }));
+    view.jade_account = {
+      currency_code: "JADE",
+      balance: 5000,
+      reserved: 0,
+      available: 5000,
+      eligible: true,
+      minimum_balance: 1000,
+      stake_per_tai: 10,
+      debit_cap: 300,
+      wallet_sync_status: status,
+      wallet_sync_error: error,
+    };
+    view.jade_settlement = {
+      seat: "E",
+      delta: 0,
+      balance_before: 5000,
+      balance_after: 5000,
+      journal_id: "settlement:match-1",
+    };
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain(expected);
+    expect(markup).not.toContain("AGS Wallet synced");
+    expect(markup).toContain(`data-wallet-sync-status="${status}"`);
+  });
+
   it("labels a discard win as Hu and combines payer, winning tile, and winner", () => {
     const markup = renderToStaticMarkup(<HandResultScreen view={completedView()} />);
 

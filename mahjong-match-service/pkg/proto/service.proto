@@ -252,6 +252,7 @@ message JadeAccount {
   int64 stake_per_tai = 7;
   int64 debit_cap = 8;
   string wallet_sync_status = 9;
+  string wallet_sync_error = 10;
 }
 
 message JadeReservation {
