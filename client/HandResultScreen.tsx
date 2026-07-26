@@ -89,10 +89,24 @@ function WinTypeBanner({
 }
 
 function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat: MahjongSeat }) {
-  const [expanded, setExpanded] = useState(false);
+  // The result should explain itself on first scan. Keep the authoritative
+  // scoring patterns open by default while still allowing experienced
+  // players to collapse the detail.
+  const [expanded, setExpanded] = useState(true);
   return (
-    <div className="hand-result-winner">
-      <p className="hand-result-winner-heading">{seatLabel(winner.seat, localSeat)} won</p>
+    <section className="hand-result-winner" aria-labelledby={`winner-${winner.seat}`}>
+      <div className="hand-result-winner-header">
+        <div>
+          <p className="hand-result-kicker">Winning hand</p>
+          <h4 id={`winner-${winner.seat}`} className="hand-result-winner-heading">
+            {seatLabel(winner.seat, localSeat)}
+          </h4>
+        </div>
+        <div className="hand-result-score-badge" aria-label={`${winner.score.raw_tai} raw Tai`}>
+          <span>Raw score</span>
+          <strong>{winner.score.raw_tai} <span lang="zh-Hant">台</span></strong>
+        </div>
+      </div>
       <div className="hand-result-decomposition" aria-label="Winning hand decomposition">
         {winner.score.shape.melds.map((meld, index) => (
           <span key={index} className="hand-result-meld">
@@ -111,44 +125,158 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
           ))}
         </span>
       </div>
-      <p className="hand-result-tai-total">
-        Raw <span className="bilingual-term"><span lang="zh-Hant">台</span><small>(Tai)</small></span>: {winner.score.raw_tai}
-      </p>
       <button
         type="button"
         className="secondary-action hand-result-why-toggle"
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
+        aria-controls={`winner-score-${winner.seat}`}
       >
-        {expanded ? "Hide Score Breakdown" : "Score Breakdown"}
+        <span>Why this scored</span>
+        <span aria-hidden="true">{expanded ? "−" : "+"}</span>
       </button>
       {expanded && (
-        <ul className="hand-result-patterns">
-          {winner.score.patterns.map((pattern) => (
-            <li key={pattern.name}>
-              {pattern.name}: {pattern.tai} <span lang="zh-Hant">台</span> (Tai)
-            </li>
-          ))}
-        </ul>
+        <div id={`winner-score-${winner.seat}`} className="hand-result-score-details">
+          <ul className="hand-result-patterns" aria-label="Scoring patterns">
+            {winner.score.patterns.map((pattern) => (
+              <li key={pattern.name}>
+                <span>{pattern.name}</span>
+                <strong>{pattern.tai} <span lang="zh-Hant">台</span></strong>
+              </li>
+            ))}
+          </ul>
+          <p className="hand-result-tai-total">
+            <span>Raw Tai subtotal</span>
+            <strong>{winner.score.raw_tai} <span className="bilingual-term"><span lang="zh-Hant">台</span><small>(Tai)</small></span></strong>
+          </p>
+        </div>
       )}
-    </div>
+    </section>
   );
+}
+
+function formatSignedAmount(amount: number): string {
+  if (amount === 0) {
+    return "0";
+  }
+  return `${amount > 0 ? "+" : "−"}${Math.abs(amount).toLocaleString()}`;
 }
 
 function SettlementRow({
   transfer,
   localSeat,
   unit,
+  stakePerTai,
 }: {
   transfer: Transfer;
   localSeat: MahjongSeat;
   unit: "Jade" | "Practice points";
+  stakePerTai?: number;
 }) {
+  const capped = transfer.capped || transfer.amount < transfer.raw_amount;
   return (
-    <li className="hand-result-transfer">
-      {seatLabel(transfer.from, localSeat)} pays {seatLabel(transfer.to, localSeat)}: {transfer.amount} {unit}
-      {transfer.capped ? " (capped)" : ""}
+    <li className={`hand-result-transfer${capped ? " hand-result-transfer-capped" : ""}`}>
+      <div className="hand-result-transfer-route">
+        <span>{seatLabel(transfer.from, localSeat)}</span>
+        <span className="hand-result-transfer-arrow" aria-hidden="true">→</span>
+        <span>{seatLabel(transfer.to, localSeat)}</span>
+      </div>
+      <strong className="hand-result-transfer-amount">
+        {transfer.amount.toLocaleString()} {unit}
+      </strong>
+      <p className="hand-result-transfer-formula">
+        {stakePerTai
+          ? `${stakePerTai.toLocaleString()} Jade per Tai × ${transfer.effective_tai} Tai = ${transfer.raw_amount.toLocaleString()} Jade`
+          : `Raw payment: ${transfer.raw_amount.toLocaleString()} ${unit}`}
+      </p>
+      {capped && (
+        <p className="hand-result-cap-note">
+          Debit cap applied: {transfer.raw_amount.toLocaleString()} → {transfer.amount.toLocaleString()} {unit}
+        </p>
+      )}
     </li>
+  );
+}
+
+function SettlementStory({
+  view,
+  practice,
+}: {
+  view: SeatView;
+  practice: boolean;
+}) {
+  const settlement = view.settlement;
+  if (!settlement) {
+    return null;
+  }
+  const transfers = settlement.transfers ?? [];
+  const unit = practice ? "Practice points" : "Jade";
+  const balanced = settlement.total_credits === settlement.total_debits;
+
+  return (
+    <section className="hand-result-chapter hand-result-settlement" aria-labelledby="settlement-heading">
+      <div className="hand-result-chapter-heading">
+        <div>
+          <p className="hand-result-kicker">Settlement</p>
+          <h3 id="settlement-heading">
+            {practice ? "Practice score only" : "Jade moved between players"}
+          </h3>
+        </div>
+        <span className={`hand-result-balance-status${balanced ? " is-balanced" : ""}`}>
+          {balanced ? "Balances to zero" : "Review required"}
+        </span>
+      </div>
+
+      {!practice && view.jade_account && (
+        <p className="hand-result-stake">
+          Table stake: <strong>{view.jade_account.stake_per_tai.toLocaleString()} Jade per Tai</strong>
+          <span aria-hidden="true"> · </span>
+          Debit cap: <strong>{view.jade_account.debit_cap.toLocaleString()} Jade</strong>
+        </p>
+      )}
+
+      {transfers.length > 0 ? (
+        <ol className="hand-result-transfers">
+          {transfers.map((transfer, index) => (
+            <SettlementRow
+              key={`${transfer.from}-${transfer.to}-${index}`}
+              transfer={transfer}
+              localSeat={view.seat}
+              unit={unit}
+              stakePerTai={practice ? undefined : view.jade_account?.stake_per_tai}
+            />
+          ))}
+        </ol>
+      ) : (
+        <p className="hand-result-no-transfers">
+          {practice ? "No Practice points changed." : "No Jade changed hands."}
+        </p>
+      )}
+
+      <div className="hand-result-net" aria-label={`Net ${unit} changes`}>
+        <p>Net change</p>
+        <ul>
+          {SEAT_ORDER.map((seat) => {
+            const amount = settlement.net[seat] ?? 0;
+            return (
+              <li key={seat} className={amount > 0 ? "is-credit" : amount < 0 ? "is-debit" : ""}>
+                <span>{seatLabel(seat, view.seat)}</span>
+                <strong>{formatSignedAmount(amount)}</strong>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <p className="hand-result-reconciliation">
+        <span aria-hidden="true">{balanced ? "✓" : "!"}</span>
+        {balanced
+          ? practice
+            ? `${settlement.total_debits.toLocaleString()} Practice points paid = ${settlement.total_credits.toLocaleString()} received. Nothing persists.`
+            : `${settlement.total_debits.toLocaleString()} Jade paid = ${settlement.total_credits.toLocaleString()} received. No Jade was created or removed.`
+          : `${settlement.total_debits.toLocaleString()} paid does not match ${settlement.total_credits.toLocaleString()} received. This settlement needs review.`}
+      </p>
+    </section>
   );
 }
 
@@ -190,46 +318,37 @@ export function HandResultScreen({
 
       {practice && (
         <p className="hand-result-practice-note">
-          Practice result — no Jade, rating, or progression is changed.
+          <strong>Practice result</strong>
+          <span>No Jade, rating, or progression is changed.</span>
         </p>
       )}
 
-      {winners.length === 0 ? (
-        <p className="hand-result-no-winner">No winner this hand.</p>
-      ) : (
-        winners.map((winner) => <WinnerBreakdown key={winner.seat} winner={winner} localSeat={view.seat} />)
-      )}
-
-      {dealerTaiBonus > 0 && dealer && (
-        <p className="hand-result-dealer-tai">
-          Dealer <span className="bilingual-term"><span lang="zh-Hant">台</span><small>(Tai)</small></span>: +{dealerTaiBonus} when{" "}
-          {seatLabel(dealer, view.seat)} is the winner or payer
-        </p>
-      )}
-
-      {view.settlement && (
-        <div className="hand-result-settlement">
-          <p className="hand-result-settlement-heading">
-            {practice ? "Practice score" : "Settlement"}
-          </p>
-          {view.settlement.transfers && view.settlement.transfers.length > 0 ? (
-            <ul>
-              {view.settlement.transfers.map((transfer, index) => (
-                <SettlementRow
-                  key={index}
-                  transfer={transfer}
-                  localSeat={view.seat}
-                  unit={practice ? "Practice points" : "Jade"}
-                />
-              ))}
-            </ul>
+      <div className="hand-result-story">
+        <section className="hand-result-chapter hand-result-scoring" aria-labelledby="scoring-heading">
+          <div className="hand-result-chapter-heading">
+            <div>
+              <p className="hand-result-kicker">Hand</p>
+              <h3 id="scoring-heading">How the hand scored</h3>
+            </div>
+          </div>
+          {winners.length === 0 ? (
+            <p className="hand-result-no-winner">No winner this hand.</p>
           ) : (
-            <p className="hand-result-no-transfers">
-              {practice ? "No Practice points changed." : "No Jade changed hands."}
+            winners.map((winner) => <WinnerBreakdown key={winner.seat} winner={winner} localSeat={view.seat} />)
+          )}
+
+          {dealerTaiBonus > 0 && dealer && (
+            <p className="hand-result-dealer-tai">
+              <strong>Dealer Tai: +{dealerTaiBonus}</strong>
+              <span>
+                Applied when {seatLabel(dealer, view.seat)} is the winner or payer.
+              </span>
             </p>
           )}
-        </div>
-      )}
+        </section>
+
+        <SettlementStory view={view} practice={practice} />
+      </div>
 
       {!practice && view.jade_settlement && (
         <div
@@ -241,16 +360,25 @@ export function HandResultScreen({
           data-journal-id={view.jade_settlement.journal_id}
           data-wallet-sync-status={view.jade_account?.wallet_sync_status ?? "unknown"}
         >
-          <p className="hand-result-settlement-heading">Your Jade</p>
+          <p className="hand-result-kicker">Your balance</p>
           <p className="hand-result-jade-delta">
-            {view.jade_settlement.delta > 0 ? "+" : ""}
-            {view.jade_settlement.delta.toLocaleString()} Jade
+            {view.jade_settlement.delta > 0
+              ? `You received ${view.jade_settlement.delta.toLocaleString()} Jade`
+              : view.jade_settlement.delta < 0
+                ? `You paid ${Math.abs(view.jade_settlement.delta).toLocaleString()} Jade`
+                : "Your Jade did not change"}
           </p>
-          <p>
-            {view.jade_settlement.balance_before.toLocaleString()} →{" "}
-            <strong>{view.jade_settlement.balance_after.toLocaleString()} Jade</strong>
-          </p>
-          <p className="session-detail">
+          <div className="hand-result-balance-equation" aria-label={`Balance changed from ${view.jade_settlement.balance_before} to ${view.jade_settlement.balance_after} Jade`}>
+            <span><small>Before</small>{view.jade_settlement.balance_before.toLocaleString()}</span>
+            <span className="hand-result-balance-operator" aria-hidden="true">
+              {view.jade_settlement.delta < 0 ? "−" : "+"}
+            </span>
+            <span><small>Change</small>{Math.abs(view.jade_settlement.delta).toLocaleString()}</span>
+            <span className="hand-result-balance-operator" aria-hidden="true">=</span>
+            <strong><small>New balance</small>{view.jade_settlement.balance_after.toLocaleString()} Jade</strong>
+          </div>
+          <p className="hand-result-wallet-status">
+            <span aria-hidden="true">{view.jade_account?.wallet_sync_status === "synced" ? "✓" : "↻"}</span>
             Settlement posted
             {view.jade_account?.wallet_sync_status === "synced"
               ? " · AGS Wallet synced"
@@ -266,14 +394,20 @@ export function HandResultScreen({
       )}
 
       {!practice && view.next_dealer && (
-        <p className="hand-result-continuation">
-          {view.next_dealer.dealer_retains
-            ? `${seatLabel(view.next_dealer.next_dealer, view.seat)} remains dealer (continuation ${view.next_dealer.next_continuations}).`
-            : `Dealer rotates to ${seatLabel(view.next_dealer.next_dealer, view.seat)}.`}
-        </p>
+        <div className="hand-result-next">
+          <p className="hand-result-kicker">Next hand</p>
+          <p className="hand-result-continuation">
+            {view.next_dealer.dealer_retains
+              ? `${seatLabel(view.next_dealer.next_dealer, view.seat)} remains dealer · continuation ${view.next_dealer.next_continuations}`
+              : `Dealer rotates to ${seatLabel(view.next_dealer.next_dealer, view.seat)}`}
+          </p>
+        </div>
       )}
 
-      <p className="hand-result-match-id">Match ID: {view.match_id}</p>
+      <p className="hand-result-match-id">
+        <span>Match ID</span>
+        <code>{view.match_id}</code>
+      </p>
 
       {accountUpgrade}
 

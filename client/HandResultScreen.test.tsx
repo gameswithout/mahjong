@@ -80,10 +80,12 @@ describe("HandResultScreen", () => {
     );
 
     expect(markup).toContain("Practice result");
-    expect(markup).toContain("no Jade, rating, or progression is changed");
+    expect(markup).toContain("No Jade, rating, or progression is changed");
     expect(markup).toContain('aria-label="1 of dots"');
     expect(markup).toContain("3 Practice points");
     expect(markup).not.toContain("3 Jade");
+    expect(markup).toContain("3 Practice points paid = 3 received");
+    expect(markup).toContain("Nothing persists");
     expect(markup).not.toContain("Dealer rotates");
     expect(markup).toContain("Play Again");
     expect(markup).toContain("Return to Lobby");
@@ -122,12 +124,23 @@ describe("HandResultScreen", () => {
       balance_after: 5030,
       journal_id: "settlement:match-1",
     };
+    if (!view.settlement?.transfers) {
+      throw new Error("invalid settlement fixture");
+    }
+    view.settlement.transfers[0].raw_amount = 30;
+    view.settlement.transfers[0].amount = 30;
+    view.settlement.net = { E: 30, S: -30 };
+    view.settlement.total_credits = 30;
+    view.settlement.total_debits = 30;
 
     const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
 
-    expect(markup).toContain("+30 Jade");
+    expect(markup).toContain("You received 30 Jade");
     expect(markup).toContain("5,000");
     expect(markup).toContain("5,030 Jade");
+    expect(markup).toContain("10 Jade per Tai × 3 Tai = 30 Jade");
+    expect(markup).toContain("30 Jade paid = 30 received");
+    expect(markup).toContain("No Jade was created or removed");
     expect(markup).toContain("Settlement posted");
     expect(markup).toContain("AGS Wallet synced");
     expect(markup).toContain('data-wallet-sync-status="synced"');
@@ -144,8 +157,9 @@ describe("HandResultScreen", () => {
     expect(markup).toContain('aria-label="1 of dots"');
     expect(markup).toContain('aria-label="South discarded the winning tile to You (East)"');
     expect(markup).not.toContain("Winning tile</span>");
-    expect(markup).toContain("Score Breakdown");
-    expect(markup).not.toContain("Why this scored");
+    expect(markup).toContain("Why this scored");
+    expect(markup).toContain("Seat Wind");
+    expect(markup).toContain("Raw Tai subtotal");
   });
 
   it("celebrates a self-draw with a prominent 自摸 heading", () => {
@@ -199,9 +213,8 @@ describe("HandResultScreen", () => {
     const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
 
     expect(markup).toContain('lang="zh-Hant">台</span><small>(Tai)</small>');
-    expect(markup).toContain(
-      ": +5 when You (East) is the winner or payer",
-    );
+    expect(markup).toContain("Dealer Tai: +5");
+    expect(markup).toContain("Applied when You (East) is the winner or payer");
     expect(markup).not.toContain("South is dealer");
   });
 
@@ -223,6 +236,68 @@ describe("HandResultScreen", () => {
     const markup = renderToStaticMarkup(<HandResultScreen view={completedView()} onReturn={vi.fn()} />);
 
     expect(markup).not.toContain("Keep this progress");
+  });
+
+  it("makes a capped transfer and zero-sum Jade reconciliation explicit", () => {
+    const view = completedView();
+    if (!view.settlement?.transfers) {
+      throw new Error("invalid settlement fixture");
+    }
+    view.jade_account = {
+      currency_code: "JADE",
+      balance: 300000,
+      reserved: 0,
+      available: 300000,
+      eligible: true,
+      minimum_balance: 500000,
+      stake_per_tai: 10000,
+      debit_cap: 300000,
+      wallet_sync_status: "synced",
+    };
+    view.settlement.transfers = [{
+      from: "S",
+      to: "E",
+      effective_tai: 45,
+      raw_amount: 450000,
+      amount: 300000,
+      capped: true,
+    }];
+    view.settlement.net = { E: 300000, S: -300000 };
+    view.settlement.total_credits = 300000;
+    view.settlement.total_debits = 300000;
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain("Table stake:");
+    expect(markup).toContain("10,000 Jade per Tai");
+    expect(markup).toContain("Debit cap:");
+    expect(markup).toContain("10,000 Jade per Tai × 45 Tai = 450,000 Jade");
+    expect(markup).toContain("Debit cap applied: 450,000 → 300,000 Jade");
+    expect(markup).toContain("300,000 Jade paid = 300,000 received");
+    expect(markup).toContain("Balances to zero");
+  });
+
+  it("lets the player collapse and reopen the score explanation", () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+
+    act(() => root.render(<HandResultScreen view={completedView()} />));
+
+    const toggle = container.querySelector<HTMLButtonElement>(".hand-result-why-toggle");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector('[aria-label="Scoring patterns"]')).not.toBeNull();
+
+    act(() => toggle?.click());
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector('[aria-label="Scoring patterns"]')).toBeNull();
+
+    act(() => toggle?.click());
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector('[aria-label="Scoring patterns"]')).not.toBeNull();
+    act(() => root.unmount());
   });
 
   it("dispatches both Practice result actions", () => {

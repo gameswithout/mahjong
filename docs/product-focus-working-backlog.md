@@ -97,6 +97,10 @@ Acceptance:
 
 ### P0.3 Result comprehension
 
+**Implemented 2026-07-25.** Component/build evidence and the pending rendered
+capture note are recorded in
+[`p0-3-result-comprehension.md`](p0-3-result-comprehension.md).
+
 - Turn the hand result into a readable story: winning tile, hand structure,
   Tai sources, dealer modifiers, cap application, and per-player transfer.
 - Separate Practice points, Full Rotation table points, and Jade clearly.
