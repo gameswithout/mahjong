@@ -1157,6 +1157,7 @@ type JadeAccount struct {
 	StakePerTai      int64                  `protobuf:"varint,7,opt,name=stake_per_tai,json=stakePerTai,proto3" json:"stake_per_tai,omitempty"`
 	DebitCap         int64                  `protobuf:"varint,8,opt,name=debit_cap,json=debitCap,proto3" json:"debit_cap,omitempty"`
 	WalletSyncStatus string                 `protobuf:"bytes,9,opt,name=wallet_sync_status,json=walletSyncStatus,proto3" json:"wallet_sync_status,omitempty"`
+	WalletSyncError  string                 `protobuf:"bytes,10,opt,name=wallet_sync_error,json=walletSyncError,proto3" json:"wallet_sync_error,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1250,6 +1251,13 @@ func (x *JadeAccount) GetDebitCap() int64 {
 func (x *JadeAccount) GetWalletSyncStatus() string {
 	if x != nil {
 		return x.WalletSyncStatus
+	}
+	return ""
+}
+
+func (x *JadeAccount) GetWalletSyncError() string {
+	if x != nil {
+		return x.WalletSyncError
 	}
 	return ""
 }
@@ -2914,7 +2922,7 @@ const file_service_proto_rawDesc = "" +
 	"\vwin_preview\x18\x02 \x01(\v2\x14.service.ScoreResultR\n" +
 	"winPreview\x12;\n" +
 	"\x0fconcealed_kongs\x18\x03 \x03(\v2\x12.service.TileIDSetR\x0econcealedKongs\x12-\n" +
-	"\x13added_kong_tile_ids\x18\x04 \x03(\tR\x10addedKongTileIds\"\xba\x02\n" +
+	"\x13added_kong_tile_ids\x18\x04 \x03(\tR\x10addedKongTileIds\"\xe6\x02\n" +
 	"\vJadeAccount\x12#\n" +
 	"\rcurrency_code\x18\x01 \x01(\tR\fcurrencyCode\x12\x18\n" +
 	"\abalance\x18\x02 \x01(\x03R\abalance\x12\x1a\n" +
@@ -2924,7 +2932,9 @@ const file_service_proto_rawDesc = "" +
 	"\x0fminimum_balance\x18\x06 \x01(\x03R\x0eminimumBalance\x12\"\n" +
 	"\rstake_per_tai\x18\a \x01(\x03R\vstakePerTai\x12\x1b\n" +
 	"\tdebit_cap\x18\b \x01(\x03R\bdebitCap\x12,\n" +
-	"\x12wallet_sync_status\x18\t \x01(\tR\x10walletSyncStatus\"h\n" +
+	"\x12wallet_sync_status\x18\t \x01(\tR\x10walletSyncStatus\x12*\n" +
+	"\x11wallet_sync_error\x18\n" +
+	" \x01(\tR\x0fwalletSyncError\"h\n" +
 	"\x0fJadeReservation\x12%\n" +
 	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\x12\x16\n" +
 	"\x06amount\x18\x02 \x01(\x03R\x06amount\x12\x16\n" +

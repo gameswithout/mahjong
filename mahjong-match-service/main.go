@@ -282,9 +282,7 @@ func main() {
 			ticker := time.NewTicker(5 * time.Second)
 			defer ticker.Stop()
 			for {
-				syncCtx, syncCancel := context.WithTimeout(ctx, 10*time.Second)
-				err := jadeEconomy.SyncWallets(syncCtx, 20)
-				syncCancel()
+				err := jadeEconomy.SyncWallets(ctx, 20)
 				if err != nil {
 					logger.Warn("Jade wallet reconciliation failed", "error", err)
 				}

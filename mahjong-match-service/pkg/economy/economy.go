@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gameswithout/mahjong/rulesengine"
 )
@@ -18,6 +19,7 @@ const (
 	OnboardingGrant    = int64(2_000)
 	RulesVersion       = "taiwanese-16-v1.1"
 	ReservationMinutes = 10
+	walletSyncTimeout  = 15 * time.Second
 )
 
 var (
@@ -41,6 +43,7 @@ type Account struct {
 	StakePerTai  int64
 	DebitCap     int64
 	WalletStatus string
+	WalletError  string
 }
 
 type Reservation struct {
@@ -169,15 +172,16 @@ func (c *Coordinator) SyncWallets(ctx context.Context, limit int) error {
 	}
 	var firstErr error
 	for _, target := range targets {
-		actual, syncErr := c.mirror.Balance(ctx, target.UserID)
+		targetCtx, cancel := context.WithTimeout(ctx, walletSyncTimeout)
+		actual, syncErr := c.mirror.Balance(targetCtx, target.UserID)
 		if syncErr == nil && actual < target.Balance {
-			syncErr = c.mirror.Credit(ctx, target.UserID, target.Balance-actual)
+			syncErr = c.mirror.Credit(targetCtx, target.UserID, target.Balance-actual)
 		}
 		if syncErr == nil && actual > target.Balance {
-			syncErr = c.mirror.Debit(ctx, target.UserID, actual-target.Balance)
+			syncErr = c.mirror.Debit(targetCtx, target.UserID, actual-target.Balance)
 		}
 		if syncErr == nil && actual != target.Balance {
-			actual, syncErr = c.mirror.Balance(ctx, target.UserID)
+			actual, syncErr = c.mirror.Balance(targetCtx, target.UserID)
 			if syncErr == nil && actual != target.Balance {
 				syncErr = fmt.Errorf(
 					"AGS Jade wallet verification mismatch for user %s: got %d, want %d",
@@ -187,6 +191,7 @@ func (c *Coordinator) SyncWallets(ctx context.Context, limit int) error {
 				)
 			}
 		}
+		cancel()
 		if syncErr == nil {
 			syncErr = c.repository.MarkJadeWalletSynced(ctx, target.UserID, target.Balance)
 		} else {

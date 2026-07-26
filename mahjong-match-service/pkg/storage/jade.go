@@ -492,7 +492,13 @@ func (p *PostgreSQLStorage) PendingJadeWalletTargets(
 		FROM jade_wallet_sync
 		WHERE status IN ('pending', 'error') OR
 		      (status = 'syncing' AND updated_at < NOW() - INTERVAL '2 minutes')
-		ORDER BY updated_at
+		ORDER BY
+		    CASE status
+		        WHEN 'pending' THEN 0
+		        WHEN 'error' THEN 1
+		        ELSE 2
+		    END,
+		    updated_at
 		LIMIT $1
 		FOR UPDATE SKIP LOCKED`, limit)
 	if err != nil {
@@ -628,25 +634,67 @@ func jadeAccountTx(ctx context.Context, tx pgx.Tx, userID string) (economy.Accou
 		StakePerTai:  economy.StakePerTai,
 		DebitCap:     economy.DebitCap,
 	}
+	var walletError string
 	if err := tx.QueryRow(ctx, `
 		SELECT a.balance,
 		       COALESCE(SUM(r.amount) FILTER (
 		           WHERE r.status IN ('active', 'bound') AND
 		                 (r.status = 'bound' OR r.expires_at > NOW())
 		       ), 0),
-		       COALESCE(ws.status, 'pending')
+		       COALESCE(ws.status, 'pending'),
+		       COALESCE(ws.last_error, '')
 		FROM jade_accounts a
 		LEFT JOIN jade_reservations r ON r.user_id = a.owner_user_id
 		LEFT JOIN jade_wallet_sync ws ON ws.user_id = a.owner_user_id
 		WHERE a.owner_user_id = $1
-		GROUP BY a.balance, ws.status`,
+		GROUP BY a.balance, ws.status, ws.last_error`,
 		userID,
-	).Scan(&account.Balance, &account.Reserved, &account.WalletStatus); err != nil {
+	).Scan(
+		&account.Balance,
+		&account.Reserved,
+		&account.WalletStatus,
+		&walletError,
+	); err != nil {
 		return economy.Account{}, fmt.Errorf("read Jade account: %w", err)
 	}
+	account.WalletError = walletSyncErrorCode(walletError)
 	account.Available = account.Balance - account.Reserved
 	account.Eligible = account.Balance >= account.Minimum && account.Available >= account.DebitCap
 	return account, nil
+}
+
+func walletSyncErrorCode(message string) string {
+	normalized := strings.ToLower(strings.TrimSpace(message))
+	if normalized == "" {
+		return ""
+	}
+	switch {
+	case strings.Contains(normalized, "401") ||
+		strings.Contains(normalized, "unauthorized") ||
+		strings.Contains(normalized, "unauthenticated"):
+		return "unauthorized"
+	case strings.Contains(normalized, "403") ||
+		strings.Contains(normalized, "forbidden") ||
+		strings.Contains(normalized, "permission denied"):
+		return "forbidden"
+	case strings.Contains(normalized, "404") ||
+		strings.Contains(normalized, "not found"):
+		return "not_found"
+	case strings.Contains(normalized, "deadline") ||
+		strings.Contains(normalized, "timeout") ||
+		strings.Contains(normalized, "timed out"):
+		return "timeout"
+	case strings.Contains(normalized, "verification mismatch"):
+		return "balance_mismatch"
+	case strings.Contains(normalized, "query ags jade wallet"):
+		return "query_failed"
+	case strings.Contains(normalized, "credit ags jade wallet"):
+		return "credit_failed"
+	case strings.Contains(normalized, "debit ags jade wallet"):
+		return "debit_failed"
+	default:
+		return "unknown"
+	}
 }
 
 func upsertWalletTarget(ctx context.Context, tx pgx.Tx, userID string, balance int64) error {

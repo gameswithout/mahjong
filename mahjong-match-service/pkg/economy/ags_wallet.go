@@ -20,6 +20,11 @@ type AGSWalletMirror struct {
 	tokens       repository.TokenRepository
 }
 
+// The live Platform API's balance-origin enum is mixed case ("System").
+// The pinned generated SDK exposes uppercase constants ("SYSTEM"), which pass
+// its case-insensitive client validation but are rejected by AGS with 20018.
+const agsSystemBalanceOrigin = "System"
+
 func NewAGSWalletMirror(
 	namespace string,
 	currencyCode string,
@@ -82,16 +87,7 @@ func (m *AGSWalletMirror) Credit(ctx context.Context, userID string, amount int6
 			UserID:       userID,
 			CurrencyCode: m.currencyCode,
 			Context:      ctx,
-			Body: &platformclientmodels.CreditRequest{
-				Amount: &amount,
-				Origin: platformclientmodels.CreditRequestOriginSYSTEM,
-				Source: platformclientmodels.CreditRequestSourceOTHER,
-				Reason: "Mahjong Jade ledger reconciliation",
-				Metadata: map[string]any{
-					"authority": "mahjong-match-service",
-					"currency":  CurrencyCode,
-				},
-			},
+			Body:         jadeCreditRequest(amount),
 		},
 		auth.AuthInfoWriter(
 			auth.Session{Token: m.tokens, Config: m.config, Refresh: nil},
@@ -115,17 +111,7 @@ func (m *AGSWalletMirror) Debit(ctx context.Context, userID string, amount int64
 			UserID:       userID,
 			CurrencyCode: m.currencyCode,
 			Context:      ctx,
-			Body: &platformclientmodels.DebitByCurrencyCodeRequest{
-				Amount:         &amount,
-				AllowOverdraft: false,
-				BalanceOrigin:  platformclientmodels.DebitByCurrencyCodeRequestBalanceOriginSYSTEM,
-				BalanceSource:  platformclientmodels.DebitByCurrencyCodeRequestBalanceSourceOTHER,
-				Reason:         "Mahjong Jade ledger reconciliation",
-				Metadata: map[string]any{
-					"authority": "mahjong-match-service",
-					"currency":  CurrencyCode,
-				},
-			},
+			Body:         jadeDebitRequest(amount),
 		},
 		auth.AuthInfoWriter(
 			auth.Session{Token: m.tokens, Config: m.config, Refresh: nil},
@@ -137,4 +123,31 @@ func (m *AGSWalletMirror) Debit(ctx context.Context, userID string, amount int64
 		return fmt.Errorf("debit AGS Jade wallet: %w", err)
 	}
 	return nil
+}
+
+func jadeCreditRequest(amount int64) *platformclientmodels.CreditRequest {
+	return &platformclientmodels.CreditRequest{
+		Amount: &amount,
+		Origin: agsSystemBalanceOrigin,
+		Source: platformclientmodels.CreditRequestSourceOTHER,
+		Reason: "Mahjong Jade ledger reconciliation",
+		Metadata: map[string]any{
+			"authority": "mahjong-match-service",
+			"currency":  CurrencyCode,
+		},
+	}
+}
+
+func jadeDebitRequest(amount int64) *platformclientmodels.DebitByCurrencyCodeRequest {
+	return &platformclientmodels.DebitByCurrencyCodeRequest{
+		Amount:         &amount,
+		AllowOverdraft: false,
+		BalanceOrigin:  agsSystemBalanceOrigin,
+		BalanceSource:  platformclientmodels.DebitByCurrencyCodeRequestBalanceSourceOTHER,
+		Reason:         "Mahjong Jade ledger reconciliation",
+		Metadata: map[string]any{
+			"authority": "mahjong-match-service",
+			"currency":  CurrencyCode,
+		},
+	}
 }

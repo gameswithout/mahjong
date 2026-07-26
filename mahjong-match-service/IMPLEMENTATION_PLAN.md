@@ -115,8 +115,8 @@ Permission discovery:  AGS CLI operation discovery plus the pinned AGS Go SDK
                        OpenAPI spec
 Required permissions:  Session game-session READ; Wallet READ and UPDATE
 Shared Cloud groups:   Session / Game Session; Platform Store / Wallet
-Verified access:       Session READ yes; Wallet READ/UPDATE no — the runtime
-                       client currently has Session groups only
+Verified access:       Session READ yes; Wallet READ/UPDATE yes — verified by
+                       IAM readback and live credit/debit/readback
 ```
 
 **Deployed runtime client differs from the discovery client above.** The
@@ -124,10 +124,9 @@ live Extend deployment (see "Deployment record" below) runs under an
 AGS-platform-provisioned confidential client
 (`AB_CLIENT_ID=72498bf13af54deabafdcba90d1ce497`, managed as an Extend app
 secret, not the manually created `e411a963a6bc42239dc27e39e3a03440` client
-referenced in local `.env`). Its Session game-session READ permission is
-live-verified. Its Platform Store / Wallet READ and UPDATE permissions are
-absent, so the PostgreSQL ledger settles correctly but the asynchronous AGS
-Wallet mirror cannot converge until those two actions are granted.
+referenced in local `.env`). Its Session game-session READ and Platform Store /
+Wallet READ + UPDATE permissions are live-verified. The final four-account
+journey converged all four Wallets to the authoritative PostgreSQL ledger.
 
 Browser players continue authenticating with the existing Public client and
 user access token. No confidential credential enters the browser, repository,
@@ -140,12 +139,10 @@ image, event log, or public payload.
 - [x] Create a dedicated confidential IAM client for
   `mahjong-match-service`.
 - [x] Run live Session-operation and Shared Cloud permission-group discovery.
-- [x] Confirm the dedicated client has only IAM bootstrap and Session-read
+- [x] Confirm the dedicated runtime client's IAM bootstrap and Session-read
   permissions.
-- [ ] Grant the deployed runtime client the minimum Shared Cloud
-  **Platform Store / Wallet READ + UPDATE** permission. AGS API MCP OAuth
-  completed on 2026-07-25, but the current Codex session cannot hot-load the
-  newly authenticated MCP tools; no IAM mutation was made.
+- [x] Grant and verify the deployed runtime client's minimum Shared Cloud
+  **Platform Store / Wallet READ + UPDATE** permission.
 - [x] Decide the inbound player permission annotations for the custom RPCs:
   bearer validation is required, while no unverified custom AGS permission
   resource is fabricated.
@@ -214,15 +211,15 @@ image, event log, or public payload.
   Dockerfile.
 - [x] AGS-backed Session flow verified with four distinct guest accounts:
   matchmaking created a real four-member Session, all four players joined
-  the live service, played 125 authoritative actions, and reached the shared
-  result. The release harness remains red only at its subsequent AGS Wallet
-  convergence assertion.
+  the live service, completed a full authoritative hand, reached the shared
+  result, converged all four Wallets, and left the Session cleanly.
 
 ## Deployment record
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
 ahead of the append-latency benchmark. The current 2026-07-25 deployment adds
-post-write Wallet verification and the settled-reservation repair.
+post-write Wallet verification, fair per-target reconciliation, truthful
+client sync status, and the live Wallet balance-origin compatibility fix.
 
 **Keep this block current.** Its staleness caused a 2026-07-25 mis-diagnosis:
 the record said 2026-07-20 while the live service already carried the Jade
@@ -238,14 +235,16 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      wallet-verify-20260725 (active since
-                2026-07-25T23:47:45.224Z; deployment
-                749f038b-ba2e-4cf6-a90c-8da6db0e8fe6; immutable manifest
-                sha256:ddb33ef8798bebc2875f557c788cd435f08d17a8312c7eba9df1
-                dffeeb83626a). This adds a post-write AGS Wallet balance
-                readback: "synced" is now reported only when the live
-                Wallet equals the authoritative ledger target.
+Image tag:      wallet-reconcile-20260725-r3 (active since
+                2026-07-26T03:38:53.301Z; deployment
+                f9fee13c-2aa5-40ad-99cf-570d1c7443df). This fixes the live
+                Wallet API's mixed-case "System" balance origin, gives each
+                reconciliation target its own timeout, prioritizes pending
+                targets, and projects sanitized sync failure state.
                 Preceding images, newest first:
+                wallet-reconcile-20260725-r2,
+                wallet-reconcile-20260725-r1,
+                wallet-verify-20260725,
                 jade-stall-fix-d4c0047, runtime-fixes-c90b3bb,
                 opening-delay-6911e8f, gang-zimo-6c8c18a,
                 video-chat-6a5825e, ai-practice-b5314bd
@@ -289,9 +288,11 @@ Verified:       Image push + deploy succeeded; app status
                 2026-07-25: four distinct guest accounts created a real
                 four-member AGS Session and played 125 authoritative actions
                 to a shared Jade settlement result on the deployed URL.
-Not verified:   Append latency against the real Aurora cluster; AGS Wallet
-                convergence after granting Platform Store / Wallet READ and
-                UPDATE to the runtime client.
+                2026-07-25: final four-account release journey completed 123
+                legal actions; all Wallet statuses synced; total Jade stayed
+                20,000; all returned balances were 5,000; four Session leaves
+                succeeded.
+Not verified:   Append latency against the real Aurora cluster.
 ```
 
 ### Reading deployment state
@@ -365,16 +366,14 @@ business rule runs correctly. This is conclusive: the permission works.
 The 2026-07-25 four-account journey subsequently exercised that real
 four-member path through settlement.
 
-The latest client re-read shows `clientPermissions: []`, with module
-permissions limited to `m_session / g_game_session [READ]` and
-`m_session / g_session_storage [READ]`. There is no Platform Store / Wallet
-group. The four-account browser journey therefore fails at the deliberate
-release assertion waiting for `AGS Wallet synced`. The required operations
-resolve to
-`ADMIN:NAMESPACE:{namespace}:USER:{userId}:WALLET [READ, UPDATE]`; in Shared
-Cloud the supported predefined permission is **Platform Store / Wallet**
-with **Read + Update**. Grant it, restart/redeploy once to force a fresh
-client-credentials token, and rerun `npm run test:four-human`.
+The latest runtime-client readback shows `m_session / g_game_session [READ]`,
+`m_session / g_session_storage [READ]`, and
+`m_platform_store / g_wallet [READ, UPDATE]`. After redeploying for a fresh
+client-credentials token, a reversible one-Jade probe verified live credit and
+debit. The probe also found a generated-SDK mismatch: uppercase `SYSTEM`
+passes local validation but the live API requires `System`. Image
+`wallet-reconcile-20260725-r3` corrects both request shapes, and the final
+four-account journey verified post-write readback for all seats.
 
 **Revision history:**
 - `9eb21b7` — initial deployment (REST match service live).

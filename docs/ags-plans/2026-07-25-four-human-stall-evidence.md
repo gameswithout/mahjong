@@ -3,8 +3,8 @@
 - Date: 2026-07-25
 - Namespace: `gameswithout-mahjong`
 - Match pool: `mahjong-test-pool`
-- Status: gameplay stall resolved and deployed; AGS Wallet convergence remains
-  a separate IAM release gate
+- Status: gameplay stall resolved and deployed; AGS Wallet convergence
+  verified
 - Related:
   [Staked Bamboo quick play](./2026-07-24-staked-bamboo-quick-play.md) and
   [current release evidence](./2026-07-24-staked-bamboo-quick-play-evidence.md)
@@ -87,12 +87,13 @@ The harness now:
 After deploying the server repair, four distinct guest accounts created a real
 four-member AGS Session, joined the deployed service, passed private-seat and
 reconnect checks, played 125 authoritative actions, and reached the shared Jade
-settlement result.
+settlement result. That first run isolated a separate Wallet release gate.
 
-The release script then stopped at the intended Wallet assertion. The deployed
-runtime client has Session permissions but lacks **Platform Store / Wallet
-Read + Update**. That IAM gap is independent of the resolved table stall and is
-tracked in the current release evidence.
+The final production journey against image `wallet-reconcile-20260725-r3`
+closed that gate: four distinct seats completed 123 legal actions; all four
+result views reported Wallet status `synced`; one settlement journal was
+shared across the table; total Jade remained 20,000; every player returned
+with 5,000 Jade; and all four Session leave responses succeeded.
 
 Regression coverage retained on `main` includes:
 

@@ -5,8 +5,8 @@
   [2026-07-25 four-human diagnosis and resolution](./2026-07-25-four-human-stall-evidence.md)
 - Scope: authoritative Jade ledger, public-queue reservation, four-seat
   settlement, player UI, and AGS Wallet reconciliation worker
-- Result: implementation and live four-account gameplay verified; AGS Wallet
-  permission and convergence remain the final release gate
+- Result: implementation, live four-account gameplay, and AGS Wallet
+  convergence verified
 
 ## Live AGS configuration
 
@@ -19,14 +19,16 @@
 - Verification: the service credential created the currency and the AGS CLI
   returned it from the namespace currency list.
 
-No live player balance was mutated during local verification.
+Only disposable verification-player balances were mutated during live
+verification. The direct one-Jade credit/debit probe was restored to zero, and
+the completed four-player journey conserved the 20,000 Jade aggregate.
 
 ## Automated verification
 
 | Check | Result |
 | --- | --- |
-| Client unit/component suite | 44 files, 334 tests passed |
-| Client production build | Passed; 430 modules transformed |
+| Client unit/component suite | 23 files, 185 tests passed |
+| Client production build | Passed; 433 modules transformed |
 | Root Go suite | Passed |
 | Match Service Go suite | Passed across service, contract, economy, match, session, and storage packages |
 | PostgreSQL Jade integration | Passed against PostgreSQL 17 |
@@ -80,29 +82,32 @@ requires all four result views to:
 - conserve the starting and ending total Jade supply;
 - sum personal deltas to zero;
 - satisfy `before + delta = after` per player;
-- expose `data-wallet-sync-status="synced"` and the exact
-  `AGS Wallet synced` status;
+- expose the stable `data-wallet-sync-status="synced"` contract and the
+  user-facing `AGS Wallet synced` status;
 - show the same settled balance again after returning to the lobby.
 
 The service now performs a post-write AGS Wallet readback and reports `synced`
 only when the observed balance exactly equals the authoritative ledger target.
 
-## Remaining live release gate
+## Closed live release gate
 
 1. ~~Deploy the new `mahjong-match-service` image.~~ **Done** — image
    `wallet-verify-20260725`, deployment
    `749f038b-ba2e-4cf6-a90c-8da6db0e8fe6`, immutable manifest
    `sha256:ddb33ef8798bebc2875f557c788cd435f08d17a8312c7eba9df1dffeeb83626a`.
-2. Confirm the runtime IAM client can read, credit, and debit `JADE` wallets.
-   **Blocked by a confirmed permission gap:** the client has only Session
-   groups and lacks Platform Store / Wallet Read + Update.
-3. Run the four-human browser journey against the deployed base path.
-   **Gameplay portion done:** four distinct guest accounts created a real
-   four-member Session, joined, passed seat privacy and reconnect checks,
-   played 125 authoritative actions, and reached the shared result. The
-   overall release script correctly remains red at the Wallet assertion.
-4. Record the shared settlement journal and four converged wallet balances.
-   **Open until item 2 is granted and the journey is rerun.**
+2. ~~Confirm the runtime IAM client can read, credit, and debit `JADE`
+   wallets.~~ **Done** — live IAM readback shows Platform Store / Wallet Read
+   + Update on runtime client `72498bf13af54deabafdcba90d1ce497`.
+   A reversible one-Jade production probe verified credit and debit and was
+   restored to zero.
+3. ~~Run the four-human browser journey against the deployed base path.~~
+   **Done** — four distinct guest accounts entered one real Session, passed
+   seat privacy and reconnect checks, and completed 123 legal actions.
+4. ~~Record the shared settlement journal and four converged wallet
+   balances.~~ **Done** — journal
+   `settlement:c1c083794fa8d7553b1c3ffa7df1672d8adf13b3ba897af233397f2c2ef0d0a8`;
+   Wallet status `synced` for all four seats; returned balances 5,000 each;
+   total before and after 20,000.
 
 The PostgreSQL ledger path and the AGS Wallet mirror are separate release
 questions. Reaching the shared result proves the authoritative match and
@@ -145,17 +150,22 @@ Authorization preflight
   Permission discovery:  AGS CLI operation discovery + pinned SDK spec
   Required permissions:  Wallet READ and UPDATE
   Shared Cloud groups:   Platform Store / Wallet / Read + Update
-  Verified access:       no — permission absent on the live runtime client
+  Verified access:       yes — runtime client readback shows Wallet [READ,
+                         UPDATE], and live credit/debit/readback succeeded
 ```
 
-The configured `ags_api` MCP server completed its browser OAuth flow
-successfully. MCP uses a dynamically registered public OAuth client for its
-PKCE callback; the supplied `373617a151fe4d3f92be11f4a045cba5` remains the
-separate Confidential CLI/tooling identity and is not exposed to the browser.
-The current Codex session cannot hot-load tools authenticated after startup, so
-the permission was not mutated. Reload Codex, grant Read + Update through the
-authenticated MCP path, restart/redeploy the app once for a fresh
-client-credentials token, then run `npm run test:four-human`.
+After the permission was granted, the remaining production failure was not an
+authorization issue. The pinned generated SDK emits uppercase `SYSTEM` for the
+balance-origin enum and validates it case-insensitively, while the live Wallet
+API rejects that value with error `20018` and accepts `System`. The service now
+constructs both credit and debit requests with the live API's mixed-case
+value, with a regression test protecting both request shapes.
+
+Image `wallet-reconcile-20260725-r3` is running in deployment
+`f9fee13c-2aa5-40ad-99cf-570d1c7443df`. Its per-target reconciliation timeout
+prevents one slow Wallet from consuming the whole batch, pending targets are
+processed before stale failures, and the client exposes truthful
+pending/syncing/error/synced status without leaking backend error details.
 
 ## Four-human stall — root cause (2026-07-25)
 

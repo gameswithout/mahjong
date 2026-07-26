@@ -269,6 +269,7 @@ func projectJadeAccount(account economy.Account) *pb.JadeAccount {
 		StakePerTai:      account.StakePerTai,
 		DebitCap:         account.DebitCap,
 		WalletSyncStatus: account.WalletStatus,
+		WalletSyncError:  account.WalletError,
 	}
 }
 
