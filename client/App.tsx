@@ -64,7 +64,7 @@ const RECONNECT_DELAY_MS = 2000;
 // panel. Long enough to ride out a transient server-side error without the
 // player noticing; short enough that a genuinely dead match does not leave
 // them staring at a frozen board.
-const STALLED_TABLE_GRACE_MS = 30_000;
+export const STALLED_TABLE_GRACE_MS = 30_000;
 const HUMAN_MATCH_SIZE = 4;
 const AUTO_DRAW_DELAY_MS = 320;
 
@@ -1383,9 +1383,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     });
   }
 
-  // Discarding is the player's primary repeated action. A hand tile is now a
-  // direct action target: one tap sends the authoritative discard command,
-  // eliminating the previous select-then-confirm round trip.
+  // Discarding is the player's primary repeated action. The table handles the
+  // inspect-first, activate-again interaction and sends only the deliberate
+  // second activation here as an authoritative discard command.
   function discardHandTile(tileId: string) {
     if (
       matchRuntimeState.status !== "joined" ||

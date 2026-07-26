@@ -899,11 +899,16 @@ function ActionBar({
         <p className="action-bar-prompt action-bar-hint" role="status" aria-live="polite">
           {drawPending ? "Drawing your tile…" : "Your tile will draw automatically"}
         </p>
-        {!drawPending ? (
-          <button type="button" className="action-button action-pass action-draw-fallback" onClick={onDraw}>
-            Draw now
-          </button>
-        ) : null}
+        {/* Keep the fallback mounted while auto-draw is in flight. Removing it
+            after 320 ms can detach the control underneath a pointer or touch. */}
+        <button
+          type="button"
+          className="action-button action-pass action-draw-fallback"
+          onClick={onDraw}
+          disabled={drawPending}
+        >
+          Draw now
+        </button>
       </div>
     );
   }

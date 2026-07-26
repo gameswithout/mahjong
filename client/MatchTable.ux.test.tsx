@@ -262,6 +262,36 @@ describe("MatchTable table-first UX", () => {
     expect(dock?.querySelectorAll(".chow-option-preview .tile")).toHaveLength(3);
   });
 
+  it("keeps the draw fallback mounted while the automatic draw is pending", () => {
+    const state = { ...mockMatchTableState, legalActions: [] };
+    const onDraw = vi.fn();
+    act(() =>
+      root.render(
+        <MatchTable
+          state={state}
+          interaction={{ canDraw: true, drawPending: false, onDraw }}
+        />,
+      ),
+    );
+
+    const before = container.querySelector<HTMLButtonElement>(".action-draw-fallback");
+    expect(before?.disabled).toBe(false);
+
+    act(() =>
+      root.render(
+        <MatchTable
+          state={state}
+          interaction={{ canDraw: true, drawPending: true, onDraw }}
+        />,
+      ),
+    );
+
+    const pending = container.querySelector<HTMLButtonElement>(".action-draw-fallback");
+    expect(pending).toBe(before);
+    expect(pending?.disabled).toBe(true);
+    expect(container.textContent).toContain("Drawing your tile…");
+  });
+
   it("inspects a tile on first activation and discards it on the second", () => {
     const onDiscardTile = vi.fn();
     const state = {

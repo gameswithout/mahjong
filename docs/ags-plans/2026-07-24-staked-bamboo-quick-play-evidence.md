@@ -1,6 +1,8 @@
 # M3B Staked Bamboo Quick Play — Verification Evidence
 
 - Date: 2026-07-24
+- Stall investigation:
+  [2026-07-25 four-human diagnosis and resolution](./2026-07-25-four-human-stall-evidence.md)
 - Scope: authoritative Jade ledger, public-queue reservation, four-seat
   settlement, player UI, and AGS Wallet reconciliation worker
 - Result: implementation and live four-account gameplay verified; AGS Wallet
