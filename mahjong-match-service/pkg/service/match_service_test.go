@@ -24,6 +24,8 @@ type fakeEconomyRepository struct {
 	boundRuntime  string
 	bindErr       error
 	releaseCalled bool
+	recordedHands int
+	welfareClaims int
 }
 
 func (f *fakeEconomyRepository) EnsureJadeAccount(
@@ -186,6 +188,11 @@ func TestMatchServiceJadeEndpointsUseAuthenticatedPlayer(t *testing.T) {
 			Minimum:      economy.MinimumBalance,
 			StakePerTai:  economy.StakePerTai,
 			DebitCap:     economy.DebitCap,
+			Welfare: economy.WelfareStatus{
+				Eligible: true,
+				Amount:   600,
+				Reason:   economy.WelfareAvailable,
+			},
 		},
 		reservation: economy.Reservation{ID: "reserve-1", Amount: 300, Status: "active"},
 	}
@@ -203,6 +210,11 @@ func TestMatchServiceJadeEndpointsUseAuthenticatedPlayer(t *testing.T) {
 		!accountResponse.GetAccount().GetEligible() {
 		t.Fatalf("account response = %#v", accountResponse.GetAccount())
 	}
+	if !accountResponse.GetAccount().GetWelfareEligible() ||
+		accountResponse.GetAccount().GetWelfareAmount() != 600 ||
+		accountResponse.GetAccount().GetWelfareReason() != economy.WelfareAvailable {
+		t.Fatalf("welfare account projection = %#v", accountResponse.GetAccount())
+	}
 	reserveResponse, err := matchService.ReserveJade(ctx, &pb.ReserveJadeRequest{
 		Namespace: "gameswithout-mahjong",
 	})
@@ -219,6 +231,20 @@ func TestMatchServiceJadeEndpointsUseAuthenticatedPlayer(t *testing.T) {
 	}
 	if !repository.releaseCalled {
 		t.Fatal("ReleaseJade() did not release the authenticated player's reservation")
+	}
+	welfareResponse, err := matchService.ClaimJadeWelfare(ctx, &pb.ClaimJadeWelfareRequest{
+		Namespace: "gameswithout-mahjong",
+	})
+	if err != nil {
+		t.Fatalf("ClaimJadeWelfare() error = %v", err)
+	}
+	if !welfareResponse.GetGranted() ||
+		welfareResponse.GetAmount() != 600 ||
+		welfareResponse.GetReason() != economy.WelfareAvailable {
+		t.Fatalf("welfare response = %#v", welfareResponse)
+	}
+	if repository.welfareClaims != 1 {
+		t.Fatalf("welfare claim count = %d, want 1", repository.welfareClaims)
 	}
 }
 
@@ -763,4 +789,33 @@ func privateView() rulesengine.SeatView {
 		},
 		Wall: rulesengine.WallView{Remaining: 79, DrawableRemaining: 63, ReserveRemaining: 16},
 	}
+}
+
+func (f *fakeEconomyRepository) JadeAccountWithFaucets(
+	context.Context,
+	string,
+) (economy.Account, error) {
+	return f.account, nil
+}
+
+func (f *fakeEconomyRepository) RecordCompletedHand(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ bool,
+) (economy.Account, error) {
+	f.recordedHands++
+	return f.account, nil
+}
+
+func (f *fakeEconomyRepository) ClaimJadeWelfare(
+	context.Context,
+	string,
+) (economy.Account, economy.WelfareStatus, error) {
+	f.welfareClaims++
+	return f.account, economy.WelfareStatus{
+		Eligible: true,
+		Amount:   600,
+		Reason:   economy.WelfareAvailable,
+	}, nil
 }

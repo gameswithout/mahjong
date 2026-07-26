@@ -28,6 +28,7 @@ describe("staked matchmaking", () => {
       }),
       release: vi.fn(),
       getAccount: vi.fn(),
+      claimWelfare: vi.fn(),
     } satisfies JadeClient;
     const matchmaking = {
       createTicket: vi.fn(async () => {
@@ -53,6 +54,7 @@ describe("staked matchmaking", () => {
       }),
       release: vi.fn().mockResolvedValue({ ...account, reserved: 0, available: 5000 }),
       getAccount: vi.fn(),
+      claimWelfare: vi.fn(),
     } satisfies JadeClient;
     const matchmaking = {
       createTicket: vi.fn().mockRejectedValue(new Error("ticket failed")),

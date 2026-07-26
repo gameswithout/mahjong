@@ -1,4 +1,4 @@
-import type { JadeAccount } from "../protocol/envelope";
+import type { JadeAccount, JadeWelfareReason } from "../protocol/envelope";
 
 export type JadeErrorCode =
   | "configuration"
@@ -25,10 +25,18 @@ export interface JadeReservation {
   status: string;
 }
 
+export interface JadeWelfareClaim {
+  account: JadeAccount;
+  granted: boolean;
+  amount: number;
+  reason: JadeWelfareReason;
+}
+
 export interface JadeClient {
   getAccount(): Promise<JadeAccount>;
   reserve(): Promise<{ account: JadeAccount; reservation: JadeReservation }>;
   release(): Promise<JadeAccount>;
+  claimWelfare(): Promise<JadeWelfareClaim>;
 }
 
 export interface JadeClientOptions {
@@ -75,6 +83,12 @@ function readAccount(value: unknown): JadeAccount {
     debit_cap: toNumber(raw.debit_cap),
     wallet_sync_status:
       typeof raw.wallet_sync_status === "string" ? raw.wallet_sync_status : undefined,
+    wallet_sync_error:
+      typeof raw.wallet_sync_error === "string" ? raw.wallet_sync_error : undefined,
+    welfare_eligible: raw.welfare_eligible === true,
+    welfare_amount: toNumber(raw.welfare_amount),
+    welfare_reason:
+      typeof raw.welfare_reason === "string" ? raw.welfare_reason : undefined,
   };
 }
 
@@ -175,6 +189,27 @@ export function createJadeClient(
     async release() {
       const body = (await request("DELETE", "/reservation")) as { account?: unknown };
       return readAccount(body.account);
+    },
+    async claimWelfare() {
+      const body = (await request("POST", "/welfare")) as {
+        account?: unknown;
+        granted?: unknown;
+        amount?: unknown;
+        reason?: unknown;
+      };
+      if (
+        (body.granted !== undefined && typeof body.granted !== "boolean") ||
+        typeof body.reason !== "string"
+      ) {
+        throw new JadeError("protocol", "Jade service returned an invalid welfare result.");
+      }
+      return {
+        account: readAccount(body.account),
+        // protojson omits a false bool and zero int64 by default.
+        granted: body.granted === true,
+        amount: toNumber(body.amount),
+        reason: body.reason,
+      };
     },
   };
 }

@@ -44,6 +44,10 @@ type Account struct {
 	DebitCap     int64
 	WalletStatus string
 	WalletError  string
+	// Welfare is today's §7.5 recovery standing. Carried on the account so the
+	// lobby can tell "you are short" from "you are short, and here is the way
+	// back" without a second round trip.
+	Welfare WelfareStatus
 }
 
 type Reservation struct {
@@ -78,6 +82,10 @@ type Repository interface {
 	PendingJadeWalletTargets(context.Context, int) ([]WalletTarget, error)
 	MarkJadeWalletSynced(context.Context, string, int64) error
 	MarkJadeWalletSyncFailed(context.Context, string, error) error
+	// §7.5 faucets.
+	JadeAccountWithFaucets(context.Context, string) (Account, error)
+	RecordCompletedHand(ctx context.Context, userID, runtimeID string, practice bool) (Account, error)
+	ClaimJadeWelfare(context.Context, string) (Account, WelfareStatus, error)
 }
 
 type WalletMirror interface {
@@ -103,7 +111,28 @@ func (c *Coordinator) Account(ctx context.Context, userID string) (Account, erro
 	if userID == "" {
 		return Account{}, fmt.Errorf("%w: user ID is required", ErrNotInitialized)
 	}
-	return c.repository.EnsureJadeAccount(ctx, userID)
+	if _, err := c.repository.EnsureJadeAccount(ctx, userID); err != nil {
+		return Account{}, err
+	}
+	// Read back through the faucet-aware path so every account the client sees
+	// carries today's welfare standing.
+	return c.repository.JadeAccountWithFaucets(ctx, userID)
+}
+
+// ClaimWelfare performs the §7.5 recovery top-up. An ineligible claim is not an
+// error: the returned status explains why, which is what the caller asked.
+func (c *Coordinator) ClaimWelfare(
+	ctx context.Context,
+	userID string,
+) (Account, WelfareStatus, error) {
+	if c == nil || c.repository == nil {
+		return Account{}, WelfareStatus{}, ErrNotInitialized
+	}
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return Account{}, WelfareStatus{}, fmt.Errorf("%w: user ID is required", ErrNotInitialized)
+	}
+	return c.repository.ClaimJadeWelfare(ctx, userID)
 }
 
 func (c *Coordinator) Reserve(ctx context.Context, userID string) (Account, Reservation, error) {
@@ -137,9 +166,30 @@ func (c *Coordinator) Project(
 	runtimeID string,
 	view rulesengine.SeatView,
 ) (*Account, *PlayerSettlement, error) {
-	if c == nil || c.repository == nil || IsPractice(view) {
+	if c == nil || c.repository == nil {
 		return nil, nil, nil
 	}
+	practice := IsPractice(view)
+
+	// A finished hand is recorded for both modes, because §7.5 makes a Practice
+	// hand the prerequisite for the welfare top-up. RecordCompletedHand is
+	// keyed on (user, match), so the poll that repeats a finished view for the
+	// rest of the session counts it exactly once.
+	if view.HandResult != nil {
+		account, err := c.repository.RecordCompletedHand(ctx, userID, runtimeID, practice)
+		if err != nil {
+			return nil, nil, err
+		}
+		if practice {
+			// Practice pays no Jade and has no settlement to project, but the
+			// account still travels back so the client sees any grant the hand
+			// just unlocked.
+			return &account, nil, nil
+		}
+	} else if practice {
+		return nil, nil, nil
+	}
+
 	account, err := c.Account(ctx, userID)
 	if err != nil {
 		return nil, nil, err

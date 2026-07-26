@@ -96,6 +96,32 @@ func (s *MatchService) ReleaseJade(
 	return &pb.ReleaseJadeResponse{Account: projectJadeAccount(account)}, nil
 }
 
+// ClaimJadeWelfare is the §7.5 recovery path out of a locked-out balance.
+//
+// A refused claim is a successful response carrying a reason code, not an
+// error. The player asked whether they could recover; "not until you finish a
+// Practice hand today" is an answer, and an error status would push the client
+// into a failure branch for an ordinary outcome.
+func (s *MatchService) ClaimJadeWelfare(
+	ctx context.Context,
+	req *pb.ClaimJadeWelfareRequest,
+) (*pb.ClaimJadeWelfareResponse, error) {
+	principal, err := s.jadePrincipal(ctx, namespaceFromClaimWelfare(req))
+	if err != nil {
+		return nil, err
+	}
+	account, status, err := s.economy.ClaimWelfare(ctx, principal.UserID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.ClaimJadeWelfareResponse{
+		Account: projectJadeAccount(account),
+		Granted: status.Eligible,
+		Amount:  status.Amount,
+		Reason:  status.Reason,
+	}, nil
+}
+
 func (s *MatchService) JoinMatch(
 	ctx context.Context,
 	req *pb.JoinMatchRequest,
@@ -205,6 +231,13 @@ func namespaceFromReleaseJade(req *pb.ReleaseJadeRequest) string {
 	return req.GetNamespace()
 }
 
+func namespaceFromClaimWelfare(req *pb.ClaimJadeWelfareRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetNamespace()
+}
+
 func (s *MatchService) jadePrincipal(
 	ctx context.Context,
 	namespace string,
@@ -270,6 +303,9 @@ func projectJadeAccount(account economy.Account) *pb.JadeAccount {
 		DebitCap:         account.DebitCap,
 		WalletSyncStatus: account.WalletStatus,
 		WalletSyncError:  account.WalletError,
+		WelfareEligible:  account.Welfare.Eligible,
+		WelfareAmount:    account.Welfare.Amount,
+		WelfareReason:    account.Welfare.Reason,
 	}
 }
 

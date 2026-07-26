@@ -140,6 +140,43 @@ describe("createMatchRuntimeConnection", () => {
     expect(typeof payload.view.state_version).toBe("number");
   });
 
+  it("normalizes welfare amounts embedded in a completed match projection", async () => {
+    const fake = new FakeFetch();
+    fake.enqueue(200, {
+      state: wireMatchState({
+        jade_account: {
+          currency_code: "JADE",
+          balance: "400",
+          reserved: "0",
+          available: "400",
+          eligible: false,
+          minimum_balance: "1000",
+          stake_per_tai: "10",
+          debit_cap: "300",
+          welfare_eligible: true,
+          welfare_amount: "600",
+          welfare_reason: "available",
+        },
+      }),
+    });
+    const joined: unknown[] = [];
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+      onJoined: (payload) => joined.push(payload),
+    });
+    await connection.ready;
+    connection.join("session-1");
+    await vi.waitFor(() => expect(joined).toHaveLength(1));
+
+    const account = (joined[0] as { view: { jade_account: Record<string, unknown> } }).view
+      .jade_account;
+    expect(account.welfare_eligible).toBe(true);
+    expect(account.welfare_amount).toBe(600);
+    expect(account.welfare_reason).toBe("available");
+  });
+
   it("reshapes wire chow_sets objects into tuples and normalizes settlement/claim int64 fields", async () => {
     const fake = new FakeFetch();
     const states: unknown[] = [];

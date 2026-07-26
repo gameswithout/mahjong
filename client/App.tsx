@@ -26,6 +26,7 @@ import {
 } from "./match-runtime";
 import { createJadeClient, JadeError } from "./jade";
 import { jadeEntryRequirementMessage, stakeSummary } from "./jade-entry";
+import { JadeRecoveryCard, type JadeRecoveryState } from "./JadeRecoveryCard";
 import { LobbyHeader } from "./LobbyHeader";
 import { LockedTiers } from "./LockedTiers";
 import { playableTier, tierSummary } from "./lobby-tiers";
@@ -228,6 +229,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const [matchmakingState, setMatchmakingState] = useState<MatchmakingState>({ status: "idle" });
   const [matchRuntimeState, setMatchRuntimeState] = useState<MatchRuntimeState>({ status: "idle" });
   const [jadeState, setJadeState] = useState<JadeState>({ status: "idle" });
+  const [jadeRecoveryState, setJadeRecoveryState] = useState<JadeRecoveryState>({
+    status: "idle",
+  });
   const [onlineSessionEntryMode, setOnlineSessionEntryMode] =
     useState<OnlineSessionEntryMode>("manual");
   const [joinSessionId, setJoinSessionId] = useState("");
@@ -683,6 +687,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     setMatchmakingState({ status: "idle" });
     setMatchRuntimeState({ status: "idle" });
     setJadeState({ status: "idle" });
+    setJadeRecoveryState({ status: "idle" });
     setReconnectAttempt(0);
     setOnlineSessionEntryMode("manual");
     autoJoiningSessionIdRef.current = null;
@@ -972,6 +977,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // Returns the account so callers deciding whether to commit Jade can act on
   // the value they just fetched instead of the render closure's stale state.
   async function loadJadeAccount(): Promise<JadeAccount | null> {
+    setJadeRecoveryState({ status: "idle" });
     setJadeState({ status: "loading" });
     try {
       const account = await createAuthenticatedJadeClient().getAccount();
@@ -980,6 +986,33 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     } catch (error) {
       setJadeState({ status: "error", ...jadeErrorView(error) });
       return null;
+    }
+  }
+
+  async function claimJadeWelfare() {
+    if (jadeRecoveryState.status === "claiming") {
+      return;
+    }
+    setJadeRecoveryState({ status: "claiming" });
+    try {
+      const claim = await createAuthenticatedJadeClient().claimWelfare();
+      setJadeState({ status: "ready", account: claim.account });
+      setJadeRecoveryState(
+        claim.granted
+          ? {
+              status: "success",
+              message:
+                `Recovered ${claim.amount.toLocaleString()} Jade. ` +
+                "You can enter Bamboo Courtyard again.",
+            }
+          : { status: "idle" },
+      );
+    } catch (error) {
+      const safeError = jadeErrorView(error);
+      setJadeRecoveryState({
+        status: "error",
+        message: `${safeError.message} Your balance was not changed.`,
+      });
     }
   }
 
@@ -2222,6 +2255,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                         </p>
                       )}
                     </div>
+                  )}
+
+                  {jadeState.status === "ready" && (
+                    <JadeRecoveryCard
+                      account={jadeState.account}
+                      state={jadeRecoveryState}
+                      onClaim={() => void claimJadeWelfare()}
+                    />
                   )}
 
                   {!accelByteConfig.matchPool && matchmakingState.status === "idle" && (

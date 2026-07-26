@@ -134,6 +134,51 @@
         ]
       }
     },
+    "/v1/namespaces/{namespace}/jade/welfare": {
+      "post": {
+        "summary": "Claim the daily Jade welfare top-up",
+        "description": "Sets a locked-out balance to the 1,000-Jade Bamboo minimum, once per UTC day, for a player who has completed an AI Practice hand that day. A refused claim returns a reason code rather than an error.",
+        "operationId": "Service_ClaimJadeWelfare",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceClaimJadeWelfareResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceClaimJadeWelfareBody"
+            }
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/namespaces/{namespace}/sessions/{sessionId}/matches/{matchId}": {
       "get": {
         "summary": "Get the authenticated player's match state",
@@ -299,6 +344,9 @@
     }
   },
   "definitions": {
+    "ServiceClaimJadeWelfareBody": {
+      "type": "object"
+    },
     "ServiceJoinMatchBody": {
       "type": "object"
     },
@@ -393,6 +441,25 @@
         },
         "deliberate": {
           "type": "boolean"
+        }
+      }
+    },
+    "serviceClaimJadeWelfareResponse": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/serviceJadeAccount"
+        },
+        "granted": {
+          "type": "boolean",
+          "description": "Whether this call granted the top-up. False with a reason code means the\nclaim was refused — an ordinary answer, not an error."
+        },
+        "amount": {
+          "type": "string",
+          "format": "int64"
+        },
+        "reason": {
+          "type": "string"
         }
       }
     },
@@ -619,6 +686,19 @@
         },
         "walletSyncError": {
           "type": "string"
+        },
+        "welfareEligible": {
+          "type": "boolean",
+          "description": "§7.5 welfare recovery standing for the current UTC day."
+        },
+        "welfareAmount": {
+          "type": "string",
+          "format": "int64",
+          "description": "Jade this claim would credit, given the current balance. The top-up sets\nthe balance to the Bamboo minimum, so this shrinks as the balance rises."
+        },
+        "welfareReason": {
+          "type": "string",
+          "description": "Stable reason code, not display text: available, balance_sufficient,\nclaimed_today, practice_hand_required, reservation_open."
         }
       }
     },

@@ -192,6 +192,14 @@ export interface Settlement {
   total_debits: number;
 }
 
+export type JadeWelfareReason =
+  | "available"
+  | "balance_sufficient"
+  | "claimed_today"
+  | "practice_hand_required"
+  | "reservation_open"
+  | string;
+
 export interface JadeAccount {
   currency_code: "JADE" | string;
   balance: number;
@@ -203,6 +211,9 @@ export interface JadeAccount {
   debit_cap: number;
   wallet_sync_status?: "pending" | "syncing" | "synced" | "error" | string;
   wallet_sync_error?: "unauthorized" | "forbidden" | "not_found" | "timeout" | "balance_mismatch" | "query_failed" | "credit_failed" | "debit_failed" | "unknown" | string;
+  welfare_eligible?: boolean;
+  welfare_amount?: number;
+  welfare_reason?: JadeWelfareReason;
 }
 
 export interface JadeSettlement {

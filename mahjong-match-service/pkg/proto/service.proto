@@ -64,6 +64,23 @@ service Service {
     };
   }
 
+  rpc ClaimJadeWelfare(ClaimJadeWelfareRequest) returns (ClaimJadeWelfareResponse) {
+    option (google.api.http) = {
+      post: "/v1/namespaces/{namespace}/jade/welfare"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Claim the daily Jade welfare top-up"
+      description: "Sets a locked-out balance to the 1,000-Jade Bamboo minimum, once per UTC day, for a player who has completed an AI Practice hand that day. A refused claim returns a reason code rather than an error."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   // JoinMatch creates the authoritative match from the fixed AGS Session
   // roster when necessary, assigns stable seats, and returns only the
   // authenticated caller's view.
@@ -155,6 +172,19 @@ message ReleaseJadeRequest {
 
 message ReleaseJadeResponse {
   JadeAccount account = 1;
+}
+
+message ClaimJadeWelfareRequest {
+  string namespace = 1;
+}
+
+message ClaimJadeWelfareResponse {
+  JadeAccount account = 1;
+  // Whether this call granted the top-up. False with a reason code means the
+  // claim was refused — an ordinary answer, not an error.
+  bool granted = 2;
+  int64 amount = 3;
+  string reason = 4;
 }
 
 message GetMatchStateRequest {
@@ -253,6 +283,14 @@ message JadeAccount {
   int64 debit_cap = 8;
   string wallet_sync_status = 9;
   string wallet_sync_error = 10;
+  // §7.5 welfare recovery standing for the current UTC day.
+  bool welfare_eligible = 11;
+  // Jade this claim would credit, given the current balance. The top-up sets
+  // the balance to the Bamboo minimum, so this shrinks as the balance rises.
+  int64 welfare_amount = 12;
+  // Stable reason code, not display text: available, balance_sufficient,
+  // claimed_today, practice_hand_required, reservation_open.
+  string welfare_reason = 13;
 }
 
 message JadeReservation {

@@ -37,6 +37,11 @@ func TestMahjongServiceHTTPContract(t *testing.T) {
 			path:   "/v1/namespaces/{namespace}/jade/reservation",
 		},
 		{
+			method: "ClaimJadeWelfare",
+			verb:   http.MethodPost,
+			path:   "/v1/namespaces/{namespace}/jade/welfare",
+		},
+		{
 			method: "JoinMatch",
 			verb:   http.MethodPost,
 			path:   "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join",
@@ -101,6 +106,7 @@ func TestMahjongCommandContract_DoesNotAcceptCallerIdentityOrSeat(t *testing.T) 
 		"GetJadeAccountRequest",
 		"ReserveJadeRequest",
 		"ReleaseJadeRequest",
+		"ClaimJadeWelfareRequest",
 		"JoinMatchRequest",
 		"GetMatchStateRequest",
 		"SubmitMatchCommandRequest",

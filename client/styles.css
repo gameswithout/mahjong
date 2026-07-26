@@ -396,6 +396,42 @@ h1 {
   font-size: 1.25rem;
 }
 
+.jade-recovery {
+  background: rgb(242 198 109 / 10%);
+  border: 1px solid rgb(242 198 109 / 45%);
+  border-radius: 0.85rem;
+  margin: 0.75rem 0 0;
+  padding: 0.8rem 0.95rem;
+}
+
+.jade-recovery h3,
+.jade-recovery p {
+  margin: 0;
+}
+
+.jade-recovery h3 {
+  font-size: 1rem;
+  margin-top: 0.15rem;
+}
+
+.jade-recovery h3 + p {
+  color: #e7e2d7;
+  margin-top: 0.45rem;
+}
+
+.jade-recovery .session-action {
+  margin-top: 0.7rem;
+}
+
+.jade-recovery-error {
+  color: #ffd1d8;
+  margin-top: 0.65rem !important;
+}
+
+.jade-recovery-success {
+  color: #d8f7e4;
+}
+
 .session-input-label {
   color: #c6cbe0;
   display: block;

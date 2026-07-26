@@ -189,6 +189,8 @@ function normalizeJadeAccount(raw: unknown): unknown {
     minimum_balance: toNumber(account.minimum_balance),
     stake_per_tai: toNumber(account.stake_per_tai),
     debit_cap: toNumber(account.debit_cap),
+    welfare_eligible: account.welfare_eligible === true,
+    welfare_amount: toNumber(account.welfare_amount),
   };
 }
 
