@@ -10,6 +10,7 @@ export function CompletedHandFlow({
   practice,
   revealTable,
   onPlayAgain,
+  playAgainNote,
   onReturn,
   accountUpgrade,
 }: {
@@ -17,6 +18,7 @@ export function CompletedHandFlow({
   practice: boolean;
   revealTable?: ReactNode;
   onPlayAgain?: () => void;
+  playAgainNote?: string;
   onReturn: () => void;
   // §10.2 guest upgrade offer. Deliberately only reaches the result screen,
   // never the winning-hand reveal: the reveal is a five-second celebration
@@ -65,6 +67,7 @@ export function CompletedHandFlow({
       view={view}
       practice={practice}
       onPlayAgain={onPlayAgain}
+      playAgainNote={playAgainNote}
       onReturn={onReturn}
       accountUpgrade={accountUpgrade}
     />

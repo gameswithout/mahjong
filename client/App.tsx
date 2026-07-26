@@ -25,6 +25,7 @@ import {
   type MatchRuntimeConnection,
 } from "./match-runtime";
 import { createJadeClient, JadeError } from "./jade";
+import { jadeEntryRequirementMessage, stakeSummary } from "./jade-entry";
 import {
   createFreshPracticeSession,
   isPracticeMatch,
@@ -919,13 +920,17 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     });
   }
 
-  async function loadJadeAccount() {
+  // Returns the account so callers deciding whether to commit Jade can act on
+  // the value they just fetched instead of the render closure's stale state.
+  async function loadJadeAccount(): Promise<JadeAccount | null> {
     setJadeState({ status: "loading" });
     try {
       const account = await createAuthenticatedJadeClient().getAccount();
       setJadeState({ status: "ready", account });
+      return account;
     } catch (error) {
       setJadeState({ status: "error", ...jadeErrorView(error) });
+      return null;
     }
   }
 
@@ -1151,7 +1156,10 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
   }
 
-  async function leaveTable(sessionIdOverride?: string) {
+  // Resolves true when the seat was released cleanly. Play Again reads that:
+  // queueing for a new table while the previous seat is still held would take
+  // a second reservation against Jade the old table has not let go of yet.
+  async function leaveTable(sessionIdOverride?: string): Promise<boolean> {
     // Leaving the table ends the match for this player: drop the resume pointer
     // so a later reload does not try to rejoin a match they left.
     browserMatchResumeStore.clear();
@@ -1168,7 +1176,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       setReconnectAttempt(0);
       setSessionState({ status: "idle" });
       setJoinSessionId("");
-      return;
+      return true;
     }
 
     const requestId = ++sessionRequestRef.current;
@@ -1182,19 +1190,21 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     try {
       await leaveSessionIfPresent(createAuthenticatedSessionClient(), sessionId);
       if (requestId !== sessionRequestRef.current) {
-        return;
+        return false;
       }
 
       setSessionState({ status: "empty" });
       setJoinSessionId("");
       await loadJadeAccount();
+      return true;
     } catch (error) {
       if (requestId !== sessionRequestRef.current) {
-        return;
+        return false;
       }
 
       const safeError = sessionErrorView(error);
       setSessionState({ status: "error", ...safeError, retryLeaveSessionId: sessionId });
+      return false;
     }
   }
 
@@ -1350,6 +1360,49 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     const previousSessionId =
       sessionState.status === "loaded" ? sessionState.session.sessionId : undefined;
     return startPracticeHand(previousSessionId);
+  }
+
+  // §P1.3 session closure. Practice's Play Again only has to deal a new wall.
+  // A staked table also has to release the seat, re-check entry eligibility
+  // against the balance the hand just changed, and queue a fresh ticket. The
+  // eligibility check runs before queueing so a player whose loss dropped them
+  // below the threshold learns it here, instead of watching a reservation fail
+  // from inside the queue.
+  async function playOnlineAgain() {
+    if (matchmakingState.status === "loading" || matchmakingState.status === "searching") {
+      return;
+    }
+
+    const previousSessionId =
+      sessionState.status === "loaded" ? sessionState.session.sessionId : undefined;
+
+    setMatchmakingState({ status: "loading" });
+    const released = await leaveTable(previousSessionId);
+    if (!released) {
+      // leaveTable has already surfaced the failure and kept the retry pointer
+      // for the stranded seat. Queueing on top of that would strand it further.
+      setMatchmakingState({ status: "idle" });
+      return;
+    }
+
+    // Re-read immediately before committing Jade: settlement for the hand just
+    // played may still have been landing when leaveTable refreshed.
+    const account = await loadJadeAccount();
+    if (!account) {
+      setMatchmakingState({ status: "idle" });
+      return;
+    }
+
+    if (!account.eligible) {
+      setMatchmakingState({
+        status: "error",
+        code: "jade_ineligible",
+        message: jadeEntryRequirementMessage(account),
+      });
+      return;
+    }
+
+    await findTable();
   }
 
   function sendMatchCommand(command: Omit<MatchCommandRequest, "match_id">) {
@@ -1564,7 +1617,19 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   </div>
                 }
                 onPlayAgain={
-                  isPracticeMatch(matchRuntimeState.view) ? playPracticeAgain : undefined
+                  isPracticeMatch(matchRuntimeState.view)
+                    ? playPracticeAgain
+                    : // Online Play Again requeues through matchmaking, so it
+                      // is only honest to offer it where a pool exists to queue
+                      // into. Manually joined dev tables fall through to Return.
+                      accelByteConfig.matchPool
+                      ? () => void playOnlineAgain()
+                      : undefined
+                }
+                playAgainNote={
+                  isPracticeMatch(matchRuntimeState.view)
+                    ? undefined
+                    : stakeSummary(matchRuntimeState.view.jade_account)
                 }
                 onReturn={() => void leaveTable()}
                 accountUpgrade={
@@ -2088,9 +2153,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     <div className="session-error" role="alert">
                       <p>{matchmakingState.message}</p>
                       <p className="error-code">Error code: matchmaking_{matchmakingState.code}</p>
-                      <button className="secondary-action session-action" type="button" onClick={findTable}>
-                        Retry matchmaking
-                      </button>
+                      {/* An ineligible balance is not a transient failure:
+                          retrying queues the same rejection. Offer the retry
+                          only where retrying can actually succeed. */}
+                      {matchmakingState.code !== "jade_ineligible" && (
+                        <button className="secondary-action session-action" type="button" onClick={findTable}>
+                          Retry matchmaking
+                        </button>
+                      )}
                     </div>
                   )}
                 </section>
