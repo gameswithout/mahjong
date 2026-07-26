@@ -130,6 +130,7 @@ describe("HandResultScreen", () => {
     expect(markup).toContain("5,030 Jade");
     expect(markup).toContain("Settlement posted");
     expect(markup).toContain("AGS Wallet synced");
+    expect(markup).toContain('data-wallet-sync-status="synced"');
   });
 
   it("labels a discard win as Hu and combines payer, winning tile, and winner", () => {

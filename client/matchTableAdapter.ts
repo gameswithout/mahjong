@@ -100,6 +100,7 @@ function claimLegalActions(
     label: id === chosenId ? `${label} ✓` : label,
     onClick,
     disabled: pending,
+    disabledReason: pending ? "Waiting for the table to confirm your last choice." : undefined,
   });
   const actions: MatchAction[] = [];
   if (claim.options.can_win) {
@@ -234,6 +235,9 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         label: "Self-Draw",
         onClick: () => options.onSelfTurnAction?.("win-self"),
         disabled: options.claimActionPending,
+        disabledReason: options.claimActionPending
+          ? "Waiting for the table to confirm your last choice."
+          : undefined,
         preview: self.win_preview
           ? {
               rawTai: self.win_preview.raw_tai,
@@ -248,6 +252,9 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         label: "Gang",
         onClick: () => options.onSelfTurnAction?.("kong-concealed", choice.tile_ids),
         disabled: options.claimActionPending,
+        disabledReason: options.claimActionPending
+          ? "Waiting for the table to confirm your last choice."
+          : undefined,
       });
     });
     (self.added_kong_tile_ids ?? []).forEach((tileId, index) => {
@@ -256,6 +263,9 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         label: "Gang",
         onClick: () => options.onSelfTurnAction?.("kong-added", [tileId]),
         disabled: options.claimActionPending,
+        disabledReason: options.claimActionPending
+          ? "Waiting for the table to confirm your last choice."
+          : undefined,
       });
     });
   }

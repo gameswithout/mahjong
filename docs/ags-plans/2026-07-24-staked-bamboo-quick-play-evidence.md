@@ -3,8 +3,8 @@
 - Date: 2026-07-24
 - Scope: authoritative Jade ledger, public-queue reservation, four-seat
   settlement, player UI, and AGS Wallet reconciliation worker
-- Result: local implementation verified; live Service Extension deployment
-  and four-human Wallet convergence remain the release gate
+- Result: implementation and live four-account gameplay verified; AGS Wallet
+  permission and convergence remain the final release gate
 
 ## Live AGS configuration
 
@@ -23,8 +23,8 @@ No live player balance was mutated during local verification.
 
 | Check | Result |
 | --- | --- |
-| Client unit/component suite | 19 files, 131 tests passed |
-| Client production build | Passed; 426 modules transformed |
+| Client unit/component suite | 44 files, 334 tests passed |
+| Client production build | Passed; 430 modules transformed |
 | Root Go suite | Passed |
 | Match Service Go suite | Passed across service, contract, economy, match, session, and storage packages |
 | PostgreSQL Jade integration | Passed against PostgreSQL 17 |
@@ -78,29 +78,82 @@ requires all four result views to:
 - conserve the starting and ending total Jade supply;
 - sum personal deltas to zero;
 - satisfy `before + delta = after` per player;
+- expose `data-wallet-sync-status="synced"` and the exact
+  `AGS Wallet synced` status;
 - show the same settled balance again after returning to the lobby.
 
-These assertions are checked into `scripts/test-four-human.mjs` but cannot be
-claimed as live evidence until the new Service Extension image is deployed.
+The service now performs a post-write AGS Wallet readback and reports `synced`
+only when the observed balance exactly equals the authoritative ledger target.
 
 ## Remaining live release gate
 
-1. ~~Deploy the new `mahjong-match-service` image.~~ **Done** — confirmed
-   2026-07-25. The live service's generated OpenAPI document exposes
-   `/v1/namespaces/{namespace}/jade` and
-   `/v1/namespaces/{namespace}/jade/reservation` (POST + DELETE) along with
-   the `jade_account` and `jade_settlement` projection fields, and its whole
-   definition surface matches this tree at `c90b3bb` with zero differences.
-   See `mahjong-match-service/IMPLEMENTATION_PLAN.md`, "Reading deployment
-   state", for how to re-check this without credentials.
+1. ~~Deploy the new `mahjong-match-service` image.~~ **Done** — image
+   `wallet-verify-20260725`, deployment
+   `749f038b-ba2e-4cf6-a90c-8da6db0e8fe6`, immutable manifest
+   `sha256:ddb33ef8798bebc2875f557c788cd435f08d17a8312c7eba9df1dffeeb83626a`.
 2. Confirm the runtime IAM client can read, credit, and debit `JADE` wallets.
+   **Blocked by a confirmed permission gap:** the client has only Session
+   groups and lacks Platform Store / Wallet Read + Update.
 3. Run the four-human browser journey against the deployed base path.
+   **Gameplay portion done:** four distinct guest accounts created a real
+   four-member Session, joined, passed seat privacy and reconnect checks,
+   played 125 authoritative actions, and reached the shared result. The
+   overall release script correctly remains red at the Wallet assertion.
 4. Record the shared settlement journal and four converged wallet balances.
+   **Open until item 2 is granted and the journey is rerun.**
 
-Items 2–4 remain open. Note that item 3 exercises settlement through the
-authoritative PostgreSQL ledger, which is a separate question from item 2's
-AGS Wallet mirror — a green four-human run does not by itself prove the wallet
-mirror is working, only that the ledger is.
+The PostgreSQL ledger path and the AGS Wallet mirror are separate release
+questions. Reaching the shared result proves the authoritative match and
+ledger path; only a green post-write Wallet readback proves convergence.
+
+## Wallet convergence diagnosis (2026-07-25)
+
+The deployed Extend runtime client is
+`72498bf13af54deabafdcba90d1ce497`
+(`extend-mahjong-match-service`, Confidential). A live IAM read showed:
+
+- `clientPermissions: []`;
+- `m_session / g_game_session [READ]`;
+- `m_session / g_session_storage [READ]`;
+- no Platform Store / Wallet permission.
+
+The three generated SDK operations used by reconciliation are:
+
+- `QueryUserCurrencyWalletsShort` — Wallet Read;
+- `CreditUserWalletShort` — Wallet Update;
+- `DebitUserWalletByCurrencyCodeShort` — Wallet Update.
+
+The pinned AGS Go SDK specification resolves the protected resource to
+`ADMIN:NAMESPACE:{namespace}:USER:{userId}:WALLET [READ, UPDATE]`. In Shared
+Cloud, the predefined Admin Portal permission is **Platform Store / Wallet**
+with **Read + Update**. The
+[official AGS backend Wallet example](https://docs.accelbyte.io/gaming-services/modules/foundations/extend/override/entitlement-revocation/get-started-entitlement-revocation/)
+uses that same group and action pair.
+
+```text
+Authorization preflight
+
+  Caller:                backend service
+  Environment:           shared cloud
+  Environment evidence:  gameswithout-mahjong.prod.gamingservices.accelbyte.io
+  Token source:          service/server token
+  IAM client type:       confidential
+  Secret location:       Extend server-side secret injection
+  AGS calls:             Wallet summary, credit, debit, post-write readback
+  Permission discovery:  AGS CLI operation discovery + pinned SDK spec
+  Required permissions:  Wallet READ and UPDATE
+  Shared Cloud groups:   Platform Store / Wallet / Read + Update
+  Verified access:       no — permission absent on the live runtime client
+```
+
+The configured `ags_api` MCP server completed its browser OAuth flow
+successfully. MCP uses a dynamically registered public OAuth client for its
+PKCE callback; the supplied `373617a151fe4d3f92be11f4a045cba5` remains the
+separate Confidential CLI/tooling identity and is not exposed to the browser.
+The current Codex session cannot hot-load tools authenticated after startup, so
+the permission was not mutated. Reload Codex, grant Read + Update through the
+authenticated MCP path, restart/redeploy the app once for a fresh
+client-credentials token, then run `npm run test:four-human`.
 
 ## Four-human stall — root cause (2026-07-25)
 

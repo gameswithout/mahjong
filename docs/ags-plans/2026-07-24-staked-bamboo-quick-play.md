@@ -101,10 +101,10 @@ sign in
 | Secret location | None in browser; service credential remains only in Extend environment configuration |
 | Browser calls | Custom Service Extension `GET /jade`, `POST /jade/reservation`, and `DELETE /jade/reservation` |
 | Backend AGS calls | Currency administration during one-time setup; Wallet read, credit, and debit for reconciliation |
-| Permission discovery | `ags describe` confirms Currency and Wallet operations; the operator permission catalog was unavailable; the service credential successfully listed currencies |
-| Required permissions | Player authentication on custom routes; backend namespace Currency setup plus Wallet read/credit/debit |
-| Shared Cloud groups | No group assignment is assumed; live mutation verification will prove effective access |
-| Verified access | Live `JADE` currency create/read verified; Wallet read/write remains a deployment verification target |
+| Permission discovery | `ags describe` confirms the Wallet operations; the pinned AGS Go SDK spec resolves the backend resource/action; the runtime client was re-read live |
+| Required permissions | Player authentication on custom routes; backend Wallet READ and UPDATE |
+| Shared Cloud groups | Platform Store / Wallet / Read + Update |
+| Verified access | Live `JADE` currency create/read verified; Wallet access is confirmed absent from the deployed runtime client |
 
 ## Implementation steps
 
@@ -174,6 +174,7 @@ sign in
 
 ## Next step
 
-Deploy the verified image, run the upgraded four-browser journey against the
-live Service Extension, and capture one settlement journal plus AGS Wallet
-convergence for all four players.
+Grant Platform Store / Wallet Read + Update to runtime client
+`72498bf13af54deabafdcba90d1ce497`, restart/redeploy once for a fresh service
+token, then rerun the upgraded four-browser journey and capture one settlement
+journal plus AGS Wallet convergence for all four players.

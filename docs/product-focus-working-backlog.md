@@ -78,6 +78,9 @@ Acceptance:
 
 ### P0.2 Decision confidence
 
+**Completed 2026-07-25.** Implementation and responsive evidence:
+[`p0-2-decision-confidence.md`](p0-2-decision-confidence.md).
+
 - Complete matching-tile highlighting across hand, public melds, and discards.
 - Present Ting waits and visible remaining counts with a clear explanation of
   what the count can and cannot know.

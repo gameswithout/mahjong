@@ -28,6 +28,20 @@ await page.waitForSelector('[data-testid="match-table"]');
 const clip = { x: 0, y: 0, width: 640, height: 360 };
 await page.screenshot({ path: `${evidenceDir}normal-turn.png`, clip });
 
+// Decision-confidence state: one activation selects the tile for inspection,
+// raises it, and highlights every visible matching copy without discarding.
+await page
+  .locator('.local-hand-tile-button[aria-label*="6 of dots"]')
+  .first()
+  .click();
+await page.screenshot({ path: `${evidenceDir}selected-tile-inspection.png`, clip });
+
+// The count explanation is deliberately a disclosure so it remains available
+// to touch, pointer, and keyboard users without permanently consuming the
+// certified compact table's limited vertical space.
+await page.locator(".wait-explainer summary").click();
+await page.screenshot({ path: `${evidenceDir}ting-count-explanation.png`, clip });
+
 // Toggle to the urgent-countdown / automatic-pass scenario and screenshot too.
 // The toggle button sits below the fold, so Playwright's actionability
 // check would auto-scroll it into view on a real .click(); trigger it via
@@ -38,6 +52,26 @@ await page.waitForTimeout(200);
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.screenshot({ path: `${evidenceDir}urgent-claim-window.png`, clip });
 await page.close();
+
+const desktopPage = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await desktopPage.goto(url, { waitUntil: "networkidle" });
+await desktopPage.waitForSelector('[data-testid="match-table"]');
+await desktopPage.evaluate(() => {
+  const frame = document.querySelector("#root > div > div:first-child");
+  if (frame instanceof HTMLElement) {
+    frame.style.width = "1280px";
+    frame.style.height = "720px";
+  }
+});
+await desktopPage
+  .locator('.local-hand-tile-button[aria-label*="6 of dots"]')
+  .first()
+  .click();
+await desktopPage.screenshot({
+  path: `${evidenceDir}decision-confidence-desktop.png`,
+  clip: { x: 0, y: 0, width: 1280, height: 720 },
+});
+await desktopPage.close();
 
 // Chromium restores scroll offset across a same-page reload, so measurement
 // runs on a brand-new page rather than page.reload() to guarantee a

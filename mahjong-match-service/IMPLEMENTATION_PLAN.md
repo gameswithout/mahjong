@@ -92,6 +92,8 @@ Cloud Save will not be used for gameplay events.
   template.
 - IAM token validation performed by the template interceptor.
 - AGS Session detail lookup for the exact game-session roster.
+- AGS Platform Wallet balance lookup, credit, debit, and post-write balance
+  verification for asynchronous Jade reconciliation.
 
 The implementation uses the generated AGS Go SDK
 `GameSessionService.GetGameSessionShort` operation and extracts the fixed
@@ -107,12 +109,14 @@ Environment evidence:  gameswithout-mahjong.prod.gamingservices.accelbyte.io;
 Token source:          Confidential service/server token
 IAM client type:       Confidential, dedicated per app
 Secret location:       Extend deployment secret configuration only
-AGS calls:             IAM bootstrap/token validation; Session detail lookup
-Permission discovery:  Completed through the AGS client/permission catalog
-Required permissions:  Session game-session READ
-Shared Cloud groups:   Session / Game Session
-Verified access:       Dedicated client created and client login verified;
-                       live user smoke test now needs a fresh auth-code login
+AGS calls:             IAM bootstrap/token validation; Session detail lookup;
+                       Platform Wallet summary, credit, debit, and readback
+Permission discovery:  AGS CLI operation discovery plus the pinned AGS Go SDK
+                       OpenAPI spec
+Required permissions:  Session game-session READ; Wallet READ and UPDATE
+Shared Cloud groups:   Session / Game Session; Platform Store / Wallet
+Verified access:       Session READ yes; Wallet READ/UPDATE no — the runtime
+                       client currently has Session groups only
 ```
 
 **Deployed runtime client differs from the discovery client above.** The
@@ -120,10 +124,10 @@ live Extend deployment (see "Deployment record" below) runs under an
 AGS-platform-provisioned confidential client
 (`AB_CLIENT_ID=72498bf13af54deabafdcba90d1ce497`, managed as an Extend app
 secret, not the manually created `e411a963a6bc42239dc27e39e3a03440` client
-referenced in local `.env`). Its Session game-session READ permission has
-**not yet been live-verified** — first sign it's missing/wrong will be
-`JoinMatch` failing at runtime. Verify before relying on this deployment for
-a real match.
+referenced in local `.env`). Its Session game-session READ permission is
+live-verified. Its Platform Store / Wallet READ and UPDATE permissions are
+absent, so the PostgreSQL ledger settles correctly but the asynchronous AGS
+Wallet mirror cannot converge until those two actions are granted.
 
 Browser players continue authenticating with the existing Public client and
 user access token. No confidential credential enters the browser, repository,
@@ -138,6 +142,10 @@ image, event log, or public payload.
 - [x] Run live Session-operation and Shared Cloud permission-group discovery.
 - [x] Confirm the dedicated client has only IAM bootstrap and Session-read
   permissions.
+- [ ] Grant the deployed runtime client the minimum Shared Cloud
+  **Platform Store / Wallet READ + UPDATE** permission. AGS API MCP OAuth
+  completed on 2026-07-25, but the current Codex session cannot hot-load the
+  newly authenticated MCP tools; no IAM mutation was made.
 - [x] Decide the inbound player permission annotations for the custom RPCs:
   bearer validation is required, while no unverified custom AGS permission
   resource is fabricated.
@@ -204,18 +212,17 @@ image, event log, or public payload.
   still on the `replace` directive plus the checked-in vendor bundle.
   Protobuf/gRPC/gateway/OpenAPI generator versions are already pinned in the
   Dockerfile.
-- [ ] AGS-backed Session smoke test (`JoinMatch` against a real four-member
-  AGS Session) still not run. The 2026-07-19 deploy confirmed the service is
-  reachable and enforces auth (unauthenticated request to the live URL
-  returned 401), but that is not a substitute for an authenticated
-  Session-roster smoke test. Also still needs a fresh `mahjong-admin`
-  auth-code login.
+- [x] AGS-backed Session flow verified with four distinct guest accounts:
+  matchmaking created a real four-member Session, all four players joined
+  the live service, played 125 authoritative actions, and reached the shared
+  result. The release harness remains red only at its subsequent AGS Wallet
+  convergence assertion.
 
 ## Deployment record
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
-ahead of the append-latency benchmark and full Session smoke test above.
-Redeployed at least once since without a record entry — see "Image tag" below.
+ahead of the append-latency benchmark. The current 2026-07-25 deployment adds
+post-write Wallet verification and the settled-reservation repair.
 
 **Keep this block current.** Its staleness caused a 2026-07-25 mis-diagnosis:
 the record said 2026-07-20 while the live service already carried the Jade
@@ -231,17 +238,17 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      runtime-fixes-c90b3bb (active since 2026-07-25T06:14Z,
-                sha256:fa5bbd91473cae2bc754832f4f66a1ab6009aa895c5adf8abd08a
-                94bdc13d02f). Read authoritatively from `ags csm images
-                list` on 2026-07-25 — see "Reading deployment state" for
-                the AGS_BASE_URL override that makes that call work. This
-                supersedes the earlier "UNRECORDED" entry, whose OpenAPI
-                diff could only bound the deployed commit from below; the
-                tag confirms the live binary is exactly c90b3bb, including
-                its non-proto runtime.go changes.
-                Preceding images, newest first: opening-delay-6911e8f,
-                gang-zimo-6c8c18a, video-chat-6a5825e, ai-practice-b5314bd
+Image tag:      wallet-verify-20260725 (active since
+                2026-07-25T23:47:45.224Z; deployment
+                749f038b-ba2e-4cf6-a90c-8da6db0e8fe6; immutable manifest
+                sha256:ddb33ef8798bebc2875f557c788cd435f08d17a8312c7eba9df1
+                dffeeb83626a). This adds a post-write AGS Wallet balance
+                readback: "synced" is now reported only when the live
+                Wallet equals the authoritative ledger target.
+                Preceding images, newest first:
+                jade-stall-fix-d4c0047, runtime-fixes-c90b3bb,
+                opening-delay-6911e8f, gang-zimo-6c8c18a,
+                video-chat-6a5825e, ai-practice-b5314bd
                 (2026-07-20, itself superseding ai-practice-
                 ca9d3d2, which supersedes cors-fix-1; adds AI Practice
                 solo-vs-bots — ai_practice roster padding with bot seats,
@@ -279,9 +286,12 @@ Verified:       Image push + deploy succeeded; app status
                 response → client rendered the "Bot" badge). This is the
                 first live four-seat match played end-to-end against this
                 deployment.
-Not verified:   Append latency against the real Aurora cluster; a real
-                four-member match with four distinct human players played
-                end-to-end against the live deployed URL.
+                2026-07-25: four distinct guest accounts created a real
+                four-member AGS Session and played 125 authoritative actions
+                to a shared Jade settlement result on the deployed URL.
+Not verified:   Append latency against the real Aurora cluster; AGS Wallet
+                convergence after granting Platform Store / Wallet READ and
+                UPDATE to the runtime client.
 ```
 
 ### Reading deployment state
@@ -335,8 +345,8 @@ Two ways to ask the live deployment what it is, in preference order:
    401. So `curl -o /dev/null -w '%{http_code}'` against a specific route
    distinguishes "not deployed" (404) from "deployed, needs a token" (401).
 
-**IAM permission verification (2026-07-19):** the platform-provisioned
-confidential client the live deployment runs as
+**IAM permission verification (2026-07-19, updated 2026-07-25):** the
+platform-provisioned confidential client the live deployment runs as
 (`72498bf13af54deabafdcba90d1ce497`, `extend-mahjong-match-service`) was
 found to have **zero permissions granted**
 (`clientPermissions: []`, `modulePermissions: []`, confirmed via
@@ -352,8 +362,19 @@ re-authentication. After restart, a real guest sign-in → real AGS Session →
 `400 "game session does not have exactly four active members: got 1"` —
 i.e. `GetGameSessionShort` now succeeds and the app's own roster-count
 business rule runs correctly. This is conclusive: the permission works.
-Only a genuine four-member session was not exercised (would need four real
-accounts).
+The 2026-07-25 four-account journey subsequently exercised that real
+four-member path through settlement.
+
+The latest client re-read shows `clientPermissions: []`, with module
+permissions limited to `m_session / g_game_session [READ]` and
+`m_session / g_session_storage [READ]`. There is no Platform Store / Wallet
+group. The four-account browser journey therefore fails at the deliberate
+release assertion waiting for `AGS Wallet synced`. The required operations
+resolve to
+`ADMIN:NAMESPACE:{namespace}:USER:{userId}:WALLET [READ, UPDATE]`; in Shared
+Cloud the supported predefined permission is **Platform Store / Wallet**
+with **Read + Update**. Grant it, restart/redeploy once to force a fresh
+client-credentials token, and rerun `npm run test:four-human`.
 
 **Revision history:**
 - `9eb21b7` — initial deployment (REST match service live).

@@ -239,6 +239,7 @@ export function HandResultScreen({
           data-jade-before={view.jade_settlement.balance_before}
           data-jade-after={view.jade_settlement.balance_after}
           data-journal-id={view.jade_settlement.journal_id}
+          data-wallet-sync-status={view.jade_account?.wallet_sync_status ?? "unknown"}
         >
           <p className="hand-result-settlement-heading">Your Jade</p>
           <p className="hand-result-jade-delta">

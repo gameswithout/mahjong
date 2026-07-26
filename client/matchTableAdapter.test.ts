@@ -451,6 +451,7 @@ describe("seatViewToMatchTableState", () => {
         claimActionPending: true,
       });
       expect(state.legalActions.every((a) => a.disabled)).toBe(true);
+      expect(state.legalActions.every((a) => a.disabledReason?.includes("confirm"))).toBe(true);
     });
 
     it("attaches the server's win_preview to the Win action, and omits it when absent", () => {

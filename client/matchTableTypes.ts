@@ -60,6 +60,9 @@ export interface MatchAction {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  // Safe, public explanation for a disabled action. The adapter only supplies
+  // this for client request state, never for server-private legality.
+  disabledReason?: string;
   // Chow options carry the complete proposed sequence so the player can
   // compare overlapping choices without translating option numbers back
   // to tile positions in their hand.

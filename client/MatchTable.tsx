@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { TileFace } from "./TileFace";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
@@ -159,18 +159,36 @@ function WaitPanel({ waits }: { waits: WaitEntry[] }) {
     return null;
   }
   return (
-    <div className="wait-panel" role="list" aria-label="Waiting on">
+    <div className="wait-panel" role="group" aria-label="Ting waits">
       <span className="wait-label" role="presentation">
-        Ready
+        Ting · Ready
       </span>
-      {waits.map((entry) => (
-        <span key={entry.tile.id} role="listitem" className="wait-entry">
-          <Tile t={entry.tile} size="sm" />
-          <span className="wait-remaining">
-            {entry.visibleRemaining > 0 ? `${entry.visibleRemaining} left` : "All visible"}
+      <span className="wait-entries" role="list" aria-label="Winning tiles">
+        {waits.map((entry) => (
+          <span
+            key={entry.tile.id}
+            role="listitem"
+            className="wait-entry"
+            aria-label={`${entry.tile.label}: ${
+              entry.visibleRemaining > 0
+                ? `${entry.visibleRemaining} copies not visible`
+                : "all four copies visible"
+            }`}
+          >
+            <Tile t={entry.tile} size="sm" />
+            <span className="wait-remaining">
+              {entry.visibleRemaining > 0 ? `${entry.visibleRemaining} left` : "All visible"}
+            </span>
           </span>
-        </span>
-      ))}
+        ))}
+      </span>
+      <details className="wait-explainer">
+        <summary>How counted</summary>
+        <p className="wait-explainer-copy">
+          Count means copies not visible to you. It subtracts your hand and all
+          public tiles; concealed opponent tiles may be among those copies.
+        </p>
+      </details>
     </div>
   );
 }
@@ -397,7 +415,12 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       <div className="round-status">
         <span className="round-wind">Round {windName(state.prevailingWind)}</span>
         {state.continuation > 0 ? (
-          <span className="round-continuation">Dealer repeat ×{state.continuation}</span>
+          <span
+            className="round-continuation"
+            aria-label={`Dealer repeat ${state.continuation}`}
+          >
+            R×{state.continuation}
+          </span>
         ) : null}
       </div>
       <div
@@ -416,10 +439,12 @@ function CurrentTileFocus({
   state,
   canDiscard,
   discardPending,
+  selectedTile,
 }: {
   state: MatchTableState;
   canDiscard?: boolean;
   discardPending?: boolean;
+  selectedTile?: WireTile;
 }) {
   const discard = state.lastDiscard;
   const claimAvailable = state.claimSource !== null && state.legalActions.some(
@@ -437,7 +462,13 @@ function CurrentTileFocus({
       <div className={`current-tile-focus current-tile-focus-empty${canDiscard ? " current-tile-focus-your-turn" : ""}`}>
         <span className="current-tile-kicker">{canDiscard ? "Your turn" : "Waiting"}</span>
         <strong className="current-tile-prompt">
-          {discardPending ? "Discarding…" : canDiscard ? "Tap a tile to discard" : "Waiting for the first discard"}
+          {discardPending
+            ? "Discarding…"
+            : canDiscard && selectedTile
+              ? `${selectedTile.label} · activate again to discard`
+              : canDiscard
+                ? "Select a tile to inspect"
+                : "Waiting for the first discard"}
         </strong>
       </div>
     );
@@ -454,9 +485,11 @@ function CurrentTileFocus({
       : canDiscard
         ? discardPending
           ? "Discarding…"
+          : selectedTile
+            ? `${selectedTile.label} selected · activate again to discard`
           : selfTurnActionAvailable
-            ? "Choose Win/Gang or discard"
-            : "Your turn · tap a tile"
+            ? "Choose Win/Gang or select a tile"
+            : "Your turn · select a tile"
         : "Last tile played";
 
   return (
@@ -483,12 +516,14 @@ function TablePlayfield({
   matchKey,
   canDiscard,
   discardPending,
+  selectedTile,
 }: {
   state: MatchTableState;
   slots: Record<ScreenSlot, SeatId>;
   matchKey: string | null;
   canDiscard?: boolean;
   discardPending?: boolean;
+  selectedTile?: WireTile;
 }) {
   const lastDiscardTileId = state.lastDiscard?.tile.id;
   const revealedSeats = (Object.values(slots) as SeatId[])
@@ -515,6 +550,7 @@ function TablePlayfield({
           state={state}
           canDiscard={canDiscard}
           discardPending={discardPending}
+          selectedTile={selectedTile}
         />
       </div>
       {state.showdown && revealedSeats.length > 0 ? (
@@ -568,8 +604,9 @@ function TablePlayfield({
 function LocalSeat({
   state,
   displayedHand,
-  selectable,
-  onDiscardTile,
+  canDiscard,
+  selectedTileId,
+  onActivateTile,
   discardPending,
   canDraw,
   waits,
@@ -585,8 +622,9 @@ function LocalSeat({
 }: {
   state: SeatState;
   displayedHand: WireTile[];
-  selectable?: boolean;
-  onDiscardTile?: (tileId: string) => void;
+  canDiscard?: boolean;
+  selectedTileId: string | null;
+  onActivateTile: (tileId: string) => void;
   discardPending?: boolean;
   canDraw?: boolean;
   waits: WaitEntry[];
@@ -647,30 +685,29 @@ function LocalSeat({
       ) : null}
       <BonusTiles tiles={state.bonusTiles} owner="your" />
       <WaitPanel waits={waits} />
-      <div className="local-hand" role="list" aria-label="Your hand">
+      <div className="local-hand" role="group" aria-label="Your hand">
         {displayedHand.map((item) => {
           const drawn = drawnTileId === item.id;
-          if (!selectable) {
-            return (
-              <span
-                key={item.id}
-                role="listitem"
-                className={`local-hand-tile-wrap${drawn ? " local-hand-tile-drawn" : ""}`}
-              >
-                <Tile t={item} size="lg" />
-              </span>
-            );
-          }
+          const selected = selectedTileId === item.id;
+          const actionLabel = selected
+            ? canDiscard
+              ? `${item.label} selected. Activate again to discard.`
+              : `${item.label} selected.`
+            : canDiscard
+              ? `Inspect ${item.label}. Activate twice to discard.`
+              : `Inspect ${item.label}.`;
           return (
             <button
               key={item.id}
               type="button"
-              role="listitem"
-              className={`local-hand-tile-wrap local-hand-tile-button${drawn ? " local-hand-tile-drawn" : ""}`}
-              aria-label={`Discard ${item.label}${drawn ? ", newly drawn" : ""}`}
+              className={`local-hand-tile-wrap local-hand-tile-button${
+                drawn ? " local-hand-tile-drawn" : ""
+              }${selected ? " local-hand-tile-selected" : ""}`}
+              aria-label={`${actionLabel}${drawn ? " Newly drawn." : ""}`}
+              aria-pressed={selected}
               disabled={discardPending}
               draggable={sortMode === "off" && !discardPending && !drawn}
-              onClick={() => onDiscardTile?.(item.id)}
+              onClick={() => onActivateTile(item.id)}
               onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = "move";
                 event.dataTransfer.setData("application/x-mahjong-tile", item.id);
@@ -719,6 +756,13 @@ function winButtonTitle(preview: NonNullable<MatchAction["preview"]>): string {
 }
 
 function ClaimButtons({ actions }: { actions: MatchAction[] }) {
+  const disabledReasonId = useId();
+  const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
+  const disabledReason = actions.find((action) => action.disabledReason)?.disabledReason;
+  const isConsequential = (action: MatchAction) => {
+    const id = action.id.toLowerCase();
+    return id === "kong" || id.startsWith("kong-") || id === "gang" || id.startsWith("gang-");
+  };
   const localizedAction = (action: MatchAction) => {
     const key = action.id.toLowerCase();
     const terms: Record<string, { glyph: string; english: string }> = {
@@ -741,43 +785,78 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
     );
   };
   return (
-    <div className="action-row" role="group" aria-label="Legal actions">
-      {actions.map((action) => (
-        <button
-          key={action.id}
-          type="button"
-          className={`action-button action-${action.id.toLowerCase()}`}
-          onClick={action.onClick}
-          disabled={action.disabled}
-          title={action.preview ? winButtonTitle(action.preview) : undefined}
-          aria-label={
-            action.chowPreview
-              ? `${action.label}: ${action.chowPreview.tiles.map((item) => item.label).join(", ")}`
-              : undefined
-          }
-        >
-          {localizedAction(action)}
-          {action.chowPreview ? (
-            <span className="chow-option-preview" aria-hidden="true">
-              {action.chowPreview.tiles.map((item) => (
-                <span
-                  key={item.id}
-                  className={`chow-preview-tile${
-                    item.id === action.chowPreview!.claimedTileId ? " chow-preview-claimed" : ""
-                  }`}
-                >
-                  <Tile t={item} size="sm" />
+    <div className="action-choice-stack">
+      <div className="action-row" role="group" aria-label="Legal actions">
+        {actions.map((action) => {
+          const confirming = action.id === confirmingActionId;
+          const title = [action.disabledReason, action.preview ? winButtonTitle(action.preview) : undefined]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <button
+              key={action.id}
+              type="button"
+              className={`action-button action-${action.id.toLowerCase()}${
+                confirming ? " action-confirming" : ""
+              }`}
+              onClick={() => {
+                if (isConsequential(action) && !confirming) {
+                  setConfirmingActionId(action.id);
+                  return;
+                }
+                setConfirmingActionId(null);
+                action.onClick?.();
+              }}
+              disabled={action.disabled}
+              title={title || undefined}
+              aria-describedby={action.disabledReason ? disabledReasonId : undefined}
+              aria-label={
+                confirming
+                  ? "Confirm Gang. This changes your hand and cannot be undone."
+                  : action.chowPreview
+                    ? `${action.label}: ${action.chowPreview.tiles.map((item) => item.label).join(", ")}`
+                    : undefined
+              }
+            >
+              {confirming ? (
+                <span className="action-label-single">Confirm Gang</span>
+              ) : (
+                localizedAction(action)
+              )}
+              {action.chowPreview ? (
+                <span className="chow-option-preview" aria-hidden="true">
+                  {action.chowPreview.tiles.map((item) => (
+                    <span
+                      key={item.id}
+                      className={`chow-preview-tile${
+                        item.id === action.chowPreview!.claimedTileId ? " chow-preview-claimed" : ""
+                      }`}
+                    >
+                      <Tile t={item} size="sm" />
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-          ) : null}
-          {action.preview ? (
-            <span className="action-score-preview">
-              {action.preview.rawTai} <span lang="zh-Hant">台</span> <small>(Tai)</small>
-            </span>
-          ) : null}
-        </button>
-      ))}
+              ) : null}
+              {action.preview ? (
+                <span className="action-score-preview">
+                  {action.preview.rawTai} <span lang="zh-Hant">台</span> <small>(Tai)</small>
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      {confirmingActionId ? (
+        <p className="action-explanation" role="status">
+          Gang changes your hand and cannot be undone. Activate Confirm Gang to continue,
+          or choose another action.
+        </p>
+      ) : null}
+      {disabledReason ? (
+        <p className="action-explanation" id={disabledReasonId} role="status">
+          {disabledReason}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -843,7 +922,6 @@ export interface MatchTableInteraction {
 export function MatchTable({ state, interaction }: { state: MatchTableState; interaction?: MatchTableInteraction }) {
   const slots = remapSeats(state.localSeat);
   const local = state.seats[state.localSeat];
-  const matchKey = state.lastDiscard ? tileTypeKey(state.lastDiscard.tile.id) : null;
 
   const localHand = local.hand ?? [];
   const localHandIds = localHand.map((t) => t.id).join(",");
@@ -859,10 +937,18 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
 
   const [sortMode, setSortMode] = useState<SortMode>("suit-rank");
   const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const selectedTile = localHand.find((item) => item.id === selectedTileId);
+  const matchKey = selectedTile
+    ? tileTypeKey(selectedTile.id)
+    : state.lastDiscard
+      ? tileTypeKey(state.lastDiscard.tile.id)
+      : null;
   const [drawnTileId, setDrawnTileId] = useState<string | null>(() =>
     interaction?.canDiscard ? (localHand.at(-1)?.id ?? null) : null,
   );
   const previousHandIdsRef = useRef(localHand.map((tile) => tile.id));
+  const previousCanDiscardRef = useRef(Boolean(interaction?.canDiscard));
   const [tableFxEnabled, setTableFxEnabled] = useState(() => {
     try {
       return window.localStorage.getItem("mahjong-table-fx") === "on";
@@ -997,6 +1083,21 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     previousHandIdsRef.current = nextIds;
   }, [interaction?.canDiscard, localHandIds]);
 
+  useEffect(() => {
+    if (interaction?.canDiscard && !previousCanDiscardRef.current) {
+      // A tile inspected while another player acted must never become a
+      // one-activation discard when this player's next turn begins.
+      setSelectedTileId(null);
+    }
+    previousCanDiscardRef.current = Boolean(interaction?.canDiscard);
+  }, [interaction?.canDiscard]);
+
+  useEffect(() => {
+    if (selectedTileId && !localHand.some((tile) => tile.id === selectedTileId)) {
+      setSelectedTileId(null);
+    }
+  }, [localHandIds, selectedTileId, localHand]);
+
   // Reconcile the display order after deal, draw, claim, and discard. A new
   // draw is staged at the far right without disturbing the current hand.
   // Auto-sort runs only after the hand shrinks, or when sort mode changes.
@@ -1068,6 +1169,18 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
     });
   }
 
+  function activateTile(tileId: string) {
+    if (interaction?.discardPending) {
+      return;
+    }
+    if (interaction?.canDiscard && selectedTileId === tileId) {
+      setSelectedTileId(null);
+      interaction.onDiscardTile?.(tileId);
+      return;
+    }
+    setSelectedTileId(tileId);
+  }
+
   return (
     <div className={`match-table${state.showdown ? " match-table-showdown" : ""}`} data-testid="match-table">
       <OpponentSeat
@@ -1092,6 +1205,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         matchKey={matchKey}
         canDiscard={interaction?.canDiscard}
         discardPending={interaction?.discardPending}
+        selectedTile={selectedTile}
       />
       <OpponentSeat
         seat={slots.right}
@@ -1110,8 +1224,9 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
       <LocalSeat
         state={local}
         displayedHand={displayedHand}
-        selectable={interaction?.canDiscard}
-        onDiscardTile={interaction?.onDiscardTile}
+        canDiscard={interaction?.canDiscard}
+        selectedTileId={selectedTileId}
+        onActivateTile={activateTile}
         discardPending={interaction?.discardPending}
         canDraw={interaction?.canDraw}
         waits={state.waits}

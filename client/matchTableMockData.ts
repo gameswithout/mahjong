@@ -19,7 +19,9 @@ const localHand = [
   "dots-2-1",
   "dots-2-2",
   "dots-2-3",
-  "dots-7-1",
+  // A third visible 6 of dots lets the wireframe demonstrate §9.5 matching
+  // across the local hand, East's public Chow, and East's discard river.
+  "dots-6-3",
   "wind-east-1",
   "wind-east-2",
   "dragon-red-1",

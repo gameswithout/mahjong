@@ -85,24 +85,31 @@ func (f *fakeRepository) MarkJadeWalletSyncFailed(
 }
 
 type fakeWalletMirror struct {
-	balance      int64
-	creditAmount int64
-	debitAmount  int64
+	balance         int64
+	balanceReads    int
+	creditAmount    int64
+	debitAmount     int64
+	ignoreMutations bool
 }
 
 func (f *fakeWalletMirror) Balance(context.Context, string) (int64, error) {
+	f.balanceReads++
 	return f.balance, nil
 }
 
 func (f *fakeWalletMirror) Credit(_ context.Context, _ string, amount int64) error {
 	f.creditAmount = amount
-	f.balance += amount
+	if !f.ignoreMutations {
+		f.balance += amount
+	}
 	return nil
 }
 
 func (f *fakeWalletMirror) Debit(_ context.Context, _ string, amount int64) error {
 	f.debitAmount = amount
-	f.balance -= amount
+	if !f.ignoreMutations {
+		f.balance -= amount
+	}
 	return nil
 }
 
@@ -179,7 +186,32 @@ func TestCoordinator_SyncWalletsReconcilesToTarget(t *testing.T) {
 	if mirror.creditAmount != 300 || mirror.debitAmount != 0 {
 		t.Fatalf("wallet mutations = credit %d debit %d", mirror.creditAmount, mirror.debitAmount)
 	}
+	if mirror.balanceReads != 2 {
+		t.Fatalf("wallet balance reads = %d, want pre-write and post-write verification", mirror.balanceReads)
+	}
 	if repository.syncedUser != "user-east" || repository.syncedBalance != 5_000 {
 		t.Fatalf("synced target = %q/%d", repository.syncedUser, repository.syncedBalance)
+	}
+}
+
+func TestCoordinator_SyncWalletsRejectsUnconvergedMutation(t *testing.T) {
+	repository := &fakeRepository{
+		targets: []WalletTarget{{UserID: "user-east", Balance: 5_000}},
+	}
+	mirror := &fakeWalletMirror{balance: 4_700, ignoreMutations: true}
+	coordinator := NewCoordinator(repository, mirror)
+
+	if err := coordinator.SyncWallets(context.Background(), 20); err == nil {
+		t.Fatal("SyncWallets() error = nil, want post-write verification mismatch")
+	}
+	if repository.syncedUser != "" {
+		t.Fatalf("unconverged target marked synced for %q", repository.syncedUser)
+	}
+	if repository.syncFailedUser != "user-east" || repository.syncFailedReason == nil {
+		t.Fatalf(
+			"sync failure = user %q, reason %v",
+			repository.syncFailedUser,
+			repository.syncFailedReason,
+		)
 	}
 }

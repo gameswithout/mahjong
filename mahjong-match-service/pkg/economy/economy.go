@@ -176,6 +176,17 @@ func (c *Coordinator) SyncWallets(ctx context.Context, limit int) error {
 		if syncErr == nil && actual > target.Balance {
 			syncErr = c.mirror.Debit(ctx, target.UserID, actual-target.Balance)
 		}
+		if syncErr == nil && actual != target.Balance {
+			actual, syncErr = c.mirror.Balance(ctx, target.UserID)
+			if syncErr == nil && actual != target.Balance {
+				syncErr = fmt.Errorf(
+					"AGS Jade wallet verification mismatch for user %s: got %d, want %d",
+					target.UserID,
+					actual,
+					target.Balance,
+				)
+			}
+		}
 		if syncErr == nil {
 			syncErr = c.repository.MarkJadeWalletSynced(ctx, target.UserID, target.Balance)
 		} else {

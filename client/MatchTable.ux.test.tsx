@@ -166,8 +166,11 @@ describe("MatchTable table-first UX", () => {
     expect(
       container.querySelector(".local-hand-tile-drawn")?.getAttribute("draggable"),
     ).toBe("false");
-    expect(container.textContent).toContain("Ready");
+    expect(container.textContent).toContain("Ting · Ready");
     expect(container.textContent).toContain("All visible");
+    expect(container.querySelector(".wait-explainer")?.textContent).toContain(
+      "concealed opponent tiles",
+    );
   });
 
   it("stages a new draw at far right and sorts only after the discard", () => {
@@ -202,7 +205,7 @@ describe("MatchTable table-first UX", () => {
     );
     const staged = Array.from(
       container.querySelectorAll<HTMLButtonElement>(".local-hand-tile-button"),
-    ).map((button) => button.getAttribute("aria-label")?.replace(/^Discard /, ""));
+    ).map((button) => button.querySelector('[role="img"]')?.getAttribute("aria-label"));
     expect(staged.slice(0, 16)).toEqual(sortedBefore);
     expect(staged[16]).toContain(drawn.label);
 
@@ -259,20 +262,51 @@ describe("MatchTable table-first UX", () => {
     expect(dock?.querySelectorAll(".chow-option-preview .tile")).toHaveLength(3);
   });
 
-  it("discards a hand tile in one tap without a confirm step", () => {
+  it("inspects a tile on first activation and discards it on the second", () => {
     const onDiscardTile = vi.fn();
+    const state = {
+      ...mockMatchTableState,
+      claimSource: null,
+      legalActions: [],
+      seats: {
+        ...mockMatchTableState.seats,
+        E: {
+          ...mockMatchTableState.seats.E,
+          melds: [
+            ...mockMatchTableState.seats.E.melds,
+            {
+              id: "e-m3",
+              type: "pong" as const,
+              tiles: ["characters-1-2", "characters-1-3", "characters-1-4"].map(tile),
+            },
+          ],
+        },
+      },
+    };
     act(() =>
       root.render(
         <MatchTable
-          state={mockMatchTableState}
+          state={state}
           interaction={{ canDiscard: true, onDiscardTile }}
         />,
       ),
     );
 
     const firstTile = container.querySelector<HTMLButtonElement>(
-      '.local-hand-tile-button[aria-label="Discard 1 of characters"]',
+      '.local-hand-tile-button[aria-label^="Inspect 1 of characters"]',
     );
+    act(() => firstTile?.click());
+
+    expect(onDiscardTile).not.toHaveBeenCalled();
+    expect(firstTile?.getAttribute("aria-pressed")).toBe("true");
+    expect(firstTile?.classList).toContain("local-hand-tile-selected");
+    expect(container.querySelectorAll(".local-hand .tile-match")).toHaveLength(1);
+    expect(container.querySelectorAll(".meld-area .tile-match")).toHaveLength(3);
+    expect(container.querySelectorAll(".discard-river .tile-match")).toHaveLength(0);
+    expect(container.querySelector(".current-tile-prompt")?.textContent).toContain(
+      "activate again to discard",
+    );
+
     act(() => firstTile?.click());
 
     expect(onDiscardTile).toHaveBeenCalledOnce();
@@ -282,6 +316,58 @@ describe("MatchTable table-first UX", () => {
         (button) => button.textContent?.trim() === "Discard",
       ),
     ).toBe(false);
+  });
+
+  it("requires a deliberate second activation for irreversible Gang actions", () => {
+    const onGang = vi.fn();
+    act(() =>
+      root.render(
+        <MatchTable
+          state={{
+            ...mockMatchTableState,
+            legalActions: [{ id: "kong-concealed-0", label: "Gang", onClick: onGang }],
+          }}
+        />,
+      ),
+    );
+
+    const gang = container.querySelector<HTMLButtonElement>(".action-kong-concealed-0");
+    act(() => gang?.click());
+    expect(onGang).not.toHaveBeenCalled();
+    expect(gang?.textContent).toContain("Confirm Gang");
+    expect(container.querySelector(".action-explanation")?.textContent).toContain(
+      "cannot be undone",
+    );
+
+    act(() => gang?.click());
+    expect(onGang).toHaveBeenCalledOnce();
+  });
+
+  it("explains actions disabled while a table request is pending", () => {
+    act(() =>
+      root.render(
+        <MatchTable
+          state={{
+            ...mockMatchTableState,
+            legalActions: [
+              {
+                id: "pong",
+                label: "Pong",
+                disabled: true,
+                disabledReason: "Waiting for the table to confirm your last choice.",
+              },
+            ],
+          }}
+        />,
+      ),
+    );
+
+    const action = container.querySelector<HTMLButtonElement>(".action-pong");
+    expect(action?.disabled).toBe(true);
+    expect(action?.getAttribute("title")).toContain("Waiting for the table");
+    expect(container.querySelector(".action-explanation")?.textContent).toContain(
+      "Waiting for the table",
+    );
   });
 
   it("automatically passes when Pass is the only legal response", () => {

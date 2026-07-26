@@ -114,8 +114,13 @@ async function clickIfEnabled(locator) {
   if (!(await isVisible(locator)) || !(await locator.isEnabled().catch(() => false))) {
     return false;
   }
-  await locator.click();
-  return true;
+  // The table polls frequently, so React can replace an otherwise-actionable
+  // button between the visibility check and the click. Treat that transient
+  // detach exactly like "no action available yet" and retry on the next loop.
+  return locator
+    .click({ timeout: 2_000 })
+    .then(() => true)
+    .catch(() => false);
 }
 
 async function signInAndQueue(page) {
@@ -189,9 +194,21 @@ async function exerciseReconnect(page, expectedSeat) {
     throw new Error("The reconnect probe did not intercept a runtime sync.");
   }
 
-  await page.getByTestId("live-match").waitFor({ state: "hidden", timeout: FLOW_TIMEOUT_MS });
+  // A transient poll failure must keep the last authoritative table visible.
+  // The client now exposes a short reconnecting notice while its normal poll
+  // loop retries, instead of tearing down and rebuilding the entire match UI.
+  await page.getByTestId("table-stalled-notice").waitFor({
+    state: "visible",
+    timeout: FLOW_TIMEOUT_MS,
+  });
   const match = page.getByTestId("live-match");
-  await match.waitFor({ state: "visible", timeout: FLOW_TIMEOUT_MS });
+  if (!(await match.isVisible())) {
+    throw new Error("A transient runtime sync failure removed the live table.");
+  }
+  await page.getByTestId("table-stalled-notice").waitFor({
+    state: "hidden",
+    timeout: FLOW_TIMEOUT_MS,
+  });
   const restoredSeat = await match.getAttribute("data-local-seat");
   if (restoredSeat !== expectedSeat) {
     throw new Error(`Reconnect changed seat from ${expectedSeat} to ${restoredSeat}.`);
@@ -220,9 +237,28 @@ async function driveOneLegalAction(page) {
     return "draw";
   }
 
-  const discardTile = page.locator('.local-hand-tile-button[aria-label^="Discard "]').first();
-  if (await clickIfEnabled(discardTile)) {
+  const selectedDiscardTile = page
+    .locator('.local-hand-tile-button[aria-label*="Activate again to discard"]')
+    .first();
+  if (await clickIfEnabled(selectedDiscardTile)) {
     return "discard";
+  }
+
+  // Hand tiles remain inspectable while another seat acts. Only the explicit
+  // two-activation copy identifies a tile that is currently legal to discard.
+  const inspectableDiscardTile = page
+    .locator('.local-hand-tile-button[aria-label*="Activate twice to discard"]')
+    .first();
+  if (await clickIfEnabled(inspectableDiscardTile)) {
+    // The production hand uses a non-modal select/play convention: the first
+    // activation inspects and highlights matching public tiles; the second
+    // activation commits the discard.
+    const committed = await clickIfEnabled(
+      page
+        .locator('.local-hand-tile-button[aria-label*="Activate again to discard"]')
+        .first(),
+    );
+    return committed ? "discard" : "inspect";
   }
 
   return null;
@@ -290,6 +326,7 @@ function summarizeDiagnostics(page) {
 async function driveHandToResult() {
   const deadline = Date.now() + HAND_TIMEOUT_MS;
   let actionCount = 0;
+  const actionsByType = {};
 
   while (Date.now() < deadline) {
     const resultCount = (
@@ -298,16 +335,19 @@ async function driveHandToResult() {
       )
     ).filter(Boolean).length;
     if (resultCount === PLAYER_COUNT) {
-      return actionCount;
+      return { total: actionCount, byType: actionsByType };
     }
 
     let acted = false;
     for (const page of pages) {
       const action = await driveOneLegalAction(page);
       if (action && action !== "result") {
-        actionCount += 1;
-        if (actionCount % 25 === 0) {
-          report("hand-progress", { legalActions: actionCount });
+        if (action !== "inspect") {
+          actionCount += 1;
+          actionsByType[action] = (actionsByType[action] ?? 0) + 1;
+          if (actionCount % 25 === 0) {
+            report("hand-progress", { legalActions: actionCount, actionsByType });
+          }
         }
         acted = true;
         break;
@@ -353,15 +393,21 @@ async function driveHandToResult() {
 async function readJadeSettlement(page, playerNumber) {
   const panel = page.getByTestId("jade-settlement");
   await panel.waitFor({ state: "visible", timeout: FLOW_TIMEOUT_MS });
+  await page
+    .getByTestId("jade-settlement")
+    .filter({ has: page.getByText("AGS Wallet synced", { exact: true }) })
+    .waitFor({ state: "visible", timeout: FLOW_TIMEOUT_MS });
   const delta = Number(await panel.getAttribute("data-jade-delta"));
   const before = Number(await panel.getAttribute("data-jade-before"));
   const after = Number(await panel.getAttribute("data-jade-after"));
   const journalId = await panel.getAttribute("data-journal-id");
+  const walletSyncStatus = await panel.getAttribute("data-wallet-sync-status");
   if (
     !Number.isSafeInteger(delta) ||
     !Number.isSafeInteger(before) ||
     !Number.isSafeInteger(after) ||
-    !journalId
+    !journalId ||
+    walletSyncStatus !== "synced"
   ) {
     throw new Error(`Player ${playerNumber} received an invalid Jade settlement.`);
   }
@@ -370,7 +416,7 @@ async function readJadeSettlement(page, playerNumber) {
       `Player ${playerNumber} settlement does not add up: ${before} + ${delta} != ${after}.`,
     );
   }
-  return { player: playerNumber, delta, before, after, journalId };
+  return { player: playerNumber, delta, before, after, journalId, walletSyncStatus };
 }
 
 async function cleanupPage(page) {
@@ -442,7 +488,8 @@ async function main() {
   report("private-views-verified", { players: PLAYER_COUNT });
   await exerciseReconnect(pages[0], matches[0].seat);
   report("reconnect-verified", { seatPreserved: true });
-  const actionCount = await driveHandToResult();
+  const handActions = await driveHandToResult();
+  const actionCount = handActions.total;
   const jadeSettlements = await Promise.all(
     pages.map((page, index) => readJadeSettlement(page, index + 1)),
   );
@@ -463,6 +510,7 @@ async function main() {
   }
   report("hand-complete", {
     legalActions: actionCount,
+    actionsByType: handActions.byType,
     jadeDelta: totalDelta,
     jadeTotal: totalAfter,
     settlementJournal: [...journalIds][0],
@@ -517,11 +565,13 @@ async function main() {
         seats: [...seats].sort(),
         reconnectSeat: matches[0].seat,
         legalActions: actionCount,
+        actionsByType: handActions.byType,
         jade: {
           totalBefore,
           totalAfter,
           totalDelta,
           journalId: [...journalIds][0],
+          walletSyncStatuses: jadeSettlements.map((settlement) => settlement.walletSyncStatus),
           returnedBalances,
         },
         cleanup: "four Session leave responses succeeded; returned to lobby",

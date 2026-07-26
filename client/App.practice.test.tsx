@@ -396,7 +396,7 @@ describe("App Practice journey", () => {
     expect(command).toHaveBeenCalledOnce();
   });
 
-  it("sends a discard command from one hand-tile tap", async () => {
+  it("sends a discard command after inspecting and reactivating a hand tile", async () => {
     const command = vi.fn(() => "command");
     dependencies.createMatchRuntimeConnection.mockImplementation(
       (_accessToken: string, options: MatchRuntimeConnectionOptions) => {
@@ -435,11 +435,14 @@ describe("App Practice journey", () => {
     await clickAndFlush(container, "Practice vs Bots");
     const discardTile = await vi.waitFor(() => {
       const candidate = container.querySelector<HTMLButtonElement>(
-        '.local-hand-tile-button[aria-label="Discard 1 of characters, newly drawn"]',
+        '.local-hand-tile-button[aria-label^="Inspect 1 of characters"]',
       );
       expect(candidate).not.toBeNull();
       return candidate!;
     });
+    await act(async () => discardTile.click());
+    expect(command).not.toHaveBeenCalled();
+    expect(discardTile.getAttribute("aria-pressed")).toBe("true");
     await act(async () => discardTile.click());
 
     expect(command).toHaveBeenCalledWith({
