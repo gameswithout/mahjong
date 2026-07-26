@@ -236,10 +236,68 @@ describe("App staked requeue (P1.3 session closure)", () => {
   async function reachCompletedStakedHand(): Promise<void> {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull());
   }
+
+  it("offers a way out of a queue that has passed 90 seconds, releasing the reservation", async () => {
+    // A ticket that never matches: four humans are required and none arrive.
+    const cancelTicket = vi.fn().mockResolvedValue(undefined);
+    createTicket = vi.fn(async () => {
+      calls.push("ticket:1");
+      return { ticketId: "ticket-1", isActive: true };
+    });
+    dependencies.createMatchmakingClient.mockReturnValue({
+      createTicket,
+      getTicket: vi.fn(async () => ({ ticketId: "ticket-1", isActive: true })),
+      cancelTicket,
+    });
+    const release = vi.fn().mockResolvedValue(ELIGIBLE_ACCOUNT);
+    dependencies.createJadeClient.mockReturnValue({
+      getAccount,
+      reserve: vi.fn().mockResolvedValue({
+        account: { ...ELIGIBLE_ACCOUNT, reserved: 300, available: 4_700 },
+        reservation: { reservation_id: "reserve-1", amount: 300, status: "active" },
+      }),
+      release,
+    });
+    sessionClient.createSession = vi.fn(async () => {
+      calls.push("create:practice");
+      return { sessionId: "practice-1", status: "JOINED", members: [{ userId: "guest-1" }] };
+    });
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await clickAndFlush(container, "Find a table");
+    await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
+
+    // Under 90 seconds the wait is reported without an escape hatch.
+    expect(container.textContent).not.toContain("Practice instead");
+
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow() + 91_000;
+      // The lobby's one-second tick is what re-reads the clock; wait for one.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1_100));
+      });
+      await vi.waitFor(() => expect(container.textContent).toContain("Practice instead"));
+      expect(container.textContent).toContain("taking longer than usual");
+
+      await clickAndFlush(container, "Practice instead");
+    } finally {
+      Date.now = realNow;
+    }
+
+    // The ticket is canceled and the Jade released before the free hand starts;
+    // otherwise a Practice hand would sit on a reservation it never needed.
+    await vi.waitFor(() => expect(calls).toContain("create:practice"));
+    expect(cancelTicket).toHaveBeenCalledWith("ticket-1");
+    expect(release).toHaveBeenCalled();
+    expect(calls.indexOf("create:practice")).toBeGreaterThan(calls.indexOf("ticket:1"));
+  });
 
   it("offers Play Again on a staked result and states the stake before the click", async () => {
     await reachCompletedStakedHand();

@@ -26,6 +26,10 @@ import {
 } from "./match-runtime";
 import { createJadeClient, JadeError } from "./jade";
 import { jadeEntryRequirementMessage, stakeSummary } from "./jade-entry";
+import { LobbyHeader } from "./LobbyHeader";
+import { LockedTiers } from "./LockedTiers";
+import { playableTier, tierSummary } from "./lobby-tiers";
+import { queueElapsedLabel, queueHealth, queueHealthMessage } from "./queue-health";
 import {
   createFreshPracticeSession,
   isPracticeMatch,
@@ -220,6 +224,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     useState<OnlineSessionEntryMode>("manual");
   const [joinSessionId, setJoinSessionId] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
+  // When the current queue attempt started, so the wait can be reported in the
+  // player's own elapsed time rather than AGS's per-poll queueTime.
+  const [queueStartedAt, setQueueStartedAt] = useState<number | null>(null);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [controlRestoredNotice, setControlRestoredNotice] = useState(false);
   const [fullscreenHelp, setFullscreenHelp] = useState(false);
@@ -428,6 +435,23 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     };
   }, [activeTicketId, matchmakingState.status]);
 
+  const queueing =
+    matchmakingState.status === "loading" ||
+    matchmakingState.status === "searching" ||
+    matchmakingState.status === "canceling";
+
+  // Derived rather than cleared at each exit: matchmaking leaves the queue from
+  // a dozen places (matched, canceled, failed, superseded, signed out), and a
+  // stale clock would keep ticking behind whichever one got missed.
+  useEffect(() => {
+    if (!queueing && queueStartedAt !== null) {
+      setQueueStartedAt(null);
+    }
+  }, [queueing, queueStartedAt]);
+
+  const queueElapsedMs = queueStartedAt === null ? 0 : Math.max(0, nowTick - queueStartedAt);
+  const currentQueueHealth = queueHealth(queueElapsedMs);
+
   const matchedSessionId =
     matchmakingState.status === "matched" ? matchmakingState.ticket.sessionId ?? null : null;
 
@@ -492,12 +516,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // a render clock while a hand is live is enough to keep it accurate
   // without the server pushing per-second updates.
   useEffect(() => {
-    if (!matchRuntimeJoined) {
+    // Also ticks while queueing: the wait is the one place the player has
+    // nothing to look at, so its clock has to be the one thing that moves.
+    if (!matchRuntimeJoined && queueStartedAt === null) {
       return;
     }
     const interval = window.setInterval(() => setNowTick(Date.now()), 1000);
     return () => window.clearInterval(interval);
-  }, [matchRuntimeJoined]);
+  }, [matchRuntimeJoined, queueStartedAt]);
 
   // driveLocked (both match runtimes) is lazy — it only advances an overdue
   // deadline when some client's request touches the match. Polling keeps
@@ -954,6 +980,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     setOnlineSessionEntryMode("matchmaking");
     autoJoiningSessionIdRef.current = null;
     setMatchmakingState({ status: "loading" });
+    setQueueStartedAt(Date.now());
+    setNowTick(Date.now());
 
     try {
       const ticket = await createStakedMatchmakingTicket(
@@ -984,9 +1012,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     }
   }
 
-  async function cancelMatchmaking() {
+  async function cancelMatchmaking(): Promise<boolean> {
     if (matchmakingState.status !== "searching") {
-      return;
+      return false;
     }
 
     const ticket = matchmakingState.ticket;
@@ -997,19 +1025,33 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       await createAuthenticatedMatchmakingClient().cancelTicket(ticket.ticketId);
       await releaseJadeReservation();
       if (requestId !== matchmakingRequestRef.current) {
-        return;
+        return false;
       }
 
       setMatchmakingState({ status: "idle" });
       setOnlineSessionEntryMode("manual");
+      return true;
     } catch (error) {
       if (requestId !== matchmakingRequestRef.current) {
-        return;
+        return false;
       }
 
       const safeError = matchmakingErrorView(error);
       setMatchmakingState({ status: "error", ...safeError });
+      return false;
     }
+  }
+
+  // §8.7's alternative to an open-ended wait. The ticket is canceled first so
+  // the Jade reservation is released before a free Practice hand starts:
+  // leaving it held behind a hand that costs nothing would quietly block the
+  // player's next staked entry.
+  async function leaveQueueForPractice() {
+    const canceled = await cancelMatchmaking();
+    if (!canceled) {
+      return;
+    }
+    await startPracticeHand();
   }
 
   async function joinMatchedTable() {
@@ -2006,16 +2048,13 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
         )}
 
         {state.status === "signed_in" && (
-          <div className="success-panel" role="status" aria-live="polite">
-            <p className="status-label">Signed in</p>
-            <p className="user-id">
-              {isGuestAccount ? "Guest ID" : "Player ID"}: {state.userId}
-            </p>
-            <p className="lobby-status">
-              {state.lobbyStatus === "connecting" && "Connecting to Lobby…"}
-              {state.lobbyStatus === "connected" && "Lobby connected"}
-              {state.lobbyStatus === "reconnecting" && "Lobby disconnected. Reconnecting…"}
-            </p>
+          <div className="success-panel">
+            <LobbyHeader
+              guest={isGuestAccount}
+              account={jadeState.status === "ready" ? jadeState.account : undefined}
+              jadeStatus={jadeState.status}
+              connection={state.lobbyStatus}
+            />
 
             {state.lobbyStatus === "connected" && (
               <div className="session-panel">
@@ -2032,12 +2071,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                 />
 
                 <section className="matchmaking-panel online-card" aria-labelledby="online-title">
-                  <p className="status-label">Play Online</p>
-                  <h2 id="online-title">Bamboo Courtyard</h2>
+                  <p className="status-label">Quick Play</p>
+                  <h2 id="online-title">{playableTier().name}</h2>
                   <p className="practice-description">
-                    One live hand · 10 Jade per Tai · 300 Jade maximum loss ·
-                    1,000 Jade minimum balance.
+                    One live hand against three humans · about 8 to 15 minutes.
                   </p>
+                  <p className="practice-description">{tierSummary(playableTier())}</p>
 
                   {jadeState.status === "loading" && (
                     <p className="matchmaking-result" aria-live="polite">
@@ -2070,7 +2109,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       )}
                       {!jadeState.account.eligible && (
                         <p className="session-detail">
-                          You need 1,000 Jade and 300 available to enter Bamboo.
+                          {jadeEntryRequirementMessage(jadeState.account)}
                         </p>
                       )}
                     </div>
@@ -2106,16 +2145,31 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
                   {(matchmakingState.status === "searching" ||
                     matchmakingState.status === "canceling") && (
-                    <div className="matchmaking-result" role="status" aria-live="polite">
-                      <p>Searching for players</p>
-                      <p className="session-detail">
-                        Ticket: {sessionIdFragment(matchmakingState.ticket.ticketId)}
-                      </p>
-                      {matchmakingState.ticket.queueTime !== undefined && (
-                        <p className="session-detail">
-                          Queue time: {matchmakingState.ticket.queueTime}s
-                        </p>
+                    <div
+                      className={`matchmaking-result queue-panel queue-${currentQueueHealth}`}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <p className="queue-message">{queueHealthMessage(currentQueueHealth)}</p>
+                      <p className="queue-elapsed">{queueElapsedLabel(queueElapsedMs)}</p>
+
+                      {/* §8.7: at 90 seconds the player gets a way out of an
+                          open-ended wait rather than a spinner and a guess. */}
+                      {currentQueueHealth === "slow" && matchmakingState.status === "searching" && (
+                        <div className="queue-alternatives">
+                          <p className="session-detail">
+                            You can keep waiting, or play a Practice hand now instead.
+                          </p>
+                          <button
+                            className="secondary-action session-action"
+                            type="button"
+                            onClick={() => void leaveQueueForPractice()}
+                          >
+                            Practice instead
+                          </button>
+                        </div>
                       )}
+
                       <button
                         className="secondary-action session-action"
                         type="button"
@@ -2124,6 +2178,10 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                       >
                         {matchmakingState.status === "canceling" ? "Leaving queue…" : "Cancel"}
                       </button>
+
+                      <p className="session-detail queue-ticket">
+                        Ticket: {sessionIdFragment(matchmakingState.ticket.ticketId)}
+                      </p>
                     </div>
                   )}
 
@@ -2165,9 +2223,16 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   )}
                 </section>
 
+                <LockedTiers />
+
                 <details className="developer-tools">
                   <summary>Developer session tools</summary>
                   <div className="developer-tools-body">
+                    {/* The raw account ID is support and debugging data, not
+                        lobby furniture. It stays reachable, one click down. */}
+                    <p className="session-detail session-id-value">
+                      {isGuestAccount ? "Guest ID" : "Player ID"}: {state.userId}
+                    </p>
                 <button
                   className="secondary-action session-action"
                   type="button"

@@ -282,7 +282,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
 
     await clickAndFlush(container, "Practice vs Bots");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
@@ -317,7 +317,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Practice vs Bots");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
 
@@ -382,7 +382,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Practice vs Bots");
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 360));
@@ -431,7 +431,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Practice vs Bots");
     const discardTile = await vi.waitFor(() => {
       const candidate = container.querySelector<HTMLButtonElement>(
@@ -489,7 +489,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Practice vs Bots");
     await vi.waitFor(() => expect(container.textContent).toContain("Draw now"));
     await clickAndFlush(container, "Draw now");
@@ -554,7 +554,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Practice vs Bots");
     await vi.waitFor(() => expect(container.textContent).toContain("(Chow)"));
     await clickAndFlush(container, "Pass");
@@ -584,7 +584,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Practice vs Bots");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
 
@@ -618,7 +618,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Lobby connected"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Practice vs Bots");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
 

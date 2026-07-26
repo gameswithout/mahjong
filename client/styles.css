@@ -128,6 +128,159 @@ h1 {
   padding-top: 1rem;
 }
 
+/* Lobby hub header — identity, spendable Jade, and the ruleset, in that order.
+   Everything else the lobby knows about the account lives one click down in
+   the developer tools. */
+.lobby-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  justify-content: space-between;
+}
+
+.lobby-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.lobby-identity-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.lobby-identity-note,
+.lobby-fact-note {
+  color: #d8dcef;
+  font-size: 0.8rem;
+}
+
+.lobby-facts {
+  display: flex;
+  gap: 1.5rem;
+  margin: 0;
+}
+
+.lobby-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.lobby-fact dt {
+  color: #d8dcef;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lobby-fact dd {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin: 0;
+}
+
+.lobby-fact dd strong {
+  font-size: 1.05rem;
+}
+
+.lobby-connection {
+  color: #f2c66d;
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* Locked tiers: the ladder above the player. Visibly inert — no button, muted
+   surface — so none of them reads as something that should respond. */
+.locked-tiers {
+  margin-top: 1rem;
+}
+
+.locked-tier-list {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.locked-tier {
+  background: rgb(216 220 239 / 7%);
+  border: 1px solid rgb(216 220 239 / 16%);
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.locked-tier-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.locked-tier-name {
+  font-weight: 600;
+}
+
+.locked-tier-state {
+  border: 1px solid rgb(216 220 239 / 30%);
+  border-radius: 0.35rem;
+  color: #d8dcef;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  padding: 0.05rem 0.35rem;
+  text-transform: uppercase;
+}
+
+.locked-tier-summary,
+.locked-tier-reason {
+  color: #d8dcef;
+  font-size: 0.8rem;
+  margin: 0.35rem 0 0;
+}
+
+.locked-tier-reason {
+  font-style: italic;
+}
+
+/* Queue panel. The health tint is redundant with the wording, never the only
+   signal that a wait has become unusual. */
+.queue-message {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.queue-elapsed {
+  color: #d8dcef;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0;
+}
+
+.queue-panel.queue-slow {
+  border-left: 3px solid #f2c66d;
+  padding-left: 0.65rem;
+}
+
+.queue-alternatives {
+  border-top: 1px solid rgb(216 220 239 / 18%);
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+}
+
+.queue-ticket {
+  opacity: 0.75;
+}
+
+@media (max-width: 30rem) {
+  .lobby-facts {
+    gap: 1rem;
+  }
+}
+
 .practice-card {
   background:
     radial-gradient(circle at 90% 0%, rgb(242 198 109 / 18%), transparent 42%),
