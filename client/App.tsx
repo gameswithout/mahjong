@@ -33,6 +33,12 @@ import { playableTier, tierSummary } from "./lobby-tiers";
 import { queueElapsedLabel, queueHealth, queueHealthMessage } from "./queue-health";
 import { TutorialScreen } from "./tutorial/TutorialScreen";
 import {
+  createProgressionClient,
+  ProgressionError,
+  type ProgressionSnapshot,
+} from "./progression";
+import { ProgressionScreen } from "./ProgressionScreen";
+import {
   createFreshPracticeSession,
   isPracticeMatch,
   leaveSessionIfPresent,
@@ -172,6 +178,12 @@ type JadeState =
   | { status: "ready"; account: JadeAccount }
   | { status: "error"; code: string; message: string };
 
+type ProgressionState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; snapshot: ProgressionSnapshot }
+  | { status: "error"; code: string; message: string };
+
 type OnlineSessionEntryMode = "manual" | "matchmaking";
 
 export function shouldAutomaticallyEnterHumanMatch(
@@ -266,6 +278,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     defaultPlayerProfile(true),
   );
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [progressionState, setProgressionState] = useState<ProgressionState>({ status: "idle" });
+  const [progressionOpen, setProgressionOpen] = useState(false);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -1113,6 +1127,42 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
   // Returns the account so callers deciding whether to commit Jade can act on
   // the value they just fetched instead of the render closure's stale state.
+  function createAuthenticatedProgressionClient() {
+    if (!accelByteConfig.matchServiceURL) {
+      throw new ProgressionError("configuration", "Match service URL is not configured.");
+    }
+    return createProgressionClient(stableIam.getAccessToken(), {
+      url: accelByteConfig.matchServiceURL,
+      namespace: accelByteConfig.namespace,
+    });
+  }
+
+  async function loadProgression() {
+    setProgressionState({ status: "loading" });
+    try {
+      const snapshot = await createAuthenticatedProgressionClient().get();
+      setProgressionState({ status: "ready", snapshot });
+    } catch (error) {
+      const safeError =
+        error instanceof ProgressionError
+          ? { code: error.code, message: error.message }
+          : { code: "unknown", message: "Progression could not be loaded." };
+      setProgressionState({ status: "error", ...safeError });
+    }
+  }
+
+  // §10.4/§12.1: the onboarding XP is granted whether the player finished the
+  // tutorial or intentionally skipped it, so both exits call this. The server
+  // award ID makes it once-ever, which is also what stops a replay paying again.
+  async function awardOnboardingXP() {
+    try {
+      await createAuthenticatedProgressionClient().awardOnboarding();
+    } catch {
+      // A failed award must not block leaving the tutorial. It is idempotent,
+      // so the next completion or skip retries it harmlessly.
+    }
+  }
+
   async function loadJadeAccount(): Promise<JadeAccount | null> {
     setJadeRecoveryState({ status: "idle" });
     setJadeState({ status: "loading" });
@@ -1871,10 +1921,27 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // The tutorial owns the screen for the same reason a live match does, and
   // takes precedence over the lobby beneath it. It cannot open over a live
   // match: the lobby is the only place it can be started from.
+  if (progressionOpen && progressionState.status === "ready") {
+    return (
+      <div className="game-screen">
+        <ProgressionScreen
+          progression={progressionState.snapshot.progression}
+          curve={progressionState.snapshot.curve}
+          onClose={() => setProgressionOpen(false)}
+        />
+      </div>
+    );
+  }
+
   if (tutorialOpen) {
     return (
       <div className="game-screen">
-        <TutorialScreen onExit={() => setTutorialOpen(false)} />
+        <TutorialScreen
+          onExit={() => {
+            setTutorialOpen(false);
+            void awardOnboardingXP();
+          }}
+        />
       </div>
     );
   }
@@ -2356,6 +2423,24 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   >
                     Start the tutorial
                   </button>
+                  <button
+                    className="secondary-action session-action"
+                    type="button"
+                    disabled={progressionState.status === "loading"}
+                    onClick={() => {
+                      setProgressionOpen(true);
+                      void loadProgression();
+                    }}
+                  >
+                    {progressionState.status === "loading"
+                      ? "Loading progress…"
+                      : "View your progress"}
+                  </button>
+                  {progressionState.status === "error" && progressionOpen && (
+                    <p className="practice-unavailable" role="alert">
+                      {progressionState.message}
+                    </p>
+                  )}
                 </section>
 
                 <PracticeLaunchCard
