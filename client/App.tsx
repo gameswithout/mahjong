@@ -332,6 +332,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const syncFailuresRef = useRef(0);
   const sessionRequestRef = useRef(0);
   const matchmakingRequestRef = useRef(0);
+  const progressionRequestRef = useRef(0);
   const autoJoiningSessionIdRef = useRef<string | null>(null);
   const autoDrawStateKeyRef = useRef<string | null>(null);
 
@@ -835,6 +836,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     browserMatchResumeStore.clear();
     sessionRequestRef.current += 1;
     matchmakingRequestRef.current += 1;
+    progressionRequestRef.current += 1;
     setSessionState({ status: "idle" });
     setMatchmakingState({ status: "idle" });
     setMatchRuntimeState({ status: "idle" });
@@ -1142,11 +1144,18 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   }
 
   async function loadProgression() {
+    const requestId = ++progressionRequestRef.current;
     setProgressionState({ status: "loading" });
     try {
       const snapshot = await createAuthenticatedProgressionClient().get();
+      if (requestId !== progressionRequestRef.current) {
+        return;
+      }
       setProgressionState({ status: "ready", snapshot });
     } catch (error) {
+      if (requestId !== progressionRequestRef.current) {
+        return;
+      }
       const safeError =
         error instanceof ProgressionError
           ? { code: error.code, message: error.message }
@@ -1159,8 +1168,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // tutorial or intentionally skipped it, so both exits call this. The server
   // award ID makes it once-ever, which is also what stops a replay paying again.
   async function awardOnboardingXP(outcome: OnboardingOutcome) {
+    const requestId = ++progressionRequestRef.current;
     try {
       const result = await createAuthenticatedProgressionClient().awardOnboarding(outcome);
+      if (requestId !== progressionRequestRef.current) {
+        return;
+      }
       setProgressionState((current) => ({
         status: "ready",
         snapshot: {
@@ -1267,6 +1280,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     if (!progression) {
       return;
     }
+    // A completed-hand projection is newer than any in-flight lobby read.
+    progressionRequestRef.current += 1;
     setProgressionState((current) => ({
       status: "ready",
       snapshot: {
