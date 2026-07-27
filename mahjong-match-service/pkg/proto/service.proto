@@ -213,18 +213,26 @@ message GetProgressionRequest {
 
 message GetProgressionResponse {
   PlayerProgression progression = 1;
-  // The full §12.2 curve, so the progression screen can show what is ahead
-  // without hard-coding the reward table in the client.
-  repeated LevelReward curve = 2;
+  // All 50 §12.2 thresholds, including levels without a reward.
+  repeated LevelStep curve = 2;
+}
+
+enum OnboardingOutcome {
+  ONBOARDING_OUTCOME_UNSPECIFIED = 0;
+  ONBOARDING_OUTCOME_COMPLETED = 1;
+  ONBOARDING_OUTCOME_SKIPPED = 2;
 }
 
 message AwardOnboardingXPRequest {
   string namespace = 1;
+  OnboardingOutcome outcome = 2;
 }
 
 message AwardOnboardingXPResponse {
   PlayerProgression progression = 1;
   HandXPAward award = 2;
+  // False on an idempotent replay: award still describes the original grant.
+  bool granted = 3;
 }
 
 message ClaimJadeWelfareRequest {
@@ -321,6 +329,7 @@ message MatchState {
 message XPComponent {
   string label = 1;
   int32 amount = 2;
+  string code = 3;
 }
 
 message HandXPAward {
@@ -331,22 +340,37 @@ message HandXPAward {
   // zero. "You hit today's ceiling" is a different message from "you earned
   // nothing".
   bool capped_by_daily = 4;
+  string award_id = 5;
 }
 
 message LevelReward {
   int32 level = 1;
   string kind = 2;
   string name = 3;
+  string code = 4;
+}
+
+message LevelStep {
+  int32 level = 1;
+  int64 total_xp_required = 2;
+  int64 xp_for_next_level = 3;
+  repeated LevelReward rewards = 4;
+}
+
+message OnboardingState {
+  OnboardingOutcome outcome = 1;
+  string recorded_at = 2;
 }
 
 message PlayerProgression {
   int32 level = 1;
-  int32 lifetime_xp = 2;
-  int32 xp_into_level = 3;
-  int32 xp_for_next_level = 4;
+  int64 lifetime_xp = 2;
+  int64 xp_into_level = 3;
+  int64 xp_for_next_level = 4;
   bool at_cap = 5;
   repeated LevelReward earned = 6;
   LevelReward next = 7;
+  OnboardingState onboarding = 8;
 }
 
 message TileIDSet {

@@ -57,7 +57,7 @@ export function XPAward({
       {award.components && award.components.length > 0 && (
         <ul className="xp-award-components">
           {award.components.map((component) => (
-            <li key={component.label}>
+            <li key={component.code ?? component.label}>
               <span>{component.label}</span>
               <strong>+{component.amount.toLocaleString()}</strong>
             </li>

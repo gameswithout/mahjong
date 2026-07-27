@@ -304,15 +304,18 @@ func (s *MatchService) projectState(
 	view rulesengine.SeatView,
 ) (*pb.MatchState, error) {
 	state := projectState(key.MatchID, view)
-	if s.economy == nil {
-		return state, nil
-	}
-	account, settlement, err := s.economy.Project(ctx, userID, key.RuntimeID(), view)
-	if err != nil {
-		return nil, err
-	}
-	if account != nil {
-		state.JadeAccount = projectJadeAccount(*account)
+	var settlement *economy.PlayerSettlement
+	if s.economy != nil {
+		account, projectedSettlement, err := s.economy.Project(
+			ctx, userID, key.RuntimeID(), view,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if account != nil {
+			state.JadeAccount = projectJadeAccount(*account)
+		}
+		settlement = projectedSettlement
 	}
 	if s.progression != nil {
 		// Priced from the same authoritative view the state is built from, and
@@ -363,11 +366,13 @@ func projectHandXPAward(award progression.HandAward) *pb.HandXPAward {
 	components := make([]*pb.XPComponent, 0, len(award.Components))
 	for _, component := range award.Components {
 		components = append(components, &pb.XPComponent{
+			Code:   component.Code,
 			Label:  component.Label,
 			Amount: int32(component.Amount),
 		})
 	}
 	return &pb.HandXPAward{
+		AwardId:       award.AwardID,
 		Source:        award.Source,
 		Total:         int32(award.Total),
 		Components:    components,
@@ -377,9 +382,34 @@ func projectHandXPAward(award progression.HandAward) *pb.HandXPAward {
 
 func projectLevelReward(reward progression.LevelReward) *pb.LevelReward {
 	return &pb.LevelReward{
+		Code:  reward.Code,
 		Level: int32(reward.Level),
 		Kind:  string(reward.Kind),
 		Name:  reward.Name,
+	}
+}
+
+func projectLevelStep(step progression.LevelStep) *pb.LevelStep {
+	rewards := make([]*pb.LevelReward, 0, len(step.Rewards))
+	for _, reward := range step.Rewards {
+		rewards = append(rewards, projectLevelReward(reward))
+	}
+	return &pb.LevelStep{
+		Level:           int32(step.Level),
+		TotalXpRequired: int64(step.TotalXPRequired),
+		XpForNextLevel:  int64(step.XPForNextLevel),
+		Rewards:         rewards,
+	}
+}
+
+func projectOnboardingOutcome(outcome progression.OnboardingOutcome) pb.OnboardingOutcome {
+	switch outcome {
+	case progression.OnboardingCompleted:
+		return pb.OnboardingOutcome_ONBOARDING_OUTCOME_COMPLETED
+	case progression.OnboardingSkipped:
+		return pb.OnboardingOutcome_ONBOARDING_OUTCOME_SKIPPED
+	default:
+		return pb.OnboardingOutcome_ONBOARDING_OUTCOME_UNSPECIFIED
 	}
 }
 
@@ -390,14 +420,20 @@ func projectProgression(player progression.Player) *pb.PlayerProgression {
 	}
 	projected := &pb.PlayerProgression{
 		Level:          int32(player.Level.Level),
-		LifetimeXp:     int32(player.LifetimeXP),
-		XpIntoLevel:    int32(player.Level.XPIntoLevel),
-		XpForNextLevel: int32(player.Level.XPForNextLevel),
+		LifetimeXp:     int64(player.LifetimeXP),
+		XpIntoLevel:    int64(player.Level.XPIntoLevel),
+		XpForNextLevel: int64(player.Level.XPForNextLevel),
 		AtCap:          player.Level.AtCap,
 		Earned:         earned,
 	}
 	if player.Next != nil {
 		projected.Next = projectLevelReward(*player.Next)
+	}
+	if player.Onboarding != nil {
+		projected.Onboarding = &pb.OnboardingState{
+			Outcome:    projectOnboardingOutcome(player.Onboarding.Outcome),
+			RecordedAt: player.Onboarding.RecordedAt,
+		}
 	}
 	return projected
 }
@@ -428,9 +464,9 @@ func (s *MatchService) GetProgression(
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	curve := make([]*pb.LevelReward, 0)
-	for _, reward := range progression.LevelRewards() {
-		curve = append(curve, projectLevelReward(reward))
+	curve := make([]*pb.LevelStep, 0, progression.MaxLevel)
+	for _, step := range progression.LevelCurve() {
+		curve = append(curve, projectLevelStep(step))
 	}
 	return &pb.GetProgressionResponse{
 		Progression: projectProgression(player),
@@ -446,13 +482,23 @@ func (s *MatchService) AwardOnboardingXP(
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.progression.AwardOnboarding(ctx, principal.UserID)
+	var outcome progression.OnboardingOutcome
+	switch req.GetOutcome() {
+	case pb.OnboardingOutcome_ONBOARDING_OUTCOME_COMPLETED:
+		outcome = progression.OnboardingCompleted
+	case pb.OnboardingOutcome_ONBOARDING_OUTCOME_SKIPPED:
+		outcome = progression.OnboardingSkipped
+	default:
+		return nil, status.Error(codes.InvalidArgument, "onboarding outcome is required")
+	}
+	result, err := s.progression.AwardOnboarding(ctx, principal.UserID, outcome)
 	if err != nil {
 		return nil, rpcError(err)
 	}
 	return &pb.AwardOnboardingXPResponse{
 		Progression: projectProgression(result.Player),
 		Award:       projectHandXPAward(result.Award),
+		Granted:     !result.AlreadyAwarded,
 	}, nil
 }
 

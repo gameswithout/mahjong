@@ -136,6 +136,46 @@ func TestMahjongCommandContract_DoesNotAcceptCallerIdentityOrSeat(t *testing.T) 
 	}
 }
 
+func TestProgressionContractCarriesStableIDsAndFullCurveTypes(t *testing.T) {
+	tests := []struct {
+		message protoreflect.Name
+		field   protoreflect.Name
+		kind    protoreflect.Kind
+		list    bool
+	}{
+		{"XPComponent", "code", protoreflect.StringKind, false},
+		{"HandXPAward", "award_id", protoreflect.StringKind, false},
+		{"LevelReward", "code", protoreflect.StringKind, false},
+		{"LevelStep", "total_xp_required", protoreflect.Int64Kind, false},
+		{"GetProgressionResponse", "curve", protoreflect.MessageKind, true},
+		{"PlayerProgression", "lifetime_xp", protoreflect.Int64Kind, false},
+		{"PlayerProgression", "onboarding", protoreflect.MessageKind, false},
+		{"AwardOnboardingXPRequest", "outcome", protoreflect.EnumKind, false},
+	}
+	for _, test := range tests {
+		message := pb.File_service_proto.Messages().ByName(test.message)
+		if message == nil {
+			t.Fatalf("message %q is missing", test.message)
+		}
+		field := message.Fields().ByName(test.field)
+		if field == nil {
+			t.Errorf("%s.%s is missing", test.message, test.field)
+			continue
+		}
+		if field.Kind() != test.kind || field.IsList() != test.list {
+			t.Errorf(
+				"%s.%s = kind %s list=%v, want %s list=%v",
+				test.message,
+				test.field,
+				field.Kind(),
+				field.IsList(),
+				test.kind,
+				test.list,
+			)
+		}
+	}
+}
+
 func httpBinding(rule *annotations.HttpRule) (string, string) {
 	switch pattern := rule.Pattern.(type) {
 	case *annotations.HttpRule_Get:

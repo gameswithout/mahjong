@@ -156,6 +156,39 @@ func TestXPToAdvance(t *testing.T) {
 	}
 }
 
+func TestLevelCurveContainsEveryThresholdAndReward(t *testing.T) {
+	curve := LevelCurve()
+	if len(curve) != MaxLevel {
+		t.Fatalf("curve length = %d, want %d", len(curve), MaxLevel)
+	}
+	if curve[0].Level != 1 || curve[0].TotalXPRequired != 0 ||
+		curve[0].XPForNextLevel != 500 {
+		t.Fatalf("level 1 = %+v", curve[0])
+	}
+	if curve[1].Level != 2 || curve[1].TotalXPRequired != 500 ||
+		len(curve[1].Rewards) != 1 || curve[1].Rewards[0].Code == "" {
+		t.Fatalf("level 2 = %+v", curve[1])
+	}
+	last := curve[len(curve)-1]
+	if last.Level != MaxLevel || last.XPForNextLevel != 0 {
+		t.Fatalf("last level = %+v", last)
+	}
+	if len(last.Rewards) != 2 {
+		t.Fatalf("level 50 rewards = %+v, want title and frame", last.Rewards)
+	}
+	for index := 1; index < len(curve); index++ {
+		want := curve[index-1].TotalXPRequired + curve[index-1].XPForNextLevel
+		if curve[index].TotalXPRequired != want {
+			t.Fatalf(
+				"level %d total = %d, want %d",
+				curve[index].Level,
+				curve[index].TotalXPRequired,
+				want,
+			)
+		}
+	}
+}
+
 func TestLevelForXP(t *testing.T) {
 	tests := []struct {
 		name       string

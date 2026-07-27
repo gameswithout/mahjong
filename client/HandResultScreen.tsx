@@ -302,7 +302,7 @@ function SettlementStory({
         <span aria-hidden="true">{balanced ? "✓" : "!"}</span>
         {balanced
           ? practice
-            ? `${settlement.total_debits.toLocaleString()} Practice points paid = ${settlement.total_credits.toLocaleString()} received. Nothing persists.`
+            ? `${settlement.total_debits.toLocaleString()} Practice points paid = ${settlement.total_credits.toLocaleString()} received. Practice points do not persist.`
             : `${settlement.total_debits.toLocaleString()} Jade paid = ${settlement.total_credits.toLocaleString()} received. No Jade was created or removed.`
           : `${settlement.total_debits.toLocaleString()} paid does not match ${settlement.total_credits.toLocaleString()} received. This settlement needs review.`}
       </p>
@@ -358,7 +358,7 @@ export function HandResultScreen({
       {practice && (
         <p className="hand-result-practice-note">
           <strong>Practice result</strong>
-          <span>No Jade, rating, or progression is changed.</span>
+          <span>No Jade or rating changed. Completed hands still earn capped XP.</span>
         </p>
       )}
 

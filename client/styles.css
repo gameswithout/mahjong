@@ -2218,8 +2218,35 @@ h1 {
 /* The bar is decoration; the numbers beside it carry the same information,
    so reduced motion simply removes the transition rather than the bar. */
 @media (prefers-reduced-motion: no-preference) {
+  .xp-award {
+    animation: xp-award-reveal 260ms ease-out both;
+  }
+
   .xp-award-bar-fill {
-    transition: width 600ms ease-out;
+    animation: xp-bar-reveal 600ms ease-out both;
+    transform-origin: left center;
+  }
+}
+
+@keyframes xp-award-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes xp-bar-reveal {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
   }
 }
 

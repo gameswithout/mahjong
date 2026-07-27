@@ -21,6 +21,7 @@ type Player struct {
 	Level      Level
 	Earned     []LevelReward
 	Next       *LevelReward
+	Onboarding *OnboardingState
 }
 
 func PlayerFromXP(userID string, lifetimeXP int) Player {
@@ -40,16 +41,18 @@ type Repository interface {
 	// and report the award as already applied.
 	AwardXP(
 		ctx context.Context,
-		awardID string,
 		userID string,
 		runtimeID string,
-		source string,
-		amount int,
-	) (Player, bool, error)
-	// PracticeXPToday is the Practice XP already granted this UTC day, for the
-	// §12.1 daily cap.
-	PracticeXPToday(ctx context.Context, userID string) (int, error)
+		award HandAward,
+	) (Player, HandAward, bool, error)
+	RecordOnboarding(
+		ctx context.Context,
+		userID string,
+		outcome OnboardingOutcome,
+		award HandAward,
+	) (Player, HandAward, OnboardingState, bool, error)
 	PlayerProgression(ctx context.Context, userID string) (Player, error)
+	TakenOverMajority(ctx context.Context, userID, runtimeID string) (bool, error)
 }
 
 type Coordinator struct {
@@ -101,37 +104,56 @@ func (c *Coordinator) RecordHand(
 		return nil, fmt.Errorf("%w: user and match are required", ErrNotInitialized)
 	}
 
-	outcome, complete := OutcomeFromView(view, practice)
+	outcome, complete := OutcomeFromView(view, practice, false)
 	if !complete {
 		return nil, nil
 	}
-
-	// The Practice cap is read before pricing. A repeat call re-reads it and
-	// prices the same hand again, but the award ID makes the write a no-op, so
-	// the recomputed figure is never applied twice.
-	practiceXPToday := 0
-	if outcome.Practice {
-		today, err := c.repository.PracticeXPToday(ctx, userID)
+	if !practice {
+		takenOverMajority, err := c.repository.TakenOverMajority(ctx, userID, runtimeID)
 		if err != nil {
 			return nil, err
 		}
-		practiceXPToday = today
+		outcome.TakenOverMajority = takenOverMajority
 	}
 
-	award := HandXP(outcome, practiceXPToday)
-	player, applied, err := c.repository.AwardXP(
-		ctx, handAwardID(runtimeID, userID), userID, runtimeID, award.Source, award.Total,
+	// Storage enforces the Practice cap while holding the player XP row lock.
+	// Passing zero here prevents a stale read-then-write cap race between two
+	// replicas; HandXP still owns the pure per-hand arithmetic.
+	award := HandXP(outcome, 0)
+	award.AwardID = handAwardID(runtimeID, userID)
+	player, persisted, applied, err := c.repository.AwardXP(
+		ctx, userID, runtimeID, award,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return &HandXPResult{Award: award, Player: player, AlreadyAwarded: !applied}, nil
+	return &HandXPResult{Award: persisted, Player: player, AlreadyAwarded: !applied}, nil
+}
+
+type OnboardingOutcome string
+
+const (
+	OnboardingCompleted OnboardingOutcome = "completed"
+	OnboardingSkipped   OnboardingOutcome = "skipped"
+)
+
+func (o OnboardingOutcome) Valid() bool {
+	return o == OnboardingCompleted || o == OnboardingSkipped
+}
+
+type OnboardingState struct {
+	Outcome    OnboardingOutcome
+	RecordedAt string
 }
 
 // AwardOnboarding grants the one-time §12.1 onboarding XP. Per §10.4 it is
 // paid whether the player completed or intentionally skipped the tutorial, and
 // replays grant nothing further — which the award ID enforces.
-func (c *Coordinator) AwardOnboarding(ctx context.Context, userID string) (*HandXPResult, error) {
+func (c *Coordinator) AwardOnboarding(
+	ctx context.Context,
+	userID string,
+	outcome OnboardingOutcome,
+) (*HandXPResult, error) {
 	if c == nil || c.repository == nil {
 		return nil, ErrNotInitialized
 	}
@@ -139,22 +161,19 @@ func (c *Coordinator) AwardOnboarding(ctx context.Context, userID string) (*Hand
 	if userID == "" {
 		return nil, fmt.Errorf("%w: user ID is required", ErrNotInitialized)
 	}
-	player, applied, err := c.repository.AwardXP(
-		ctx, onboardingAwardID(userID), userID, "", SourceOnboarding, OnboardingXP,
+	if !outcome.Valid() {
+		return nil, fmt.Errorf("%w: onboarding outcome is required", ErrNotInitialized)
+	}
+	award := OnboardingAward()
+	award.AwardID = onboardingAwardID(userID)
+	player, persisted, state, applied, err := c.repository.RecordOnboarding(
+		ctx, userID, outcome, award,
 	)
 	if err != nil {
 		return nil, err
 	}
-	award := HandAward{
-		Source:     SourceOnboarding,
-		Total:      OnboardingXP,
-		Components: []XPComponent{{Label: "Tutorial", Amount: OnboardingXP}},
-	}
-	if !applied {
-		award.Total = 0
-		award.Components = nil
-	}
-	return &HandXPResult{Award: award, Player: player, AlreadyAwarded: !applied}, nil
+	player.Onboarding = &state
+	return &HandXPResult{Award: persisted, Player: player, AlreadyAwarded: !applied}, nil
 }
 
 func (c *Coordinator) Player(ctx context.Context, userID string) (Player, error) {

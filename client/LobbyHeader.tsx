@@ -1,4 +1,4 @@
-import type { JadeAccount } from "../protocol/envelope";
+import type { JadeAccount, PlayerProgression } from "../protocol/envelope";
 import { PlayerProfileBadge, PlayerProfileEditor } from "./PlayerProfile";
 import { defaultPlayerProfile, type PlayerProfileConfig } from "./player-profile";
 import { RULES_NAME, RULES_VERSION } from "./rules-version";
@@ -8,22 +8,35 @@ export interface LobbyHeaderProps {
   account?: JadeAccount;
   jadeStatus: "idle" | "loading" | "ready" | "error";
   connection: "connecting" | "connected" | "reconnecting";
+  progression?: PlayerProgression;
+  progressionStatus?: "idle" | "loading" | "ready" | "error";
   profile?: PlayerProfileConfig;
   onProfileChange?: (profile: PlayerProfileConfig) => void;
+  onOpenProgress?: () => void;
 }
 
 // The first thing a player sees when signed in. It answers "who am I, what can
-// I spend, and which rules am I about to play" — and nothing else. Account
-// level and progression belong here eventually (P2.1) but are not invented
-// before the server can award them.
+// I spend, how far have I progressed, and which rules am I about to play."
+// The server owns every number; the header never derives a level from XP.
 export function LobbyHeader({
   guest,
   account,
   jadeStatus,
   connection,
+  progression,
+  progressionStatus = "idle",
   profile = defaultPlayerProfile(guest),
   onProfileChange = () => undefined,
+  onOpenProgress = () => undefined,
 }: LobbyHeaderProps) {
+  const level = progression?.level ?? 1;
+  const xpIntoLevel = progression?.xp_into_level ?? 0;
+  const xpForNextLevel = progression?.xp_for_next_level ?? 0;
+  const levelPercent =
+    xpForNextLevel > 0
+      ? Math.min(100, Math.round((xpIntoLevel / xpForNextLevel) * 100))
+      : 0;
+
   return (
     <header className="lobby-header">
       <div className="lobby-profile-wallet">
@@ -72,6 +85,48 @@ export function LobbyHeader({
           <dd>
             <strong>{RULES_NAME}</strong>
             <span className="lobby-fact-note">{RULES_VERSION}</span>
+          </dd>
+        </div>
+        <div className="lobby-fact lobby-progress-fact">
+          <dt>Progress</dt>
+          <dd>
+            <button
+              type="button"
+              className="lobby-progress-trigger"
+              onClick={onOpenProgress}
+              aria-label={
+                progressionStatus === "ready"
+                  ? `Open progression, level ${level}`
+                  : "Open progression"
+              }
+            >
+              <strong>
+                {progressionStatus === "ready"
+                  ? `Level ${level}`
+                  : progressionStatus === "loading"
+                    ? "Loading…"
+                    : "Unavailable"}
+              </strong>
+              {progressionStatus === "ready" && (
+                <span className="lobby-fact-note">
+                  {progression?.at_cap
+                    ? "Maximum level"
+                    : `${xpIntoLevel.toLocaleString()} / ${xpForNextLevel.toLocaleString()} XP`}
+                </span>
+              )}
+              {progressionStatus === "ready" && !progression?.at_cap && (
+                <span
+                  className="lobby-progress-bar"
+                  role="progressbar"
+                  aria-label={`Level ${level} progress`}
+                  aria-valuemin={0}
+                  aria-valuemax={xpForNextLevel}
+                  aria-valuenow={xpIntoLevel}
+                >
+                  <span style={{ width: `${levelPercent}%` }} />
+                </span>
+              )}
+            </button>
           </dd>
         </div>
       </dl>

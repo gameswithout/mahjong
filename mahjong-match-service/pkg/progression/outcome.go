@@ -8,14 +8,19 @@ import "github.com/gameswithout/mahjong/rulesengine"
 //
 // Returns false when the view is not a completed hand, so callers can treat
 // "no hand to price" and "a hand worth zero" as different things.
-func OutcomeFromView(view rulesengine.SeatView, practice bool) (HandOutcome, bool) {
+func OutcomeFromView(
+	view rulesengine.SeatView,
+	practice bool,
+	takenOverMajority bool,
+) (HandOutcome, bool) {
 	if view.HandResult == nil {
 		return HandOutcome{}, false
 	}
 
 	outcome := HandOutcome{
-		Practice: practice,
-		Kongs:    declaredKongs(view),
+		Practice:          practice,
+		Kongs:             declaredKongs(view),
+		TakenOverMajority: takenOverMajority,
 	}
 
 	for _, winner := range view.HandResult.Winners {

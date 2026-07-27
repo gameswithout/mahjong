@@ -43,6 +43,18 @@ const (
 	SourcePublicHand = "public_hand"
 )
 
+const RulesVersion = "taiwanese-16-v1.1"
+
+const (
+	ComponentTutorial      = "tutorial"
+	ComponentPracticeHand  = "practice_hand"
+	ComponentHandCompleted = "hand_completed"
+	ComponentHandWon       = "hand_won"
+	ComponentZimo          = "zimo"
+	ComponentTai           = "tai"
+	ComponentKong          = "kong"
+)
+
 // HandOutcome is everything §12.1 needs to price one completed hand for one
 // player. It is derived from the authoritative seat view, never from anything
 // the client claims.
@@ -61,11 +73,13 @@ type HandOutcome struct {
 // XPComponent is one line of the award, kept separate so the result screen can
 // explain where the number came from instead of showing an unexplained total.
 type XPComponent struct {
+	Code   string
 	Label  string
 	Amount int
 }
 
 type HandAward struct {
+	AwardID    string
 	Source     string
 	Total      int
 	Components []XPComponent
@@ -100,18 +114,22 @@ func practiceAward(practiceXPToday int) HandAward {
 		capped = true
 	}
 	return HandAward{
-		Source:        SourcePractice,
-		Total:         amount,
-		Components:    []XPComponent{{Label: "Practice hand", Amount: amount}},
+		Source: SourcePractice,
+		Total:  amount,
+		Components: []XPComponent{{
+			Code: ComponentPracticeHand, Label: "Practice hand", Amount: amount,
+		}},
 		CappedByDaily: capped,
 	}
 }
 
 func publicAward(outcome HandOutcome) HandAward {
 	award := HandAward{
-		Source:     SourcePublicHand,
-		Total:      PublicHandXP,
-		Components: []XPComponent{{Label: "Hand completed", Amount: PublicHandXP}},
+		Source: SourcePublicHand,
+		Total:  PublicHandXP,
+		Components: []XPComponent{{
+			Code: ComponentHandCompleted, Label: "Hand completed", Amount: PublicHandXP,
+		}},
 	}
 
 	// §12.1: a seat under takeover control for more than half the hand earns
@@ -123,18 +141,18 @@ func publicAward(outcome HandOutcome) HandAward {
 	if outcome.Won {
 		award.Total += PublicWinXP
 		award.Components = append(award.Components,
-			XPComponent{Label: "Won the hand", Amount: PublicWinXP})
+			XPComponent{Code: ComponentHandWon, Label: "Won the hand", Amount: PublicWinXP})
 
 		if outcome.Zimo {
 			award.Total += ZimoXP
 			award.Components = append(award.Components,
-				XPComponent{Label: "Self-draw", Amount: ZimoXP})
+				XPComponent{Code: ComponentZimo, Label: "Self-draw", Amount: ZimoXP})
 		}
 
 		if tai := taiBonus(outcome.RawTai); tai > 0 {
 			award.Total += tai
 			award.Components = append(award.Components,
-				XPComponent{Label: "Tai scored", Amount: tai})
+				XPComponent{Code: ComponentTai, Label: "Tai scored", Amount: tai})
 		}
 	}
 
@@ -143,10 +161,23 @@ func publicAward(outcome HandOutcome) HandAward {
 	if kong := kongBonus(outcome.Kongs); kong > 0 {
 		award.Total += kong
 		award.Components = append(award.Components,
-			XPComponent{Label: "Kongs declared", Amount: kong})
+			XPComponent{Code: ComponentKong, Label: "Kongs declared", Amount: kong})
 	}
 
 	return award
+}
+
+// OnboardingAward is the one-time award shared by completion and intentional
+// skip. The caller supplies the stable award ID because it includes the user
+// identity and belongs to the persistence boundary.
+func OnboardingAward() HandAward {
+	return HandAward{
+		Source: SourceOnboarding,
+		Total:  OnboardingXP,
+		Components: []XPComponent{{
+			Code: ComponentTutorial, Label: "Tutorial", Amount: OnboardingXP,
+		}},
+	}
 }
 
 func taiBonus(rawTai int) int {

@@ -76,6 +76,36 @@ function baseCompletedView(): SeatView {
       total_debits: 3,
     },
     next_dealer: { next_dealer: "S", next_continuations: 0, dealer_retains: false },
+    xp_award: {
+      award_id: "hand:3a205eaa57b34fc991022c63a20bee09:player-east",
+      source: "public_hand",
+      total: 205,
+      components: [
+        { code: "hand_completed", label: "Hand completed", amount: 100 },
+        { code: "hand_won", label: "Won the hand", amount: 75 },
+        { code: "tai", label: "Tai scored", amount: 30 },
+      ],
+    },
+    progression: {
+      level: 2,
+      lifetime_xp: 705,
+      xp_into_level: 205,
+      xp_for_next_level: 600,
+      earned: [
+        {
+          code: "level-2-student-title",
+          level: 2,
+          kind: "title",
+          name: "Student",
+        },
+      ],
+      next: {
+        code: "level-5-tea-house-theme",
+        level: 5,
+        kind: "table_theme",
+        name: "Tea House",
+      },
+    },
   };
 }
 
@@ -162,11 +192,40 @@ function jadeStandardView(): SeatView {
   return view;
 }
 
-// Practice must never imply a persistent reward: no Jade account, no
-// settlement ledger, no Wallet state.
+// Practice never implies a persistent financial reward: no Jade account, no
+// settlement ledger, no Wallet state. XP is a separate capped progression
+// award when the authoritative service includes it.
 function practiceView(): SeatView {
   const view = baseCompletedView();
   view.match_id = "practice-1";
+  view.xp_award = {
+    award_id: "hand:practice-1:player-east",
+    source: "practice_hand",
+    total: 25,
+    components: [
+      { code: "practice_hand", label: "Practice hand", amount: 25 },
+    ],
+  };
+  view.progression = {
+    level: 2,
+    lifetime_xp: 525,
+    xp_into_level: 25,
+    xp_for_next_level: 600,
+    earned: [
+      {
+        code: "level-2-student-title",
+        level: 2,
+        kind: "title",
+        name: "Student",
+      },
+    ],
+    next: {
+      code: "level-5-tea-house-theme",
+      level: 5,
+      kind: "table_theme",
+      name: "Tea House",
+    },
+  };
   return view;
 }
 
@@ -178,5 +237,5 @@ export const RESULT_SCENARIOS: {
 }[] = [
   { id: "jade-capped", label: "Jade — debit cap applied", practice: false, view: jadeCappedView() },
   { id: "jade-standard", label: "Jade — standard hand", practice: false, view: jadeStandardView() },
-  { id: "practice", label: "Practice — no persistence", practice: true, view: practiceView() },
+  { id: "practice", label: "Practice — XP only", practice: true, view: practiceView() },
 ];

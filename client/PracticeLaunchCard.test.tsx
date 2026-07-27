@@ -36,7 +36,8 @@ describe("PracticeLaunchCard", () => {
     });
 
     expect(container.textContent).toContain("Play a full hand against three bots");
-    expect(container.textContent).toContain("do not change Jade");
+    expect(container.textContent).toContain("never changes Jade or rating");
+    expect(container.textContent).toContain("200 per UTC day");
     const button = container.querySelector("button");
     expect(button?.textContent).toBe("Practice vs Bots");
     act(() => button?.click());

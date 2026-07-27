@@ -427,7 +427,12 @@
   },
   "definitions": {
     "ServiceAwardOnboardingXPBody": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "$ref": "#/definitions/serviceOnboardingOutcome"
+        }
+      }
     },
     "ServiceClaimJadeWelfareBody": {
       "type": "object"
@@ -501,6 +506,10 @@
         },
         "award": {
           "$ref": "#/definitions/serviceHandXPAward"
+        },
+        "granted": {
+          "type": "boolean",
+          "description": "False on an idempotent replay: award still describes the original grant."
         }
       }
     },
@@ -700,9 +709,9 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/serviceLevelReward"
+            "$ref": "#/definitions/serviceLevelStep"
           },
-          "description": "The full §12.2 curve, so the progression screen can show what is ahead\nwithout hard-coding the reward table in the client."
+          "description": "All 50 §12.2 thresholds, including levels without a reward."
         }
       }
     },
@@ -780,6 +789,9 @@
         "cappedByDaily": {
           "type": "boolean",
           "description": "True when the §12.1 Practice daily cap reduced this award, including to\nzero. \"You hit today's ceiling\" is a different message from \"you earned\nnothing\"."
+        },
+        "awardId": {
+          "type": "string"
         }
       }
     },
@@ -895,6 +907,33 @@
         },
         "name": {
           "type": "string"
+        },
+        "code": {
+          "type": "string"
+        }
+      }
+    },
+    "serviceLevelStep": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalXpRequired": {
+          "type": "string",
+          "format": "int64"
+        },
+        "xpForNextLevel": {
+          "type": "string",
+          "format": "int64"
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceLevelReward"
+          }
         }
       }
     },
@@ -1060,6 +1099,26 @@
       },
       "description": "MeldView is the redacted representation used for other players'\nmelds (PlayerView.melds): tiles are omitted for a concealed Kong."
     },
+    "serviceOnboardingOutcome": {
+      "type": "string",
+      "enum": [
+        "ONBOARDING_OUTCOME_UNSPECIFIED",
+        "ONBOARDING_OUTCOME_COMPLETED",
+        "ONBOARDING_OUTCOME_SKIPPED"
+      ],
+      "default": "ONBOARDING_OUTCOME_UNSPECIFIED"
+    },
+    "serviceOnboardingState": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "$ref": "#/definitions/serviceOnboardingOutcome"
+        },
+        "recordedAt": {
+          "type": "string"
+        }
+      }
+    },
     "servicePatternScore": {
       "type": "object",
       "properties": {
@@ -1080,16 +1139,16 @@
           "format": "int32"
         },
         "lifetimeXp": {
-          "type": "integer",
-          "format": "int32"
+          "type": "string",
+          "format": "int64"
         },
         "xpIntoLevel": {
-          "type": "integer",
-          "format": "int32"
+          "type": "string",
+          "format": "int64"
         },
         "xpForNextLevel": {
-          "type": "integer",
-          "format": "int32"
+          "type": "string",
+          "format": "int64"
         },
         "atCap": {
           "type": "boolean"
@@ -1103,6 +1162,9 @@
         },
         "next": {
           "$ref": "#/definitions/serviceLevelReward"
+        },
+        "onboarding": {
+          "$ref": "#/definitions/serviceOnboardingState"
         }
       }
     },
@@ -1389,6 +1451,9 @@
         "amount": {
           "type": "integer",
           "format": "int32"
+        },
+        "code": {
+          "type": "string"
         }
       }
     }

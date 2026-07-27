@@ -12,6 +12,7 @@ import type { SessionClient } from "./session";
 
 const dependencies = vi.hoisted(() => ({
   createJadeClient: vi.fn(),
+  createProgressionClient: vi.fn(),
   createLobbyConnection: vi.fn(),
   createMatchRuntimeConnection: vi.fn(),
   createSessionClient: vi.fn(),
@@ -20,6 +21,14 @@ const dependencies = vi.hoisted(() => ({
 vi.mock("./jade", async () => {
   const actual = await vi.importActual<typeof import("./jade")>("./jade");
   return { ...actual, createJadeClient: dependencies.createJadeClient };
+});
+
+vi.mock("./progression", async () => {
+  const actual = await vi.importActual<typeof import("./progression")>("./progression");
+  return {
+    ...actual,
+    createProgressionClient: dependencies.createProgressionClient,
+  };
 });
 
 vi.mock("./config", async () => {
@@ -116,6 +125,13 @@ describe("live-table resilience to failed match-state polls", () => {
       }),
       reserve: vi.fn(),
       release: vi.fn(),
+    });
+    dependencies.createProgressionClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue({
+        progression: { level: 1, lifetime_xp: 0 },
+        curve: [],
+      }),
+      awardOnboarding: vi.fn(),
     });
 
     const sessionClient: Partial<SessionClient> = {
