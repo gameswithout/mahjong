@@ -9,6 +9,8 @@ import {
 } from "./analytics";
 import { TUTORIAL_CHAPTERS, type TutorialStep } from "./script";
 
+export type TutorialExitOutcome = "completed" | "skipped";
+
 interface StepLocation {
   chapterIndex: number;
   stepIndex: number;
@@ -32,7 +34,10 @@ function nextLocation(location: StepLocation): StepLocation | null {
 const START: StepLocation = { chapterIndex: 0, stepIndex: 0 };
 
 export interface TutorialScreenProps {
-  onExit: () => void;
+  // §10.4 pays the same onboarding XP for finishing and for skipping, but the
+  // two are recorded separately — a tutorial most players skip is a different
+  // problem from one most players finish.
+  onExit: (outcome: TutorialExitOutcome) => void;
   analytics?: TutorialAnalytics;
 }
 
@@ -132,7 +137,7 @@ export function TutorialScreen({ onExit, analytics = noopTutorialAnalytics }: Tu
     emit.current(
       tutorialEvent("tutorial_skipped", { chapterId: chapter.id, fromStepId: step.id }),
     );
-    onExit();
+    onExit("skipped");
   }
 
   function restart() {
@@ -170,7 +175,7 @@ export function TutorialScreen({ onExit, analytics = noopTutorialAnalytics }: Tu
             The rest is practice.
           </p>
           <div className="tutorial-complete-actions">
-            <button type="button" className="primary-action" onClick={onExit}>
+            <button type="button" className="primary-action" onClick={() => onExit("completed")}>
               Play a hand
             </button>
             <button type="button" className="secondary-action" onClick={restart}>

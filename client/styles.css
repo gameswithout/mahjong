@@ -266,6 +266,48 @@ h1 {
   font-size: 1.05rem;
 }
 
+.lobby-progress-trigger {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  gap: 0.15rem;
+  min-width: 8.5rem;
+  padding: 0;
+  text-align: left;
+}
+
+.lobby-progress-trigger:hover strong,
+.lobby-progress-trigger:focus-visible strong {
+  color: #f2c66d;
+}
+
+.lobby-progress-trigger:focus-visible {
+  border-radius: 0.3rem;
+  outline: 2px solid #f2c66d;
+  outline-offset: 0.3rem;
+}
+
+.lobby-progress-bar {
+  background: rgb(216 220 239 / 16%);
+  border-radius: 999px;
+  display: block;
+  height: 0.25rem;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.lobby-progress-bar > span {
+  background: linear-gradient(90deg, #67d6a7, #f2c66d);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
 .lobby-connection {
   color: #f2c66d;
   flex-basis: 100%;
@@ -746,6 +788,22 @@ h1 {
 
 .session-error .error-code {
   margin-top: 0.5rem;
+}
+
+.progression-load-error {
+  margin-top: 0.75rem;
+}
+
+.progression-load-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.progression-load-actions .secondary-action {
+  margin-top: 0;
+  width: auto;
 }
 
 .match-runtime-panel {
@@ -2169,4 +2227,196 @@ h1 {
   color: #d8dcef;
   font-size: 0.82rem;
   margin: 0.5rem 0 0;
+}
+
+/* Progression screen (§12.2) */
+.progression-screen {
+  margin: 0 auto;
+  max-width: 44rem;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.progression-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.progression-header h2 {
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.progression-header .secondary-action {
+  margin-top: 0;
+  width: auto;
+}
+
+.progression-lifetime,
+.progression-note,
+.progression-accessibility {
+  color: #d8dcef;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin: 0.35rem 0 0;
+}
+
+.progression-accessibility {
+  border-top: 1px solid rgb(216 220 239 / 16%);
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+}
+
+.progression-hero-bar {
+  background: rgb(216 220 239 / 14%);
+  border-radius: 999px;
+  height: 0.55rem;
+  margin-top: 1rem;
+  overflow: hidden;
+}
+
+.progression-hero-bar > span {
+  background: linear-gradient(90deg, #55c998, #f2c66d);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.progression-onboarding {
+  color: #d8dcef;
+  font-size: 0.82rem;
+  margin: 0.7rem 0 0;
+}
+
+.progression-onboarding strong {
+  color: #fff;
+}
+
+.progression-earned {
+  background: rgb(8 15 13 / 48%);
+  border: 1px solid rgb(103 209 165 / 24%);
+  border-radius: 0.8rem;
+  margin-top: 1rem;
+  padding: 0.8rem;
+}
+
+.progression-earned h3,
+.progression-curve-heading h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.progression-earned > p {
+  color: #d8dcef;
+  font-size: 0.82rem;
+  margin: 0.4rem 0 0;
+}
+
+.progression-earned ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+}
+
+.progression-earned li {
+  background: rgb(103 209 165 / 12%);
+  border: 1px solid rgb(103 209 165 / 24%);
+  border-radius: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.45rem 0.6rem;
+}
+
+.progression-earned li span {
+  color: #d8dcef;
+  font-size: 0.72rem;
+  margin-top: 0.1rem;
+}
+
+.progression-curve-heading {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.15rem;
+}
+
+.progression-curve-heading > span {
+  color: #d8dcef;
+  font-size: 0.74rem;
+}
+
+.progression-curve {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  list-style: none;
+  margin: 0.55rem 0 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.progression-step {
+  align-items: baseline;
+  border-radius: 0.5rem;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 5.5rem 6rem 1fr auto;
+  padding: 0.45rem 0.6rem;
+}
+
+/* Reached levels are brighter, but "Reached"/"Locked" text carries the same
+   information for anyone the contrast does not reach. */
+.progression-step-reached {
+  background: rgb(216 220 239 / 8%);
+}
+
+.progression-step-current {
+  outline: 1px solid #f2c66d;
+}
+
+.progression-step-level {
+  font-weight: 600;
+}
+
+.progression-step-xp,
+.progression-step-state {
+  color: #d8dcef;
+  font-size: 0.8rem;
+}
+
+.progression-step-rewards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.progression-step-none {
+  color: #8b93b0;
+}
+
+.progression-reward {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.progression-reward-kind {
+  color: #d8dcef;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 34rem) {
+  .progression-step {
+    grid-template-columns: 4.5rem 1fr auto;
+  }
+
+  .progression-step-xp {
+    display: none;
+  }
 }

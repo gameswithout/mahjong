@@ -282,11 +282,15 @@ export interface SeatView {
 }
 
 export interface XPComponent {
+  // Stable reason code; label is display copy and may change.
+  code?: string;
   label: string;
   amount: number;
 }
 
 export interface HandXPAward {
+  // Stable server event ID used for idempotency.
+  award_id?: string;
   source?: string;
   total?: number;
   components?: XPComponent[];
@@ -299,6 +303,27 @@ export interface LevelReward {
   level: number;
   kind: "title" | "table_theme" | "tile_skin" | "avatar_frame" | string;
   name: string;
+  // Stable identifier for a persisted grant, distinct from the display name.
+  code?: string;
+}
+
+// One rung of the §12.2 curve, including the levels that grant nothing — the
+// progression screen shows the real shape of the climb, not only the sparse
+// cosmetic milestones.
+export interface LevelStep {
+  level: number;
+  total_xp_required?: number;
+  xp_for_next_level?: number;
+  rewards?: LevelReward[];
+}
+
+export type OnboardingOutcome =
+  | "ONBOARDING_OUTCOME_COMPLETED"
+  | "ONBOARDING_OUTCOME_SKIPPED";
+
+export interface OnboardingState {
+  outcome?: OnboardingOutcome | string;
+  recorded_at?: string;
 }
 
 export interface PlayerProgression {
@@ -309,6 +334,7 @@ export interface PlayerProgression {
   at_cap?: boolean;
   earned?: LevelReward[];
   next?: LevelReward;
+  onboarding?: OnboardingState;
 }
 
 // WaitTileView is one tile type in the §9.4 wait list — tile is a concrete
