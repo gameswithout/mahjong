@@ -179,6 +179,88 @@
         ]
       }
     },
+    "/v1/namespaces/{namespace}/progression": {
+      "get": {
+        "summary": "Get the caller's XP, level, and earned rewards",
+        "description": "Returns the §12.2 standing derived from lifetime XP plus the full level curve. Level never gates a lobby.",
+        "operationId": "Service_GetProgression",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceGetProgressionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/namespaces/{namespace}/progression/onboarding": {
+      "post": {
+        "summary": "Grant the one-time onboarding XP",
+        "description": "Awarded whether the player completed or intentionally skipped the tutorial (§10.4). Idempotent: replays grant nothing further.",
+        "operationId": "Service_AwardOnboardingXP",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceAwardOnboardingXPResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ServiceAwardOnboardingXPBody"
+            }
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/namespaces/{namespace}/sessions/{sessionId}/matches/{matchId}": {
       "get": {
         "summary": "Get the authenticated player's match state",
@@ -344,6 +426,9 @@
     }
   },
   "definitions": {
+    "ServiceAwardOnboardingXPBody": {
+      "type": "object"
+    },
     "ServiceClaimJadeWelfareBody": {
       "type": "object"
     },
@@ -405,6 +490,17 @@
             "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
+        }
+      }
+    },
+    "serviceAwardOnboardingXPResponse": {
+      "type": "object",
+      "properties": {
+        "progression": {
+          "$ref": "#/definitions/servicePlayerProgression"
+        },
+        "award": {
+          "$ref": "#/definitions/serviceHandXPAward"
         }
       }
     },
@@ -594,6 +690,22 @@
         }
       }
     },
+    "serviceGetProgressionResponse": {
+      "type": "object",
+      "properties": {
+        "progression": {
+          "$ref": "#/definitions/servicePlayerProgression"
+        },
+        "curve": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceLevelReward"
+          },
+          "description": "The full §12.2 curve, so the progression screen can show what is ahead\nwithout hard-coding the reward table in the client."
+        }
+      }
+    },
     "serviceHandResult": {
       "type": "object",
       "properties": {
@@ -645,6 +757,29 @@
         },
         "score": {
           "$ref": "#/definitions/serviceScoreResult"
+        }
+      }
+    },
+    "serviceHandXPAward": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceXPComponent"
+          }
+        },
+        "cappedByDaily": {
+          "type": "boolean",
+          "description": "True when the §12.1 Practice daily cap reduced this award, including to\nzero. \"You hit today's ceiling\" is a different message from \"you earned\nnothing\"."
         }
       }
     },
@@ -745,6 +880,21 @@
       "properties": {
         "state": {
           "$ref": "#/definitions/serviceMatchState"
+        }
+      }
+    },
+    "serviceLevelReward": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
         }
       }
     },
@@ -854,6 +1004,14 @@
         },
         "selfTurnOptions": {
           "$ref": "#/definitions/serviceSelfTurnOptions"
+        },
+        "xpAward": {
+          "$ref": "#/definitions/serviceHandXPAward",
+          "description": "§12.1 XP earned by this hand, present once the hand is complete."
+        },
+        "progression": {
+          "$ref": "#/definitions/servicePlayerProgression",
+          "description": "§12.2 standing after that award."
         }
       },
       "description": "MatchState is a privacy-filtered projection for exactly one authenticated\nplayer. It is not a serializable authoritative snapshot."
@@ -911,6 +1069,40 @@
         "tai": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "servicePlayerProgression": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lifetimeXp": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "xpIntoLevel": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "xpForNextLevel": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "atCap": {
+          "type": "boolean"
+        },
+        "earned": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceLevelReward"
+          }
+        },
+        "next": {
+          "$ref": "#/definitions/serviceLevelReward"
         }
       }
     },
@@ -1183,6 +1375,18 @@
           "format": "int32"
         },
         "reserveRemaining": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "serviceXPComponent": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "amount": {
           "type": "integer",
           "format": "int32"
         }

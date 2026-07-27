@@ -9,6 +9,7 @@ import (
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/match"
 	pb "github.com/gameswithout/mahjong/mahjong-match-service/pkg/pb"
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/progression"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/storage"
 	"github.com/gameswithout/mahjong/rulesengine"
@@ -24,10 +25,11 @@ type MatchRuntime interface {
 
 type MatchService struct {
 	pb.UnimplementedServiceServer
-	namespace  string
-	runtime    MatchRuntime
-	economy    *economy.Coordinator
-	testUserID string
+	namespace   string
+	runtime     MatchRuntime
+	economy     *economy.Coordinator
+	progression *progression.Coordinator
+	testUserID  string
 }
 
 func NewMatchService(namespace string, runtime MatchRuntime, testUserID ...string) *MatchService {
@@ -41,6 +43,12 @@ func NewMatchService(namespace string, runtime MatchRuntime, testUserID ...strin
 func (s *MatchService) SetEconomy(coordinator *economy.Coordinator) {
 	if s != nil {
 		s.economy = coordinator
+	}
+}
+
+func (s *MatchService) SetProgression(coordinator *progression.Coordinator) {
+	if s != nil {
+		s.progression = coordinator
 	}
 }
 
@@ -262,6 +270,33 @@ func (s *MatchService) jadePrincipal(
 	return principal, nil
 }
 
+// progressionPrincipal mirrors jadePrincipal's namespace and identity checks
+// for the XP surface, which has its own initialization and must not report a
+// missing Jade economy when progression is what is unavailable.
+func (s *MatchService) progressionPrincipal(
+	ctx context.Context,
+	namespace string,
+) (common.Principal, error) {
+	if s == nil || s.progression == nil {
+		return common.Principal{}, status.Error(codes.Internal, "progression is not initialized")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		return common.Principal{}, status.Error(codes.InvalidArgument, "namespace is required")
+	}
+	if namespace != s.namespace {
+		return common.Principal{}, status.Error(codes.PermissionDenied, "namespace is not allowed")
+	}
+	principal, ok := common.PrincipalFromContext(ctx)
+	if !ok {
+		if s.testUserID == "" {
+			return common.Principal{}, status.Error(codes.Unauthenticated, "authenticated player identity is missing")
+		}
+		principal = common.Principal{UserID: s.testUserID}
+	}
+	return principal, nil
+}
+
 func (s *MatchService) projectState(
 	ctx context.Context,
 	key storage.MatchKey,
@@ -278,6 +313,21 @@ func (s *MatchService) projectState(
 	}
 	if account != nil {
 		state.JadeAccount = projectJadeAccount(*account)
+	}
+	if s.progression != nil {
+		// Priced from the same authoritative view the state is built from, and
+		// idempotent per (match, player), so the projection poll that repeats a
+		// finished hand cannot pay for it twice.
+		xp, xpErr := s.progression.RecordHand(
+			ctx, userID, key.RuntimeID(), view, economy.IsPractice(view),
+		)
+		if xpErr != nil {
+			return nil, rpcError(xpErr)
+		}
+		if xp != nil {
+			state.XpAward = projectHandXPAward(xp.Award)
+			state.Progression = projectProgression(xp.Player)
+		}
 	}
 	if settlement != nil {
 		state.JadeSettlement = &pb.JadeSettlement{
@@ -307,6 +357,103 @@ func projectJadeAccount(account economy.Account) *pb.JadeAccount {
 		WelfareAmount:    account.Welfare.Amount,
 		WelfareReason:    account.Welfare.Reason,
 	}
+}
+
+func projectHandXPAward(award progression.HandAward) *pb.HandXPAward {
+	components := make([]*pb.XPComponent, 0, len(award.Components))
+	for _, component := range award.Components {
+		components = append(components, &pb.XPComponent{
+			Label:  component.Label,
+			Amount: int32(component.Amount),
+		})
+	}
+	return &pb.HandXPAward{
+		Source:        award.Source,
+		Total:         int32(award.Total),
+		Components:    components,
+		CappedByDaily: award.CappedByDaily,
+	}
+}
+
+func projectLevelReward(reward progression.LevelReward) *pb.LevelReward {
+	return &pb.LevelReward{
+		Level: int32(reward.Level),
+		Kind:  string(reward.Kind),
+		Name:  reward.Name,
+	}
+}
+
+func projectProgression(player progression.Player) *pb.PlayerProgression {
+	earned := make([]*pb.LevelReward, 0, len(player.Earned))
+	for _, reward := range player.Earned {
+		earned = append(earned, projectLevelReward(reward))
+	}
+	projected := &pb.PlayerProgression{
+		Level:          int32(player.Level.Level),
+		LifetimeXp:     int32(player.LifetimeXP),
+		XpIntoLevel:    int32(player.Level.XPIntoLevel),
+		XpForNextLevel: int32(player.Level.XPForNextLevel),
+		AtCap:          player.Level.AtCap,
+		Earned:         earned,
+	}
+	if player.Next != nil {
+		projected.Next = projectLevelReward(*player.Next)
+	}
+	return projected
+}
+
+func namespaceFromGetProgression(req *pb.GetProgressionRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetNamespace()
+}
+
+func namespaceFromAwardOnboarding(req *pb.AwardOnboardingXPRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetNamespace()
+}
+
+func (s *MatchService) GetProgression(
+	ctx context.Context,
+	req *pb.GetProgressionRequest,
+) (*pb.GetProgressionResponse, error) {
+	principal, err := s.progressionPrincipal(ctx, namespaceFromGetProgression(req))
+	if err != nil {
+		return nil, err
+	}
+	player, err := s.progression.Player(ctx, principal.UserID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	curve := make([]*pb.LevelReward, 0)
+	for _, reward := range progression.LevelRewards() {
+		curve = append(curve, projectLevelReward(reward))
+	}
+	return &pb.GetProgressionResponse{
+		Progression: projectProgression(player),
+		Curve:       curve,
+	}, nil
+}
+
+func (s *MatchService) AwardOnboardingXP(
+	ctx context.Context,
+	req *pb.AwardOnboardingXPRequest,
+) (*pb.AwardOnboardingXPResponse, error) {
+	principal, err := s.progressionPrincipal(ctx, namespaceFromAwardOnboarding(req))
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.progression.AwardOnboarding(ctx, principal.UserID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.AwardOnboardingXPResponse{
+		Progression: projectProgression(result.Player),
+		Award:       projectHandXPAward(result.Award),
+	}, nil
 }
 
 type requestIdentity struct {

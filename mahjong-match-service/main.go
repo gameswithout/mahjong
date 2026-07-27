@@ -23,6 +23,7 @@ import (
 
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/match"
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/progression"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/service"
 	matchsession "github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/storage"
@@ -275,6 +276,7 @@ func main() {
 	}
 	jadeEconomy := economy.NewCoordinator(postgresStorage, walletMirror)
 	matchService.SetEconomy(jadeEconomy)
+	matchService.SetProgression(progression.NewCoordinator(postgresStorage))
 	pb.RegisterServiceServer(s, matchService)
 
 	if walletMirror != nil {
