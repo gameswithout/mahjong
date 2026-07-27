@@ -217,9 +217,9 @@ image, event log, or public payload.
 ## Deployment record
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
-ahead of the append-latency benchmark. The current 2026-07-25 deployment adds
-post-write Wallet verification, fair per-target reconciliation, truthful
-client sync status, and the live Wallet balance-origin compatibility fix.
+ahead of the append-latency benchmark. The current 2026-07-27 deployment is the
+mobile-network work: gzip on every response, conditional GET so an unchanged
+seat view costs headers instead of a body, and HTTP server timeouts.
 
 **Keep this block current.** Its staleness caused a 2026-07-25 mis-diagnosis:
 the record said 2026-07-20 while the live service already carried the Jade
@@ -235,17 +235,26 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      faucets-20260726 (active since
-                2026-07-27T12:33:12.002Z; deployment
-                e4b631e7-a545-4d6a-a0d0-9bf6220d22f1). Adds the §7.5
-                faucets: the ClaimJadeWelfare RPC, the daily play grants,
-                and migration 004_jade_faucets.sql (jade_hand_participation,
-                jade_daily_grants). This is the first deployment to carry a
-                schema migration since the Jade economy itself; the service
-                applies migrations at startup inside a transaction, so
-                "deployment-running" plus a serving REST surface is also the
-                evidence that 004 applied.
+Image tag:      mobile-net-fc0b648 (active since
+                2026-07-27T15:49:32.900Z; deployment
+                3737f469-91aa-4a5f-933e-40e626d49079). The mobile-network
+                work: gzip compression on every response, conditional GET
+                (weak ETag over the response bytes, 304 on a matching
+                If-None-Match), and read/write/idle timeouts on the HTTP
+                server. Verified against the live URL after deploy — a
+                first GET returns an ETag and the repeat returns 304 with
+                no body, so Envoy passes both through intact.
+                Carries no schema migration.
                 Preceding images, newest first:
+                faucets-20260726 (2026-07-27T12:33:12.002Z; deployment
+                e4b631e7-a545-4d6a-a0d0-9bf6220d22f1 — added the §7.5
+                faucets: the ClaimJadeWelfare RPC, the daily play grants,
+                and migration 004_jade_faucets.sql
+                (jade_hand_participation, jade_daily_grants), the first
+                schema migration since the Jade economy itself. Note that
+                this image already carried the gzip middleware: it was
+                built from a main that had merged it, so compression went
+                live here rather than with the image named for it),
                 wallet-reconcile-20260725-r3 (2026-07-26T03:38:53.301Z;
                 deployment f9fee13c-2aa5-40ad-99cf-570d1c7443df — fixed the
                 live Wallet API's mixed-case "System" balance origin, gave
