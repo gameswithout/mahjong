@@ -2,6 +2,10 @@
 .env.*
 !.env.example
 node_modules/
+# Also match a bare symlink: agent worktrees link to the main checkout's
+# install rather than duplicating it, and the trailing-slash form above does
+# not cover that. It has been committed by accident twice.
+node_modules
 .pnpm-store/
 dist/
 tmp/
