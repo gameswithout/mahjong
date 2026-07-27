@@ -35,5 +35,7 @@ describe("MatchLoadingScreen", () => {
     expect(markup).toContain("East seat");
     expect(markup).toContain("Dealer");
     expect(markup).toContain("Entering the Mahjong table");
+    expect(markup.match(/match-loading-shared-profile/g)).toHaveLength(4);
+    expect(markup.match(/profile-tile-icon/g)).toHaveLength(12);
   });
 });

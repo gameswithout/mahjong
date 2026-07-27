@@ -129,8 +129,34 @@ body {
   gap: 6px;
   justify-content: flex-start;
   max-width: 100%;
+  box-sizing: border-box;
+  height: 22px;
   padding: 2px 6px;
   width: 112px;
+}
+
+.seat-header .player-profile-badge {
+  background: transparent;
+  border-radius: 0;
+  gap: 4px;
+  padding: 0;
+  width: 100%;
+}
+
+.seat-header .profile-icon-row {
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.seat-header .profile-tile-icon {
+  border-radius: 2px;
+  height: 16px;
+  width: 11px;
+}
+
+.seat-header .profile-nickname {
+  font-size: 9px;
+  min-width: 0;
 }
 
 /* The reusable profile is deliberately static. Live match state belongs in
@@ -160,6 +186,8 @@ body {
   border-radius: 999px;
   justify-content: space-between;
   min-height: 18px;
+  box-sizing: border-box;
+  height: 22px;
   padding: 1px 6px;
   width: 112px;
 }
@@ -1096,7 +1124,10 @@ body {
   .seat-header {
     column-gap: 6px;
     flex-wrap: wrap;
+    height: 30px;
+    padding: 2px 8px;
     row-gap: 3px;
+    width: 190px;
   }
 
   /* The fixed-width left/right seat columns are the tight case: a busy
@@ -1112,14 +1143,20 @@ body {
     gap: 6px;
   }
 
-  .seat-header {
-    width: 140px;
-  }
-
   .seat-activity {
+    height: 30px;
     min-height: 26px;
     padding: 2px 8px;
     width: 190px;
+  }
+
+  .seat-header .profile-tile-icon {
+    height: 24px;
+    width: 16px;
+  }
+
+  .seat-header .profile-nickname {
+    font-size: 14px;
   }
 
   .wind-badge {
@@ -1298,43 +1335,50 @@ body {
 
 .showdown-hands {
   align-items: center;
+  background: rgb(8 16 13 / 94%);
+  border: 3px solid #f2c66d;
+  border-radius: 16px;
+  box-shadow:
+    0 12px 34px rgb(0 0 0 / 52%),
+    0 0 30px rgb(242 198 109 / 58%);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 8px;
   left: 50%;
-  max-width: 94%;
+  max-height: 92vh;
+  max-width: 94vw;
+  overflow: hidden;
+  padding: clamp(7px, 1vw, 14px);
   position: fixed;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: max-content;
+  width: min(94vw, 1080px);
   z-index: 1000;
 }
 
 .showdown-hand {
   align-items: flex-end;
-  background: rgb(21 31 25 / 90%);
+  background: rgb(21 31 25 / 76%);
   border: 0;
-  border-radius: 12px;
-  box-shadow:
-    0 10px 30px rgb(0 0 0 / 48%),
-    0 0 22px rgb(242 198 109 / 28%);
-  display: flex;
+  border-radius: 10px;
+  box-shadow: 0 5px 16px rgb(0 0 0 / 32%);
+  box-sizing: border-box;
+  display: grid;
   gap: clamp(1px, 0.25vw, 4px);
+  grid-template-columns: repeat(var(--reveal-tile-count), minmax(0, 52px));
   justify-content: center;
   max-width: 100%;
   padding: clamp(5px, 0.7vw, 10px);
   perspective: 700px;
-  width: max-content;
+  width: 100%;
 }
 
 .showdown-winning-discard {
   align-items: center;
-  background: rgb(8 16 13 / 94%);
+  background: rgb(21 31 25 / 76%);
   border-radius: 12px;
-  box-shadow:
-    0 8px 24px rgb(0 0 0 / 42%),
-    0 0 0 3px #f2c66d,
-    0 0 26px rgb(242 198 109 / 64%);
+  box-shadow: 0 5px 16px rgb(0 0 0 / 32%);
   display: flex;
   gap: clamp(8px, 1vw, 14px);
   padding: clamp(6px, 0.7vw, 10px) clamp(9px, 1vw, 14px);
@@ -1347,12 +1391,28 @@ body {
   line-height: 1.05;
 }
 
-.showdown-winning-discard-copy span {
+.showdown-win-type {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: clamp(3px, 0.5vw, 7px);
+}
+
+.showdown-win-type b {
   color: #f2c66d;
   font-size: clamp(24px, 4vw, 48px);
   font-weight: 900;
   letter-spacing: 0;
   line-height: 0.95;
+}
+
+.showdown-win-type em {
+  color: #fff5c7;
+  font-size: clamp(9px, 1vw, 13px);
+  font-style: normal;
+  font-weight: 850;
+  margin-top: 2px;
+  white-space: nowrap;
 }
 
 .showdown-winning-discard-copy strong {
@@ -1367,10 +1427,41 @@ body {
 }
 
 .showdown-hand .tile-lg {
-  --showdown-tile-width: clamp(27px, 3.5vw, 52px);
-  height: calc(var(--showdown-tile-width) * 1.62);
-  min-width: var(--showdown-tile-width);
-  width: var(--showdown-tile-width);
+  aspect-ratio: 1 / 1.62;
+  height: auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.showdown-hand-tile {
+  min-width: 0;
+}
+
+@media (max-width: 700px), (max-height: 430px) {
+  .showdown-hands {
+    gap: 5px;
+    max-height: 94vh;
+    padding: 6px;
+    width: 96vw;
+  }
+
+  .showdown-winning-discard {
+    gap: 6px;
+    padding: 4px 7px;
+  }
+
+  .showdown-winning-discard .tile-focus {
+    --focus-tile-width: clamp(34px, 8vw, 44px);
+  }
+
+  .showdown-win-type b {
+    font-size: clamp(20px, 5vw, 30px);
+  }
+
+  .showdown-hand {
+    gap: 1px;
+    padding: 4px;
+  }
 }
 
 .discard-river {
@@ -2190,14 +2281,25 @@ body {
 
   .seat-header {
     gap: 3px;
+    height: 24px;
     padding: 2px 5px;
     width: 104px;
   }
 
   .seat-activity {
+    height: 24px;
     min-height: 20px;
     padding: 1px 5px;
     width: 104px;
+  }
+
+  .seat-header .profile-tile-icon {
+    height: 18px;
+    width: 12px;
+  }
+
+  .seat-header .profile-nickname {
+    font-size: 10px;
   }
 
   .seat-identity,
@@ -2246,11 +2348,12 @@ body {
   }
 
   .local-seat > .local-seat-footer {
-    left: auto;
+    left: 50%;
     max-width: none;
-    position: static;
-    top: auto;
-    transform: none;
+    position: absolute;
+    top: 2px;
+    transform: translateX(-50%);
+    width: max-content;
   }
 
   .local-hand {
@@ -2271,6 +2374,31 @@ body {
        discard targets. The tray floats just above the 44px touch row. */
     bottom: 50px;
     right: 6px;
+  }
+
+  .local-seat > .meld-area {
+    bottom: 50px;
+    left: 6px;
+    max-width: 42%;
+  }
+
+  .local-seat > .meld-area .tile-sm {
+    height: 30px;
+    width: 21px;
+  }
+
+  .seat-top .opponent-hand-backs .tile-xs + .tile-xs {
+    margin-left: -6px;
+  }
+
+  .seat-top .seat-header,
+  .seat-top .seat-activity {
+    width: 88px;
+  }
+
+  .seat-top > .bonus-tile-area .tile-sm {
+    height: 28px;
+    width: 20px;
   }
 
   .seat-left .seat-meta {
@@ -2299,17 +2427,22 @@ body {
 
   .table-playfield .center-panel {
     gap: 1px;
-    min-height: 72px;
-    padding: 3px;
-    width: 66px;
+    min-height: 62px;
+    padding: 2px;
+    width: 50px;
   }
 
   .table-center-cluster {
-    gap: 7px;
-    grid-template-columns: 66px minmax(120px, 1fr);
-    min-height: 118px;
-    padding: 7px 9px 30px;
-    width: 218px;
+    gap: 4px;
+    grid-template-columns: 50px minmax(88px, 1fr);
+    min-height: 96px;
+    padding: 5px 7px 25px;
+    width: 174px;
+  }
+
+  .discard-river-top,
+  .discard-river-bottom {
+    height: 30%;
   }
 
   .meld-area .tile-sm,
@@ -2328,7 +2461,7 @@ body {
 
   .current-tile-focus {
     gap: 1px;
-    min-width: 126px;
+    min-width: 88px;
   }
 
   .current-tile-focus::before {
@@ -2336,7 +2469,10 @@ body {
   }
 
   .current-tile-focus .tile-focus {
+    height: 65px;
     margin: 0 0 1px;
+    min-width: 44px;
+    width: 44px;
   }
 
   .current-tile-source {
@@ -2346,25 +2482,42 @@ body {
   .countdown-ring,
   .countdown-untimed,
   .countdown-number {
-    height: 36px;
-    width: 36px;
+    height: 30px;
+    width: 30px;
   }
 
   .countdown-untimed-icon {
-    font-size: 16px;
+    font-size: 13px;
   }
 
   .countdown-elapsed-time {
-    font-size: 15px;
+    font-size: 12px;
   }
 
   .wall-count {
-    font-size: 15px;
+    font-size: 12px;
   }
 
   .round-status,
   .active-seat-callout {
+    font-size: 7px;
+  }
+
+  .current-tile-kicker {
+    font-size: 7px;
+  }
+
+  .current-tile-name {
     font-size: 8px;
+  }
+
+  .current-tile-prompt {
+    bottom: 5px;
+    font-size: 7px;
+    left: 6px;
+    min-height: 18px;
+    padding: 3px 7px;
+    right: 6px;
   }
 
   .action-bar {
@@ -2401,8 +2554,8 @@ body {
 
   .seat-left .meld-area .tile-sm,
   .seat-right .meld-area .tile-sm {
-    height: 40px;
-    width: 29px;
+    height: 34px;
+    width: 24px;
   }
 
   .seat > .bonus-tile-area .tile-sm {

@@ -1,10 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { TileFace } from "./TileFace";
+import { PlayerProfileBadge } from "./PlayerProfile";
+import {
+  defaultPlayerProfile,
+  type PlayerProfileConfig,
+} from "./player-profile";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
 import { windName } from "./matchTableTypes";
 import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
-import { isMatchingFlower, summarizeFlowerTai } from "./flowerTai";
+import { isMatchingFlower } from "./flowerTai";
 
 // Production match table and the standalone §9.2 validation harness share this
 // component. The live adapter supplies authoritative seat/action state; the
@@ -74,8 +79,8 @@ function MeldGroup({ meld }: { meld: WireMeld }) {
 // Flowers are free Tai sitting in plain sight, but they used to render as
 // undifferentiated small tiles pushed to the edge of a seat — easy to miss
 // entirely, and impossible to tell a scoring one from a decorative one. Mark
-// the seat's own matching Flowers, and for the local player carry a running
-// Tai total so the reward is legible while the hand is still being played.
+// the seat's own matching Flowers; their Tai is summarized on the result
+// screen rather than competing with the live hand for space.
 function BonusTiles({
   tiles,
   owner,
@@ -89,19 +94,10 @@ function BonusTiles({
     return null;
   }
   const local = owner === "your";
-  const summary = summarizeFlowerTai(
-    tiles.map((item) => item.id),
-    seat,
-  );
-  const taiLabel = summary.total === 1 ? "1 Tai" : `${summary.total} Tai`;
   return (
     <div
       className={`bonus-tile-area${local ? " bonus-tile-area-local" : ""}`}
-      aria-label={
-        local
-          ? `Your exposed Flowers and Seasons, worth ${taiLabel} so far`
-          : "Opponent exposed Flowers and Seasons"
-      }
+      aria-label={local ? "Your exposed Flowers and Seasons" : "Opponent exposed Flowers and Seasons"}
     >
       {tiles.map((item) => {
         const matching = isMatchingFlower(item.id, seat);
@@ -117,29 +113,6 @@ function BonusTiles({
           </span>
         );
       })}
-      {local && (
-        <span
-          className={`flower-tai-badge${summary.total > 0 ? " flower-tai-badge-scoring" : ""}`}
-          data-testid="flower-tai-badge"
-          data-flower-tai={summary.total}
-          title={
-            summary.patterns.length > 0
-              ? summary.patterns
-                  .map((pattern) =>
-                    pattern.flower
-                      ? `${pattern.name} (${pattern.flower}) +${pattern.tai}`
-                      : `${pattern.name} +${pattern.tai}`,
-                  )
-                  .join("\n")
-              : "No Flower Tai yet — your seat's own Flowers score 1 Tai each"
-          }
-        >
-          <span className="flower-tai-value">{summary.total}</span>
-          <span className="flower-tai-unit" lang="zh-Hant">
-            台
-          </span>
-        </span>
-      )}
     </div>
   );
 }
@@ -233,14 +206,20 @@ function WaitPanel({ waits }: { waits: WaitEntry[] }) {
   );
 }
 
-function PlayerProfile({ state }: { state: SeatState }) {
+function PlayerProfile({
+  state,
+  profile,
+}: {
+  state: SeatState;
+  profile?: PlayerProfileConfig;
+}) {
+  const fallback = defaultPlayerProfile(false);
+  fallback.nickname = state.displayName;
+  fallback.tileSlotIds[0] = state.isBot ? "dragon-green-1" : "dragon-red-1";
   return (
     <header className="seat-header player-profile">
       <div className="seat-identity">
-        <span className="seat-avatar" aria-hidden="true">
-          {state.isBot ? "🤖" : "🀄"}
-        </span>
-        <span className="seat-name">{state.displayName}</span>
+        <PlayerProfileBadge profile={profile ?? fallback} />
       </div>
     </header>
   );
@@ -623,23 +602,37 @@ function TablePlayfield({
       </div>
       {state.showdown && revealedSeats.length > 0 ? (
         <div className="showdown-hands" aria-label="Winning hand reveal">
-          {state.showdownWinningDiscard ? (
+          {state.showdownWinningTile ? (
             <div
               className="showdown-winning-discard"
               role="group"
-              aria-label={`Winning discard: ${state.showdownWinningDiscard.tile.label}, from ${
-                state.showdownWinningDiscard.seat === state.localSeat
-                  ? "you"
-                  : `${state.seats[state.showdownWinningDiscard.seat].displayName} · ${windName(
-                      state.showdownWinningDiscard.seat,
-                    )}`
-              }`}
+              aria-label={
+                state.showdownWinningDiscard
+                  ? `Winning discard: ${state.showdownWinningTile.label}, from ${
+                      state.showdownWinningDiscard.seat === state.localSeat
+                        ? "you"
+                        : `${state.seats[state.showdownWinningDiscard.seat].displayName} · ${windName(
+                            state.showdownWinningDiscard.seat,
+                          )}`
+                    }`
+                  : `Self-drawn winning tile: ${state.showdownWinningTile.label}`
+              }
             >
               <div className="showdown-winning-discard-copy">
-                <span lang="zh-Hant">胡</span>
-                <strong>{state.showdownWinningDiscard.tile.label}</strong>
+                {state.showdownWinType ? (
+                  <span className="showdown-win-type">
+                    <b lang="zh-Hant">{state.showdownWinType.chinese}</b>
+                    <em>
+                      {state.showdownWinType.romanized}
+                      {state.showdownWinType.english
+                        ? ` · ${state.showdownWinType.english}`
+                        : ""}
+                    </em>
+                  </span>
+                ) : null}
+                <strong>{state.showdownWinningTile.label}</strong>
               </div>
-              <Tile t={state.showdownWinningDiscard.tile} size="focus" />
+              <Tile t={state.showdownWinningTile} size="focus" />
             </div>
           ) : null}
           {revealedSeats.map((seat) => {
@@ -650,6 +643,7 @@ function TablePlayfield({
                   key={seat}
                   role="group"
                   aria-label={`${seat === state.localSeat ? "Your" : windName(seat)} winning hand`}
+                  style={{ "--reveal-tile-count": revealedHand.length } as CSSProperties}
                 >
                   {revealedHand.map((item, index) => (
                     <span
@@ -687,6 +681,7 @@ function LocalSeat({
   onToggleTableFx,
   isClaimThinking,
   prevailingWind,
+  profile,
 }: {
   state: SeatState;
   displayedHand: WireTile[];
@@ -705,6 +700,7 @@ function LocalSeat({
   onToggleTableFx: () => void;
   isClaimThinking: boolean;
   prevailingWind: SeatId;
+  profile?: PlayerProfileConfig;
 }) {
   return (
     <section
@@ -715,7 +711,7 @@ function LocalSeat({
     >
       <div className="local-seat-footer">
         <div className="seat-meta">
-          <PlayerProfile state={state} />
+          <PlayerProfile state={state} profile={profile} />
           <PlayerActivity
             state={state}
             prevailingWind={prevailingWind}
@@ -1014,7 +1010,15 @@ export interface MatchTableInteraction {
   drawPending?: boolean;
 }
 
-export function MatchTable({ state, interaction }: { state: MatchTableState; interaction?: MatchTableInteraction }) {
+export function MatchTable({
+  state,
+  interaction,
+  playerProfile,
+}: {
+  state: MatchTableState;
+  interaction?: MatchTableInteraction;
+  playerProfile?: PlayerProfileConfig;
+}) {
   const slots = remapSeats(state.localSeat);
   const local = state.seats[state.localSeat];
 
@@ -1325,6 +1329,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         onToggleTableFx={toggleTableFx}
         isClaimThinking={state.legalActions.length > 0}
         prevailingWind={state.prevailingWind}
+        profile={playerProfile}
       />
     </div>
   );

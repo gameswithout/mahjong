@@ -42,23 +42,9 @@ export function CompletedHandFlow({
   }, [hasWinningHand, resultKey]);
 
   if (revealing) {
-    const winType = view.hand_result?.kind === "zimo"
-      ? { chinese: "自摸", romanized: "Zi Mo", english: "Self-Draw" }
-      : view.hand_result?.kind === "discard"
-        ? { chinese: "胡", romanized: "Hu", english: "" }
-        : null;
     return (
       <div className="winning-table-reveal" role="status" aria-label="Winning hand revealed">
         {revealTable}
-        {winType ? (
-          <div
-            className="winning-table-win-type"
-            aria-label={winType.english ? `${winType.romanized}, ${winType.english}` : winType.romanized}
-          >
-            <strong lang="zh-Hant">{winType.chinese}</strong>
-            <span>{winType.romanized}{winType.english ? ` · ${winType.english}` : ""}</span>
-          </div>
-        ) : null}
       </div>
     );
   }

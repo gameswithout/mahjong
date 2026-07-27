@@ -89,10 +89,10 @@ function Bamboo({ rank }: { rank: number }) {
   if (rank === 8) {
     return (
       <g className="tile-face-eight-bamboo">
-        <g transform="translate(10 24) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
-        <g transform="translate(50 24) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
-        <g transform="translate(10 66) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
-        <g transform="translate(50 66) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(12 24) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(48 24) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(12 66) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(48 66) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
         <g transform="translate(22 24) rotate(-48) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
         <g transform="translate(38 24) rotate(48) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
         <g transform="translate(22 66) rotate(48) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>

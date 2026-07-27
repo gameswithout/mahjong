@@ -81,6 +81,8 @@ describe("MatchTable table-first UX", () => {
       ...mockMatchTableState,
       showdown: true,
       showdownWinningDiscard: mockMatchTableState.lastDiscard ?? undefined,
+      showdownWinningTile: mockMatchTableState.lastDiscard?.tile,
+      showdownWinType: { chinese: "胡", romanized: "Hu" },
       seats: {
         ...mockMatchTableState.seats,
         [winner]: {
@@ -96,9 +98,14 @@ describe("MatchTable table-first UX", () => {
     expect(reveal?.closest(".table-playfield")).not.toBeNull();
     expect(reveal?.querySelectorAll(".showdown-hand-tile")).toHaveLength(2);
     const winningDiscard = reveal?.querySelector(".showdown-winning-discard");
-    expect(winningDiscard?.textContent).toContain("胡");
     expect(winningDiscard?.textContent).toContain(mockMatchTableState.lastDiscard?.tile.label);
+    expect(winningDiscard?.textContent).toContain("胡");
+    expect(winningDiscard?.textContent).toContain("Hu");
     expect(winningDiscard?.textContent).not.toContain("Winning discard");
+    expect(reveal?.querySelector(".showdown-win-type + strong")?.textContent).toBe(
+      mockMatchTableState.lastDiscard?.tile.label,
+    );
+    expect(reveal?.classList).toContain("showdown-hands");
     expect(container.querySelector('[aria-label="East seat"]')?.classList).toContain("seat-celebrating");
   });
 
@@ -130,10 +137,8 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelectorAll(".seat-active")).toHaveLength(1);
     expect(container.querySelector(".local-seat.seat-active")).not.toBeNull();
     expect(container.querySelectorAll(".bonus-tile-area")).toHaveLength(3);
-    // The local Flower set now carries its running Tai in the accessible name,
-    // so a screen-reader user gets the same running total the badge shows.
     const localFlowers = container.querySelector(
-      '[aria-label="Your exposed Flowers and Seasons, worth 1 Tai so far"]',
+      '[aria-label="Your exposed Flowers and Seasons"]',
     );
     expect(localFlowers).not.toBeNull();
     expect(localFlowers?.querySelectorAll(".tile")).toHaveLength(2);
@@ -143,14 +148,10 @@ describe("MatchTable table-first UX", () => {
     expect(container.textContent).not.toContain("CLAIM");
   });
 
-  it("marks only the seat's own Flowers and shows the running Tai they are worth", () => {
+  it("marks only the seat's own Flowers without showing a live Tai counter", () => {
     act(() => root.render(<MatchTable state={mockMatchTableState} />));
 
     // South holds summer (its own, +1 Tai) and plum (East's, worth nothing).
-    const badge = container.querySelector('[data-testid="flower-tai-badge"]');
-    expect(badge?.getAttribute("data-flower-tai")).toBe("1");
-    expect(badge?.textContent).toContain("1");
-
     const marked = container.querySelectorAll(".bonus-tile-area-local .bonus-tile-matching");
     expect(marked).toHaveLength(1);
     expect(marked[0]?.getAttribute("title")).toBe("flower summer — your Flower, +1 Tai");
@@ -159,9 +160,8 @@ describe("MatchTable table-first UX", () => {
     // to see everything they have exposed, not only what pays.
     expect(container.querySelectorAll(".bonus-tile-area-local .bonus-tile")).toHaveLength(2);
 
-    // Opponent Flower sets carry no local Tai badge; it would be meaningless
-    // against another seat's wind.
-    expect(container.querySelectorAll('[data-testid="flower-tai-badge"]')).toHaveLength(1);
+    // Tai is summarized after the hand rather than occupying live-table space.
+    expect(container.querySelector('[data-testid="flower-tai-badge"]')).toBeNull();
   });
 
   it("keeps turn emphasis on the authoritative active player during a claim decision", () => {

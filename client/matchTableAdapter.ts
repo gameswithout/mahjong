@@ -181,6 +181,13 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         ] as const)
       : [],
   );
+  const firstWinner = view.hand_result?.winners?.[0];
+  const winningTileSource = firstWinner
+    ? [
+        ...firstWinner.score.shape.melds.flatMap((meld) => meld.tiles ?? []),
+        ...firstWinner.score.shape.pair,
+      ].find((tile) => tile.id === view.hand_result?.winning_tile_id)
+    : undefined;
   for (const discard of view.discards ?? []) {
     discardsBySeat.get(discard.seat as SeatId)?.push(discard.tile);
   }
@@ -298,5 +305,19 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       options.revealWinningHands && view.hand_result?.kind === "discard" && lastDiscard
         ? lastDiscard
         : undefined,
+    showdownWinningTile:
+      options.revealWinningHands
+        ? view.hand_result?.kind === "discard"
+          ? lastDiscard?.tile
+          : winningTileSource
+            ? wireTile(winningTileSource)
+            : undefined
+        : undefined,
+    showdownWinType:
+      options.revealWinningHands && view.hand_result?.kind === "zimo"
+        ? { chinese: "自摸", romanized: "Zi Mo", english: "Self-Draw" }
+        : options.revealWinningHands && view.hand_result?.kind === "discard"
+          ? { chinese: "胡", romanized: "Hu" }
+          : undefined,
   };
 }

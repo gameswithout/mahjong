@@ -96,6 +96,8 @@ describe("seatViewToMatchTableState", () => {
     );
     expect(discardWin.showdownWinningDiscard?.tile.id).toBe("dots-5-1");
     expect(discardWin.showdownWinningDiscard?.seat).toBe("S");
+    expect(discardWin.showdownWinningTile?.id).toBe("dots-5-1");
+    expect(discardWin.showdownWinType).toEqual({ chinese: "胡", romanized: "Hu" });
 
     const zimo = seatViewToMatchTableState(
       seatView({
@@ -105,6 +107,11 @@ describe("seatViewToMatchTableState", () => {
       options,
     );
     expect(zimo.showdownWinningDiscard).toBeUndefined();
+    expect(zimo.showdownWinType).toEqual({
+      chinese: "自摸",
+      romanized: "Zi Mo",
+      english: "Self-Draw",
+    });
   });
 
   it("maps takenOver from each player's public taken_over flag, defaulting to false", () => {

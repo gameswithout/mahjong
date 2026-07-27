@@ -111,6 +111,15 @@ export interface MatchTableState {
   // During a discard-win celebration, repeat the decisive discard beside
   // the enlarged winning hand so the hand overlay cannot obscure it.
   showdownWinningDiscard?: { seat: SeatId; tile: WireTile };
+  // The celebration keeps the win label and decisive tile together inside
+  // the same reveal card. Self-draws have no discarder, but still provide a
+  // winning tile and win type here.
+  showdownWinningTile?: WireTile;
+  showdownWinType?: {
+    chinese: string;
+    romanized: string;
+    english?: string;
+  };
 }
 
 const SUIT_GLYPHS: Record<string, string> = {
