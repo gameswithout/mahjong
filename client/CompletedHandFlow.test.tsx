@@ -77,8 +77,7 @@ describe("CompletedHandFlow", () => {
 
     expect(container.querySelector('[data-testid="table-stays-visible"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Winning hand revealed"]')).not.toBeNull();
-    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("自摸");
-    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("Zi Mo · Self-Draw");
+    expect(container.querySelector(".winning-table-win-type")).toBeNull();
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
 
     act(() => vi.advanceTimersByTime(WINNING_HAND_REVEAL_MS));
@@ -99,9 +98,7 @@ describe("CompletedHandFlow", () => {
       />,
     ));
 
-    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("胡");
-    expect(container.querySelector(".winning-table-win-type")?.textContent).toContain("Hu");
-    expect(container.querySelector(".winning-table-win-type")?.textContent).not.toContain("Fan Pao");
+    expect(container.querySelector(".winning-table-win-type")).toBeNull();
   });
 
   it("skips the reveal for an exhaustive draw", () => {

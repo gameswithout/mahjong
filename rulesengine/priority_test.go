@@ -152,6 +152,45 @@ func TestPongStillWaitsForUnansweredWin(t *testing.T) {
 	}
 }
 
+func TestNearestHuWinsWhenMultipleSeatsClaimTheDiscard(t *testing.T) {
+	state := turnFixture(t)
+	state.Players[0].Hand = []Tile{tile("characters-2-1", Characters, 2, 1)}
+	winningWait := []Tile{
+		tile("characters-1-1", Characters, 1, 1),
+		tile("characters-3-1", Characters, 3, 1),
+		tile("dots-9-1", Dots, 9, 1),
+		tile("dots-9-2", Dots, 9, 2),
+	}
+	state.Players[1].Hand = append([]Tile(nil), winningWait...)
+	state.Players[1].Melds = []Meld{pongMeld(Bamboo, 1), pongMeld(Bamboo, 2), pongMeld(Bamboo, 3), pongMeld(Dots, 1)}
+	state.Players[3].Hand = append([]Tile(nil), winningWait...)
+	state.Players[3].Melds = []Meld{pongMeld(Bamboo, 1), pongMeld(Bamboo, 2), pongMeld(Bamboo, 3), pongMeld(Dots, 1)}
+	validator := func(_ *DealState, seat Seat, _ Tile) bool {
+		return seat == South || seat == North
+	}
+	engine := newTurnForClaims(t, state, validator)
+	window := discardForClaims(t, engine, "characters-2-1")
+
+	mustClaim(t, engine, ClaimResponse{Seat: North, Type: ClaimWin, StateVersion: window.StateVersion})
+	mustClaim(t, engine, ClaimResponse{Seat: South, Type: ClaimWin, StateVersion: window.StateVersion})
+	mustClaim(t, engine, ClaimResponse{Seat: West, Type: ClaimPass, StateVersion: window.StateVersion})
+
+	resolution, err := engine.ResolveClaims(window.StateVersion)
+	if err != nil && !errors.Is(err, ErrHandComplete) {
+		t.Fatalf("ResolveClaims() error = %v", err)
+	}
+	if resolution.Type != ClaimWin || resolution.Claimant != South {
+		t.Fatalf("resolution = %#v, want nearest Hu by South", resolution)
+	}
+	if len(resolution.Winners) != 1 || resolution.Winners[0] != South {
+		t.Fatalf("winners = %#v, want [South]", resolution.Winners)
+	}
+	result := engine.Result()
+	if result == nil || len(result.Winners) != 1 || result.Winners[0].Seat != South {
+		t.Fatalf("hand result = %#v, want only South", result)
+	}
+}
+
 func mustClaim(t *testing.T, engine *TurnEngine, response ClaimResponse) {
 	t.Helper()
 	if err := engine.SubmitClaim(response); err != nil {

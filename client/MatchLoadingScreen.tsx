@@ -1,11 +1,22 @@
 import type { MahjongSeat, SeatView } from "../protocol/envelope";
 import { windName } from "./matchTableTypes";
+import { PlayerProfileBadge } from "./PlayerProfile";
+import {
+  defaultPlayerProfile,
+  type PlayerProfileConfig,
+} from "./player-profile";
 
 const PROFILE_ORDER: MahjongSeat[] = ["E", "S", "W", "N"];
 
 export const MATCH_LOADING_SCREEN_MS = 2400;
 
-export function MatchLoadingScreen({ view }: { view: SeatView }) {
+export function MatchLoadingScreen({
+  view,
+  playerProfile,
+}: {
+  view: SeatView;
+  playerProfile?: PlayerProfileConfig;
+}) {
   const playersBySeat = new Map(view.players.map((player) => [player.seat, player]));
 
   return (
@@ -21,6 +32,17 @@ export function MatchLoadingScreen({ view }: { view: SeatView }) {
           const isLocal = seat === view.seat;
           const isBot = player?.is_bot ?? false;
           const name = isLocal ? "You" : isBot ? "Bot" : "Player";
+          const seatProfile: PlayerProfileConfig = isLocal && playerProfile
+            ? playerProfile
+            : {
+                ...defaultPlayerProfile(false),
+                nickname: name,
+                tileSlotIds: [
+                  isBot ? "dragon-green-1" : "dragon-red-1",
+                  "wind-east-1",
+                  "dots-1-1",
+                ],
+              };
 
           return (
             <article
@@ -28,11 +50,11 @@ export function MatchLoadingScreen({ view }: { view: SeatView }) {
               data-seat={seat}
               key={seat}
             >
-              <div className="match-loading-avatar" aria-hidden="true">
-                {isBot ? "🤖" : isLocal ? "🀄" : "●"}
-              </div>
+              <PlayerProfileBadge
+                profile={seatProfile}
+                className="match-loading-shared-profile"
+              />
               <div className="match-loading-profile-copy">
-                <p className="match-loading-player-name">{name}</p>
                 <p className="match-loading-seat-name">
                   {windName(seat)} seat
                   {seat === "E" ? <span className="match-loading-dealer">Dealer</span> : null}

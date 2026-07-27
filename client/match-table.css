@@ -42,7 +42,7 @@ body {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   gap: 0;
   grid-template-areas:
-    "top top top"
+    "left top right"
     "left center right"
     "bottom bottom bottom"
     "actions actions actions";
@@ -127,21 +127,96 @@ body {
   display: flex;
   flex-shrink: 0;
   gap: 6px;
-  justify-content: space-between;
+  justify-content: flex-start;
   max-width: 100%;
+  box-sizing: border-box;
+  height: 22px;
   padding: 2px 6px;
+  width: 112px;
 }
 
-/* Two clear groups instead of one crowded row: who's in this seat (left)
-   vs. what's happening in it right now (right) — replaces a flat run of
-   five same-size badges that read as noise at a glance. */
+.seat-header .player-profile-badge {
+  background: transparent;
+  border-radius: 0;
+  gap: 4px;
+  padding: 0;
+  width: 100%;
+}
+
+.seat-header .profile-icon-row {
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.seat-header .profile-tile-icon {
+  border-radius: 2px;
+  height: 16px;
+  width: 11px;
+}
+
+.seat-header .profile-nickname {
+  font-size: 9px;
+  min-width: 0;
+}
+
+/* The reusable profile is deliberately static. Live match state belongs in
+   the separate activity strip, so "thinking" and "waiting" never resize the
+   identity card that will also appear in the lobby and profile editor. */
 .seat-identity,
-.seat-status {
+.seat-activity,
+.seat-activity-message,
+.seat-activity-facts {
   align-items: center;
   display: flex;
   gap: 3px;
   min-width: 0;
   overflow: hidden;
+}
+
+.seat-meta {
+  align-items: stretch;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.seat-activity {
+  background: rgb(8 15 13 / 72%);
+  border-radius: 999px;
+  justify-content: space-between;
+  min-height: 18px;
+  box-sizing: border-box;
+  height: 22px;
+  padding: 1px 6px;
+  width: 112px;
+}
+
+.seat-match-facts {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.seat-activity-message,
+.seat-activity-facts {
+  min-height: 14px;
+}
+
+.seat-activity-message {
+  flex: 1 1 auto;
+  overflow: visible;
+}
+
+.seat-activity-facts {
+  flex: 0 0 auto;
+}
+
+.seat-top .seat-meta,
+.local-seat .seat-meta {
+  align-items: center;
+  flex-direction: row;
 }
 
 .seat-name {
@@ -250,11 +325,6 @@ body {
   background: #3a6b52;
 }
 
-.hand-count {
-  font-size: 10px;
-  opacity: 0.8;
-}
-
 /* A physical mahjong tile: an ivory face with a slight top-lit sheen,
    sitting on a visible cream "front edge" (the bottom border-shadow) so it
    reads as a thick standing tile, not a flat sticker. */
@@ -313,7 +383,11 @@ body {
 }
 
 .tile-face-flower-label {
-  font-size: 15px;
+  font-size: 21px;
+  font-weight: 900;
+  paint-order: stroke fill;
+  stroke: #f6eed9;
+  stroke-width: 1.25px;
 }
 
 .tile-xs {
@@ -361,59 +435,6 @@ body {
     0 3px 3px rgb(0 0 0 / 38%);
 }
 
-/* §9.5: "Selected-tile matches receive both outline and brightness change,
-   never color alone." Outline + filter, not a color-only cue.
-
-   The previous cue was a thin white ring, which had to compete with the cream
-   tile faces it sat on — at the certified 640x360 minimum the match was almost
-   invisible, exactly where scanning matters most.
-
-   Cyan rather than the obvious gold: gold is already overloaded on this table,
-   marking both the tile you have selected (.local-hand-tile-selected) and the
-   latest discard (.discard-slot-recent, which carries a near-identical ring and
-   glow). Reusing it for a third meaning would have made "this is the tile just
-   discarded" and "this matches what you are holding" indistinguishable. Cyan is
-   unused here and separates cleanly from both the gold accents and the green
-   felt. The dark inner ring keeps it legible against a pale tile face, and
-   lifting the stacking order stops a neighbouring tile in a tight discard grid
-   from clipping the glow. */
-.tile-match {
-  border-radius: 3px;
-  box-shadow:
-    0 0 0 1px rgb(10 30 38 / 88%),
-    0 0 10px 3px rgb(95 217 240 / 75%);
-  filter: brightness(1.22);
-  outline: 3px solid #5fd9f0;
-  outline-offset: 2px;
-  position: relative;
-  z-index: 2;
-}
-
-/* A single short bloom when a match appears, so the eye is pulled to copies
-   sitting outside where the player is already looking. One iteration, well
-   under the §9.9 three-flashes-per-second ceiling, and removed entirely for
-   players who ask for reduced motion — for whom the static ring above is
-   already the full cue. */
-@media (prefers-reduced-motion: no-preference) {
-  .tile-match {
-    animation: tile-match-bloom 0.45s ease-out 1;
-  }
-}
-
-@keyframes tile-match-bloom {
-  from {
-    box-shadow:
-      0 0 0 1px rgb(10 30 38 / 88%),
-      0 0 0 0 rgb(95 217 240 / 95%);
-  }
-
-  to {
-    box-shadow:
-      0 0 0 1px rgb(10 30 38 / 88%),
-      0 0 10px 3px rgb(95 217 240 / 75%);
-  }
-}
-
 .wait-panel {
   align-items: center;
   display: flex;
@@ -443,51 +464,6 @@ body {
   white-space: nowrap;
 }
 
-.wait-explainer {
-  flex-shrink: 0;
-  position: relative;
-}
-
-.wait-explainer summary {
-  background: rgb(8 15 13 / 88%);
-  border: 1px solid rgb(255 255 255 / 18%);
-  border-radius: 999px;
-  color: #f7f4ee;
-  cursor: pointer;
-  font-size: 8px;
-  font-weight: 700;
-  list-style: none;
-  padding: 3px 6px;
-  white-space: nowrap;
-}
-
-.wait-explainer summary::-webkit-details-marker {
-  display: none;
-}
-
-.wait-explainer summary:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 1px;
-}
-
-.wait-explainer-copy {
-  background: rgb(8 15 13 / 97%);
-  border: 1px solid rgb(242 198 109 / 55%);
-  border-radius: 8px;
-  bottom: calc(100% + 5px);
-  box-shadow: 0 8px 20px rgb(0 0 0 / 42%);
-  color: #f7f4ee;
-  font-size: 10px;
-  line-height: 1.35;
-  margin: 0;
-  padding: 7px 9px;
-  position: absolute;
-  right: 0;
-  text-align: left;
-  width: min(260px, 78vw);
-  z-index: 30;
-}
-
 .opponent-hand-backs {
   display: flex;
   flex-shrink: 0;
@@ -514,11 +490,11 @@ body {
 /* Flowers are earned Tai, not decoration, so the local player's set gets a
    tray of its own rather than dissolving into the felt beside the melds. */
 .bonus-tile-area-local {
-  background: rgb(10 30 24 / 55%);
-  border-radius: 7px;
-  box-shadow: inset 0 0 0 1px rgb(242 198 109 / 30%);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
   gap: 3px;
-  padding: 2px 5px;
+  padding: 0;
 }
 
 .bonus-tile {
@@ -872,16 +848,16 @@ body {
 }
 
 .local-hand-tile-selected {
-  background: rgba(242, 198, 109, 0.35);
-  box-shadow: 0 0 0 2px #f2c66d inset;
+  background: transparent;
+  box-shadow: none;
 }
 
-.local-hand-tile-selected .tile {
+.local-hand-tile-button.local-hand-tile-selected[aria-pressed="true"] .tile {
   box-shadow:
+    inset 0 0 0 3px #f2c66d,
     0 1px 0 rgb(255 255 255 / 75%) inset,
     0 7px 12px rgb(0 0 0 / 44%);
-  outline: 2px solid #f2c66d;
-  outline-offset: 1px;
+  outline: 0;
   transform: translateY(-5px);
 }
 
@@ -1148,7 +1124,10 @@ body {
   .seat-header {
     column-gap: 6px;
     flex-wrap: wrap;
+    height: 30px;
+    padding: 2px 8px;
     row-gap: 3px;
+    width: 190px;
   }
 
   /* The fixed-width left/right seat columns are the tight case: a busy
@@ -1157,15 +1136,27 @@ body {
      line so it wraps instead of clipping at the container edge — the 76px
      header row has the height for it. Top/bottom seats span the full
      table width and never need this. */
-  .seat-left .seat-status,
-  .seat-right .seat-status {
-    flex-basis: 100%;
-    justify-content: flex-end;
+  .seat-identity,
+  .seat-activity,
+  .seat-activity-message,
+  .seat-activity-facts {
+    gap: 6px;
   }
 
-  .seat-identity,
-  .seat-status {
-    gap: 6px;
+  .seat-activity {
+    height: 30px;
+    min-height: 26px;
+    padding: 2px 8px;
+    width: 190px;
+  }
+
+  .seat-header .profile-tile-icon {
+    height: 24px;
+    width: 16px;
+  }
+
+  .seat-header .profile-nickname {
+    font-size: 14px;
   }
 
   .wind-badge {
@@ -1193,10 +1184,6 @@ body {
 
   .active-badge {
     font-size: 15px;
-  }
-
-  .hand-count {
-    font-size: 14px;
   }
 
   .tile-xs {
@@ -1254,6 +1241,10 @@ body {
   }
 
   .wall-count {
+    font-size: 22px;
+  }
+
+  .countdown-elapsed-time {
     font-size: 22px;
   }
 
@@ -1317,17 +1308,13 @@ body {
   --river-tile-width: 17px;
   --focus-tile-width: 46px;
   grid-template-areas:
-    "top top top"
+    "left top right"
     "left playfield right"
     "actions actions actions"
     "bottom bottom bottom";
-  grid-template-columns: 70px minmax(0, 1fr) 70px;
+  grid-template-columns: minmax(104px, 15%) minmax(0, 1fr) minmax(104px, 15%);
   grid-template-rows: 40px minmax(0, 1fr) auto 84px;
   position: relative;
-}
-
-.local-seat:has(.wait-explainer[open]) {
-  z-index: 20;
 }
 
 .table-playfield {
@@ -1341,67 +1328,96 @@ body {
   position: relative;
 }
 
+.match-table-showdown .table-playfield {
+  overflow: visible;
+  z-index: 100;
+}
+
 .showdown-hands {
   align-items: center;
+  background: rgb(8 16 13 / 94%);
+  border: 3px solid #f2c66d;
+  border-radius: 16px;
+  box-shadow:
+    0 12px 34px rgb(0 0 0 / 52%),
+    0 0 30px rgb(242 198 109 / 58%);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 8px;
   left: 50%;
-  max-width: 94%;
-  position: absolute;
+  max-height: 92vh;
+  max-width: 94vw;
+  overflow: hidden;
+  padding: clamp(7px, 1vw, 14px);
+  position: fixed;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: max-content;
-  z-index: 20;
+  width: min(94vw, 1080px);
+  z-index: 1000;
 }
 
 .showdown-hand {
   align-items: flex-end;
-  background: rgb(21 31 25 / 90%);
+  background: rgb(21 31 25 / 76%);
   border: 0;
-  border-radius: 12px;
-  box-shadow:
-    0 10px 30px rgb(0 0 0 / 48%),
-    0 0 22px rgb(242 198 109 / 28%);
-  display: flex;
+  border-radius: 10px;
+  box-shadow: 0 5px 16px rgb(0 0 0 / 32%);
+  box-sizing: border-box;
+  display: grid;
   gap: clamp(1px, 0.25vw, 4px);
+  grid-template-columns: repeat(var(--reveal-tile-count), minmax(0, 52px));
   justify-content: center;
   max-width: 100%;
   padding: clamp(5px, 0.7vw, 10px);
   perspective: 700px;
-  width: max-content;
+  width: 100%;
 }
 
 .showdown-winning-discard {
   align-items: center;
-  background: rgb(8 16 13 / 94%);
+  background: rgb(21 31 25 / 76%);
   border-radius: 12px;
-  box-shadow:
-    0 8px 24px rgb(0 0 0 / 42%),
-    0 0 0 3px #f2c66d,
-    0 0 26px rgb(242 198 109 / 64%);
+  box-shadow: 0 5px 16px rgb(0 0 0 / 32%);
   display: flex;
   gap: clamp(8px, 1vw, 14px);
   padding: clamp(6px, 0.7vw, 10px) clamp(9px, 1vw, 14px);
 }
 
 .showdown-winning-discard-copy {
-  align-items: flex-end;
+  align-items: center;
   display: flex;
   flex-direction: column;
   line-height: 1.05;
 }
 
-.showdown-winning-discard-copy span {
+.showdown-win-type {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: clamp(3px, 0.5vw, 7px);
+}
+
+.showdown-win-type b {
   color: #f2c66d;
-  font-size: clamp(8px, 0.8vw, 12px);
+  font-size: clamp(24px, 4vw, 48px);
   font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  line-height: 0.95;
+}
+
+.showdown-win-type em {
+  color: #fff5c7;
+  font-size: clamp(9px, 1vw, 13px);
+  font-style: normal;
+  font-weight: 850;
+  margin-top: 2px;
+  white-space: nowrap;
 }
 
 .showdown-winning-discard-copy strong {
-  font-size: clamp(10px, 1vw, 15px);
+  font-size: clamp(12px, 1.4vw, 20px);
+  white-space: nowrap;
 }
 
 .showdown-winning-discard .tile-focus {
@@ -1411,10 +1427,41 @@ body {
 }
 
 .showdown-hand .tile-lg {
-  --showdown-tile-width: clamp(27px, 3.5vw, 52px);
-  height: calc(var(--showdown-tile-width) * 1.62);
-  min-width: var(--showdown-tile-width);
-  width: var(--showdown-tile-width);
+  aspect-ratio: 1 / 1.62;
+  height: auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.showdown-hand-tile {
+  min-width: 0;
+}
+
+@media (max-width: 700px), (max-height: 430px) {
+  .showdown-hands {
+    gap: 5px;
+    max-height: 94vh;
+    padding: 6px;
+    width: 96vw;
+  }
+
+  .showdown-winning-discard {
+    gap: 6px;
+    padding: 4px 7px;
+  }
+
+  .showdown-winning-discard .tile-focus {
+    --focus-tile-width: clamp(34px, 8vw, 44px);
+  }
+
+  .showdown-win-type b {
+    font-size: clamp(20px, 5vw, 30px);
+  }
+
+  .showdown-hand {
+    gap: 1px;
+    padding: 4px;
+  }
 }
 
 .discard-river {
@@ -1492,50 +1539,49 @@ body {
 }
 
 .discard-river .discard-slot-recent .tile {
-  animation: none;
-  filter: saturate(0.8);
-  opacity: 0.72;
-  transform: scale(0.96);
+  animation: discard-pulse 1s ease-in-out infinite;
+  filter: brightness(1.18) saturate(1.12);
+  opacity: 1;
+  transform: scale(1.08);
 }
 
 .table-center-cluster {
   align-items: center;
-  background: none;
-  display: flex;
-  gap: 10px;
+  background: #08100d;
+  border-radius: 14px;
+  box-shadow:
+    0 10px 28px rgb(0 0 0 / 40%),
+    inset 0 1px 0 rgb(255 255 255 / 9%);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 78px minmax(116px, 1fr);
   left: 50%;
-  min-width: 220px;
-  padding: 18px 24px;
+  min-height: 152px;
+  padding: 10px 12px 34px;
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
+  width: 250px;
   z-index: 8;
 }
 
 .table-playfield .center-panel {
-  background:
-    radial-gradient(circle at 40% 25%, rgb(255 255 255 / 8%), transparent 32%),
-    linear-gradient(155deg, rgb(18 27 24 / 96%), rgb(8 16 13 / 96%));
+  background: transparent;
   border: 0;
-  border-radius: 10px;
-  box-shadow:
-    0 8px 20px rgb(0 0 0 / 32%),
-    inset 0 1px 0 rgb(255 255 255 / 8%);
+  border-radius: 0;
+  box-shadow: none;
   gap: 1px;
   grid-area: unset;
-  min-height: 66px;
+  min-height: 104px;
   overflow: visible;
-  padding: 5px;
+  padding: 3px;
   position: relative;
-  width: 72px;
+  width: 78px;
   z-index: 1;
 }
 
 .center-panel-your-turn {
-  border-color: #f2c66d;
-  box-shadow:
-    0 0 0 2px rgb(242 198 109 / 18%),
-    0 8px 24px rgb(0 0 0 / 38%);
+  box-shadow: none;
 }
 
 .current-tile-focus {
@@ -1545,7 +1591,7 @@ body {
   gap: 2px;
   min-width: 116px;
   pointer-events: none;
-  position: relative;
+  position: static;
   text-align: center;
   z-index: 2;
 }
@@ -1596,14 +1642,21 @@ body {
 }
 
 .current-tile-prompt {
-  background: rgb(7 14 12 / 82%);
+  background: #08100d;
   border: 0;
   border-radius: 999px;
   color: #f7f4ee;
   font-size: 8px;
   line-height: 1.2;
-  margin-top: 2px;
-  padding: 2px 7px;
+  bottom: 7px;
+  left: 8px;
+  margin: 0;
+  min-height: 22px;
+  overflow: hidden;
+  padding: 4px 9px;
+  position: absolute;
+  right: 8px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1623,26 +1676,35 @@ body {
   justify-content: center;
 }
 
-.seat-top .seat-header,
+.seat-top .seat-meta,
 .seat-top .opponent-hand-backs {
   align-self: center;
 }
 
 .seat-left,
 .seat-right {
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: stretch;
+  padding-top: 42px;
+  position: relative;
 }
 
-.seat-left .seat-header,
-.seat-right .seat-header {
-  align-self: center;
+.seat-left .seat-meta,
+.seat-right .seat-meta {
+  align-self: start;
+  flex: 0 0 auto;
 }
 
 .seat-left .opponent-hand-backs,
 .seat-right .opponent-hand-backs {
   align-items: center;
+  flex: 1 1 auto;
   flex-direction: column;
+  justify-content: flex-start;
+  overflow: visible;
 }
 
 .seat-left .opponent-hand-backs .tile-xs + .tile-xs,
@@ -1652,7 +1714,31 @@ body {
 
 .seat-left .meld-area,
 .seat-right .meld-area {
+  align-content: flex-end;
+  align-items: flex-end;
+  flex: 0 0 auto;
+  flex-direction: row;
+  flex-wrap: wrap;
   justify-content: center;
+  max-height: 48%;
+  overflow: visible;
+  width: 100%;
+}
+
+.seat-left .meld,
+.seat-right .meld {
+  flex-direction: row;
+  margin: 0;
+}
+
+.seat-left > .bonus-tile-area,
+.seat-right > .bonus-tile-area {
+  flex: 0 0 auto;
+  max-width: 100%;
+  min-height: 30px;
+  position: static;
+  width: 100%;
+  z-index: 4;
 }
 
 .local-seat {
@@ -1667,7 +1753,7 @@ body {
   position: relative;
 }
 
-.local-seat > .seat-header {
+.local-seat > .local-seat-footer {
   grid-area: local-meta;
   z-index: 2;
 }
@@ -1682,15 +1768,15 @@ body {
 
 .local-seat > .bonus-tile-area {
   bottom: 4px;
-  /* This tray floats over the seat's bottom-right corner, so its width comes
-     straight out of the hand's. The hand cannot yield any: 17 tiles at the
-     §9.9 32px minimum touch target is a fixed 544px whatever the tile art
-     measures. Keep the tray narrow enough that the Tai badge wraps under the
-     Flowers rather than widening the row — growing downward is free here,
-     growing sideways is not. */
-  max-width: 58px;
+  /* Match the top player's horizontal exposed-bonus layout while keeping the
+     entire group inside the local player's reserved cockpit. It may wrap only
+     when the viewport cannot accommodate the full row. */
+  flex-direction: row;
+  justify-content: flex-end;
+  max-width: min(32%, 320px);
   position: absolute;
   right: 4px;
+  width: max-content;
   z-index: 3;
 }
 
@@ -1727,18 +1813,6 @@ body {
   position: relative;
 }
 
-.local-hand-tile-drawn::after {
-  background: #f2c66d;
-  border-radius: 999px;
-  content: "";
-  height: 4px;
-  left: 50%;
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  width: 4px;
-}
-
 .local-hand-tile-drawn .tile {
   animation: tile-arrive 0.25s ease-out;
 }
@@ -1773,6 +1847,25 @@ body {
   font-size: 9px;
   font-weight: 700;
   padding: 2px 6px;
+}
+
+.local-game-controls {
+  align-items: center;
+  background: rgb(8 15 13 / 91%);
+  border-radius: 999px;
+  display: flex;
+  flex-shrink: 0;
+  gap: 3px;
+  padding: 2px 4px;
+}
+
+.local-seat-footer {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  max-width: calc(100% - 130px);
+  z-index: 5;
 }
 
 .table-fx-toggle-on {
@@ -1939,9 +2032,9 @@ body {
     --focus-tile-width: clamp(58px, 5.4vw, 82px);
     gap: clamp(5px, 0.65vw, 11px);
     grid-template-columns:
-      clamp(96px, 9vw, 160px)
+      clamp(160px, 17vw, 260px)
       minmax(0, 1fr)
-      clamp(96px, 9vw, 160px);
+      clamp(160px, 17vw, 260px);
     grid-template-rows:
       clamp(58px, 9vh, 84px)
       minmax(0, 1fr)
@@ -1988,7 +2081,7 @@ body {
   /* Identity + Sort/FX sit directly beneath the concealed hand. Exposed
      melds keep their own left-side lane, so Chow/Pong/Kang tiles can grow
      without covering the controls. */
-  .local-seat > .seat-header {
+  .local-seat > .local-seat-footer {
     bottom: 8px;
     left: 50%;
     position: absolute;
@@ -2033,11 +2126,6 @@ body {
     gap: 3px;
   }
 
-  .wait-explainer summary {
-    font-size: 10px;
-    padding: 5px 8px;
-  }
-
   .wait-remaining {
     font-size: 11px;
   }
@@ -2054,28 +2142,47 @@ body {
   }
 
   .table-playfield .center-panel {
-    border-radius: 14px;
     gap: 3px;
-    min-height: clamp(88px, 12vh, 108px);
-    padding: 7px;
-    width: clamp(88px, 8vw, 112px);
+    min-height: clamp(112px, 15vh, 142px);
+    padding: 5px;
+    width: clamp(98px, 8vw, 118px);
   }
 
   .table-center-cluster {
-    gap: clamp(16px, 2vw, 30px);
-    min-width: 340px;
-    padding: 28px 42px;
+    gap: clamp(12px, 1.4vw, 22px);
+    grid-template-columns: clamp(98px, 8vw, 118px) minmax(170px, 1fr);
+    min-height: clamp(178px, 24vh, 224px);
+    padding: 14px 18px 42px;
+    width: clamp(340px, 34vw, 470px);
   }
 
   .meld-area .tile-sm,
   .wait-panel .tile-sm {
-    height: 36px;
-    width: 26px;
+    height: 40px;
+    width: 29px;
+  }
+
+  /* Opponents' exposed information is gameplay-critical counting material.
+     Keep it roughly 25% larger than the original presentation without
+     crowding the seat regions or forcing the central dashboard outward. */
+  .seat .meld-area .tile-sm {
+    height: 50px;
+    width: 36px;
+  }
+
+  .seat > .bonus-tile-area .tile-sm {
+    height: 42px;
+    width: 30px;
+  }
+
+  .bonus-tile-area .tile-sm {
+    height: 34px;
+    width: 24px;
   }
 
   .current-tile-focus {
     gap: 4px;
-    min-width: 180px;
+    min-width: 170px;
   }
 
   .current-tile-kicker,
@@ -2089,6 +2196,7 @@ body {
 
   .current-tile-prompt {
     font-size: 11px;
+    min-height: 28px;
     padding: 4px 10px;
   }
 
@@ -2161,8 +2269,8 @@ body {
     --river-tile-width: clamp(17px, 2.6vw, 23px);
     --focus-tile-width: clamp(52px, 7.2vw, 60px);
     gap: 3px;
-    grid-template-columns: 72px minmax(0, 1fr) 72px;
-    grid-template-rows: 42px minmax(0, 1fr) auto 88px;
+    grid-template-columns: clamp(104px, 15vw, 156px) minmax(0, 1fr) clamp(104px, 15vw, 156px);
+    grid-template-rows: 48px minmax(0, 1fr) auto 96px;
     padding: 4px;
   }
 
@@ -2173,16 +2281,31 @@ body {
 
   .seat-header {
     gap: 3px;
+    height: 24px;
     padding: 2px 5px;
+    width: 104px;
   }
 
-  .seat-left .seat-status,
-  .seat-right .seat-status {
-    flex-basis: auto;
+  .seat-activity {
+    height: 24px;
+    min-height: 20px;
+    padding: 1px 5px;
+    width: 104px;
+  }
+
+  .seat-header .profile-tile-icon {
+    height: 18px;
+    width: 12px;
+  }
+
+  .seat-header .profile-nickname {
+    font-size: 10px;
   }
 
   .seat-identity,
-  .seat-status {
+  .seat-activity,
+  .seat-activity-message,
+  .seat-activity-facts {
     gap: 3px;
   }
 
@@ -2193,8 +2316,7 @@ body {
     width: 18px;
   }
 
-  .seat-name,
-  .hand-count {
+  .seat-name {
     font-size: 10px;
   }
 
@@ -2225,11 +2347,13 @@ body {
     padding: 2px 6px 3px;
   }
 
-  .local-seat > .seat-header {
-    left: auto;
-    position: static;
-    top: auto;
-    transform: none;
+  .local-seat > .local-seat-footer {
+    left: 50%;
+    max-width: none;
+    position: absolute;
+    top: 2px;
+    transform: translateX(-50%);
+    width: max-content;
   }
 
   .local-hand {
@@ -2239,19 +2363,52 @@ body {
     box-shadow: none;
     gap: 0;
     max-width: none;
-    /* Shift clear of the Flower tray that overlays this corner; the hand
-       itself cannot shrink, since 17 tiles at the 32px touch-target minimum
-       is a fixed width. */
-    padding: 0 52px 0 0;
+    /* The Flower tray is lifted above the hand at this aspect ratio, leaving
+       the full row available for all 17 concealed tiles and the drawn tile. */
+    padding: 0;
     width: auto;
   }
 
-  .seat-left .seat-header {
-    align-self: flex-start;
+  .local-seat > .bonus-tile-area {
+    /* Keep Flowers visible without covering the hand's final tiles or their
+       discard targets. The tray floats just above the 44px touch row. */
+    bottom: 50px;
+    right: 6px;
   }
 
-  .seat-right .seat-header {
+  .local-seat > .meld-area {
+    bottom: 50px;
+    left: 6px;
+    max-width: 42%;
+  }
+
+  .local-seat > .meld-area .tile-sm {
+    height: 30px;
+    width: 21px;
+  }
+
+  .seat-top .opponent-hand-backs .tile-xs + .tile-xs {
+    margin-left: -6px;
+  }
+
+  .seat-top .seat-header,
+  .seat-top .seat-activity {
+    width: 88px;
+  }
+
+  .seat-top > .bonus-tile-area .tile-sm {
+    height: 28px;
+    width: 20px;
+  }
+
+  .seat-left .seat-meta {
+    align-self: flex-start;
+    justify-self: start;
+  }
+
+  .seat-right .seat-meta {
     align-self: flex-end;
+    justify-self: end;
   }
 
   .local-seat > .wait-panel {
@@ -2268,28 +2425,24 @@ body {
     font-size: 8px;
   }
 
-  .wait-explainer summary {
-    font-size: 8px;
-    padding: 3px 5px;
-  }
-
-  .wait-explainer-copy {
-    font-size: 9px;
-    width: min(230px, 72vw);
-  }
-
   .table-playfield .center-panel {
-    border-radius: 9px;
     gap: 1px;
-    min-height: 60px;
-    padding: 3px;
-    width: 64px;
+    min-height: 62px;
+    padding: 2px;
+    width: 50px;
   }
 
   .table-center-cluster {
-    gap: 7px;
-    min-width: 198px;
-    padding: 10px 14px;
+    gap: 4px;
+    grid-template-columns: 50px minmax(88px, 1fr);
+    min-height: 96px;
+    padding: 5px 7px 25px;
+    width: 174px;
+  }
+
+  .discard-river-top,
+  .discard-river-bottom {
+    height: 30%;
   }
 
   .meld-area .tile-sm,
@@ -2298,9 +2451,17 @@ body {
     width: 21px;
   }
 
+  /* The desktop opponent rule has an extra `.seat` in its selector, so the
+     generic compact rule above cannot override it by cascade order alone.
+     Pin the top player's exposed melds to the short-landscape scale. */
+  .seat-top .meld-area .tile-sm {
+    height: 30px;
+    width: 21px;
+  }
+
   .current-tile-focus {
     gap: 1px;
-    min-width: 126px;
+    min-width: 88px;
   }
 
   .current-tile-focus::before {
@@ -2308,7 +2469,10 @@ body {
   }
 
   .current-tile-focus .tile-focus {
+    height: 65px;
     margin: 0 0 1px;
+    min-width: 44px;
+    width: 44px;
   }
 
   .current-tile-source {
@@ -2318,21 +2482,42 @@ body {
   .countdown-ring,
   .countdown-untimed,
   .countdown-number {
-    height: 36px;
-    width: 36px;
+    height: 30px;
+    width: 30px;
   }
 
   .countdown-untimed-icon {
-    font-size: 16px;
+    font-size: 13px;
+  }
+
+  .countdown-elapsed-time {
+    font-size: 12px;
   }
 
   .wall-count {
-    font-size: 15px;
+    font-size: 12px;
   }
 
   .round-status,
   .active-seat-callout {
+    font-size: 7px;
+  }
+
+  .current-tile-kicker {
+    font-size: 7px;
+  }
+
+  .current-tile-name {
     font-size: 8px;
+  }
+
+  .current-tile-prompt {
+    bottom: 5px;
+    font-size: 7px;
+    left: 6px;
+    min-height: 18px;
+    padding: 3px 7px;
+    right: 6px;
   }
 
   .action-bar {
@@ -2365,6 +2550,22 @@ body {
   .seat-left .opponent-hand-backs .tile-xs + .tile-xs,
   .seat-right .opponent-hand-backs .tile-xs + .tile-xs {
     margin-top: -9px;
+  }
+
+  .seat-left .meld-area .tile-sm,
+  .seat-right .meld-area .tile-sm {
+    height: 34px;
+    width: 24px;
+  }
+
+  .seat > .bonus-tile-area .tile-sm {
+    height: 34px;
+    width: 24px;
+  }
+
+  .seat-left,
+  .seat-right {
+    padding-top: 34px;
   }
 }
 

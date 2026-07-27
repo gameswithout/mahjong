@@ -40,7 +40,7 @@ describe("LobbyHeader", () => {
     // The headline number is the spendable one; the reservation is disclosed
     // beside it rather than silently subtracted or silently included.
     expect(markup).toContain("4,700");
-    expect(markup).toContain("300 reserved");
+    expect(markup).toContain("300 Jade reserved");
   });
 
   it("tells a guest their progress is device-bound", () => {
@@ -73,6 +73,27 @@ describe("LobbyHeader", () => {
     );
 
     expect(markup).toContain("Unavailable");
-    expect(markup).not.toContain(">0<");
+    expect(markup).toContain(">0<");
+    expect(markup).toContain("Tael");
+  });
+
+  it("uses the same tile-based profile shape and locks guest nicknames", () => {
+    const markup = renderToStaticMarkup(
+      <LobbyHeader guest account={account} jadeStatus="ready" connection="connected" />,
+    );
+
+    expect(markup).toContain("Profile slot 1");
+    expect(markup).toContain("Profile slot 2");
+    expect(markup).toContain("Profile slot 3");
+    expect(markup).toContain("Slot 1");
+    expect(markup).toContain("Slot 2");
+    expect(markup).toContain("Slot 3");
+    expect(markup).toContain("Create a full account to edit your nickname");
+    expect(markup).toContain("disabled");
+    expect(markup.match(/for slot 1/g)?.length).toBe(42);
+    expect(markup.indexOf("tied to this device")).toBeLessThan(
+      markup.indexOf("Edit profile"),
+    );
+    expect(markup.indexOf("Edit profile")).toBeLessThan(markup.indexOf("Rules"));
   });
 });

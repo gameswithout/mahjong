@@ -36,12 +36,53 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelector(".seat .discard-grid")).toBeNull();
   });
 
+  it("keeps timer, wall, round, turn, discard, source, and message in one central dashboard", () => {
+    act(() => root.render(<MatchTable state={mockMatchTableState} />));
+
+    const dashboard = container.querySelector(".central-dashboard");
+    expect(dashboard).not.toBeNull();
+    expect(dashboard?.querySelector('[role="timer"]')).not.toBeNull();
+    expect(dashboard?.querySelector(".wall-outline")).not.toBeNull();
+    expect(dashboard?.querySelector(".round-status")).not.toBeNull();
+    expect(dashboard?.querySelector(".active-seat-callout")).not.toBeNull();
+    expect(dashboard?.querySelector(".current-tile-focus .tile-focus")).not.toBeNull();
+    expect(dashboard?.querySelector(".current-tile-source")).not.toBeNull();
+    expect(dashboard?.querySelector(".current-tile-prompt")).not.toBeNull();
+  });
+
+  it("uses the shared player profile structure while keeping local game controls separate", () => {
+    act(() => root.render(<MatchTable state={mockMatchTableState} />));
+
+    const localSeat = container.querySelector(".local-seat");
+    const localProfile = localSeat?.querySelector(".seat-header");
+    const localActivity = localSeat?.querySelector(".seat-activity");
+    const controls = localSeat?.querySelector(".local-game-controls");
+    expect(localProfile).not.toBeNull();
+    expect(localProfile?.querySelector(".seat-identity")).not.toBeNull();
+    expect(localProfile?.querySelector(".seat-activity")).toBeNull();
+    expect(localActivity?.querySelector(".hand-count")).toBeNull();
+    expect(controls).not.toBeNull();
+    expect(localProfile?.contains(controls ?? null)).toBe(false);
+    expect(controls?.querySelector(".sort-toggle-button")).not.toBeNull();
+    expect(controls?.querySelector(".table-fx-toggle")).not.toBeNull();
+    expect(container.querySelectorAll(".player-profile")).toHaveLength(4);
+    expect(container.querySelectorAll(".seat-activity")).toHaveLength(4);
+    expect(container.querySelectorAll(".player-profile .wind-badge")).toHaveLength(0);
+    expect(container.querySelectorAll(".seat-activity .wind-badge")).toHaveLength(4);
+    expect(container.querySelector(".player-profile .dealer-badge")).toBeNull();
+    expect(container.querySelector(".seat-activity .dealer-badge")).not.toBeNull();
+    expect(container.querySelectorAll(".bot-badge")).toHaveLength(0);
+    expect(container.querySelectorAll(".hand-count")).toHaveLength(0);
+  });
+
   it("centers the winning hand and marks the winner seat for celebration", () => {
     const winner = "E";
     const state = {
       ...mockMatchTableState,
       showdown: true,
       showdownWinningDiscard: mockMatchTableState.lastDiscard ?? undefined,
+      showdownWinningTile: mockMatchTableState.lastDiscard?.tile,
+      showdownWinType: { chinese: "胡", romanized: "Hu" },
       seats: {
         ...mockMatchTableState.seats,
         [winner]: {
@@ -56,9 +97,15 @@ describe("MatchTable table-first UX", () => {
     const reveal = container.querySelector(".showdown-hands");
     expect(reveal?.closest(".table-playfield")).not.toBeNull();
     expect(reveal?.querySelectorAll(".showdown-hand-tile")).toHaveLength(2);
-    expect(reveal?.querySelector(".showdown-winning-discard")?.textContent).toContain(
+    const winningDiscard = reveal?.querySelector(".showdown-winning-discard");
+    expect(winningDiscard?.textContent).toContain(mockMatchTableState.lastDiscard?.tile.label);
+    expect(winningDiscard?.textContent).toContain("胡");
+    expect(winningDiscard?.textContent).toContain("Hu");
+    expect(winningDiscard?.textContent).not.toContain("Winning discard");
+    expect(reveal?.querySelector(".showdown-win-type + strong")?.textContent).toBe(
       mockMatchTableState.lastDiscard?.tile.label,
     );
+    expect(reveal?.classList).toContain("showdown-hands");
     expect(container.querySelector('[aria-label="East seat"]')?.classList).toContain("seat-celebrating");
   });
 
@@ -90,10 +137,8 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelectorAll(".seat-active")).toHaveLength(1);
     expect(container.querySelector(".local-seat.seat-active")).not.toBeNull();
     expect(container.querySelectorAll(".bonus-tile-area")).toHaveLength(3);
-    // The local Flower set now carries its running Tai in the accessible name,
-    // so a screen-reader user gets the same running total the badge shows.
     const localFlowers = container.querySelector(
-      '[aria-label="Your exposed Flowers and Seasons, worth 1 Tai so far"]',
+      '[aria-label="Your exposed Flowers and Seasons"]',
     );
     expect(localFlowers).not.toBeNull();
     expect(localFlowers?.querySelectorAll(".tile")).toHaveLength(2);
@@ -103,14 +148,10 @@ describe("MatchTable table-first UX", () => {
     expect(container.textContent).not.toContain("CLAIM");
   });
 
-  it("marks only the seat's own Flowers and shows the running Tai they are worth", () => {
+  it("marks only the seat's own Flowers without showing a live Tai counter", () => {
     act(() => root.render(<MatchTable state={mockMatchTableState} />));
 
     // South holds summer (its own, +1 Tai) and plum (East's, worth nothing).
-    const badge = container.querySelector('[data-testid="flower-tai-badge"]');
-    expect(badge?.getAttribute("data-flower-tai")).toBe("1");
-    expect(badge?.textContent).toContain("1");
-
     const marked = container.querySelectorAll(".bonus-tile-area-local .bonus-tile-matching");
     expect(marked).toHaveLength(1);
     expect(marked[0]?.getAttribute("title")).toBe("flower summer — your Flower, +1 Tai");
@@ -119,9 +160,8 @@ describe("MatchTable table-first UX", () => {
     // to see everything they have exposed, not only what pays.
     expect(container.querySelectorAll(".bonus-tile-area-local .bonus-tile")).toHaveLength(2);
 
-    // Opponent Flower sets carry no local Tai badge; it would be meaningless
-    // against another seat's wind.
-    expect(container.querySelectorAll('[data-testid="flower-tai-badge"]')).toHaveLength(1);
+    // Tai is summarized after the hand rather than occupying live-table space.
+    expect(container.querySelector('[data-testid="flower-tai-badge"]')).toBeNull();
   });
 
   it("keeps turn emphasis on the authoritative active player during a claim decision", () => {
@@ -199,6 +239,26 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelectorAll(".chow-preview-claimed")).toHaveLength(2);
   });
 
+  it("suppresses Chow when the same discard can be won with Hu", () => {
+    const onChow = vi.fn();
+    const onWin = vi.fn();
+    const state = {
+      ...mockMatchTableState,
+      legalActions: [
+        { id: "pass", label: "Pass" },
+        { id: "chow-0", label: "Chow", onClick: onChow },
+        { id: "win-discard", label: "Win", onClick: onWin },
+      ],
+    };
+    act(() => root.render(<MatchTable state={state} />));
+
+    expect(container.querySelector(".action-chow-0")).toBeNull();
+    expect(container.querySelector(".action-win-discard")).not.toBeNull();
+    expect(
+      container.querySelector(".action-row button:first-child")?.classList,
+    ).toContain("action-win-discard");
+  });
+
   it("treats the hand as a cockpit and auto-sorts the newly drawn tile", () => {
     const onDiscardTile = vi.fn();
     act(() =>
@@ -219,9 +279,8 @@ describe("MatchTable table-first UX", () => {
     ).toBe("false");
     expect(container.textContent).toContain("Ting · Ready");
     expect(container.textContent).toContain("All visible");
-    expect(container.querySelector(".wait-explainer")?.textContent).toContain(
-      "concealed opponent tiles",
-    );
+    expect(container.querySelector(".wait-explainer")).toBeNull();
+    expect(container.textContent).not.toContain("How counted");
   });
 
   it("stages a new draw at far right and sorts only after the discard", () => {
@@ -304,13 +363,13 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelector(".discard-slot-recent .tile-focus")).toBeNull();
   });
 
-  it("keeps claim choices in a compact dock without duplicating the center tile", () => {
+  it("keeps non-winning claim choices in a compact dock without duplicating the center tile", () => {
     act(() => root.render(<MatchTable state={mockMatchTableState} />));
 
     const dock = container.querySelector(".action-bar-claim");
-    expect(dock?.querySelectorAll("button")).toHaveLength(4);
+    expect(dock?.querySelectorAll("button")).toHaveLength(3);
     expect(dock?.querySelector(".tile-focus")).toBeNull();
-    expect(dock?.querySelectorAll(".chow-option-preview .tile")).toHaveLength(3);
+    expect(dock?.querySelectorAll(".chow-option-preview .tile")).toHaveLength(0);
   });
 
   it("keeps the draw fallback mounted while the automatic draw is pending", () => {
@@ -381,11 +440,13 @@ describe("MatchTable table-first UX", () => {
     expect(onDiscardTile).not.toHaveBeenCalled();
     expect(firstTile?.getAttribute("aria-pressed")).toBe("true");
     expect(firstTile?.classList).toContain("local-hand-tile-selected");
-    expect(container.querySelectorAll(".local-hand .tile-match")).toHaveLength(1);
-    expect(container.querySelectorAll(".meld-area .tile-match")).toHaveLength(3);
-    expect(container.querySelectorAll(".discard-river .tile-match")).toHaveLength(0);
+    // Selecting or seeing a discard no longer reveals every matching copy.
+    // The player still gets a clear selected-tile state and the latest tile
+    // remains emphasized in its own discard river.
+    expect(container.querySelectorAll(".tile-match")).toHaveLength(0);
+    expect(container.querySelector(".discard-river .discard-slot-recent")).not.toBeNull();
     expect(container.querySelector(".current-tile-prompt")?.textContent).toContain(
-      "activate again to discard",
+      "select again to discard",
     );
 
     act(() => firstTile?.click());

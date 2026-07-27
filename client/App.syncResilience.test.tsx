@@ -251,7 +251,7 @@ describe("live-table resilience to failed match-state polls", () => {
       await Promise.resolve();
     });
     const secondActivation = container.querySelector<HTMLButtonElement>(
-      '.local-hand-tile-button[aria-label*="Activate again to discard"]',
+      '.local-hand-tile-button[aria-label*="Select again to discard"]',
     );
     await act(async () => {
       secondActivation?.click();

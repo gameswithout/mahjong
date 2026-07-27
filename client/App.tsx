@@ -56,6 +56,12 @@ import { MINIMUM_ACCOUNT_AGE, ageInYears } from "./age-gate";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
 import { MATCH_LOADING_SCREEN_MS, MatchLoadingScreen } from "./MatchLoadingScreen";
+import {
+  defaultPlayerProfile,
+  loadPlayerProfile,
+  savePlayerProfile,
+  type PlayerProfileConfig,
+} from "./player-profile";
 import "./styles.css";
 import "./match-table.css";
 
@@ -256,6 +262,9 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // Drives the end-of-match "create a full account" offer, and is cleared the
   // moment the upgrade succeeds so the offer stops after the next hand.
   const [isGuestAccount, setIsGuestAccount] = useState(false);
+  const [playerProfile, setPlayerProfile] = useState<PlayerProfileConfig>(() =>
+    defaultPlayerProfile(true),
+  );
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
@@ -283,6 +292,22 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // invocation cannot start two guest logins / two joins.
   const resumeStartedRef = useRef(false);
   const lobbyRef = useRef<LobbyConnection | null>(null);
+
+  useEffect(() => {
+    if (state.status !== "signed_in") return;
+    setPlayerProfile(loadPlayerProfile(state.userId, isGuestAccount));
+  }, [state.status, state.status === "signed_in" ? state.userId : null, isGuestAccount]);
+
+  function updatePlayerProfile(profile: PlayerProfileConfig) {
+    const normalized = {
+      ...profile,
+      nickname: profile.nickname.slice(0, 24),
+    };
+    setPlayerProfile(normalized);
+    if (state.status === "signed_in") {
+      savePlayerProfile(state.userId, normalized);
+    }
+  }
   const matchRuntimeRef = useRef<MatchRuntimeConnection | null>(null);
   const matchRuntimeMatchIdRef = useRef<string | null>(null);
   // Consecutive failed match-runtime requests, which set how long the poll
@@ -1908,6 +1933,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                         claimActionPending: true,
                         revealWinningHands: true,
                       })}
+                      playerProfile={playerProfile}
                     />
                   </div>
                 }
@@ -1939,7 +1965,10 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
               />
             </div>
           ) : introducedMatchId !== matchRuntimeState.matchId ? (
-            <MatchLoadingScreen view={matchRuntimeState.view} />
+            <MatchLoadingScreen
+              view={matchRuntimeState.view}
+              playerProfile={playerProfile}
+            />
           ) : (
             <>
               <div className="game-screen-fullscreen">
@@ -1994,6 +2023,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                     onSelfTurnAction: dispatchSelfTurnAction,
                     claimActionPending: matchRuntimeState.commandPending,
                   })}
+                  playerProfile={playerProfile}
                   interaction={{
                     canDraw:
                       matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
@@ -2307,6 +2337,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
               account={jadeState.status === "ready" ? jadeState.account : undefined}
               jadeStatus={jadeState.status}
               connection={state.lobbyStatus}
+              profile={playerProfile}
+              onProfileChange={updatePlayerProfile}
             />
 
             {state.lobbyStatus === "connected" && (

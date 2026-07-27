@@ -235,13 +235,23 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      wallet-reconcile-20260725-r3 (active since
-                2026-07-26T03:38:53.301Z; deployment
-                f9fee13c-2aa5-40ad-99cf-570d1c7443df). This fixes the live
-                Wallet API's mixed-case "System" balance origin, gives each
-                reconciliation target its own timeout, prioritizes pending
-                targets, and projects sanitized sync failure state.
+Image tag:      faucets-20260726 (active since
+                2026-07-27T12:33:12.002Z; deployment
+                e4b631e7-a545-4d6a-a0d0-9bf6220d22f1). Adds the §7.5
+                faucets: the ClaimJadeWelfare RPC, the daily play grants,
+                and migration 004_jade_faucets.sql (jade_hand_participation,
+                jade_daily_grants). This is the first deployment to carry a
+                schema migration since the Jade economy itself; the service
+                applies migrations at startup inside a transaction, so
+                "deployment-running" plus a serving REST surface is also the
+                evidence that 004 applied.
                 Preceding images, newest first:
+                wallet-reconcile-20260725-r3 (2026-07-26T03:38:53.301Z;
+                deployment f9fee13c-2aa5-40ad-99cf-570d1c7443df — fixed the
+                live Wallet API's mixed-case "System" balance origin, gave
+                each reconciliation target its own timeout, prioritized
+                pending targets, and projected sanitized sync failure
+                state),
                 wallet-reconcile-20260725-r2,
                 wallet-reconcile-20260725-r1,
                 wallet-verify-20260725,
@@ -292,7 +302,19 @@ Verified:       Image push + deploy succeeded; app status
                 legal actions; all Wallet statuses synced; total Jade stayed
                 20,000; all returned balances were 5,000; four Session leaves
                 succeeded.
+                2026-07-27: faucets-20260726 deployed; app status
+                deployment-running; POST /jade/welfare moved from 404 to
+                401 against the live URL, which is what confirms the new
+                route exists and enforces auth rather than merely that the
+                deploy command returned success.
 Not verified:   Append latency against the real Aurora cluster.
+                The §7.5 faucets have not been exercised end-to-end against
+                this deployment by a real player: no live account has yet
+                been driven below the Bamboo minimum, played a Practice
+                hand, and claimed the welfare top-up. Migration 004 is
+                inferred to have applied from a clean startup, not read back
+                from Aurora — nothing here has queried jade_daily_grants or
+                jade_hand_participation in production.
 ```
 
 ### Reading deployment state

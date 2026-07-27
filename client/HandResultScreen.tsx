@@ -130,7 +130,7 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
             {seatLabel(winner.seat, localSeat)}
           </h4>
         </div>
-        <div className="hand-result-score-badge" aria-label={`${winner.score.raw_tai} raw Tai`}>
+        <div className="hand-result-score-badge" aria-label={`${winner.score.raw_tai} raw 台`}>
           <span>Raw score</span>
           <strong>{winner.score.raw_tai} <span lang="zh-Hant">台</span></strong>
         </div>
@@ -160,7 +160,7 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
         aria-expanded={expanded}
         aria-controls={`winner-score-${winner.seat}`}
       >
-        <span>Why this scored</span>
+        <span>Scoring details</span>
         <span aria-hidden="true">{expanded ? "−" : "+"}</span>
       </button>
       {expanded && (
@@ -174,8 +174,8 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
             ))}
           </ul>
           <p className="hand-result-tai-total">
-            <span>Raw Tai subtotal</span>
-            <strong>{winner.score.raw_tai} <span className="bilingual-term"><span lang="zh-Hant">台</span><small>(Tai)</small></span></strong>
+            <span>Raw subtotal</span>
+            <strong>{winner.score.raw_tai} <span lang="zh-Hant">台</span></strong>
           </p>
         </div>
       )}
@@ -214,7 +214,7 @@ function SettlementRow({
       </strong>
       <p className="hand-result-transfer-formula">
         {stakePerTai
-          ? `${stakePerTai.toLocaleString()} Jade per Tai × ${transfer.effective_tai} Tai = ${transfer.raw_amount.toLocaleString()} Jade`
+          ? `${stakePerTai.toLocaleString()} Jade per 台 × ${transfer.effective_tai} 台 = ${transfer.raw_amount.toLocaleString()} Jade`
           : `Raw payment: ${transfer.raw_amount.toLocaleString()} ${unit}`}
       </p>
       {capped && (
@@ -257,7 +257,7 @@ function SettlementStory({
 
       {!practice && view.jade_account && (
         <p className="hand-result-stake">
-          Table stake: <strong>{view.jade_account.stake_per_tai.toLocaleString()} Jade per Tai</strong>
+          Table stake: <strong>{view.jade_account.stake_per_tai.toLocaleString()} Jade per 台</strong>
           <span aria-hidden="true"> · </span>
           Debit cap: <strong>{view.jade_account.debit_cap.toLocaleString()} Jade</strong>
         </p>
@@ -365,7 +365,7 @@ export function HandResultScreen({
           <div className="hand-result-chapter-heading">
             <div>
               <p className="hand-result-kicker">Hand</p>
-              <h3 id="scoring-heading">How the hand scored</h3>
+              <h3 id="scoring-heading">Scoring Breakdown <span lang="zh-Hant">台</span> (Tai)</h3>
             </div>
           </div>
           {winners.length === 0 ? (
@@ -376,7 +376,7 @@ export function HandResultScreen({
 
           {dealerTaiBonus > 0 && dealer && (
             <p className="hand-result-dealer-tai">
-              <strong>Dealer Tai: +{dealerTaiBonus}</strong>
+              <strong>Dealer <span lang="zh-Hant">台</span>: +{dealerTaiBonus}</strong>
               <span>
                 Applied when {seatLabel(dealer, view.seat)} is the winner or payer.
               </span>

@@ -52,13 +52,28 @@ describe("TileFace", () => {
   it("renders bamboo with straight shafts and distinct indented segment nodes", () => {
     const oneBamboo = renderToStaticMarkup(<TileFace id="bamboo-1-1" size="lg" />);
     const twoBamboo = renderToStaticMarkup(<TileFace id="bamboo-2-1" size="lg" />);
+    const eightBamboo = renderToStaticMarkup(<TileFace id="bamboo-8-1" size="lg" />);
 
     expect(oneBamboo).toContain("tile-face-one-bamboo-long");
     expect(oneBamboo).toContain("tile-face-bamboo-stick");
     expect(oneBamboo).toContain('scale(1.45 2.15)');
     expect(twoBamboo.match(/tile-face-bamboo-stick/g)).toHaveLength(2);
     expect(twoBamboo).toContain('width="7.3"');
+    expect(eightBamboo).toContain("tile-face-eight-bamboo");
+    expect(eightBamboo.match(/tile-face-bamboo-stick/g)).toHaveLength(8);
+    expect(eightBamboo).toContain("translate(22 24) rotate(-48)");
+    expect(eightBamboo).toContain("translate(38 66) rotate(-48)");
+    expect(eightBamboo).not.toContain("<path d=\"M18");
     expect(oneBamboo).not.toContain("<ellipse");
+  });
+
+  it("gives every Flower and Season character the readable label treatment", () => {
+    const season = renderToStaticMarkup(<TileFace id="flower-summer" size="lg" />);
+    const flower = renderToStaticMarkup(<TileFace id="flower-orchid" size="lg" />);
+    expect(season).toContain("tile-face-flower-label");
+    expect(flower).toContain("tile-face-flower-label");
+    expect(season).not.toContain("tile-face-season-label");
+    expect(flower).not.toContain("tile-face-season-label");
   });
 
   it("labels each Wind tile with its English compass letter", () => {
