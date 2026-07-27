@@ -55,6 +55,7 @@ vi.mock("./session", async () => {
 });
 
 import { App, shouldAutomaticallyRetryMatchRuntime } from "./App";
+import { MAX_RECONNECT_ATTEMPTS } from "./poll-backoff";
 
 function completedPracticeView(matchId: string): SeatView {
   return {
@@ -268,8 +269,8 @@ describe("App Practice journey", () => {
 
   it("retries a newly created Session's transient not-found window only within the bound", () => {
     expect(shouldAutomaticallyRetryMatchRuntime("not_found", 0)).toBe(true);
-    expect(shouldAutomaticallyRetryMatchRuntime("not_found", 4)).toBe(true);
-    expect(shouldAutomaticallyRetryMatchRuntime("not_found", 5)).toBe(false);
+    expect(shouldAutomaticallyRetryMatchRuntime("not_found", MAX_RECONNECT_ATTEMPTS - 1)).toBe(true);
+    expect(shouldAutomaticallyRetryMatchRuntime("not_found", MAX_RECONNECT_ATTEMPTS)).toBe(false);
     expect(shouldAutomaticallyRetryMatchRuntime("protocol", 0)).toBe(false);
   });
 

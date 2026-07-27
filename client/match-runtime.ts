@@ -66,6 +66,19 @@ function protocolError(message: string, cause?: unknown): MatchRuntimeError {
   return new MatchRuntimeError("protocol", message, { cause });
 }
 
+// connectionNonce distinguishes one connection's request ids from every other
+// connection's, including earlier ones for the same match and player.
+// randomUUID needs a secure context, which the deployed client always has but
+// a plain-HTTP local dev origin does not, so fall back to Math.random — these
+// ids only have to be unique, never unguessable.
+function connectionNonce(): string {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === "function") {
+    return cryptoApi.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // The gRPC-gateway JSON marshaler encodes int64/uint64 proto fields as JSON
 // strings (per the proto3 JSON spec, to avoid JS float-precision loss), but
 // every consumer of SeatView expects real numbers. This walks a raw parsed
@@ -316,10 +329,20 @@ export function createMatchRuntimeConnection(
 
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
-  const requestPrefix = "match-runtime";
+  // The prefix must be unique per connection, not just per request. The
+  // service treats request_id as an idempotency key ("player:<user>:<id>",
+  // pkg/match/runtime.go) whose committed results are replayed on a repeat —
+  // and rebuilt from the event log, so they outlive both a reconnect and a
+  // service restart. A per-connection counter alone restarts at 1 on every
+  // reconnect, so the Nth command of a resumed connection would collide with
+  // the Nth of the dropped one and be answered with that older command's
+  // result while the player's actual move was never applied. Mobile networks
+  // reconnect constantly, which is exactly when this fires.
+  const requestPrefix = `match-runtime-${connectionNonce()}`;
   let requestSequence = 0;
   let closed = false;
   let currentMatchId: string | null = null;
+  let syncInFlight = false;
 
   const nextRequestId = (requestId?: string): string => requestId ?? `${requestPrefix}-${++requestSequence}`;
 
@@ -403,6 +426,16 @@ export function createMatchRuntimeConnection(
         reportError(new MatchRuntimeError("configuration", "sync() called before join() completed."));
         return id;
       }
+      // A poll that has not come back yet already covers this one: it will
+      // return whatever the caller wanted, only later. Cellular round trips
+      // routinely exceed the poll interval, and each request holds an
+      // 8-second timeout, so without this guard a slow link accumulates
+      // overlapping syncs that compete for the same connection and make the
+      // stall they were issued to recover from worse.
+      if (syncInFlight) {
+        return id;
+      }
+      syncInFlight = true;
       void request("GET", matchPath(matchId))
         .then((body) => {
           const view = readMatchStateResponse(body, matchId);
@@ -412,6 +445,9 @@ export function createMatchRuntimeConnection(
         })
         .catch((error) => {
           reportError(error instanceof MatchRuntimeError ? error : protocolError("Sync request failed.", error));
+        })
+        .finally(() => {
+          syncInFlight = false;
         });
       return id;
     },

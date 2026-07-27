@@ -144,4 +144,32 @@ describe("nextAdaptiveProfile", () => {
     expect(fifth.changed).toBe(true);
     expect(fifth.profile).toBe("medium");
   });
+
+  // The four-seat mesh sends three copies of this profile, so its ceiling is
+  // the whole bandwidth budget. A good link must not be allowed to talk the
+  // adaptation past it.
+  it("never climbs above the ceiling, however good the link looks", () => {
+    let counters = nextAdaptiveProfile("medium", "good", {}, "medium");
+    for (let i = 0; i < 20; i += 1) {
+      counters = nextAdaptiveProfile(counters.profile, "good", counters, "medium");
+      expect(counters.profile).toBe("medium");
+    }
+  });
+
+  it("still steps down below the ceiling when the link degrades", () => {
+    const first = nextAdaptiveProfile("medium", "poor", {}, "medium");
+    const second = nextAdaptiveProfile("medium", "poor", first, "medium");
+    expect(second.profile).toBe("low");
+  });
+
+  it("pulls a profile above the ceiling back down to it", () => {
+    expect(nextAdaptiveProfile("high", "good", {}, "medium").profile).toBe("medium");
+  });
+
+  it("leaves the unbounded two-party behaviour alone by default", () => {
+    let counters = nextAdaptiveProfile("medium", "good", {});
+    for (let i = 0; i < 3; i += 1) counters = nextAdaptiveProfile("medium", "good", counters);
+    const fifth = nextAdaptiveProfile("medium", "good", counters);
+    expect(fifth.profile).toBe("high");
+  });
 });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Peer, { type MediaConnection } from "peerjs";
 
 import type { SeatId } from "./matchTableTypes";
-import { createVideoCallRuntime, type CallQuality } from "./videoCall";
+import { createVideoCallRuntime, type CallMonitor, type CallQuality, type ProfileName } from "./videoCall";
 import { isInitiator, peerId, seatFromPeerId } from "./videoMesh";
 
 // Mahjong is a 4-player server-authoritative match, not the 2-player PeerJS
@@ -14,6 +14,18 @@ import { isInitiator, peerId, seatFromPeerId } from "./videoMesh";
 
 const CALL_RETRY_MS = 4_000;
 const MAX_CALL_ATTEMPTS = 8;
+
+// Send-profile bounds for the mesh. Unlike a two-party call, every seat here
+// encodes its own camera three times over, so the uplink this hook asks for is
+// three times the chosen profile: "low" is ~1.35 Mbps and "medium" ~2.7 Mbps,
+// while "high" would be ~4.8 Mbps — more than a typical cellular uplink
+// carries, on the same link the match poll needs.
+//
+// Start at the floor and let the monitor earn its way up: guessing high and
+// backing off means the first seconds of every call are spent congesting a
+// link that the player also needs to keep their hand in sync.
+const MESH_INITIAL_PROFILE: ProfileName = "low";
+const MESH_MAX_PROFILE: ProfileName = "medium";
 
 export type VideoCallStatus = "off" | "starting" | "live" | "error";
 
@@ -68,6 +80,7 @@ export function useVideoCall({
   const peerRef = useRef<Peer | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const callsRef = useRef<Map<SeatId, MediaConnection>>(new Map());
+  const monitorsRef = useRef<Map<SeatId, CallMonitor>>(new Map());
   const attemptsRef = useRef<Map<SeatId, number>>(new Map());
   const retryTimersRef = useRef<Map<SeatId, ReturnType<typeof setTimeout>>>(new Map());
   const runtimeRef = useRef<ReturnType<typeof createVideoCallRuntime> | null>(null);
@@ -97,25 +110,53 @@ export function useVideoCall({
     }
   }, []);
 
+  const stopMonitor = useCallback((seat: SeatId) => {
+    const monitor = monitorsRef.current.get(seat);
+    if (monitor) {
+      monitor.stop();
+      monitorsRef.current.delete(seat);
+    }
+  }, []);
+
   const wireCall = useCallback(
     (seat: SeatId, call: MediaConnection) => {
       callsRef.current.set(seat, call);
       call.on("stream", (remoteStream: MediaStream) => {
-        setRemoteState(seat, { stream: remoteStream, quality: "good" });
+        setRemoteState(seat, { stream: remoteStream });
+        // Monitoring starts with the media, not with the call: before there is
+        // a stream there are no senders to cap and no stats to read. This is
+        // also what applies maxBitrate to this connection's video sender at
+        // all — without it the encoder ramps to whatever the link seems to
+        // allow, three times over.
+        const runtime = runtimeRef.current;
+        if (!runtime) {
+          return;
+        }
+        stopMonitor(seat);
+        monitorsRef.current.set(
+          seat,
+          runtime.monitorCall(call, {
+            initialProfile: MESH_INITIAL_PROFILE,
+            maxProfile: MESH_MAX_PROFILE,
+            onSample: (sample) => setRemoteState(seat, { quality: sample.quality }),
+          }),
+        );
       });
       call.on("close", () => {
         if (callsRef.current.get(seat) === call) {
           callsRef.current.delete(seat);
+          stopMonitor(seat);
           setRemoteState(seat, { stream: null, quality: "connecting" });
         }
       });
       call.on("error", () => {
         if (callsRef.current.get(seat) === call) {
           callsRef.current.delete(seat);
+          stopMonitor(seat);
         }
       });
     },
-    [setRemoteState],
+    [setRemoteState, stopMonitor],
   );
 
   // The initiator side dials, retrying until the callee's peer is registered
@@ -153,6 +194,8 @@ export function useVideoCall({
     for (const timer of retryTimersRef.current.values()) clearTimeout(timer);
     retryTimersRef.current.clear();
     attemptsRef.current.clear();
+    for (const monitor of monitorsRef.current.values()) monitor.stop();
+    monitorsRef.current.clear();
     for (const call of callsRef.current.values()) {
       try {
         call.close();
@@ -197,7 +240,10 @@ export function useVideoCall({
     void (async () => {
       let stream: MediaStream;
       try {
-        stream = await runtime.acquireMedia({ profile: "medium" });
+        // Capture at the mesh's ceiling, not above it: the senders scale down
+        // from here, so capturing larger would only spend phone battery
+        // encoding pixels that are thrown away before they reach the wire.
+        stream = await runtime.acquireMedia({ profile: MESH_MAX_PROFILE });
       } catch (error) {
         startedRef.current = false;
         setStatus("error");
@@ -306,6 +352,7 @@ export function useVideoCall({
       if (!humanSet.has(seat)) {
         callsRef.current.get(seat)?.close();
         callsRef.current.delete(seat);
+        stopMonitor(seat);
         clearRetry(seat);
         attemptsRef.current.delete(seat);
         setRemotes((current) => {
@@ -321,7 +368,7 @@ export function useVideoCall({
         dialSeat(seat);
       }
     }
-  }, [status, humanSeats, localSeat, dialSeat, clearRetry]);
+  }, [status, humanSeats, localSeat, dialSeat, clearRetry, stopMonitor]);
 
   // Tear the mesh down if the match identity changes or the component unmounts.
   useEffect(() => {
