@@ -396,4 +396,117 @@ describe("BrowserIam", () => {
       });
     });
   });
+
+  // A hand can outlast the token it began with, and the client holds one token
+  // from sign-in to sign-out. Renewing it is what keeps a long session from
+  // ending in a 401 the player cannot act on.
+  describe("access token renewal", () => {
+    function signedInIam(
+      refresh: IamTransport["refreshAccessToken"],
+      refreshToken: unknown = "refresh-1",
+    ): BrowserIam {
+      return new BrowserIam(
+        {
+          async loginWithDeviceId() {
+            return { access_token: "access-1", refresh_token: refreshToken };
+          },
+          async getCurrentUser() {
+            return { userId: "guest-user-123" };
+          },
+          refreshAccessToken: refresh,
+        },
+        { getOrCreate: () => "stable-device-id" },
+      );
+    }
+
+    it("exchanges the refresh token and adopts the new access token", async () => {
+      const seen: string[] = [];
+      const iam = signedInIam(async (token) => {
+        seen.push(token);
+        return { access_token: "access-2", refresh_token: "refresh-2" };
+      });
+      await iam.loginAsGuest();
+      expect(iam.getAccessToken()).toBe("access-1");
+
+      await expect(iam.refreshAccessToken()).resolves.toBe(true);
+      expect(seen).toEqual(["refresh-1"]);
+      expect(iam.getAccessToken()).toBe("access-2");
+    });
+
+    // AGS rotates the refresh token on use, so the second exchange must present
+    // the replacement the first one returned.
+    it("presents the rotated refresh token on the next renewal", async () => {
+      const seen: string[] = [];
+      const iam = signedInIam(async (token) => {
+        seen.push(token);
+        return { access_token: `access-${seen.length + 1}`, refresh_token: `refresh-${seen.length + 1}` };
+      });
+      await iam.loginAsGuest();
+
+      await iam.refreshAccessToken();
+      await iam.refreshAccessToken();
+      expect(seen).toEqual(["refresh-1", "refresh-2"]);
+    });
+
+    // Several callers can meet a 401 in the same second. Spending the refresh
+    // token more than once would make every exchange after the first fail.
+    it("collapses concurrent renewals into one exchange", async () => {
+      let exchanges = 0;
+      const iam = signedInIam(async () => {
+        exchanges += 1;
+        await Promise.resolve();
+        return { access_token: "access-2", refresh_token: "refresh-2" };
+      });
+      await iam.loginAsGuest();
+
+      const results = await Promise.all([
+        iam.refreshAccessToken(),
+        iam.refreshAccessToken(),
+        iam.refreshAccessToken(),
+      ]);
+      expect(results).toEqual([true, true, true]);
+      expect(exchanges).toBe(1);
+    });
+
+    it("reports failure without throwing, and does not retry a rejected token", async () => {
+      let exchanges = 0;
+      const iam = signedInIam(async () => {
+        exchanges += 1;
+        throw new IamAuthError("unknown", "refresh rejected");
+      });
+      await iam.loginAsGuest();
+
+      await expect(iam.refreshAccessToken()).resolves.toBe(false);
+      await expect(iam.refreshAccessToken()).resolves.toBe(false);
+      expect(exchanges).toBe(1);
+      // The token that was already working stays usable; only renewal is spent.
+      expect(iam.getAccessToken()).toBe("access-1");
+    });
+
+    it("reports failure when the sign-in never returned a refresh token", async () => {
+      let exchanges = 0;
+      const iam = signedInIam(async () => {
+        exchanges += 1;
+        return { access_token: "access-2" };
+      }, null);
+      await iam.loginAsGuest();
+
+      await expect(iam.refreshAccessToken()).resolves.toBe(false);
+      expect(exchanges).toBe(0);
+    });
+
+    // A response with no replacement means this was the last renewal on offer.
+    it("stops renewing once a response omits the next refresh token", async () => {
+      let exchanges = 0;
+      const iam = signedInIam(async () => {
+        exchanges += 1;
+        return { access_token: "access-2" };
+      });
+      await iam.loginAsGuest();
+
+      await expect(iam.refreshAccessToken()).resolves.toBe(true);
+      await expect(iam.refreshAccessToken()).resolves.toBe(false);
+      expect(exchanges).toBe(1);
+    });
+  });
 });

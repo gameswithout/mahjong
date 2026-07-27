@@ -89,6 +89,7 @@ interface UserResponse {
 export interface IamTransport {
   loginWithDeviceId(deviceId: string): Promise<TokenResponse>;
   getCurrentUser(accessToken: string): Promise<UserResponse>;
+  refreshAccessToken?(refreshToken: string): Promise<TokenResponse>;
   createAuthenticatedSdk?(accessToken: string): AccelByteWebSdk;
   requestEmailVerificationCode?(email: string): Promise<void>;
   registerWithEmailPassword?(input: EmailRegistrationInput): Promise<void>;
@@ -209,7 +210,8 @@ export type IamOperation =
   | "register"
   | "request_code"
   | "upgrade"
-  | "request_upgrade_code";
+  | "request_upgrade_code"
+  | "refresh";
 
 const UNKNOWN_MESSAGE_BY_OPERATION: Record<IamOperation, string> = {
   login: "Guest sign-in failed. Please retry.",
@@ -219,6 +221,9 @@ const UNKNOWN_MESSAGE_BY_OPERATION: Record<IamOperation, string> = {
   request_code: "Could not send a verification code. Please retry.",
   upgrade: "Account creation failed. Please retry.",
   request_upgrade_code: "Could not send a verification code. Please retry.",
+  // Never reaches a player: refreshAccessToken swallows its failures and the
+  // caller reports whatever request prompted the refresh.
+  refresh: "Your session could not be renewed. Please sign in again.",
 };
 
 // Exported for tests: this is where every AGS failure shape is turned into
@@ -344,6 +349,25 @@ export function createSdkIamTransport(config: AccelByteWebConfig = accelByteConf
       }
     },
 
+    // Same endpoint and same explicit Basic-auth construction as the password
+    // login above, only with the refresh grant. The public client has no
+    // secret, so the header carries the client id and an empty password.
+    async refreshAccessToken(refreshToken) {
+      try {
+        const sdk = createSdk(config, {
+          Authorization: basicClientHeader(config.clientId),
+        });
+        const response = await OAuth20Api(sdk).postOauthToken_v3({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: config.clientId,
+        });
+        return response.data as TokenResponse;
+      } catch (error) {
+        throw mapAuthError(error, "refresh");
+      }
+    },
+
     createAuthenticatedSdk(accessToken) {
       const sdk = createSdk(config);
       sdk.setToken({ accessToken });
@@ -442,7 +466,13 @@ type IdentityKind = "guest" | "full";
 
 export class BrowserIam {
   private accessToken: string | null = null;
+  private refreshToken: string | null = null;
   private identityKind: IdentityKind | null = null;
+  // One in-flight refresh, shared. A match runtime, a Jade lookup and a
+  // session poll can all meet a 401 in the same second; without this they
+  // would each spend the refresh token, and AGS rotates it on use, so the
+  // second exchange would fail with a token the first had already consumed.
+  private refreshInFlight: Promise<boolean> | null = null;
 
   constructor(
     private readonly transport: IamTransport,
@@ -463,6 +493,7 @@ export class BrowserIam {
 
     const hasEmailIdentity = typeof user.emailAddress === "string" && user.emailAddress.length > 0;
     this.accessToken = token.access_token;
+    this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
     this.identityKind = hasEmailIdentity ? "full" : "guest";
     return { deviceId, userId: user.userId, isGuest: !hasEmailIdentity };
   }
@@ -502,8 +533,60 @@ export class BrowserIam {
     }
 
     this.accessToken = token.access_token;
+    this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
     this.identityKind = "full";
     return { userId: user.userId };
+  }
+
+  /**
+   * Exchanges the refresh token for a fresh access token, returning whether a
+   * new one is now in hand.
+   *
+   * An AGS access token outlives a short session but not a long one, and this
+   * client holds a single token from sign-in to sign-out. On a phone that
+   * matters more than it looks: the reconnect budget is deliberately long
+   * enough to ride out tunnels and handovers, so sessions survive to reach
+   * expiry rather than dying of a dropped link first. Without this, the reward
+   * for a well-recovered connection is a 401 that presents as an unrecoverable
+   * configuration error mid-hand.
+   *
+   * Never throws: every caller is already handling a failed request, and a
+   * refresh that cannot happen is just that request staying failed.
+   */
+  async refreshAccessToken(): Promise<boolean> {
+    if (this.refreshInFlight) {
+      return this.refreshInFlight;
+    }
+    const refreshToken = this.refreshToken;
+    if (!refreshToken || !this.transport.refreshAccessToken) {
+      return false;
+    }
+
+    this.refreshInFlight = (async () => {
+      try {
+        const token = await this.transport.refreshAccessToken!(refreshToken);
+        if (typeof token.access_token !== "string" || token.access_token.length === 0) {
+          return false;
+        }
+        this.accessToken = token.access_token;
+        // AGS rotates the refresh token on use. Keeping the old one would
+        // make the next refresh fail, so a response without a replacement
+        // means this was the last refresh available.
+        this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
+
+        return true;
+      } catch {
+        // A refresh token is rejected once and stays rejected — retrying it on
+        // the next 401 would just spend requests to be told the same thing.
+        this.refreshToken = null;
+
+        return false;
+      } finally {
+        this.refreshInFlight = null;
+      }
+    })();
+
+    return this.refreshInFlight;
   }
 
   async requestGuestUpgradeCode(email: string): Promise<void> {

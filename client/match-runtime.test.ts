@@ -18,10 +18,18 @@ interface RecordedCall {
 // rather than asserting on a mock's internals.
 class FakeFetch {
   readonly calls: RecordedCall[] = [];
-  private readonly queue: Array<{ status: number; body: unknown } | "hang" | { reject: unknown }> = [];
+  private readonly queue: Array<
+    { status: number; body: unknown } | "hang" | { reject: unknown } | { response: Response }
+  > = [];
 
   enqueue(status: number, body: unknown): void {
     this.queue.push({ status, body });
+  }
+
+  // For the cases where the headers are the point — an ETag, a bodiless 304 —
+  // rather than just the status and payload.
+  enqueueResponse(response: Response): void {
+    this.queue.push({ response });
   }
 
   enqueueRejection(error: unknown): void {
@@ -55,6 +63,9 @@ class FakeFetch {
     }
     if ("reject" in next) {
       throw next.reject;
+    }
+    if ("response" in next) {
+      return next.response;
     }
     return new Response(JSON.stringify(next.body), {
       status: next.status,
@@ -319,6 +330,226 @@ describe("createMatchRuntimeConnection", () => {
     // where the old WS protocol needed two separate server frames.
     expect(accepted[0]).toMatchObject({ match_id: "session-1", seat: "E", state_version: 3, phase: "awaiting_discard" });
     expect(states).toHaveLength(1);
+  });
+
+  // Most polls land while somebody is still deciding, so the view has not
+  // moved and resending it is pure cost on a metered link.
+  describe("conditional polling", () => {
+    function jsonWithETag(body: unknown, etag: string): Response {
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ETag: etag },
+      });
+    }
+
+    it("replays the last tag and reports an unchanged view without re-rendering", async () => {
+      const fake = new FakeFetch();
+      const states: unknown[] = [];
+      let unchanged = 0;
+      const connection = createMatchRuntimeConnection("player-token", {
+        url: "https://match.test/mahjong",
+        namespace: "gameswithout-mahjong",
+        fetchImpl: fake.fetchImpl,
+        onState: (payload) => states.push(payload),
+        onUnchanged: () => {
+          unchanged += 1;
+        },
+      });
+      await connection.ready;
+
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.join("session-1");
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+      // The first poll has no tag to offer yet.
+      fake.enqueueResponse(jsonWithETag({ state: wireMatchState() }, 'W/"v2"'));
+      connection.sync();
+      await vi.waitFor(() => expect(states).toHaveLength(1));
+      expect(fake.calls[1].headers["if-none-match"]).toBeUndefined();
+
+      fake.enqueueResponse(new Response(null, { status: 304 }));
+      connection.sync();
+      await vi.waitFor(() => expect(unchanged).toBe(1));
+      expect(fake.calls[2].headers["if-none-match"]).toBe('W/"v2"');
+      // Nothing changed, so nothing was re-rendered.
+      expect(states).toHaveLength(1);
+    });
+
+    it("adopts the new tag when the view does move", async () => {
+      const fake = new FakeFetch();
+      const states: unknown[] = [];
+      const connection = createMatchRuntimeConnection("player-token", {
+        url: "https://match.test/mahjong",
+        namespace: "gameswithout-mahjong",
+        fetchImpl: fake.fetchImpl,
+        onState: (payload) => states.push(payload),
+      });
+      await connection.ready;
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.join("session-1");
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+      fake.enqueueResponse(jsonWithETag({ state: wireMatchState() }, 'W/"v2"'));
+      connection.sync();
+      await vi.waitFor(() => expect(states).toHaveLength(1));
+
+      fake.enqueueResponse(jsonWithETag({ state: wireMatchState({ state_version: "3" }) }, 'W/"v3"'));
+      connection.sync();
+      await vi.waitFor(() => expect(states).toHaveLength(2));
+
+      fake.enqueueResponse(new Response(null, { status: 304 }));
+      connection.sync();
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(4));
+      expect(fake.calls[3].headers["if-none-match"]).toBe('W/"v3"');
+    });
+
+    // A command's response is newer than any tag a poll collected, so offering
+    // the old tag afterwards could have the service confirm a superseded view.
+    it("drops the tag after a command supplies a fresher view", async () => {
+      const fake = new FakeFetch();
+      const states: unknown[] = [];
+      const connection = createMatchRuntimeConnection("player-token", {
+        url: "https://match.test/mahjong",
+        namespace: "gameswithout-mahjong",
+        fetchImpl: fake.fetchImpl,
+        onState: (payload) => states.push(payload),
+      });
+      await connection.ready;
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.join("session-1");
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+      fake.enqueueResponse(jsonWithETag({ state: wireMatchState() }, 'W/"v2"'));
+      connection.sync();
+      await vi.waitFor(() => expect(states).toHaveLength(1));
+
+      fake.enqueue(200, { state: wireMatchState({ state_version: "3" }) });
+      connection.command({ match_id: "session-1", type: "draw", expected_version: 2 });
+      await vi.waitFor(() => expect(states).toHaveLength(2));
+
+      fake.enqueue(200, { state: wireMatchState({ state_version: "3" }) });
+      connection.sync();
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(4));
+      expect(fake.calls[3].headers["if-none-match"]).toBeUndefined();
+    });
+  });
+
+  // A hand can outlast the token it started with, and a 401 is reported as a
+  // configuration error the player cannot act on. Renewing and replaying turns
+  // an unrecoverable mid-hand failure into something they never see.
+  describe("expired access tokens", () => {
+    function connectionWith(
+      auth: { getAccessToken: () => string; refreshAccessToken?: () => Promise<boolean> },
+      fake: FakeFetch,
+      onState?: (payload: unknown) => void,
+    ) {
+      return createMatchRuntimeConnection(auth, {
+        url: "https://match.test/mahjong",
+        namespace: "gameswithout-mahjong",
+        fetchImpl: fake.fetchImpl,
+        onState,
+      });
+    }
+
+    it("renews the token and replays the request, using the new token", async () => {
+      const fake = new FakeFetch();
+      const states: unknown[] = [];
+      let token = "expired-token";
+      let refreshes = 0;
+      const connection = connectionWith(
+        {
+          getAccessToken: () => token,
+          refreshAccessToken: async () => {
+            refreshes += 1;
+            token = "fresh-token";
+            return true;
+          },
+        },
+        fake,
+        (payload) => states.push(payload),
+      );
+      await connection.ready;
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.join("session-1");
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+      fake.enqueue(401, { message: "token expired" });
+      fake.enqueue(200, { state: wireMatchState({ state_version: "5" }) });
+      connection.sync();
+
+      await vi.waitFor(() => expect(states).toHaveLength(1));
+      expect(refreshes).toBe(1);
+      expect(fake.calls).toHaveLength(3);
+      expect(fake.calls[1].headers.authorization).toBe("Bearer expired-token");
+      expect(fake.calls[2].headers.authorization).toBe("Bearer fresh-token");
+    });
+
+    // Auth that is genuinely gone must still surface, not retry forever.
+    it("reports the 401 when renewal does not produce a new token", async () => {
+      const fake = new FakeFetch();
+      const errors: MatchRuntimeError[] = [];
+      const connection = createMatchRuntimeConnection(
+        { getAccessToken: () => "expired-token", refreshAccessToken: async () => false },
+        {
+          url: "https://match.test/mahjong",
+          namespace: "gameswithout-mahjong",
+          fetchImpl: fake.fetchImpl,
+          onError: (error) => errors.push(error),
+        },
+      );
+      await connection.ready;
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.join("session-1");
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+      fake.enqueue(401, { message: "token expired" });
+      connection.sync();
+
+      await vi.waitFor(() => expect(errors).toHaveLength(1));
+      expect(errors[0].code).toBe("configuration");
+      expect(fake.calls).toHaveLength(2);
+    });
+
+    it("does not replay a 401 when the caller cannot renew", async () => {
+      const fake = new FakeFetch();
+      const errors: MatchRuntimeError[] = [];
+      const connection = createMatchRuntimeConnection("static-token", {
+        url: "https://match.test/mahjong",
+        namespace: "gameswithout-mahjong",
+        fetchImpl: fake.fetchImpl,
+        onError: (error) => errors.push(error),
+      });
+      await connection.ready;
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.join("session-1");
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+      fake.enqueue(401, { message: "token expired" });
+      connection.sync();
+
+      await vi.waitFor(() => expect(errors).toHaveLength(1));
+      expect(fake.calls).toHaveLength(2);
+    });
+
+    // The token is read per request, so a renewal that happened for some other
+    // reason is picked up without tearing the connection down and rejoining.
+    it("reads the current token on every request rather than the one it opened with", async () => {
+      const fake = new FakeFetch();
+      let token = "token-1";
+      const connection = connectionWith({ getAccessToken: () => token }, fake);
+      await connection.ready;
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.join("session-1");
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(1));
+
+      token = "token-2";
+      fake.enqueue(200, { state: wireMatchState() });
+      connection.sync();
+      await vi.waitFor(() => expect(fake.calls).toHaveLength(2));
+
+      expect(fake.calls[0].headers.authorization).toBe("Bearer token-1");
+      expect(fake.calls[1].headers.authorization).toBe("Bearer token-2");
+    });
   });
 
   // A cellular round trip regularly outlasts the 4s poll interval, so the loop

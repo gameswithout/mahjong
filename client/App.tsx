@@ -313,6 +313,16 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     () => (videoHumanSeatsKey ? (videoHumanSeatsKey.split(",") as SeatId[]) : []),
     [videoHumanSeatsKey],
   );
+  // Stable across renders so a reconnecting match runtime keeps reading the
+  // live token rather than one frozen at whichever render built it.
+  const matchRuntimeCredentials = useMemo(
+    () => ({
+      getAccessToken: () => stableIam.getAccessToken(),
+      refreshAccessToken: () => stableIam.refreshAccessToken(),
+    }),
+    [stableIam],
+  );
+
   const videoController = useVideoCall({
     matchId: matchRuntimeState.status === "joined" ? matchRuntimeState.matchId : "",
     localSeat: (matchRuntimeState.status === "joined" ? matchRuntimeState.view.seat : "E") as SeatId,
@@ -1488,7 +1498,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
     let connection: MatchRuntimeConnection;
     try {
-      connection = createMatchRuntimeConnection(stableIam.getAccessToken(), {
+      connection = createMatchRuntimeConnection(matchRuntimeCredentials, {
         url: accelByteConfig.matchServiceURL,
         namespace: accelByteConfig.namespace,
         onJoined: (payload) => {
@@ -1516,6 +1526,17 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
               commandPending: false,
             });
           }
+        },
+        // A 304 is a healthy poll with nothing to show: the board is already
+        // right, so only the backoff and the stall notice care about it.
+        onUnchanged: () => {
+          if (matchRuntimeRef.current !== connection) {
+            return;
+          }
+          syncFailuresRef.current = 0;
+          setMatchRuntimeState((current) =>
+            current.status === "joined" && current.stalled ? { ...current, stalled: undefined } : current,
+          );
         },
         onCommandAccepted: () => {
           if (matchRuntimeRef.current === connection) {

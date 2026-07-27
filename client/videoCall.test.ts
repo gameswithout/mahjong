@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCallMediaConstraints,
   classifyCallQuality,
+  iceRetryDelayMs,
   nextAdaptiveProfile,
   normalizeIceConfiguration,
   type CallStatsSample,
@@ -124,6 +125,26 @@ describe("classifyCallQuality", () => {
     sample.inbound.video.framesPerSecond = 30;
     sample.inbound.audio.packetLossPercent = 0;
     expect(classifyCallQuality(sample)).toBe("good");
+  });
+});
+
+describe("iceRetryDelayMs", () => {
+  // A slow moment on the radio is the usual cause here, not an outage, so the
+  // first retry has to come back quickly enough to still matter to this hand.
+  it("retries the first failure within seconds, not a minute", () => {
+    expect(iceRetryDelayMs(1)).toBe(5_000);
+    expect(iceRetryDelayMs(2)).toBe(10_000);
+    expect(iceRetryDelayMs(3)).toBe(20_000);
+  });
+
+  it("settles at a minute once the endpoint looks genuinely down", () => {
+    expect(iceRetryDelayMs(5)).toBe(60_000);
+    expect(iceRetryDelayMs(50)).toBe(60_000);
+  });
+
+  it("treats a zero or negative failure count as the first attempt", () => {
+    expect(iceRetryDelayMs(0)).toBe(5_000);
+    expect(iceRetryDelayMs(-2)).toBe(5_000);
   });
 });
 

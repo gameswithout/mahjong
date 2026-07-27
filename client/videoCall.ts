@@ -26,8 +26,18 @@ export const VIDEO_PROFILES: Readonly<Record<string, VideoProfile>> = Object.fre
 });
 
 const PROFILE_ORDER = ["high", "medium", "low"] as const;
-const ICE_FETCH_TIMEOUT_MS = 3_000;
-const ICE_FAILURE_RETRY_MS = 60_000;
+// Fetching relay credentials is the one request the call cannot do without on
+// a phone: without a TURN relay, two peers behind carrier CGNAT never find a
+// path to each other and the call sits in "connecting" forever. Three seconds
+// was not enough to open a TLS connection and get an answer over cellular, so
+// the request that mattered most was the one most likely to be abandoned.
+const ICE_FETCH_TIMEOUT_MS = 8_000;
+// After a failure, wait before trying again — but start short. A flat minute
+// meant one badly-timed request at the start of a hand cost the whole hand its
+// relay, because nothing retried until long after everyone had given up on
+// video.
+const ICE_RETRY_BASE_MS = 5_000;
+const ICE_RETRY_MAX_MS = 60_000;
 const ICE_EXPIRY_SAFETY_MS = 60_000;
 
 export type ProfileName = "high" | "medium" | "low";
@@ -379,6 +389,22 @@ export function nextAdaptiveProfile(
   return { profile: PROFILE_ORDER[nextIndex], poorSamples, goodSamples, changed: nextIndex !== currentIndex };
 }
 
+/**
+ * How long to wait before retrying the relay-credential fetch after
+ * `failures` consecutive failures: five seconds, then ten, twenty, forty, and
+ * a minute from there on.
+ *
+ * The point of backing off at all is to not hammer an endpoint that is down.
+ * The point of starting short is that the usual reason this fails on a phone
+ * is a slow moment on the radio, not an outage, and one slow moment should not
+ * cost the player their video for the rest of the hand.
+ */
+export function iceRetryDelayMs(failures: number): number {
+  const attempts = Math.max(1, Math.floor(failures));
+
+  return Math.min(ICE_RETRY_BASE_MS * 2 ** (attempts - 1), ICE_RETRY_MAX_MS);
+}
+
 function setTrackContentHints(stream: MediaStream): void {
   for (const track of stream.getAudioTracks()) {
     try {
@@ -449,6 +475,7 @@ export function createVideoCallRuntime({
   let iceCache: IceConfiguration | null = null;
   let iceRequest: Promise<IceConfiguration | null> | null = null;
   let iceRetryAfter = 0;
+  let iceFailures = 0;
 
   async function fetchIceConfiguration(): Promise<IceConfiguration | null> {
     const currentTime = now();
@@ -471,9 +498,11 @@ export function createVideoCallRuntime({
         const normalized = normalizeIceConfiguration(await response.json(), currentTime);
         if (!normalized?.hasTurn) throw new Error("ICE configuration did not include a credentialed TURN server");
         iceCache = normalized;
+        iceFailures = 0;
         return iceCache;
       } catch (error) {
-        iceRetryAfter = currentTime + ICE_FAILURE_RETRY_MS;
+        iceFailures += 1;
+        iceRetryAfter = currentTime + iceRetryDelayMs(iceFailures);
         logger?.warn?.("[video-call] managed TURN unavailable; using PeerJS fallback", (error as Error)?.message || error);
         return null;
       } finally {

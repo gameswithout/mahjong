@@ -398,10 +398,16 @@ func newGRPCGatewayHTTPServer(
 	// request ever reaches the gRPC-gateway handler.
 	corsHandler := corsMiddleware(loggedMux)
 
+	// Conditional GET sits inside compression so it hashes the response the
+	// handler produced rather than whatever encoding it leaves in, and so an
+	// unchanged seat view is recognised before anything is spent compressing
+	// a body that is about to be dropped.
+	conditionalHandler := common.ConditionalGetMiddleware(corsHandler)
+
 	// Compression wraps CORS rather than the reverse: preflight replies have no
 	// body to compress, and the CORS headers still have to reach the browser on
 	// a compressed response.
-	compressedHandler := common.CompressionMiddleware(corsHandler)
+	compressedHandler := common.CompressionMiddleware(conditionalHandler)
 
 	return &http.Server{
 		Addr:    addr,

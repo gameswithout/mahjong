@@ -31,6 +31,21 @@ export class MatchRuntimeError extends Error {
 
 export type MatchRuntimeFetch = typeof fetch;
 
+/**
+ * How the connection gets a bearer token, read per request rather than
+ * captured once.
+ *
+ * A hand can outlive the token it started with — more so now that the client
+ * survives long cellular blackouts instead of dropping out of the match — and
+ * a connection holding a snapshot of the token cannot benefit from a refresh
+ * that happened after it opened.
+ */
+export interface MatchRuntimeCredentials {
+  getAccessToken(): string;
+  /** Renews the token, resolving to whether a fresh one is now available. */
+  refreshAccessToken?(): Promise<boolean>;
+}
+
 export interface MatchRuntimeConnectionOptions {
   url: string;
   namespace: string;
@@ -39,6 +54,12 @@ export interface MatchRuntimeConnectionOptions {
   onEnvelope?: (envelope: ProtocolEnvelope) => void;
   onJoined?: (payload: MatchJoinedPayload) => void;
   onState?: (payload: MatchStatePayload) => void;
+  /**
+   * A poll that succeeded and found the view unchanged. Distinct from onState
+   * because there is nothing new to render — but it is still proof the link is
+   * healthy, which is what the caller's failure tracking needs to know.
+   */
+  onUnchanged?: () => void;
   onCommandAccepted?: (payload: MatchCommandAcceptedPayload) => void;
   onError?: (error: MatchRuntimeError) => void;
 }
@@ -65,6 +86,10 @@ const COMMAND_TYPE_TO_PROTO: Record<MatchCommandType, string> = {
 function protocolError(message: string, cause?: unknown): MatchRuntimeError {
   return new MatchRuntimeError("protocol", message, { cause });
 }
+
+// "unchanged" is the service answering a conditional poll with 304: the view
+// the caller already has is still current, so there is no body to read.
+type RequestResult = { status: "ok"; body: unknown; etag: string | null } | { status: "unchanged" };
 
 // connectionNonce distinguishes one connection's request ids from every other
 // connection's, including earlier ones for the same match and player.
@@ -314,10 +339,14 @@ async function parseErrorBody(response: Response): Promise<string> {
 }
 
 export function createMatchRuntimeConnection(
-  accessToken: string,
+  credentials: string | MatchRuntimeCredentials,
   options: MatchRuntimeConnectionOptions,
 ): MatchRuntimeConnection {
-  if (!accessToken) {
+  // A bare string is still accepted: most callers have one token and no way to
+  // renew it, and nothing about them needs to change.
+  const auth: MatchRuntimeCredentials =
+    typeof credentials === "string" ? { getAccessToken: () => credentials } : credentials;
+  if (!auth?.getAccessToken()) {
     throw new MatchRuntimeError("configuration", "Guest sign-in is required before connecting the match runtime.");
   }
   if (!options.url) {
@@ -343,25 +372,32 @@ export function createMatchRuntimeConnection(
   let closed = false;
   let currentMatchId: string | null = null;
   let syncInFlight = false;
+  // The tag from the most recent seat view, replayed on the next poll so the
+  // service can answer "still this one" instead of resending it.
+  let stateETag: string | null = null;
 
   const nextRequestId = (requestId?: string): string => requestId ?? `${requestPrefix}-${++requestSequence}`;
 
   const matchPath = (matchId: string, suffix = ""): string =>
     `${options.url}/v1/namespaces/${encodeURIComponent(options.namespace)}/sessions/${encodeURIComponent(matchId)}/matches/${encodeURIComponent(matchId)}${suffix}`;
 
-  const request = async (method: string, url: string, body?: unknown): Promise<unknown> => {
-    if (closed) {
-      throw new MatchRuntimeError("closed", "Match runtime connection is closed.");
-    }
+  const send = async (
+    method: string,
+    url: string,
+    body?: unknown,
+    ifNoneMatch?: string | null,
+  ): Promise<Response> => {
     const controller = new AbortController();
     const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
-    let response: Response;
     try {
-      response = await fetchImpl(url, {
+      return await fetchImpl(url, {
         method,
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          // Read per attempt, not captured with the connection, so a token
+          // renewed mid-hand is picked up without reconnecting.
+          Authorization: `Bearer ${auth.getAccessToken()}`,
           ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(ifNoneMatch ? { "If-None-Match": ifNoneMatch } : {}),
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
@@ -374,15 +410,53 @@ export function createMatchRuntimeConnection(
     } finally {
       globalThis.clearTimeout(timeout);
     }
+  };
+
+  const request = async (
+    method: string,
+    url: string,
+    { body, ifNoneMatch }: { body?: unknown; ifNoneMatch?: string | null } = {},
+  ): Promise<RequestResult> => {
+    if (closed) {
+      throw new MatchRuntimeError("closed", "Match runtime connection is closed.");
+    }
+    let response = await send(method, url, body, ifNoneMatch);
+    // An expired token is the one 401 worth acting on rather than reporting:
+    // the player is still who they said they were, the proof just aged out
+    // mid-hand. Renew once and replay. Commands carry their idempotency key
+    // through the replay, so a command the service already committed before
+    // the token lapsed returns its original result rather than applying twice.
+    if (response.status === 401 && auth.refreshAccessToken) {
+      const renewed = await auth.refreshAccessToken();
+      if (renewed && !closed) {
+        response = await send(method, url, body, ifNoneMatch);
+      }
+    }
+    // 304 is a successful poll that happens to carry nothing: the view the
+    // caller already holds is still current. It is not `ok` by fetch's
+    // definition, so it has to be recognised before the error path.
+    if (response.status === 304) {
+      return { status: "unchanged" };
+    }
     if (!response.ok) {
       const message = await parseErrorBody(response);
       throw new MatchRuntimeError(errorCodeForStatus(response.status), message);
     }
     try {
-      return await response.json();
+      return { status: "ok", body: await response.json(), etag: response.headers.get("ETag") };
     } catch (error) {
       throw protocolError("Match service sent an invalid JSON response.", error);
     }
+  };
+
+  // For the calls that are never conditional, so they do not each have to
+  // rule out a response the service cannot give them.
+  const requestBody = async (method: string, url: string, body?: unknown): Promise<unknown> => {
+    const result = await request(method, url, { body });
+    if (result.status !== "ok") {
+      throw protocolError("Match service sent an unexpected conditional response.");
+    }
+    return result.body;
   };
 
   const emitEnvelope = (type: string, payload: unknown): void => {
@@ -406,7 +480,7 @@ export function createMatchRuntimeConnection(
       }
       currentMatchId = trimmed;
       const id = nextRequestId(requestId);
-      void request("POST", matchPath(trimmed, "/join"), {})
+      void requestBody("POST", matchPath(trimmed, "/join"), {})
         .then((body) => {
           const view = readMatchStateResponse(body, trimmed);
           const payload: MatchJoinedPayload = { match_id: view.match_id, seat: view.seat, view };
@@ -436,9 +510,18 @@ export function createMatchRuntimeConnection(
         return id;
       }
       syncInFlight = true;
-      void request("GET", matchPath(matchId))
-        .then((body) => {
-          const view = readMatchStateResponse(body, matchId);
+      void request("GET", matchPath(matchId), { ifNoneMatch: stateETag })
+        .then((result) => {
+          // Nothing has moved since the last poll — which is most polls, since
+          // a hand only advances when somebody acts. The view already on
+          // screen is still authoritative, so there is nothing to re-render;
+          // the caller is told only that the poll succeeded.
+          if (result.status === "unchanged") {
+            options.onUnchanged?.();
+            return;
+          }
+          stateETag = result.etag;
+          const view = readMatchStateResponse(result.body, matchId);
           const payload: MatchStatePayload = { match_id: view.match_id, seat: view.seat, view };
           emitEnvelope("match.state", payload);
           options.onState?.(payload);
@@ -482,12 +565,15 @@ export function createMatchRuntimeConnection(
         tile_ids: command.tile_ids,
         claim,
       };
-      void request("POST", matchPath(trimmed, "/commands"), body)
+      void requestBody("POST", matchPath(trimmed, "/commands"), body)
         .then((raw) => {
           if (!raw || typeof raw !== "object") {
             throw protocolError("Match service sent an invalid command response.");
           }
           const response = raw as Record<string, unknown>;
+          // A command's own response is the freshest view there is, so the
+          // next poll must not present a tag that predates it.
+          stateETag = null;
           const view = readMatchStateResponse({ state: response.state }, trimmed);
           const accepted: MatchCommandAcceptedPayload = {
             match_id: view.match_id,
