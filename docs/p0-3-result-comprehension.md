@@ -110,10 +110,11 @@ What the captures show against the acceptance criteria:
   cap.** `10,000 Jade per Tai × 45 Tai = 450,000 Jade` sits directly above
   `Debit cap applied: 450,000 → 300,000 Jade`, with the final 300,000 Jade
   transfer beside them.
-- **Practice never implies persistent rewards.** The Practice capture carries
-  the "No Jade, rating, or progression is changed" banner, titles the chapter
-  "Practice score only", denominates every amount in Practice points, ends on
-  "Nothing persists.", and shows no Jade balance or Wallet state at all.
+- **Practice never implies persistent financial or score rewards.** The
+  Practice capture carries the "No Jade, rating, or score is changed" banner,
+  titles the chapter "Practice score only", denominates every amount in
+  Practice points, and shows no Jade balance or Wallet state. The later P2.1
+  progression award is presented separately and is capped.
 
 ## Verification
 

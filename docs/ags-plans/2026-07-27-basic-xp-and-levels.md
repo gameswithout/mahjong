@@ -96,13 +96,13 @@ against configured AGS resources.
 
 ## Verification
 
-- Pure Go award/curve tests.
-- Service and API contract tests.
-- PostgreSQL integration tests for idempotency, cap concurrency, onboarding
-  transitions, immutable awards, and non-revoking rewards.
-- Progression client and React component tests.
-- Existing frontend, rules-engine, Extend service, build, and `git diff
-  --check` suites.
+- Pure Go award/curve tests and service/API contract tests passed.
+- PostgreSQL integration tests passed for idempotency, cap concurrency,
+  onboarding transitions, immutable awards, and non-revoking rewards.
+- The full frontend suite passed: 38 files, 288 tests; `npm run build` passed.
+- Root and Extend service Go suites passed; `git diff --check` passed.
+- A rendered browser capture was not available because no browser surface was
+  attached to this session; component and integration coverage remains green.
 
 ## Risks and open questions
 
@@ -122,5 +122,6 @@ against configured AGS resources.
 
 ## Next step
 
-Implement and validate the local end-to-end player flow, then publish the
-feature branch to `main` only after all database and UI evidence is green.
+Publish this validated feature branch to `main`; native AGS Statistics and
+Entitlements projection remains intentionally deferred until authenticated
+resource and permission discovery is available.
