@@ -81,6 +81,39 @@ service Service {
     };
   }
 
+  rpc GetProgression(GetProgressionRequest) returns (GetProgressionResponse) {
+    option (google.api.http) = {
+      get: "/v1/namespaces/{namespace}/progression"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the caller's XP, level, and earned rewards"
+      description: "Returns the §12.2 standing derived from lifetime XP plus the full level curve. Level never gates a lobby."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
+  rpc AwardOnboardingXP(AwardOnboardingXPRequest) returns (AwardOnboardingXPResponse) {
+    option (google.api.http) = {
+      post: "/v1/namespaces/{namespace}/progression/onboarding"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Grant the one-time onboarding XP"
+      description: "Awarded whether the player completed or intentionally skipped the tutorial (§10.4). Idempotent: replays grant nothing further."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   // JoinMatch creates the authoritative match from the fixed AGS Session
   // roster when necessary, assigns stable seats, and returns only the
   // authenticated caller's view.
@@ -174,6 +207,34 @@ message ReleaseJadeResponse {
   JadeAccount account = 1;
 }
 
+message GetProgressionRequest {
+  string namespace = 1;
+}
+
+message GetProgressionResponse {
+  PlayerProgression progression = 1;
+  // All 50 §12.2 thresholds, including levels without a reward.
+  repeated LevelStep curve = 2;
+}
+
+enum OnboardingOutcome {
+  ONBOARDING_OUTCOME_UNSPECIFIED = 0;
+  ONBOARDING_OUTCOME_COMPLETED = 1;
+  ONBOARDING_OUTCOME_SKIPPED = 2;
+}
+
+message AwardOnboardingXPRequest {
+  string namespace = 1;
+  OnboardingOutcome outcome = 2;
+}
+
+message AwardOnboardingXPResponse {
+  PlayerProgression progression = 1;
+  HandXPAward award = 2;
+  // False on an idempotent replay: award still describes the original grant.
+  bool granted = 3;
+}
+
 message ClaimJadeWelfareRequest {
   string namespace = 1;
 }
@@ -259,6 +320,57 @@ message MatchState {
   JadeAccount jade_account = 20;
   JadeSettlement jade_settlement = 21;
   SelfTurnOptions self_turn_options = 22;
+  // §12.1 XP earned by this hand, present once the hand is complete.
+  HandXPAward xp_award = 23;
+  // §12.2 standing after that award.
+  PlayerProgression progression = 24;
+}
+
+message XPComponent {
+  string label = 1;
+  int32 amount = 2;
+  string code = 3;
+}
+
+message HandXPAward {
+  string source = 1;
+  int32 total = 2;
+  repeated XPComponent components = 3;
+  // True when the §12.1 Practice daily cap reduced this award, including to
+  // zero. "You hit today's ceiling" is a different message from "you earned
+  // nothing".
+  bool capped_by_daily = 4;
+  string award_id = 5;
+}
+
+message LevelReward {
+  int32 level = 1;
+  string kind = 2;
+  string name = 3;
+  string code = 4;
+}
+
+message LevelStep {
+  int32 level = 1;
+  int64 total_xp_required = 2;
+  int64 xp_for_next_level = 3;
+  repeated LevelReward rewards = 4;
+}
+
+message OnboardingState {
+  OnboardingOutcome outcome = 1;
+  string recorded_at = 2;
+}
+
+message PlayerProgression {
+  int32 level = 1;
+  int64 lifetime_xp = 2;
+  int64 xp_into_level = 3;
+  int64 xp_for_next_level = 4;
+  bool at_cap = 5;
+  repeated LevelReward earned = 6;
+  LevelReward next = 7;
+  OnboardingState onboarding = 8;
 }
 
 message TileIDSet {

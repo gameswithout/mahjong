@@ -42,6 +42,16 @@ func TestMahjongServiceHTTPContract(t *testing.T) {
 			path:   "/v1/namespaces/{namespace}/jade/welfare",
 		},
 		{
+			method: "GetProgression",
+			verb:   http.MethodGet,
+			path:   "/v1/namespaces/{namespace}/progression",
+		},
+		{
+			method: "AwardOnboardingXP",
+			verb:   http.MethodPost,
+			path:   "/v1/namespaces/{namespace}/progression/onboarding",
+		},
+		{
 			method: "JoinMatch",
 			verb:   http.MethodPost,
 			path:   "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join",
@@ -107,6 +117,8 @@ func TestMahjongCommandContract_DoesNotAcceptCallerIdentityOrSeat(t *testing.T) 
 		"ReserveJadeRequest",
 		"ReleaseJadeRequest",
 		"ClaimJadeWelfareRequest",
+		"GetProgressionRequest",
+		"AwardOnboardingXPRequest",
 		"JoinMatchRequest",
 		"GetMatchStateRequest",
 		"SubmitMatchCommandRequest",
@@ -120,6 +132,46 @@ func TestMahjongCommandContract_DoesNotAcceptCallerIdentityOrSeat(t *testing.T) 
 			if field := message.Fields().ByName(forbidden); field != nil {
 				t.Errorf("%s accepts untrusted identity field %q", messageName, forbidden)
 			}
+		}
+	}
+}
+
+func TestProgressionContractCarriesStableIDsAndFullCurveTypes(t *testing.T) {
+	tests := []struct {
+		message protoreflect.Name
+		field   protoreflect.Name
+		kind    protoreflect.Kind
+		list    bool
+	}{
+		{"XPComponent", "code", protoreflect.StringKind, false},
+		{"HandXPAward", "award_id", protoreflect.StringKind, false},
+		{"LevelReward", "code", protoreflect.StringKind, false},
+		{"LevelStep", "total_xp_required", protoreflect.Int64Kind, false},
+		{"GetProgressionResponse", "curve", protoreflect.MessageKind, true},
+		{"PlayerProgression", "lifetime_xp", protoreflect.Int64Kind, false},
+		{"PlayerProgression", "onboarding", protoreflect.MessageKind, false},
+		{"AwardOnboardingXPRequest", "outcome", protoreflect.EnumKind, false},
+	}
+	for _, test := range tests {
+		message := pb.File_service_proto.Messages().ByName(test.message)
+		if message == nil {
+			t.Fatalf("message %q is missing", test.message)
+		}
+		field := message.Fields().ByName(test.field)
+		if field == nil {
+			t.Errorf("%s.%s is missing", test.message, test.field)
+			continue
+		}
+		if field.Kind() != test.kind || field.IsList() != test.list {
+			t.Errorf(
+				"%s.%s = kind %s list=%v, want %s list=%v",
+				test.message,
+				test.field,
+				field.Kind(),
+				field.IsList(),
+				test.kind,
+				test.list,
+			)
 		}
 	}
 }

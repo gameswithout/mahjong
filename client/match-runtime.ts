@@ -9,6 +9,10 @@ import {
   type SeatView,
   type ServerReadyPayload,
 } from "../protocol/envelope";
+import {
+  normalizeHandXPAward,
+  normalizePlayerProgression,
+} from "./progression";
 
 export type MatchRuntimeErrorCode =
   | "configuration"
@@ -274,6 +278,12 @@ function normalizeMatchState(raw: unknown): unknown {
   }
   if (state.jade_settlement) {
     normalized.jade_settlement = normalizeJadeSettlement(state.jade_settlement);
+  }
+  if (state.xp_award) {
+    normalized.xp_award = normalizeHandXPAward(state.xp_award);
+  }
+  if (state.progression) {
+    normalized.progression = normalizePlayerProgression(state.progression);
   }
   return normalized;
 }

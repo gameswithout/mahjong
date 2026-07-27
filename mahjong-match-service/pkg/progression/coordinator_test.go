@@ -1,0 +1,195 @@
+package progression
+
+import (
+	"context"
+	"testing"
+
+	"github.com/gameswithout/mahjong/rulesengine"
+)
+
+type memoryProgressionRepository struct {
+	lifetime     int
+	awards       map[string]HandAward
+	onboarding   *OnboardingState
+	majority     bool
+	takeoverRead int
+}
+
+func newMemoryProgressionRepository() *memoryProgressionRepository {
+	return &memoryProgressionRepository{awards: map[string]HandAward{}}
+}
+
+func (r *memoryProgressionRepository) AwardXP(
+	_ context.Context,
+	userID string,
+	_ string,
+	award HandAward,
+) (Player, HandAward, bool, error) {
+	if existing, ok := r.awards[award.AwardID]; ok {
+		player := PlayerFromXP(userID, r.lifetime)
+		player.Onboarding = r.onboarding
+		return player, existing, false, nil
+	}
+	r.awards[award.AwardID] = cloneTestAward(award)
+	r.lifetime += award.Total
+	player := PlayerFromXP(userID, r.lifetime)
+	player.Onboarding = r.onboarding
+	return player, award, true, nil
+}
+
+func (r *memoryProgressionRepository) RecordOnboarding(
+	ctx context.Context,
+	userID string,
+	outcome OnboardingOutcome,
+	award HandAward,
+) (Player, HandAward, OnboardingState, bool, error) {
+	if r.onboarding == nil || r.onboarding.Outcome == OnboardingSkipped {
+		next := OnboardingState{Outcome: outcome, RecordedAt: "2026-07-27T00:00:00Z"}
+		if r.onboarding != nil && r.onboarding.Outcome == OnboardingCompleted {
+			next = *r.onboarding
+		}
+		r.onboarding = &next
+	}
+	if r.onboarding.Outcome == OnboardingCompleted && outcome == OnboardingSkipped {
+		outcome = OnboardingCompleted
+	}
+	r.onboarding.Outcome = outcome
+	player, persisted, applied, err := r.AwardXP(ctx, userID, "", award)
+	player.Onboarding = r.onboarding
+	return player, persisted, *r.onboarding, applied, err
+}
+
+func (r *memoryProgressionRepository) PlayerProgression(
+	_ context.Context,
+	userID string,
+) (Player, error) {
+	player := PlayerFromXP(userID, r.lifetime)
+	player.Onboarding = r.onboarding
+	return player, nil
+}
+
+func (r *memoryProgressionRepository) TakenOverMajority(
+	context.Context,
+	string,
+	string,
+) (bool, error) {
+	r.takeoverRead++
+	return r.majority, nil
+}
+
+func cloneTestAward(award HandAward) HandAward {
+	award.Components = append([]XPComponent(nil), award.Components...)
+	return award
+}
+
+func completedView() rulesengine.SeatView {
+	return rulesengine.SeatView{
+		Seat: rulesengine.East,
+		HandResult: &rulesengine.HandResult{
+			Kind: rulesengine.WinZimo,
+			Winners: []rulesengine.HandWinner{{
+				Seat: rulesengine.East,
+				Score: rulesengine.ScoreResult{
+					Winning: true,
+					RawTai:  6,
+				},
+			}},
+		},
+	}
+}
+
+func TestCoordinatorDoesNotReadHistoryBeforeAHandCompletes(t *testing.T) {
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+
+	result, err := coordinator.RecordHand(
+		context.Background(),
+		"player",
+		"runtime",
+		rulesengine.SeatView{Seat: rulesengine.East},
+		false,
+	)
+	if err != nil || result != nil {
+		t.Fatalf("RecordHand() = %#v, %v; want no completed hand", result, err)
+	}
+	if repository.takeoverRead != 0 {
+		t.Fatalf("takeover history reads = %d, want 0", repository.takeoverRead)
+	}
+}
+
+func TestCoordinatorAppliesTakeoverMajorityBeforePricing(t *testing.T) {
+	repository := newMemoryProgressionRepository()
+	repository.majority = true
+	coordinator := NewCoordinator(repository)
+
+	result, err := coordinator.RecordHand(
+		context.Background(), "player", "runtime", completedView(), false)
+	if err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	if result.Award.Total != PublicHandXP {
+		t.Fatalf("award = %+v, want completion XP only", result.Award)
+	}
+	if repository.takeoverRead != 1 {
+		t.Fatalf("takeover history reads = %d, want 1", repository.takeoverRead)
+	}
+}
+
+func TestCoordinatorReturnsOriginalAwardOnRepeatProjection(t *testing.T) {
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+	view := completedView()
+
+	first, err := coordinator.RecordHand(
+		context.Background(), "player", "runtime", view, false)
+	if err != nil {
+		t.Fatalf("first RecordHand() error = %v", err)
+	}
+	repeat, err := coordinator.RecordHand(
+		context.Background(), "player", "runtime", view, false)
+	if err != nil {
+		t.Fatalf("repeat RecordHand() error = %v", err)
+	}
+	if repeat.Award.Total != first.Award.Total || !repeat.AlreadyAwarded {
+		t.Fatalf("repeat = %+v, want original award %+v marked repeated", repeat, first.Award)
+	}
+	if repeat.Player.LifetimeXP != first.Award.Total {
+		t.Fatalf("repeat lifetime XP = %d, want %d", repeat.Player.LifetimeXP, first.Award.Total)
+	}
+}
+
+func TestCoordinatorOnboardingIsOneAwardWithMonotonicOutcome(t *testing.T) {
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+
+	skipped, err := coordinator.AwardOnboarding(
+		context.Background(), "player", OnboardingSkipped)
+	if err != nil {
+		t.Fatalf("skip onboarding error = %v", err)
+	}
+	if skipped.AlreadyAwarded || skipped.Player.LifetimeXP != OnboardingXP ||
+		skipped.Player.Onboarding == nil ||
+		skipped.Player.Onboarding.Outcome != OnboardingSkipped {
+		t.Fatalf("skip result = %+v", skipped)
+	}
+
+	completed, err := coordinator.AwardOnboarding(
+		context.Background(), "player", OnboardingCompleted)
+	if err != nil {
+		t.Fatalf("complete onboarding error = %v", err)
+	}
+	if !completed.AlreadyAwarded || completed.Player.LifetimeXP != OnboardingXP ||
+		completed.Player.Onboarding == nil ||
+		completed.Player.Onboarding.Outcome != OnboardingCompleted {
+		t.Fatalf("completion replay = %+v", completed)
+	}
+
+	regression, err := coordinator.AwardOnboarding(
+		context.Background(), "player", OnboardingSkipped)
+	if err != nil {
+		t.Fatalf("repeat skip error = %v", err)
+	}
+	if regression.Player.Onboarding.Outcome != OnboardingCompleted {
+		t.Fatalf("completed onboarding regressed: %+v", regression.Player.Onboarding)
+	}
+}

@@ -27,6 +27,30 @@ describe("LobbyHeader", () => {
     expect(markup).toContain(RULES_VERSION);
   });
 
+  it("shows authoritative level progress as the route to the full curve", () => {
+    const markup = renderToStaticMarkup(
+      <LobbyHeader
+        guest={false}
+        account={account}
+        jadeStatus="ready"
+        connection="connected"
+        progressionStatus="ready"
+        progression={{
+          level: 3,
+          lifetime_xp: 1_400,
+          xp_into_level: 300,
+          xp_for_next_level: 700,
+        }}
+      />,
+    );
+
+    expect(markup).toContain("Level 3");
+    expect(markup).toContain("300 / 700 XP");
+    expect(markup).toContain('role="progressbar"');
+    expect(markup).toContain('aria-label="Open progression, level 3"');
+    expect(markup).not.toContain("Level 0");
+  });
+
   it("separates reserved Jade from what can actually be spent", () => {
     const markup = renderToStaticMarkup(
       <LobbyHeader

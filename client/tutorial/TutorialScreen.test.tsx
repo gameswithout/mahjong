@@ -134,6 +134,9 @@ describe("TutorialScreen", () => {
     click("Skip the tutorial");
 
     expect(onExit).toHaveBeenCalledOnce();
+    // §10.4 pays the same XP either way, but a tutorial most players skip is a
+    // different problem from one most players finish, so the exits differ.
+    expect(onExit).toHaveBeenCalledWith("skipped");
     const skipped = events.find((event) => event.name === "tutorial_skipped");
     expect(skipped?.fromStepId).toBe(TUTORIAL_CHAPTERS[0].steps[1].id);
     expect(skipped?.scriptVersion).toBe(TUTORIAL_SCRIPT_VERSION);
@@ -153,6 +156,7 @@ describe("TutorialScreen", () => {
 
     click("Play a hand");
     expect(onExit).toHaveBeenCalledOnce();
+    expect(onExit).toHaveBeenCalledWith("completed");
   });
 
   it("can be replayed from the end without a remount", () => {

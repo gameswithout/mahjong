@@ -10,6 +10,7 @@ import { SessionLookupError, type SessionClient } from "./session";
 
 const dependencies = vi.hoisted(() => ({
   createJadeClient: vi.fn(),
+  createProgressionClient: vi.fn(),
   createLobbyConnection: vi.fn(),
   createMatchRuntimeConnection: vi.fn(),
   createSessionClient: vi.fn(),
@@ -18,6 +19,14 @@ const dependencies = vi.hoisted(() => ({
 vi.mock("./jade", async () => {
   const actual = await vi.importActual<typeof import("./jade")>("./jade");
   return { ...actual, createJadeClient: dependencies.createJadeClient };
+});
+
+vi.mock("./progression", async () => {
+  const actual = await vi.importActual<typeof import("./progression")>("./progression");
+  return {
+    ...actual,
+    createProgressionClient: dependencies.createProgressionClient,
+  };
 });
 
 vi.mock("./config", async () => {
@@ -207,6 +216,23 @@ describe("App Practice journey", () => {
       }),
       release: vi.fn().mockResolvedValue(jadeAccount),
     });
+    dependencies.createProgressionClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue({
+        progression: {
+          level: 2,
+          lifetime_xp: 500,
+          xp_into_level: 0,
+          xp_for_next_level: 600,
+          earned: [],
+        },
+        curve: [],
+      }),
+      awardOnboarding: vi.fn().mockResolvedValue({
+        progression: { level: 2, lifetime_xp: 500 },
+        award: { total: 500 },
+        granted: true,
+      }),
+    });
 
     sessionClient = {
       listMySessions: vi.fn().mockResolvedValue([]),
@@ -272,6 +298,47 @@ describe("App Practice journey", () => {
     expect(shouldAutomaticallyRetryMatchRuntime("not_found", MAX_RECONNECT_ATTEMPTS - 1)).toBe(true);
     expect(shouldAutomaticallyRetryMatchRuntime("not_found", MAX_RECONNECT_ATTEMPTS)).toBe(false);
     expect(shouldAutomaticallyRetryMatchRuntime("protocol", 0)).toBe(false);
+  });
+
+  it("loads lobby progression and records an intentional tutorial skip", async () => {
+    const awardOnboarding = vi.fn().mockResolvedValue({
+      progression: {
+        level: 2,
+        lifetime_xp: 500,
+        onboarding: { outcome: "ONBOARDING_OUTCOME_SKIPPED" },
+      },
+      award: { total: 500 },
+      granted: true,
+    });
+    dependencies.createProgressionClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue({
+        progression: {
+          level: 2,
+          lifetime_xp: 500,
+          xp_into_level: 0,
+          xp_for_next_level: 600,
+          earned: [],
+        },
+        curve: [],
+      }),
+      awardOnboarding,
+    });
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}),
+      getAccessToken: vi.fn().mockReturnValue("guest-token"),
+    } as unknown as BrowserIam;
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Level 2"));
+    await clickAndFlush(container, "Start the tutorial");
+    await clickAndFlush(container, "Skip the tutorial");
+
+    await vi.waitFor(() =>
+      expect(awardOnboarding).toHaveBeenCalledWith("ONBOARDING_OUTCOME_SKIPPED"),
+    );
+    await vi.waitFor(() => expect(container.textContent).toContain("Continue the tutorial"));
   });
 
   it("launches, replays with a fresh Session, and returns to the lobby", async () => {

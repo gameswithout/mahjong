@@ -80,12 +80,13 @@ describe("HandResultScreen", () => {
     );
 
     expect(markup).toContain("Practice result");
-    expect(markup).toContain("No Jade, rating, or progression is changed");
+    expect(markup).toContain("No Jade or rating changed");
+    expect(markup).toContain("Completed hands still earn capped XP");
     expect(markup).toContain('aria-label="1 of dots"');
     expect(markup).toContain("3 Practice points");
     expect(markup).not.toContain("3 Jade");
     expect(markup).toContain("3 Practice points paid = 3 received");
-    expect(markup).toContain("Nothing persists");
+    expect(markup).toContain("Practice points do not persist");
     expect(markup).not.toContain("Dealer rotates");
     expect(markup).toContain("Play Again");
     expect(markup).toContain("Return to Lobby");

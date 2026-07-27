@@ -27,6 +27,8 @@ const (
 	Service_ReserveJade_FullMethodName        = "/service.Service/ReserveJade"
 	Service_ReleaseJade_FullMethodName        = "/service.Service/ReleaseJade"
 	Service_ClaimJadeWelfare_FullMethodName   = "/service.Service/ClaimJadeWelfare"
+	Service_GetProgression_FullMethodName     = "/service.Service/GetProgression"
+	Service_AwardOnboardingXP_FullMethodName  = "/service.Service/AwardOnboardingXP"
 	Service_JoinMatch_FullMethodName          = "/service.Service/JoinMatch"
 	Service_GetMatchState_FullMethodName      = "/service.Service/GetMatchState"
 	Service_SubmitMatchCommand_FullMethodName = "/service.Service/SubmitMatchCommand"
@@ -40,6 +42,8 @@ type ServiceClient interface {
 	ReserveJade(ctx context.Context, in *ReserveJadeRequest, opts ...grpc.CallOption) (*ReserveJadeResponse, error)
 	ReleaseJade(ctx context.Context, in *ReleaseJadeRequest, opts ...grpc.CallOption) (*ReleaseJadeResponse, error)
 	ClaimJadeWelfare(ctx context.Context, in *ClaimJadeWelfareRequest, opts ...grpc.CallOption) (*ClaimJadeWelfareResponse, error)
+	GetProgression(ctx context.Context, in *GetProgressionRequest, opts ...grpc.CallOption) (*GetProgressionResponse, error)
+	AwardOnboardingXP(ctx context.Context, in *AwardOnboardingXPRequest, opts ...grpc.CallOption) (*AwardOnboardingXPResponse, error)
 	// JoinMatch creates the authoritative match from the fixed AGS Session
 	// roster when necessary, assigns stable seats, and returns only the
 	// authenticated caller's view.
@@ -100,6 +104,26 @@ func (c *serviceClient) ClaimJadeWelfare(ctx context.Context, in *ClaimJadeWelfa
 	return out, nil
 }
 
+func (c *serviceClient) GetProgression(ctx context.Context, in *GetProgressionRequest, opts ...grpc.CallOption) (*GetProgressionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProgressionResponse)
+	err := c.cc.Invoke(ctx, Service_GetProgression_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) AwardOnboardingXP(ctx context.Context, in *AwardOnboardingXPRequest, opts ...grpc.CallOption) (*AwardOnboardingXPResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AwardOnboardingXPResponse)
+	err := c.cc.Invoke(ctx, Service_AwardOnboardingXP_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serviceClient) JoinMatch(ctx context.Context, in *JoinMatchRequest, opts ...grpc.CallOption) (*JoinMatchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(JoinMatchResponse)
@@ -138,6 +162,8 @@ type ServiceServer interface {
 	ReserveJade(context.Context, *ReserveJadeRequest) (*ReserveJadeResponse, error)
 	ReleaseJade(context.Context, *ReleaseJadeRequest) (*ReleaseJadeResponse, error)
 	ClaimJadeWelfare(context.Context, *ClaimJadeWelfareRequest) (*ClaimJadeWelfareResponse, error)
+	GetProgression(context.Context, *GetProgressionRequest) (*GetProgressionResponse, error)
+	AwardOnboardingXP(context.Context, *AwardOnboardingXPRequest) (*AwardOnboardingXPResponse, error)
 	// JoinMatch creates the authoritative match from the fixed AGS Session
 	// roster when necessary, assigns stable seats, and returns only the
 	// authenticated caller's view.
@@ -168,6 +194,12 @@ func (UnimplementedServiceServer) ReleaseJade(context.Context, *ReleaseJadeReque
 }
 func (UnimplementedServiceServer) ClaimJadeWelfare(context.Context, *ClaimJadeWelfareRequest) (*ClaimJadeWelfareResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClaimJadeWelfare not implemented")
+}
+func (UnimplementedServiceServer) GetProgression(context.Context, *GetProgressionRequest) (*GetProgressionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetProgression not implemented")
+}
+func (UnimplementedServiceServer) AwardOnboardingXP(context.Context, *AwardOnboardingXPRequest) (*AwardOnboardingXPResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AwardOnboardingXP not implemented")
 }
 func (UnimplementedServiceServer) JoinMatch(context.Context, *JoinMatchRequest) (*JoinMatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinMatch not implemented")
@@ -270,6 +302,42 @@ func _Service_ClaimJadeWelfare_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_GetProgression_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProgressionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).GetProgression(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_GetProgression_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).GetProgression(ctx, req.(*GetProgressionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Service_AwardOnboardingXP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AwardOnboardingXPRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).AwardOnboardingXP(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_AwardOnboardingXP_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).AwardOnboardingXP(ctx, req.(*AwardOnboardingXPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Service_JoinMatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(JoinMatchRequest)
 	if err := dec(in); err != nil {
@@ -346,6 +414,14 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClaimJadeWelfare",
 			Handler:    _Service_ClaimJadeWelfare_Handler,
+		},
+		{
+			MethodName: "GetProgression",
+			Handler:    _Service_GetProgression_Handler,
+		},
+		{
+			MethodName: "AwardOnboardingXP",
+			Handler:    _Service_AwardOnboardingXP_Handler,
 		},
 		{
 			MethodName: "JoinMatch",

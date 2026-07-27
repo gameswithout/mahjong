@@ -10,6 +10,7 @@ import type { MatchRuntimeConnection, MatchRuntimeConnectionOptions } from "./ma
 
 const dependencies = vi.hoisted(() => ({
   createJadeClient: vi.fn(),
+  createProgressionClient: vi.fn(),
   createLobbyConnection: vi.fn(),
   createMatchRuntimeConnection: vi.fn(),
   createMatchmakingClient: vi.fn(),
@@ -19,6 +20,14 @@ const dependencies = vi.hoisted(() => ({
 vi.mock("./jade", async () => {
   const actual = await vi.importActual<typeof import("./jade")>("./jade");
   return { ...actual, createJadeClient: dependencies.createJadeClient };
+});
+
+vi.mock("./progression", async () => {
+  const actual = await vi.importActual<typeof import("./progression")>("./progression");
+  return {
+    ...actual,
+    createProgressionClient: dependencies.createProgressionClient,
+  };
 });
 
 vi.mock("./config", async () => {
@@ -151,6 +160,13 @@ describe("App staked requeue (P1.3 session closure)", () => {
         reservation: { reservation_id: "reserve-1", amount: 300, status: "active" },
       }),
       release: vi.fn().mockResolvedValue(ELIGIBLE_ACCOUNT),
+    });
+    dependencies.createProgressionClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue({
+        progression: { level: 1, lifetime_xp: 0 },
+        curve: [],
+      }),
+      awardOnboarding: vi.fn(),
     });
 
     createTicket = vi.fn(async () => {

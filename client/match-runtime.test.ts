@@ -188,6 +188,61 @@ describe("createMatchRuntimeConnection", () => {
     expect(account.welfare_reason).toBe("available");
   });
 
+  it("normalizes XP and level int64 strings embedded in a completed hand", async () => {
+    const fake = new FakeFetch();
+    fake.enqueue(200, {
+      state: wireMatchState({
+        xp_award: {
+          award_id: "hand:session-1:player-1",
+          source: "public_hand",
+          total: 175,
+          components: [
+            { code: "hand_completed", label: "Hand completed", amount: 100 },
+            { code: "hand_won", label: "Won the hand", amount: 75 },
+          ],
+        },
+        progression: {
+          level: 3,
+          lifetime_xp: "1400",
+          xp_into_level: "300",
+          xp_for_next_level: "700",
+          next: {
+            code: "level-5-tea-house-theme",
+            level: 5,
+            kind: "table_theme",
+            name: "Tea House",
+          },
+        },
+      }),
+    });
+    const joined: unknown[] = [];
+    const connection = createMatchRuntimeConnection("player-token", {
+      url: "https://match.test/mahjong",
+      namespace: "gameswithout-mahjong",
+      fetchImpl: fake.fetchImpl,
+      onJoined: (payload) => joined.push(payload),
+    });
+    connection.join("session-1");
+    await vi.waitFor(() => expect(joined).toHaveLength(1));
+
+    const view = (joined[0] as { view: Record<string, any> }).view;
+    expect(view.xp_award).toMatchObject({
+      award_id: "hand:session-1:player-1",
+      total: 175,
+    });
+    expect(view.xp_award.components[0]).toMatchObject({
+      code: "hand_completed",
+      amount: 100,
+    });
+    expect(view.progression).toMatchObject({
+      level: 3,
+      lifetime_xp: 1400,
+      xp_into_level: 300,
+      xp_for_next_level: 700,
+      next: { code: "level-5-tea-house-theme", name: "Tea House" },
+    });
+  });
+
   it("reshapes wire chow_sets objects into tuples and normalizes settlement/claim int64 fields", async () => {
     const fake = new FakeFetch();
     const states: unknown[] = [];

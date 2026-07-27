@@ -17,6 +17,7 @@ var migrationFiles embed.FS
 
 type PostgreSQLStorage struct {
 	pool *pgxpool.Pool
+	now  func() time.Time
 }
 
 func NewPostgreSQLStorage(connectionString string) (*PostgreSQLStorage, error) {
@@ -36,7 +37,7 @@ func NewPostgreSQLStorage(connectionString string) (*PostgreSQLStorage, error) {
 		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
 	}
 
-	storage := &PostgreSQLStorage{pool: pool}
+	storage := &PostgreSQLStorage{pool: pool, now: time.Now}
 	if err := storage.migrate(ctx); err != nil {
 		pool.Close()
 		return nil, err

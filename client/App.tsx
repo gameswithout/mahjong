@@ -33,6 +33,12 @@ import { playableTier, tierSummary } from "./lobby-tiers";
 import { queueElapsedLabel, queueHealth, queueHealthMessage } from "./queue-health";
 import { TutorialScreen } from "./tutorial/TutorialScreen";
 import {
+  createProgressionClient,
+  ProgressionError,
+  type ProgressionSnapshot,
+} from "./progression";
+import { ProgressionScreen } from "./ProgressionScreen";
+import {
   createFreshPracticeSession,
   isPracticeMatch,
   leaveSessionIfPresent,
@@ -43,6 +49,7 @@ import { createStakedMatchmakingTicket } from "./staked-matchmaking";
 import type {
   ClaimType,
   JadeAccount,
+  OnboardingOutcome,
   MatchCommandRequest,
   SeatView,
 } from "../protocol/envelope";
@@ -172,6 +179,12 @@ type JadeState =
   | { status: "ready"; account: JadeAccount }
   | { status: "error"; code: string; message: string };
 
+type ProgressionState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; snapshot: ProgressionSnapshot }
+  | { status: "error"; code: string; message: string };
+
 type OnlineSessionEntryMode = "manual" | "matchmaking";
 
 export function shouldAutomaticallyEnterHumanMatch(
@@ -266,6 +279,8 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     defaultPlayerProfile(true),
   );
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [progressionState, setProgressionState] = useState<ProgressionState>({ status: "idle" });
+  const [progressionOpen, setProgressionOpen] = useState(false);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -317,6 +332,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const syncFailuresRef = useRef(0);
   const sessionRequestRef = useRef(0);
   const matchmakingRequestRef = useRef(0);
+  const progressionRequestRef = useRef(0);
   const autoJoiningSessionIdRef = useRef<string | null>(null);
   const autoDrawStateKeyRef = useRef<string | null>(null);
 
@@ -820,11 +836,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     browserMatchResumeStore.clear();
     sessionRequestRef.current += 1;
     matchmakingRequestRef.current += 1;
+    progressionRequestRef.current += 1;
     setSessionState({ status: "idle" });
     setMatchmakingState({ status: "idle" });
     setMatchRuntimeState({ status: "idle" });
     setJadeState({ status: "idle" });
     setJadeRecoveryState({ status: "idle" });
+    setProgressionState({ status: "idle" });
+    setProgressionOpen(false);
     setReconnectAttempt(0);
     setOnlineSessionEntryMode("manual");
     autoJoiningSessionIdRef.current = null;
@@ -841,6 +860,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   function connectLobbyAfterSignIn(userId: string) {
     setState({ status: "signed_in", userId, lobbyStatus: "connecting" });
     void loadJadeAccount();
+    void loadProgression();
 
     try {
       const lobby = createLobbyConnection(stableIam.getAuthenticatedSdk(), {
@@ -1113,6 +1133,60 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
   // Returns the account so callers deciding whether to commit Jade can act on
   // the value they just fetched instead of the render closure's stale state.
+  function createAuthenticatedProgressionClient() {
+    if (!accelByteConfig.matchServiceURL) {
+      throw new ProgressionError("configuration", "Match service URL is not configured.");
+    }
+    return createProgressionClient(stableIam.getAccessToken(), {
+      url: accelByteConfig.matchServiceURL,
+      namespace: accelByteConfig.namespace,
+    });
+  }
+
+  async function loadProgression() {
+    const requestId = ++progressionRequestRef.current;
+    setProgressionState({ status: "loading" });
+    try {
+      const snapshot = await createAuthenticatedProgressionClient().get();
+      if (requestId !== progressionRequestRef.current) {
+        return;
+      }
+      setProgressionState({ status: "ready", snapshot });
+    } catch (error) {
+      if (requestId !== progressionRequestRef.current) {
+        return;
+      }
+      const safeError =
+        error instanceof ProgressionError
+          ? { code: error.code, message: error.message }
+          : { code: "unknown", message: "Progression could not be loaded." };
+      setProgressionState({ status: "error", ...safeError });
+    }
+  }
+
+  // §10.4/§12.1: the onboarding XP is granted whether the player finished the
+  // tutorial or intentionally skipped it, so both exits call this. The server
+  // award ID makes it once-ever, which is also what stops a replay paying again.
+  async function awardOnboardingXP(outcome: OnboardingOutcome) {
+    const requestId = ++progressionRequestRef.current;
+    try {
+      const result = await createAuthenticatedProgressionClient().awardOnboarding(outcome);
+      if (requestId !== progressionRequestRef.current) {
+        return;
+      }
+      setProgressionState((current) => ({
+        status: "ready",
+        snapshot: {
+          progression: result.progression,
+          curve: current.status === "ready" ? current.snapshot.curve : [],
+        },
+      }));
+    } catch {
+      // A failed award must not block leaving the tutorial. It is idempotent,
+      // so the next completion or skip retries it harmlessly.
+    }
+  }
+
   async function loadJadeAccount(): Promise<JadeAccount | null> {
     setJadeRecoveryState({ status: "idle" });
     setJadeState({ status: "loading" });
@@ -1199,6 +1273,22 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     if (view.jade_account) {
       setJadeState({ status: "ready", account: view.jade_account });
     }
+  }
+
+  function adoptProgression(view: SeatView) {
+    const progression = view.progression;
+    if (!progression) {
+      return;
+    }
+    // A completed-hand projection is newer than any in-flight lobby read.
+    progressionRequestRef.current += 1;
+    setProgressionState((current) => ({
+      status: "ready",
+      snapshot: {
+        progression,
+        curve: current.status === "ready" ? current.snapshot.curve : [],
+      },
+    }));
   }
 
   async function findTable() {
@@ -1489,6 +1579,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       setSessionState({ status: "empty" });
       setJoinSessionId("");
       await loadJadeAccount();
+      void loadProgression();
       return true;
     } catch (error) {
       if (requestId !== sessionRequestRef.current) {
@@ -1530,6 +1621,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           if (payload.match_id === matchId && matchRuntimeRef.current === connection) {
             syncFailuresRef.current = 0;
             adoptJadeAccount(payload.view);
+            adoptProgression(payload.view);
             setMatchRuntimeState({
               status: "joined",
               matchId,
@@ -1544,6 +1636,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
             // healthy cadence rather than decaying towards it.
             syncFailuresRef.current = 0;
             adoptJadeAccount(payload.view);
+            adoptProgression(payload.view);
             setMatchRuntimeState({
               status: "joined",
               matchId,
@@ -1867,14 +1960,41 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   const hasActiveOrStrandedSession =
     sessionState.status === "loaded" ||
     (sessionState.status === "error" && Boolean(sessionState.retryLeaveSessionId));
+  const onboardingOutcome =
+    progressionState.status === "ready"
+      ? progressionState.snapshot.progression.onboarding?.outcome
+      : undefined;
 
   // The tutorial owns the screen for the same reason a live match does, and
   // takes precedence over the lobby beneath it. It cannot open over a live
   // match: the lobby is the only place it can be started from.
+  if (progressionOpen && progressionState.status === "ready") {
+    return (
+      <div className="game-screen">
+        <ProgressionScreen
+          progression={progressionState.snapshot.progression}
+          curve={progressionState.snapshot.curve}
+          onClose={() => setProgressionOpen(false)}
+        />
+      </div>
+    );
+  }
+
   if (tutorialOpen) {
     return (
       <div className="game-screen">
-        <TutorialScreen onExit={() => setTutorialOpen(false)} />
+        <TutorialScreen
+          onExit={(outcome) => {
+            setTutorialOpen(false);
+            // §10.4 pays the same XP either way, but the server records which
+            // exit was taken, so the two are not collapsed here.
+            void awardOnboardingXP(
+              outcome === "completed"
+                ? "ONBOARDING_OUTCOME_COMPLETED"
+                : "ONBOARDING_OUTCOME_SKIPPED",
+            );
+          }}
+        />
       </div>
     );
   }
@@ -2337,24 +2457,75 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
               account={jadeState.status === "ready" ? jadeState.account : undefined}
               jadeStatus={jadeState.status}
               connection={state.lobbyStatus}
+              progression={
+                progressionState.status === "ready"
+                  ? progressionState.snapshot.progression
+                  : undefined
+              }
+              progressionStatus={progressionState.status}
+              onOpenProgress={() => {
+                setProgressionOpen(true);
+                if (
+                  progressionState.status !== "ready" ||
+                  progressionState.snapshot.curve.length === 0
+                ) {
+                  void loadProgression();
+                }
+              }}
               profile={playerProfile}
               onProfileChange={updatePlayerProfile}
             />
 
+            {progressionOpen && progressionState.status === "error" && (
+              <div className="session-error progression-load-error" role="alert">
+                <p>{progressionState.message}</p>
+                <div className="progression-load-actions">
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => void loadProgression()}
+                  >
+                    Retry progress
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => setProgressionOpen(false)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
             {state.lobbyStatus === "connected" && (
               <div className="session-panel">
                 <section className="tutorial-card" aria-labelledby="tutorial-title">
-                  <p className="status-label">Learn</p>
+                  <p className="status-label">
+                    {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
+                      ? "Completed"
+                      : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
+                        ? "Ready to continue"
+                        : "Learn"}
+                  </p>
                   <h2 id="tutorial-title">How to play</h2>
                   <p className="practice-description">
-                    Three short chapters on the real table. Untimed, skippable, and replayable.
+                    {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
+                      ? "Replay any time on the real table. Untimed, skippable, and safe."
+                      : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
+                        ? "Pick up the three short chapters whenever you are ready."
+                        : "Three short chapters on the real table. Your first completion or intentional skip awards 500 XP."}
                   </p>
                   <button
                     className="secondary-action session-action"
                     type="button"
                     onClick={() => setTutorialOpen(true)}
                   >
-                    Start the tutorial
+                    {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
+                      ? "Replay the tutorial"
+                      : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
+                        ? "Continue the tutorial"
+                        : "Start the tutorial"}
                   </button>
                 </section>
 
