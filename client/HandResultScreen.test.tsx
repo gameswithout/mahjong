@@ -138,7 +138,7 @@ describe("HandResultScreen", () => {
     expect(markup).toContain("You received 30 Jade");
     expect(markup).toContain("5,000");
     expect(markup).toContain("5,030 Jade");
-    expect(markup).toContain("10 Jade per Tai × 3 Tai = 30 Jade");
+    expect(markup).toContain("10 Jade per 台 × 3 台 = 30 Jade");
     expect(markup).toContain("30 Jade paid = 30 received");
     expect(markup).toContain("No Jade was created or removed");
     expect(markup).toContain("Settlement posted");
@@ -192,9 +192,10 @@ describe("HandResultScreen", () => {
     expect(markup).toContain('aria-label="1 of dots"');
     expect(markup).toContain('aria-label="South discarded the winning tile to You (East)"');
     expect(markup).not.toContain("Winning tile</span>");
-    expect(markup).toContain("Why this scored");
+    expect(markup).toContain('Scoring Breakdown <span lang="zh-Hant">台</span> (Tai)');
+    expect(markup).toContain("Scoring details");
     expect(markup).toContain("Seat Wind");
-    expect(markup).toContain("Raw Tai subtotal");
+    expect(markup).toContain("Raw subtotal");
   });
 
   it("celebrates a self-draw with a prominent 自摸 heading", () => {
@@ -247,8 +248,7 @@ describe("HandResultScreen", () => {
 
     const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
 
-    expect(markup).toContain('lang="zh-Hant">台</span><small>(Tai)</small>');
-    expect(markup).toContain("Dealer Tai: +5");
+    expect(markup).toContain('Dealer <span lang="zh-Hant">台</span>: +5');
     expect(markup).toContain("Applied when You (East) is the winner or payer");
     expect(markup).not.toContain("South is dealer");
   });
@@ -304,9 +304,9 @@ describe("HandResultScreen", () => {
     const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
 
     expect(markup).toContain("Table stake:");
-    expect(markup).toContain("10,000 Jade per Tai");
+    expect(markup).toContain("10,000 Jade per 台");
     expect(markup).toContain("Debit cap:");
-    expect(markup).toContain("10,000 Jade per Tai × 45 Tai = 450,000 Jade");
+    expect(markup).toContain("10,000 Jade per 台 × 45 台 = 450,000 Jade");
     expect(markup).toContain("Debit cap applied: 450,000 → 300,000 Jade");
     expect(markup).toContain("300,000 Jade paid = 300,000 received");
     expect(markup).toContain("Balances to zero");

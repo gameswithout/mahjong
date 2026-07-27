@@ -631,7 +631,12 @@ func (e *TurnEngine) ResolveClaims(expectedVersion uint64) (ClaimResolution, err
 	for _, seat := range ordered {
 		response, ok := window.Responses[seat]
 		if ok && response.Type == ClaimWin && !e.winLocks[seat] {
-			resolution.Winners = append(resolution.Winners, seat)
+			// This ruleset permits one discard winner. Seats are ordered by
+			// distance from the discarder, so the first legal Hu is the next
+			// player in turn order. A farther Hu cannot share or steal it.
+			resolution.Winners = []Seat{seat}
+			resolution.Claimant = seat
+			break
 		}
 	}
 	if len(resolution.Winners) > 0 {

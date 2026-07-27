@@ -1601,7 +1601,8 @@ h1 {
     0 0 18px rgb(255 202 72 / 72%);
   top: 50%;
   transform: translate(-50%, calc(-50% - clamp(70px, 8vw, 116px)));
-  z-index: 24;
+  /* Sit above the table's fixed winning-hand overlay (z-index: 1000). */
+  z-index: 1100;
 }
 
 .winning-table-win-type strong {

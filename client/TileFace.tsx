@@ -86,6 +86,20 @@ function Bamboo({ rank }: { rank: number }) {
       </g>
     );
   }
+  if (rank === 8) {
+    return (
+      <g className="tile-face-eight-bamboo">
+        <g transform="translate(10 24) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(50 24) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(10 66) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(50 66) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(22 24) rotate(-48) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(38 24) rotate(48) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(22 66) rotate(48) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+        <g transform="translate(38 66) rotate(-48) scale(.82 1.05)"><BambooStick color="#2d7443" /></g>
+      </g>
+    );
+  }
   return (
     <>
       {(DOT_POINTS[rank] ?? []).map(([x, y], index) => (
@@ -167,7 +181,15 @@ function Flower({ name }: { name: string }) {
       <path d="M29 46c-10-1-12-7-9-11 7 1 10 5 9 11M31 55c9-2 12-8 9-12-7 2-10 6-9 12" fill="none" stroke={flower.accent} strokeWidth="2" strokeLinecap="round" />
       <circle cx="30" cy="31" r="9" fill="none" stroke={flower.color} strokeWidth="2.5" />
       {[0, 72, 144, 216, 288].map((angle) => <ellipse key={angle} cx="30" cy="22" rx="3.8" ry="7" fill={flower.color} transform={`rotate(${angle} 30 31)`} />)}
-      <text className="tile-face-flower-label" x="30" y="82" textAnchor="middle" fill={flower.color}>{flower.label}</text>
+      <text
+        className="tile-face-flower-label"
+        x="30"
+        y="82"
+        textAnchor="middle"
+        fill={flower.color}
+      >
+        {flower.label}
+      </text>
     </g>
   );
 }

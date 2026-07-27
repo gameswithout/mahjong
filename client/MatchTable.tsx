@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 
 
 import { TileFace } from "./TileFace";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
-import { tileTypeKey, windName } from "./matchTableTypes";
+import { windName } from "./matchTableTypes";
 import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
 import { isMatchingFlower, summarizeFlowerTai } from "./flowerTai";
 
@@ -28,19 +28,17 @@ function Tile({
   t,
   size = "md",
   faceDown = false,
-  matchesSelected = false,
 }: {
   t: WireTile;
   size?: "sm" | "md" | "lg" | "focus";
   faceDown?: boolean;
-  matchesSelected?: boolean;
 }) {
   if (faceDown) {
     return <span className={`tile tile-back tile-${size}`} aria-hidden="true" />;
   }
   return (
     <span
-      className={`tile tile-${size}${matchesSelected ? " tile-match" : ""}`}
+      className={`tile tile-${size}`}
       role="img"
       aria-label={t.label}
       title={t.label}
@@ -50,14 +48,7 @@ function Tile({
   );
 }
 
-// §9.5: matching visible tiles receive both outline and brightness change,
-// never color alone. The current tile in play is the reference, so its other
-// visible copies in the hand, melds, and rivers are easy to scan.
-function matchesKey(id: string, matchKey: string | null): boolean {
-  return matchKey !== null && tileTypeKey(id) === matchKey;
-}
-
-function MeldGroup({ meld, matchKey }: { meld: WireMeld; matchKey: string | null }) {
+function MeldGroup({ meld }: { meld: WireMeld }) {
   // A concealed meld belonging to another seat arrives with no tile
   // identities (server-redacted) — render face-down placeholders instead
   // of leaking nothing-to-leak but also not falsely claiming zero tiles.
@@ -74,7 +65,7 @@ function MeldGroup({ meld, matchKey }: { meld: WireMeld; matchKey: string | null
   return (
     <span className="meld" aria-label={`${meld.concealed ? "concealed " : ""}${meld.type} of ${meld.tiles.map((item) => item.label).join(", ")}`}>
       {meld.tiles.map((item) => (
-        <Tile key={item.id} t={item} size="sm" matchesSelected={matchesKey(item.id, matchKey)} />
+        <Tile key={item.id} t={item} size="sm" />
       ))}
     </span>
   );
@@ -157,13 +148,11 @@ function DiscardGrid({
   discards,
   highlightId,
   claimed,
-  matchKey,
   label = "Discards",
 }: {
   discards: WireTile[];
   highlightId?: string;
   claimed?: boolean;
-  matchKey: string | null;
   label?: string;
 }) {
   return (
@@ -174,7 +163,7 @@ function DiscardGrid({
           role="listitem"
           className={`discard-slot${item.id === highlightId ? " discard-slot-recent" : ""}`}
         >
-          <Tile t={item} size="sm" matchesSelected={matchesKey(item.id, matchKey)} />
+          <Tile t={item} size="sm" />
         </span>
       ))}
       {claimed && highlightId ? (
@@ -240,13 +229,51 @@ function WaitPanel({ waits }: { waits: WaitEntry[] }) {
           </span>
         ))}
       </span>
-      <details className="wait-explainer">
-        <summary>How counted</summary>
-        <p className="wait-explainer-copy">
-          Count means copies not visible to you. It subtracts your hand and all
-          public tiles; concealed opponent tiles may be among those copies.
-        </p>
-      </details>
+    </div>
+  );
+}
+
+function PlayerProfile({ state }: { state: SeatState }) {
+  return (
+    <header className="seat-header player-profile">
+      <div className="seat-identity">
+        <span className="seat-avatar" aria-hidden="true">
+          {state.isBot ? "🤖" : "🀄"}
+        </span>
+        <span className="seat-name">{state.displayName}</span>
+      </div>
+    </header>
+  );
+}
+
+function PlayerActivity({
+  state,
+  prevailingWind,
+  message,
+  messageTitle,
+}: {
+  state: SeatState;
+  prevailingWind: SeatId;
+  message?: string;
+  messageTitle?: string;
+}) {
+  return (
+    <div className="seat-activity" aria-label="Player status">
+      <span className="seat-match-facts">
+        <span
+          className={`wind-badge${state.wind === prevailingWind ? " wind-badge-prevailing" : ""}`}
+        >
+          {windName(state.wind).slice(0, 1)}
+        </span>
+        {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
+      </span>
+      <span className="seat-activity-message">
+        {state.isActive ? <span className="active-badge" title="Active player">●</span> : null}
+        {message ? <span className="claim-badge" title={messageTitle}>{message}</span> : null}
+      </span>
+      <span className="seat-activity-facts">
+        {!state.isBot ? <TakeoverBadge takenOver={state.takenOver} /> : null}
+      </span>
     </div>
   );
 }
@@ -257,14 +284,12 @@ function OpponentSeat({
   state,
   prevailingWind,
   claimSource,
-  matchKey,
 }: {
   seat: SeatId;
   slot: ScreenSlot;
   state: SeatState;
   prevailingWind: SeatId;
   claimSource: SeatId | null;
-  matchKey: string | null;
 }) {
   return (
     <section
@@ -273,24 +298,15 @@ function OpponentSeat({
       }`}
       aria-label={`${windName(seat)} seat`}
     >
-      <header className="seat-header">
-        <div className="seat-identity">
-          <span className="seat-avatar" aria-hidden="true">
-            {state.isBot ? "🤖" : "🀄"}
-          </span>
-          <span className={`wind-badge${seat === prevailingWind ? " wind-badge-prevailing" : ""}`}>{windName(seat).slice(0, 1)}</span>
-          <span className="seat-name">{state.displayName}</span>
-          {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
-        </div>
-        <div className="seat-status">
-          {state.isActive ? <span className="active-badge" title="Active player">●</span> : null}
-          {claimSource === seat ? <span className="claim-badge" title="Waiting for responses">waiting</span> : null}
-          <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
-          <span className="hand-count" aria-label={`${state.handCount} tiles in hand`}>
-            {state.handCount}
-          </span>
-        </div>
-      </header>
+      <div className="seat-meta">
+        <PlayerProfile state={state} />
+        <PlayerActivity
+          state={state}
+          prevailingWind={prevailingWind}
+          message={claimSource === seat ? "waiting" : undefined}
+          messageTitle="Waiting for responses"
+        />
+      </div>
       <div className="opponent-hand-backs" aria-hidden="true">
         {Array.from({ length: Math.min(state.handCount, 17) }).map((_, index) => (
           <span key={index} className="tile tile-back tile-xs" />
@@ -299,7 +315,7 @@ function OpponentSeat({
       {state.melds.length > 0 ? (
         <div className="meld-area" aria-label="Exposed melds">
           {state.melds.map((meld) => (
-            <MeldGroup key={meld.id} meld={meld} matchKey={matchKey} />
+            <MeldGroup key={meld.id} meld={meld} />
           ))}
         </div>
       ) : null}
@@ -314,14 +330,12 @@ function DiscardRiver({
   state,
   lastDiscardTileId,
   claimSource,
-  matchKey,
 }: {
   seat: SeatId;
   slot: ScreenSlot;
   state: SeatState;
   lastDiscardTileId?: string;
   claimSource: SeatId | null;
-  matchKey: string | null;
 }) {
   const label =
     slot === "bottom"
@@ -336,7 +350,6 @@ function DiscardRiver({
         discards={state.discards}
         highlightId={lastDiscardTileId}
         claimed={claimSource === seat}
-        matchKey={matchKey}
         label={label}
       />
     </section>
@@ -523,9 +536,9 @@ function CurrentTileFocus({
           {discardPending
             ? "Discarding…"
             : canDiscard && selectedTile
-              ? `${selectedTile.label} · activate again to discard`
+              ? `${selectedTile.label} · select again to discard`
               : canDiscard
-                ? "Select a tile to inspect"
+                ? "Select a tile to discard"
                 : "Waiting for the first discard"}
         </strong>
       </div>
@@ -544,10 +557,10 @@ function CurrentTileFocus({
         ? discardPending
           ? "Discarding…"
           : selectedTile
-            ? `${selectedTile.label} selected · activate again to discard`
+            ? `${selectedTile.label} selected · select again to discard`
           : selfTurnActionAvailable
-            ? "Choose Win/Gang or select a tile"
-            : "Your turn · select a tile"
+            ? "Choose Win/Gang or select a tile to discard"
+            : "Your turn · select a tile to discard"
         : "Last tile played";
 
   return (
@@ -571,14 +584,12 @@ function CurrentTileFocus({
 function TablePlayfield({
   state,
   slots,
-  matchKey,
   canDiscard,
   discardPending,
   selectedTile,
 }: {
   state: MatchTableState;
   slots: Record<ScreenSlot, SeatId>;
-  matchKey: string | null;
   canDiscard?: boolean;
   discardPending?: boolean;
   selectedTile?: WireTile;
@@ -598,11 +609,10 @@ function TablePlayfield({
             state={state.seats[seat]}
             lastDiscardTileId={state.lastDiscard?.seat === seat ? lastDiscardTileId : undefined}
             claimSource={state.claimSource}
-            matchKey={matchKey}
           />
         );
       })}
-      <div className="table-center-cluster">
+      <div className="table-center-cluster central-dashboard" aria-label="Central table dashboard">
         <WallAndTurnCenter state={state} />
         <CurrentTileFocus
           state={state}
@@ -626,7 +636,7 @@ function TablePlayfield({
               }`}
             >
               <div className="showdown-winning-discard-copy">
-                <span>Winning discard</span>
+                <span lang="zh-Hant">胡</span>
                 <strong>{state.showdownWinningDiscard.tile.label}</strong>
               </div>
               <Tile t={state.showdownWinningDiscard.tile} size="focus" />
@@ -668,7 +678,6 @@ function LocalSeat({
   discardPending,
   canDraw,
   waits,
-  matchKey,
   sortMode,
   onCycleSortMode,
   onNudgeTile,
@@ -677,6 +686,7 @@ function LocalSeat({
   tableFxEnabled,
   onToggleTableFx,
   isClaimThinking,
+  prevailingWind,
 }: {
   state: SeatState;
   displayedHand: WireTile[];
@@ -686,7 +696,6 @@ function LocalSeat({
   discardPending?: boolean;
   canDraw?: boolean;
   waits: WaitEntry[];
-  matchKey: string | null;
   sortMode: SortMode;
   onCycleSortMode: () => void;
   onNudgeTile: (tileId: string, direction: "left" | "right") => void;
@@ -695,6 +704,7 @@ function LocalSeat({
   tableFxEnabled: boolean;
   onToggleTableFx: () => void;
   isClaimThinking: boolean;
+  prevailingWind: SeatId;
 }) {
   return (
     <section
@@ -703,18 +713,17 @@ function LocalSeat({
       }`}
       aria-label="Your seat"
     >
-      <header className="seat-header">
-        <div className="seat-identity">
-          <span className="seat-avatar" aria-hidden="true">
-            🀄
-          </span>
-          <span className="wind-badge">{windName(state.wind).slice(0, 1)}</span>
-          <span className="seat-name">You</span>
-          {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
-          <TakeoverBadge takenOver={state.takenOver} isBot={state.isBot} />
+      <div className="local-seat-footer">
+        <div className="seat-meta">
+          <PlayerProfile state={state} />
+          <PlayerActivity
+            state={state}
+            prevailingWind={prevailingWind}
+            message={isClaimThinking ? "thinking" : undefined}
+            messageTitle="Choose a response"
+          />
         </div>
-        <div className="seat-status">
-          {isClaimThinking ? <span className="claim-badge" title="Choose a response">thinking</span> : null}
+        <div className="local-game-controls" aria-label="Game controls">
           <button
             type="button"
             className="sort-toggle-button"
@@ -733,11 +742,11 @@ function LocalSeat({
             FX {tableFxEnabled ? "On" : "Off"}
           </button>
         </div>
-      </header>
+      </div>
       {state.melds.length > 0 ? (
         <div className="meld-area" aria-label="Your exposed melds">
           {state.melds.map((meld) => (
-            <MeldGroup key={meld.id} meld={meld} matchKey={matchKey} />
+            <MeldGroup key={meld.id} meld={meld} />
           ))}
         </div>
       ) : null}
@@ -749,7 +758,7 @@ function LocalSeat({
           const selected = selectedTileId === item.id;
           const actionLabel = selected
             ? canDiscard
-              ? `${item.label} selected. Activate again to discard.`
+              ? `${item.label} selected. Select again to discard.`
               : `${item.label} selected.`
             : canDiscard
               ? `Inspect ${item.label}. Activate twice to discard.`
@@ -797,7 +806,7 @@ function LocalSeat({
                 }
               }}
             >
-              <Tile t={item} size="lg" matchesSelected={matchesKey(item.id, matchKey)} />
+              <Tile t={item} size="lg" />
             </button>
           );
         })}
@@ -937,10 +946,32 @@ function ActionBar({
   onDraw?: () => void;
   drawPending?: boolean;
 }) {
+  const winningClaimAvailable = legalActions.some((action) => {
+    const id = action.id.toLowerCase();
+    return id === "win" || id === "hu" || id.startsWith("win-discard") || id.startsWith("hu-");
+  });
+  // A winning discard claim is terminal. Do not offer Chow alongside Hu:
+  // choosing the lower-priority meld would strand the player in a completed
+  // hand and turn a valid win into an accidental continuation.
+  const availableActions = winningClaimAvailable
+    ? legalActions.filter((action) => !action.id.toLowerCase().startsWith("chow"))
+    : legalActions;
+  const actionPriority = (action: MatchAction) => {
+    const id = action.id.toLowerCase();
+    if (id === "win" || id === "hu" || id.startsWith("win-") || id.startsWith("hu-")) return 0;
+    if (id === "kong" || id === "gang" || id.startsWith("kong-") || id.startsWith("gang-")) return 1;
+    if (id === "pong" || id.startsWith("pong-")) return 2;
+    if (id === "chow" || id.startsWith("chow-")) return 3;
+    if (id === "pass") return 4;
+    return 5;
+  };
+  const orderedActions = [...availableActions].sort(
+    (left, right) => actionPriority(left) - actionPriority(right),
+  );
   const passOnly =
-    legalActions.length === 1 && legalActions[0]?.id.toLowerCase() === "pass";
-  if (legalActions.length > 0 && !passOnly) {
-    const selfTurnActions = legalActions.some(
+    orderedActions.length === 1 && orderedActions[0]?.id.toLowerCase() === "pass";
+  if (orderedActions.length > 0 && !passOnly) {
+    const selfTurnActions = orderedActions.some(
       (action) => action.id === "win-self" || action.id.startsWith("kong-"),
     );
     return (
@@ -948,7 +979,7 @@ function ActionBar({
         className={`action-bar ${selfTurnActions ? "action-bar-self-turn" : "action-bar-claim"}`}
         aria-label={selfTurnActions ? "Self-turn actions" : "Respond to the tile in play"}
       >
-        <ClaimButtons actions={legalActions} />
+        <ClaimButtons actions={orderedActions} />
       </div>
     );
   }
@@ -1003,11 +1034,6 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
   const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const selectedTile = localHand.find((item) => item.id === selectedTileId);
-  const matchKey = selectedTile
-    ? tileTypeKey(selectedTile.id)
-    : state.lastDiscard
-      ? tileTypeKey(state.lastDiscard.tile.id)
-      : null;
   const [drawnTileId, setDrawnTileId] = useState<string | null>(() =>
     interaction?.canDiscard ? (localHand.at(-1)?.id ?? null) : null,
   );
@@ -1253,7 +1279,6 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         state={state.seats[slots.top]}
         prevailingWind={state.prevailingWind}
         claimSource={state.claimSource}
-        matchKey={matchKey}
       />
       <OpponentSeat
         seat={slots.left}
@@ -1261,12 +1286,10 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         state={state.seats[slots.left]}
         prevailingWind={state.prevailingWind}
         claimSource={state.claimSource}
-        matchKey={matchKey}
       />
       <TablePlayfield
         state={state}
         slots={slots}
-        matchKey={matchKey}
         canDiscard={interaction?.canDiscard}
         discardPending={interaction?.discardPending}
         selectedTile={selectedTile}
@@ -1277,7 +1300,6 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         state={state.seats[slots.right]}
         prevailingWind={state.prevailingWind}
         claimSource={state.claimSource}
-        matchKey={matchKey}
       />
       <ActionBar
         legalActions={state.legalActions}
@@ -1294,7 +1316,6 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         discardPending={interaction?.discardPending}
         canDraw={interaction?.canDraw}
         waits={state.waits}
-        matchKey={matchKey}
         sortMode={sortMode}
         onCycleSortMode={cycleSortMode}
         onNudgeTile={nudgeTile}
@@ -1303,6 +1324,7 @@ export function MatchTable({ state, interaction }: { state: MatchTableState; int
         tableFxEnabled={tableFxEnabled}
         onToggleTableFx={toggleTableFx}
         isClaimThinking={state.legalActions.length > 0}
+        prevailingWind={state.prevailingWind}
       />
     </div>
   );
