@@ -2072,16 +2072,16 @@ body {
   }
 
   /* Opponents' exposed information is gameplay-critical counting material.
-     Give it roughly 50% more area than the previous desktop presentation;
-     meld groups still wrap inside each seat as the concealed hand shrinks. */
+     Keep it roughly 25% larger than the original presentation without
+     crowding the seat regions or forcing the central dashboard outward. */
   .seat .meld-area .tile-sm {
-    height: 60px;
-    width: 44px;
+    height: 50px;
+    width: 36px;
   }
 
   .seat > .bonus-tile-area .tile-sm {
-    height: 48px;
-    width: 34px;
+    height: 42px;
+    width: 30px;
   }
 
   .bonus-tile-area .tile-sm {
@@ -2260,11 +2260,17 @@ body {
     box-shadow: none;
     gap: 0;
     max-width: none;
-    /* Shift clear of the Flower tray that overlays this corner; the hand
-       itself cannot shrink, since 17 tiles at the 32px touch-target minimum
-       is a fixed width. */
-    padding: 0 52px 0 0;
+    /* The Flower tray is lifted above the hand at this aspect ratio, leaving
+       the full row available for all 17 concealed tiles and the drawn tile. */
+    padding: 0;
     width: auto;
+  }
+
+  .local-seat > .bonus-tile-area {
+    /* Keep Flowers visible without covering the hand's final tiles or their
+       discard targets. The tray floats just above the 44px touch row. */
+    bottom: 50px;
+    right: 6px;
   }
 
   .seat-left .seat-meta {
