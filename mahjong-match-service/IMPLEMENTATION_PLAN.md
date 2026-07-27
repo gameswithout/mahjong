@@ -235,7 +235,22 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      mobile-net-fc0b648 (active since
+Image tag:      progression-20260727 (active since
+                2026-07-27T18:37:38.108Z; deployment
+                c390b637-1533-41e5-bdec-f4e78b367955). P2.1 basic XP and
+                levels: §12.1 hand awards, the §12.2 curve derived from
+                lifetime XP, the GetProgression and AwardOnboardingXP RPCs,
+                and migrations 005_progression.sql and
+                006_progression_hardening.sql (player_xp, xp_awards,
+                onboarding_progress, progression_reward_grants). Verified
+                after deploy: GET /progression and POST
+                /progression/onboarding both return 401 rather than 404,
+                so the routes exist and enforce auth. Both migrations were
+                applied against a real PostgreSQL 16 alongside the full
+                integration suite before deploying; in production they are
+                inferred from a clean startup, not read back.
+                Preceding images, newest first:
+                mobile-net-fc0b648 (active since
                 2026-07-27T15:49:32.900Z; deployment
                 3737f469-91aa-4a5f-933e-40e626d49079). The mobile-network
                 work: gzip compression on every response, conditional GET
@@ -245,7 +260,6 @@ Image tag:      mobile-net-fc0b648 (active since
                 first GET returns an ETag and the repeat returns 304 with
                 no body, so Envoy passes both through intact.
                 Carries no schema migration.
-                Preceding images, newest first:
                 faucets-20260726 (2026-07-27T12:33:12.002Z; deployment
                 e4b631e7-a545-4d6a-a0d0-9bf6220d22f1 — added the §7.5
                 faucets: the ClaimJadeWelfare RPC, the daily play grants,
