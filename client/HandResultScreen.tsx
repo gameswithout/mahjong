@@ -1,14 +1,16 @@
 // §9.7 "Results and explanation": the end-of-hand tally. Covers items
 // 1-7 (winning hand/tile, decomposition, patterns, raw Tai, Dealer Tai,
 // settlement transfers, dealer continuation) plus the Match ID and
-// Practice replay/return slice of item 10. XP/achievements/rating (item 8,
-// needs E11/E13), Add Friend and result-card image export (item 9, needs
-// E12) and human-queue Report remain deferred. Play Again now covers both
+// Practice replay/return slice of item 10, and item 8's XP (§12.1).
+// Achievements and rating (the rest of item 8, needing E13), Add Friend and
+// result-card image export (item 9, needs E12) and human-queue Report remain
+// deferred. Play Again now covers both
 // Practice and staked requeue (§P1.3 session closure).
 import { useState, type ReactNode } from "react";
 
 import type { HandResult, HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
 import { TileFace } from "./TileFace";
+import { XPAward } from "./XPAward";
 import type { SeatId } from "./matchTableTypes";
 import { tile, windName } from "./matchTableTypes";
 
@@ -438,6 +440,12 @@ export function HandResultScreen({
           </p>
         </div>
       )}
+
+      {/* §12.1 XP sits after the settlement explanation and before the Match
+          ID: progress is a reward for reading the result, not a replacement
+          for it. Practice earns capped participation XP, so this renders in
+          both modes — unlike Jade, which Practice never touches. */}
+      <XPAward award={view.xp_award} progression={view.progression} />
 
       <p className="hand-result-match-id">
         <span>Match ID</span>

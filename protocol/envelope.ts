@@ -274,6 +274,41 @@ export interface SeatView {
     concealed_kongs?: { tile_ids: string[] }[];
     added_kong_tile_ids?: string[];
   };
+  // §12.1 XP earned by this hand, and §12.2 standing after it. Present once
+  // the hand is complete, for Practice and public play alike — Practice earns
+  // capped participation XP even though it never touches Jade.
+  xp_award?: HandXPAward;
+  progression?: PlayerProgression;
+}
+
+export interface XPComponent {
+  label: string;
+  amount: number;
+}
+
+export interface HandXPAward {
+  source?: string;
+  total?: number;
+  components?: XPComponent[];
+  // True when the §12.1 Practice daily cap reduced the award, including to
+  // zero. Distinguishes "today's ceiling" from "this earned nothing".
+  capped_by_daily?: boolean;
+}
+
+export interface LevelReward {
+  level: number;
+  kind: "title" | "table_theme" | "tile_skin" | "avatar_frame" | string;
+  name: string;
+}
+
+export interface PlayerProgression {
+  level?: number;
+  lifetime_xp?: number;
+  xp_into_level?: number;
+  xp_for_next_level?: number;
+  at_cap?: boolean;
+  earned?: LevelReward[];
+  next?: LevelReward;
 }
 
 // WaitTileView is one tile type in the §9.4 wait list — tile is a concrete
