@@ -115,13 +115,13 @@ Acceptance:
 
 - All four balance changes reconcile visibly to zero for a Jade hand.
 - Capped settlements show both the uncapped calculation and applied cap.
-- Practice never implies persistent rewards.
+- Practice never implies persistent financial or score rewards; its capped XP
+  is labeled separately as progression.
 
 ## Priority 1 — onboarding and repeat play
 
-**Implemented 2026-07-26.** Implementation, test coverage, and the open
-follow-ups (no rendered captures; account level deferred to P2.1; tutorial
-completion not persisted) are recorded in
+**Implemented 2026-07-26.** Implementation, test coverage, and the remaining
+rendered-capture follow-up are recorded in
 [`p1-onboarding-and-repeat-play.md`](p1-onboarding-and-repeat-play.md).
 
 ### P1.1 Three-chapter tutorial vertical slice
@@ -152,6 +152,10 @@ analytics event.
 ## Priority 2 — progression that teaches mastery
 
 ### P2.1 Basic XP and level presentation
+
+**Implemented 2026-07-27.** Backend, client, and verification evidence are
+recorded in
+[`ags-plans/2026-07-27-basic-xp-and-levels.md`](ags-plans/2026-07-27-basic-xp-and-levels.md).
 
 - Award XP from authoritative completed-match events.
 - Show one compact post-match XP animation with current level and next reward.

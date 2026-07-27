@@ -167,12 +167,11 @@ New coverage:
   produced here, so the lobby, queue, and tutorial screens are verified by
   component and integration tests but not by a rendered capture at the
   certified 640px minimum width. That is the honest gap in this document.
-- **Account level and progression** are absent from the lobby header. P1.2 asks
-  for them, but XP and levels are P2.1 and the server cannot award them yet.
-  Inventing a level display would have been the wrong kind of complete.
+- **Account level and progression** are now present in the lobby header and
+  progression screen; P2.1 supplies the authoritative XP and level curve.
 - **Sparrow Pavilion** is open in the specification but locked here, because
   this build has a single match pool. Its card says "Opens once its queue is
   running" rather than claiming a product decision that was not made.
-- **Tutorial completion is not persisted.** Finishing it sets no marker, so the
-  lobby cannot yet stop offering it or route a first-time player into it
-  automatically.
+- **Tutorial completion is persisted.** Completion and intentional skip are
+  recorded as monotonic onboarding state, and the tutorial card reflects that
+  state on the next lobby load.
