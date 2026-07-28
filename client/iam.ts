@@ -469,9 +469,13 @@ export class BrowserIam {
   private refreshToken: string | null = null;
   private identityKind: IdentityKind | null = null;
   // One in-flight refresh, shared. A match runtime, a Jade lookup and a
-  // session poll can all meet a 401 in the same second; without this they
-  // would each spend the refresh token, and AGS rotates it on use, so the
-  // second exchange would fail with a token the first had already consumed.
+  // session poll can all meet a 401 in the same second, and each would
+  // otherwise open its own exchange. AGS tolerates that today — a spent
+  // refresh token still works and simply yields another pair (verified live
+  // 2026-07-28) — so the guard is not load-bearing for correctness. It is
+  // here because depending on that tolerance would be: reuse detection is a
+  // standard thing for an IdP to turn on, and the day it is, concurrent
+  // renewals become concurrent sign-outs.
   private refreshInFlight: Promise<boolean> | null = null;
 
   constructor(
@@ -569,9 +573,10 @@ export class BrowserIam {
           return false;
         }
         this.accessToken = token.access_token;
-        // AGS rotates the refresh token on use. Keeping the old one would
-        // make the next refresh fail, so a response without a replacement
-        // means this was the last refresh available.
+        // AGS issues a new refresh token with every exchange (verified live
+        // 2026-07-28). Adopting it keeps this client on the freshest one; a
+        // response that omitted it would leave nothing to renew with again,
+        // though AGS has not been observed to do that.
         this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
 
         return true;

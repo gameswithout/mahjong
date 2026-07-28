@@ -433,8 +433,8 @@ describe("BrowserIam", () => {
       expect(iam.getAccessToken()).toBe("access-2");
     });
 
-    // AGS rotates the refresh token on use, so the second exchange must present
-    // the replacement the first one returned.
+    // AGS returns a new refresh token from every exchange, so the second
+    // renewal has to present that replacement rather than the original.
     it("presents the rotated refresh token on the next renewal", async () => {
       const seen: string[] = [];
       const iam = signedInIam(async (token) => {
@@ -448,8 +448,10 @@ describe("BrowserIam", () => {
       expect(seen).toEqual(["refresh-1", "refresh-2"]);
     });
 
-    // Several callers can meet a 401 in the same second. Spending the refresh
-    // token more than once would make every exchange after the first fail.
+    // Several callers can meet a 401 in the same second. AGS currently
+    // tolerates a reused refresh token, so this is about not depending on
+    // that: if reuse detection is ever enabled, concurrent renewals would
+    // otherwise become concurrent sign-outs.
     it("collapses concurrent renewals into one exchange", async () => {
       let exchanges = 0;
       const iam = signedInIam(async () => {
