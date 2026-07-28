@@ -330,14 +330,38 @@ Verified:       Image push + deploy succeeded; app status
                 401 against the live URL, which is what confirms the new
                 route exists and enforces auth rather than merely that the
                 deploy command returned success.
+                2026-07-28: scripts/verify-live-progression.mjs ran a real
+                guest account through the deployed service end to end —
+                real IAM login, a real AGS Session, nine real AI Practice
+                hands played turn by turn through actual draw/discard/pass
+                commands (not a test harness bypass). Confirmed live:
+                AwardOnboardingXP grants 500 XP once and is idempotent and
+                monotonic (an outcome can move skipped -> completed but not
+                back); each of the first eight Practice hands paid exactly
+                25 XP; the ninth reported capped_by_daily with zero XP,
+                matching the §12.1 200/day cap precisely; final lifetime XP
+                (700) and level (2, 200/600 into it) matched the §12.2
+                curve exactly; and the account's Jade balance stayed at
+                5,000 through all nine hands — Practice truly never touches
+                Jade in production, not just in the test suite. This
+                confirms migration 005/006's player_xp, xp_awards, and
+                onboarding_progress tables are live and correct: nine real
+                award rows were written, one of them a genuine zero-amount
+                capped award, and none of it double-paid across the
+                projection poll that repeats a finished hand.
 Not verified:   Append latency against the real Aurora cluster.
-                The §7.5 faucets have not been exercised end-to-end against
-                this deployment by a real player: no live account has yet
-                been driven below the Bamboo minimum, played a Practice
-                hand, and claimed the welfare top-up. Migration 004 is
-                inferred to have applied from a clean startup, not read back
-                from Aurora — nothing here has queried jade_daily_grants or
-                jade_hand_participation in production.
+                The §7.5 Jade side of the faucets — the welfare top-up and
+                the daily public-hand play grants — remains unexercised in
+                production, and migration 004's jade_daily_grants table has
+                never been written to live. This is not an oversight: both
+                require an account to actually lose Jade in a staked hand,
+                which requires winning a legal Taiwanese Mahjong hand
+                against it, which the 2026-07-28 verification's simplest
+                possible legal play (draw, discard, pass every claim) does
+                not attempt to force and cannot reliably force. That path
+                remains proven only by the storage-layer integration tests
+                against real PostgreSQL (pkg/storage/jade_faucets_integration_test.go),
+                not against production.
 ```
 
 ### Reading deployment state
