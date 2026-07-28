@@ -2,6 +2,7 @@ package progression
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/gameswithout/mahjong/rulesengine"
@@ -191,5 +192,104 @@ func TestCoordinatorOnboardingIsOneAwardWithMonotonicOutcome(t *testing.T) {
 	}
 	if regression.Player.Onboarding.Outcome != OnboardingCompleted {
 		t.Fatalf("completed onboarding regressed: %+v", regression.Player.Onboarding)
+	}
+}
+
+type fakeStatsMirror struct {
+	calls   int
+	updates [][]StatUpdate
+	err     error
+}
+
+func (f *fakeStatsMirror) RecordHandStats(
+	_ context.Context,
+	_ string,
+	updates []StatUpdate,
+) error {
+	f.calls++
+	f.updates = append(f.updates, updates)
+	return f.err
+}
+
+func TestCoordinator_StatsProjectOnceDespiteRepeatedProjection(t *testing.T) {
+	// GetMatchState re-projects a finished hand on every poll. Without riding
+	// the XP award's idempotency, every poll would increment the achievement
+	// counters again.
+	repository := newMemoryProgressionRepository()
+	stats := &fakeStatsMirror{}
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(stats, nil)
+
+	view := rulesengine.SeatView{
+		Seat:       rulesengine.East,
+		Players:    []rulesengine.PlayerView{{Seat: rulesengine.East}},
+		HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw},
+	}
+
+	for range 5 {
+		if _, err := coordinator.RecordHand(
+			context.Background(), "user-east", "runtime-1", view, false,
+		); err != nil {
+			t.Fatalf("RecordHand() error = %v", err)
+		}
+	}
+
+	if stats.calls != 1 {
+		t.Fatalf("stats projected %d times across 5 polls, want 1", stats.calls)
+	}
+}
+
+func TestCoordinator_PracticeProjectsNoAchievementStats(t *testing.T) {
+	// §11.4: Practice grants no achievements.
+	repository := newMemoryProgressionRepository()
+	stats := &fakeStatsMirror{}
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(stats, nil)
+
+	view := rulesengine.SeatView{
+		Seat:       rulesengine.East,
+		Players:    []rulesengine.PlayerView{{Seat: rulesengine.South, IsBot: true}},
+		HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw},
+	}
+
+	if _, err := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-practice", view, true,
+	); err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	if stats.calls != 0 {
+		t.Fatalf("Practice projected achievement stats: %+v", stats.updates)
+	}
+}
+
+func TestCoordinator_StatsFailureDoesNotFailTheHand(t *testing.T) {
+	// The ledger is authoritative and AGS is a downstream mirror. A failed
+	// projection must not undo the XP award or fail the player's hand.
+	repository := newMemoryProgressionRepository()
+	stats := &fakeStatsMirror{err: errors.New("AGS is down")}
+	coordinator := NewCoordinator(repository)
+
+	var reported error
+	coordinator.SetStatsMirror(stats, func(err error) { reported = err })
+
+	result, err := coordinator.RecordHand(
+		context.Background(),
+		"user-east",
+		"runtime-1",
+		rulesengine.SeatView{
+			Seat:       rulesengine.East,
+			Players:    []rulesengine.PlayerView{{Seat: rulesengine.East}},
+			HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw},
+		},
+		false,
+	)
+	if err != nil {
+		t.Fatalf("a failed stats projection failed the hand: %v", err)
+	}
+	if result == nil {
+		t.Fatal("a failed stats projection lost the XP result")
+	}
+	if reported == nil {
+		t.Fatal("a failed stats projection was swallowed silently")
 	}
 }

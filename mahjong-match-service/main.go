@@ -276,7 +276,26 @@ func main() {
 	}
 	jadeEconomy := economy.NewCoordinator(postgresStorage, walletMirror)
 	matchService.SetEconomy(jadeEconomy)
-	matchService.SetProgression(progression.NewCoordinator(postgresStorage))
+	progressionCoordinator := progression.NewCoordinator(postgresStorage)
+	// §12.3 achievement statistics. Shares the wallet mirror's enable/disable
+	// shape so a namespace without the Statistics permission can run the
+	// service with the projection off rather than erroring every hand.
+	if strings.EqualFold(common.GetEnv("ACHIEVEMENT_STATS_ENABLED", "true"), "true") {
+		progressionCoordinator.SetStatsMirror(
+			progression.NewAGSStatsMirror(
+				common.GetEnv("AB_NAMESPACE", ""),
+				factory.NewSocialClient(configRepo),
+				configRepo,
+				tokenRepo,
+			),
+			func(err error) {
+				logger.Warn("AGS achievement statistics projection failed", "error", err)
+			},
+		)
+	} else {
+		logger.Warn("AGS achievement statistics projection is disabled")
+	}
+	matchService.SetProgression(progressionCoordinator)
 	pb.RegisterServiceServer(s, matchService)
 
 	if walletMirror != nil {
