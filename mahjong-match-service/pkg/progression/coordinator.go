@@ -55,12 +55,32 @@ type Repository interface {
 	TakenOverMajority(ctx context.Context, userID, runtimeID string) (bool, error)
 }
 
+// StatsMirror projects §12.3 achievement statistics into AGS. Optional: the
+// service runs without it, awarding XP as usual and simply not feeding
+// achievements.
+type StatsMirror interface {
+	RecordHandStats(ctx context.Context, userID string, updates []StatUpdate) error
+}
+
 type Coordinator struct {
 	repository Repository
+	stats      StatsMirror
+	// onStatsError reports a failed stats projection. Injected so the caller
+	// owns logging and this package stays free of a logger dependency.
+	onStatsError func(error)
 }
 
 func NewCoordinator(repository Repository) *Coordinator {
 	return &Coordinator{repository: repository}
+}
+
+// SetStatsMirror enables the §12.3 achievement statistics projection.
+func (c *Coordinator) SetStatsMirror(stats StatsMirror, onError func(error)) {
+	if c == nil {
+		return
+	}
+	c.stats = stats
+	c.onStatsError = onError
 }
 
 // HandResult is what the caller needs to show a post-match XP panel: the award
@@ -127,6 +147,23 @@ func (c *Coordinator) RecordHand(
 	if err != nil {
 		return nil, err
 	}
+
+	// Achievement statistics ride the XP award's idempotency rather than
+	// carrying their own. AwardXP reports whether this call is the one that
+	// applied the award, and only that call projects stats — without it, the
+	// projection poll that repeats a finished hand would increment every
+	// achievement counter forever.
+	if applied && c.stats != nil {
+		if updates := HandStats(outcome, view); len(updates) > 0 {
+			// A failed projection must not fail the hand or undo the XP. The
+			// ledger is authoritative; AGS is a downstream mirror, exactly as
+			// the Jade wallet mirror is.
+			if statsErr := c.stats.RecordHandStats(ctx, userID, updates); statsErr != nil && c.onStatsError != nil {
+				c.onStatsError(statsErr)
+			}
+		}
+	}
+
 	return &HandXPResult{Award: persisted, Player: player, AlreadyAwarded: !applied}, nil
 }
 
