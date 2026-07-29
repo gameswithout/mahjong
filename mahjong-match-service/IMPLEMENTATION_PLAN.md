@@ -235,7 +235,20 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      progression-20260727 (active since
+Image tag:      achievements-20260728 (active since
+                2026-07-29T02:54:02Z; deployment
+                54ed9b72-e708-4778-b72f-69f66a084149). P2.2: writes the
+                §12.3 achievement statistics after every completed public
+                hand, and pays the §12.3 achievement XP for unlocks AGS
+                reports. Carries no schema migration — the XP awards reuse
+                xp_awards with achievement:<code>:<user> award IDs.
+                Verified after deploy: a real Practice hand played end to
+                end on the live service left all 18 stat values at 0.0,
+                confirming the §11.4 "Practice grants no achievements"
+                guard holds in production and not only in tests. The public
+                path is NOT yet verified live — see Not verified.
+                Preceding images, newest first:
+                progression-20260727 (active since
                 2026-07-27T18:37:38.108Z; deployment
                 c390b637-1533-41e5-bdec-f4e78b367955). P2.1 basic XP and
                 levels: §12.1 hand awards, the §12.2 curve derived from
@@ -350,6 +363,15 @@ Verified:       Image push + deploy succeeded; app status
                 capped award, and none of it double-paid across the
                 projection poll that repeats a finished hand.
 Not verified:   Append latency against the real Aurora cluster.
+                The §12.3 statistics have never been written for a real
+                public hand in production. Only the negative case is
+                proven: Practice writes nothing. Confirming the positive
+                case needs four humans in one public hand, which no
+                automated script here can currently produce.
+                Achievement XP has likewise never been paid live. Only
+                first-hand exists as a config (the token expired partway
+                through creating the other 22), so even a public hand would
+                currently unlock at most that one.
                 The §7.5 Jade side of the faucets — the welfare top-up and
                 the daily public-hand play grants — remains unexercised in
                 production, and migration 004's jade_daily_grants table has
