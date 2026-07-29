@@ -62,11 +62,20 @@ type StatsMirror interface {
 	RecordHandStats(ctx context.Context, userID string, updates []StatUpdate) error
 }
 
+// AchievementReader reports which achievements AGS has unlocked for a player.
+// AGS decides unlocks by evaluating the statistics StatsMirror writes; this
+// service only reads the result and pays the §12.3 XP for it.
+type AchievementReader interface {
+	UnlockedAchievementCodes(ctx context.Context, userID string) ([]string, error)
+}
+
 type Coordinator struct {
-	repository Repository
-	stats      StatsMirror
-	// onStatsError reports a failed stats projection. Injected so the caller
-	// owns logging and this package stays free of a logger dependency.
+	repository   Repository
+	stats        StatsMirror
+	achievements AchievementReader
+	// onStatsError reports a failed stats projection or achievement sweep.
+	// Injected so the caller owns logging and this package stays free of a
+	// logger dependency.
 	onStatsError func(error)
 }
 
@@ -83,11 +92,68 @@ func (c *Coordinator) SetStatsMirror(stats StatsMirror, onError func(error)) {
 	c.onStatsError = onError
 }
 
+// SetAchievementReader enables §12.3 achievement XP. Without it, achievements
+// still unlock in AGS — they simply pay no XP, which is the behaviour before
+// this was wired.
+func (c *Coordinator) SetAchievementReader(reader AchievementReader) {
+	if c == nil {
+		return
+	}
+	c.achievements = reader
+}
+
+// awardUnlockedAchievements pays the §12.3 XP for achievements AGS has
+// unlocked and this player has not yet been paid for.
+//
+// Idempotency is the award ID, not the sweep: AGS reports every unlocked
+// achievement on every call, including ones paid weeks ago, so the sweep is
+// deliberately dumb and AwardXP decides what is new. Returns the awards that
+// actually moved XP.
+func (c *Coordinator) awardUnlockedAchievements(
+	ctx context.Context,
+	userID string,
+) ([]HandAward, error) {
+	codes, err := c.achievements.UnlockedAchievementCodes(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var granted []HandAward
+	for _, code := range codes {
+		achievement, known := AchievementByCode(code)
+		if !known {
+			// A code this build does not know about — an older or newer
+			// config, or one added by hand. Paying zero would be
+			// indistinguishable from having paid, so skip it loudly instead.
+			if c.onStatsError != nil {
+				c.onStatsError(fmt.Errorf(
+					"AGS unlocked unknown achievement %q for user %s; no XP awarded",
+					code, userID,
+				))
+			}
+			continue
+		}
+		_, persisted, applied, awardErr := c.repository.AwardXP(
+			ctx, userID, "", AchievementAward(achievement, userID),
+		)
+		if awardErr != nil {
+			return granted, awardErr
+		}
+		if applied {
+			granted = append(granted, persisted)
+		}
+	}
+	return granted, nil
+}
+
 // HandResult is what the caller needs to show a post-match XP panel: the award
 // this hand earned, and the standing it produced.
 type HandXPResult struct {
 	Award  HandAward
 	Player Player
+	// Achievements unlocked by this hand and paid for the first time. Empty on
+	// a repeat projection, because their XP was already awarded.
+	Achievements []HandAward
 	// AlreadyAwarded is true when this hand had already been priced — the poll
 	// loop re-projecting a finished hand, not a second hand.
 	AlreadyAwarded bool
@@ -139,6 +205,7 @@ func (c *Coordinator) RecordHand(
 	// Storage enforces the Practice cap while holding the player XP row lock.
 	// Passing zero here prevents a stale read-then-write cap race between two
 	// replicas; HandXP still owns the pure per-hand arithmetic.
+	var achievements []HandAward
 	award := HandXP(outcome, 0)
 	award.AwardID = handAwardID(runtimeID, userID)
 	player, persisted, applied, err := c.repository.AwardXP(
@@ -158,13 +225,36 @@ func (c *Coordinator) RecordHand(
 			// A failed projection must not fail the hand or undo the XP. The
 			// ledger is authoritative; AGS is a downstream mirror, exactly as
 			// the Jade wallet mirror is.
-			if statsErr := c.stats.RecordHandStats(ctx, userID, updates); statsErr != nil && c.onStatsError != nil {
-				c.onStatsError(statsErr)
+			if statsErr := c.stats.RecordHandStats(ctx, userID, updates); statsErr != nil {
+				if c.onStatsError != nil {
+					c.onStatsError(statsErr)
+				}
+			} else if c.achievements != nil {
+				// Only sweep when the stats actually landed. AGS evaluates
+				// unlocks from those values, so sweeping after a failed write
+				// asks it about a state it never saw.
+				unlocked, sweepErr := c.awardUnlockedAchievements(ctx, userID)
+				if sweepErr != nil && c.onStatsError != nil {
+					c.onStatsError(sweepErr)
+				}
+				if len(unlocked) > 0 {
+					// Re-read so the caller sees the level the achievement XP
+					// produced, not the pre-achievement standing.
+					if refreshed, refreshErr := c.repository.PlayerProgression(ctx, userID); refreshErr == nil {
+						player = refreshed
+					}
+					achievements = unlocked
+				}
 			}
 		}
 	}
 
-	return &HandXPResult{Award: persisted, Player: player, AlreadyAwarded: !applied}, nil
+	return &HandXPResult{
+		Award:          persisted,
+		Player:         player,
+		AlreadyAwarded: !applied,
+		Achievements:   achievements,
+	}, nil
 }
 
 type OnboardingOutcome string
