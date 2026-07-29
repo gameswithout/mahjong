@@ -442,10 +442,13 @@ export function createMatchRuntimeConnection(
         response = await send(method, url, body, ifNoneMatch);
       }
     }
-    // 304 is a successful poll that happens to carry nothing: the view the
-    // caller already holds is still current. It is not `ok` by fetch's
-    // definition, so it has to be recognised before the error path.
-    if (response.status === 304) {
+    // 204 is a successful poll that happens to carry nothing: the view the
+    // caller already holds is still current. The service answers an unchanged
+    // conditional poll this way rather than with 304 because a browser cannot
+    // use a 304 here — it has no stored copy to reconcile one against, and
+    // cancels the request instead. It has no body, so it must be recognised
+    // before anything tries to parse one.
+    if (response.status === 204) {
       return { status: "unchanged" };
     }
     if (!response.ok) {

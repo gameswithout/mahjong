@@ -50,6 +50,7 @@ const OBSERVE_MS = Number(process.env.PROBE_OBSERVE_MS ?? 30_000);
 
 const calls = [];
 const consoleErrors = [];
+const loadingFailures = [];
 let phase = "startup";
 
 function classify(url, method) {
@@ -61,11 +62,39 @@ function classify(url, method) {
 }
 
 async function run() {
-  const browser = await chromium.launch();
+  // PROBE_DISABLE_CORS lets the client read the ETag and send If-None-Match
+  // without the service permitting it, so conditional GET can be exercised
+  // against the real deployment without shipping a CORS change to find out
+  // whether it works.
+  const browser = await chromium.launch(
+    process.env.PROBE_DISABLE_CORS
+      ? { args: ["--disable-web-security", "--disable-site-isolation-trials"] }
+      : {},
+  );
   const context = await browser.newContext({ viewport: { width: 900, height: 700 } });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   await cdp.send("Network.enable");
+
+  // Playwright reports a bare "net::ERR_ABORTED"; CDP says whether the browser
+  // cancelled it, blocked it, or saw a response first — and what that response
+  // was. That is the difference between guessing and knowing.
+  const cdpByUrl = new Map();
+  cdp.on("Network.responseReceived", (e) => {
+    if (!e.response?.url?.includes("/matches/")) return;
+    cdpByUrl.set(e.requestId, { status: e.response.status, headers: e.response.headers });
+  });
+  cdp.on("Network.loadingFailed", (e) => {
+    const seen = cdpByUrl.get(e.requestId);
+    loadingFailures.push({
+      errorText: e.errorText,
+      canceled: e.canceled ?? false,
+      blockedReason: e.blockedReason ?? "",
+      corsError: e.corsErrorStatus?.corsError ?? "",
+      responseSeen: seen ? seen.status : "none",
+      responseHeaders: seen ? seen.headers : null,
+    });
+  });
 
   const inFlight = new Map();
   let maxConcurrentPolls = 0;
@@ -104,6 +133,10 @@ async function run() {
     const headers = response.headers();
     record.encoding = headers["content-encoding"] ?? "";
     record.etag = headers.etag ?? "";
+    if (record.status === 204) {
+      record.bytes = 0;
+      return;
+    }
     try {
       const body = await response.body();
       record.bytes = body.length;
@@ -111,7 +144,7 @@ async function run() {
         record.stateVersion = JSON.parse(body.toString()).state?.state_version ?? null;
       }
     } catch {
-      record.bytes = 0; // 304 has no body to read
+      record.bytes = 0; // a bodiless reply has nothing to read
     }
   });
   page.on("requestfailed", (request) => {
@@ -186,7 +219,7 @@ async function run() {
       recoveredAt = Date.now();
       break;
     }
-    if (calls.some((c) => c.kind === "poll" && c.phase === "recovery" && c.status === 304)) {
+    if (calls.some((c) => c.kind === "poll" && c.phase === "recovery" && c.status === 204)) {
       recoveredAt = Date.now();
       break;
     }
@@ -227,26 +260,26 @@ function summarise(observations) {
     console.log(
       `${name.padEnd(12)} ${String(records.length).padStart(5)}` +
         `${String(records.filter((r) => r.status === 200).length).padStart(5)}` +
-        `${String(records.filter((r) => r.status === 304).length).padStart(6)}` +
+        `${String(records.filter((r) => r.status === 204).length).padStart(6)}` +
         `${String(records.filter((r) => r.status === "failed").length).padStart(8)}` +
         `${(median / 1000).toFixed(1).padStart(12)}s${(max / 1000).toFixed(1).padStart(10)}s`,
     );
   }
 
-  const answered = polls.filter((p) => p.status === 200 || p.status === 304);
-  const notModified = polls.filter((p) => p.status === 304);
+  const answered = polls.filter((p) => p.status === 200 || p.status === 204);
+  const notModified = polls.filter((p) => p.status === 204);
   const gzipped = polls.filter((p) => p.status === 200 && p.encoding.includes("gzip"));
   const withEtag = polls.filter((p) => p.etag);
   const bodyBytes = polls.filter((p) => p.status === 200).reduce((sum, p) => sum + (p.bytes ?? 0), 0);
 
   console.log("\n=== wire ===");
   console.log(`answered polls          ${answered.length}`);
-  console.log(`  304 unchanged         ${notModified.length}  (${((100 * notModified.length) / (answered.length || 1)).toFixed(0)}% of answered)`);
+  console.log(`  204 unchanged         ${notModified.length}  (${((100 * notModified.length) / (answered.length || 1)).toFixed(0)}% of answered)`);
   console.log(`  200 with gzip         ${gzipped.length} of ${polls.filter((p) => p.status === 200).length}`);
   console.log(`  carrying an ETag      ${withEtag.length}`);
   console.log(`total 200 body bytes    ${bodyBytes}`);
   console.log(
-    `bytes saved by 304      ~${notModified.length * Math.round(bodyBytes / Math.max(1, polls.filter((p) => p.status === 200).length))} (est. at mean body size)`,
+    `bytes saved by 204      ~${notModified.length * Math.round(bodyBytes / Math.max(1, polls.filter((p) => p.status === 200).length))} (est. at mean body size)`,
   );
 
   // A 304 can only happen when nothing moved. If the version advances between
@@ -258,10 +291,10 @@ function summarise(observations) {
   for (let i = 1; i < versions.length; i += 1) {
     if (versions[i] === versions[i - 1]) repeats += 1;
   }
-  console.log("\n=== why the 304 rate is what it is ===");
+  console.log("\n=== why the unchanged rate is what it is ===");
   console.log(`polls that offered If-None-Match   ${offered.length} of ${polls.length}`);
   console.log(`distinct state versions seen       ${new Set(versions).size} across ${versions.length} bodies`);
-  console.log(`consecutive polls at same version  ${repeats}  <- the only ones a 304 was ever available for`);
+  console.log(`consecutive polls at same version  ${repeats}  <- the only ones an unchanged reply was ever available for`);
   console.log(`versions: ${versions.join(" ")}`);
 
   const failedPolls = polls.filter((p) => p.status === "failed");
@@ -270,6 +303,26 @@ function summarise(observations) {
     for (const f of failedPolls) reasons[f.error || "(no error text)"] = (reasons[f.error || "(no error text)"] ?? 0) + 1;
     console.log("\n=== failed polls ===");
     for (const [reason, count] of Object.entries(reasons)) console.log(`  ${count} x ${reason}`);
+    // Time-to-abort separates "the request was rejected" from "the request
+    // hung and this client's own 8s timeout killed it".
+    const aborted = failedPolls.filter((f) => (f.error ?? "").includes("ABORTED")).map((f) => f.ms);
+    if (aborted.length) {
+      console.log(`  aborted after (ms): ${aborted.join(", ")}`);
+    }
+  }
+  if (loadingFailures.length) {
+    console.log("\n=== CDP view of the failures ===");
+    const shape = {};
+    for (const f of loadingFailures) {
+      const key = `${f.errorText} canceled=${f.canceled} blocked=${f.blockedReason || "-"} cors=${f.corsError || "-"} responseSeen=${f.responseSeen}`;
+      shape[key] = (shape[key] ?? 0) + 1;
+    }
+    for (const [key, count] of Object.entries(shape)) console.log(`  ${count} x ${key}`);
+    const withHeaders = loadingFailures.find((f) => f.responseHeaders);
+    if (withHeaders) {
+      console.log("  response headers on a failed poll:");
+      for (const [k, v] of Object.entries(withHeaders.responseHeaders)) console.log(`    ${k}: ${v}`);
+    }
   }
   if (consoleErrors.length) {
     console.log("\n=== browser console (CORS) ===");
