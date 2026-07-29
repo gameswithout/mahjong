@@ -936,11 +936,13 @@ function ActionBar({
   canDraw,
   onDraw,
   drawPending,
+  manualDrawOnly,
 }: {
   legalActions: MatchAction[];
   canDraw?: boolean;
   onDraw?: () => void;
   drawPending?: boolean;
+  manualDrawOnly?: boolean;
 }) {
   const winningClaimAvailable = legalActions.some((action) => {
     const id = action.id.toLowerCase();
@@ -983,7 +985,11 @@ function ActionBar({
     return (
       <div className="action-bar action-bar-draw">
         <p className="action-bar-prompt action-bar-hint" role="status" aria-live="polite">
-          {drawPending ? "Drawing your tile…" : "Your tile will draw automatically"}
+          {drawPending
+            ? "Drawing your tile…"
+            : manualDrawOnly
+              ? "Practice the first step of your turn"
+              : "Your tile will draw automatically"}
         </p>
         {/* Keep the fallback mounted while auto-draw is in flight. Removing it
             after 320 ms can detach the control underneath a pointer or touch. */}
@@ -1008,6 +1014,9 @@ export interface MatchTableInteraction {
   canDraw?: boolean;
   onDraw?: () => void;
   drawPending?: boolean;
+  // Tutorial-only escape hatch: live play auto-draws, while the lesson waits
+  // for the player to deliberately practise the Draw now control.
+  manualDrawOnly?: boolean;
 }
 
 export function MatchTable({
@@ -1310,6 +1319,7 @@ export function MatchTable({
         canDraw={interaction?.canDraw}
         onDraw={interaction?.onDraw}
         drawPending={interaction?.drawPending}
+        manualDrawOnly={interaction?.manualDrawOnly}
       />
       <LocalSeat
         state={local}
