@@ -368,10 +368,11 @@ Not verified:   Append latency against the real Aurora cluster.
                 proven: Practice writes nothing. Confirming the positive
                 case needs four humans in one public hand, which no
                 automated script here can currently produce.
-                Achievement XP has likewise never been paid live. Only
-                first-hand exists as a config (the token expired partway
-                through creating the other 22), so even a public hand would
-                currently unlock at most that one.
+                Achievement XP has likewise never been paid live. All 23
+                achievement configs now exist (2026-07-29) and are
+                cross-checked against the Go reward table and the stat
+                definitions, but no unlock has actually fired in production
+                because that needs a public hand.
                 The §7.5 Jade side of the faucets — the welfare top-up and
                 the daily public-hand play grants — remains unexercised in
                 production, and migration 004's jade_daily_grants table has

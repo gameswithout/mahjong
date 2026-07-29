@@ -114,8 +114,12 @@ AGS_ADMIN_TOKEN=eyJ... scripts/create-achievements.sh
 Creates all 23 in one run, safe to re-run — an existing code returns 409 and is
 reported as "exists" and skipped.
 
-**Status: 1 of 23 created.** `first-hand` exists; the token expired partway
-through the first run, so the remaining 22 still need a fresh token.
+**Status: all 23 created (2026-07-29).** Verified three ways against the live
+namespace — every config is `incremental` with a goal value, every `statCode`
+it points at exists, every XP value matches the Go reward table, and neither
+side has an orphan. An achievement configured in AGS but missing from the Go
+table would unlock and silently pay nothing, so that direction was checked
+too.
 
 For the Admin Portal instead, the table above has every field; leave icons
 empty and tag them `launch`.
