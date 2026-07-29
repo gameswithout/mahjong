@@ -339,6 +339,7 @@ export function App(
   const resumeStartedRef = useRef(false);
   const lobbyRef = useRef<LobbyConnection | null>(null);
   const queueTelemetryRef = useRef(new Set<string>());
+  const handTelemetryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const mountedAt = Date.now();
@@ -911,6 +912,45 @@ export function App(
       return () => window.clearTimeout(timeout);
     }
     wasTakenOverRef.current = isTakenOver;
+  }, [matchRuntimeState]);
+
+  // §P2.3 / AI Analytics: one event per completed hand.
+  //
+  // Keyed on match and state version so it fires once for the hand rather than
+  // on every render or poll of a finished table. The statistics the dashboard
+  // reads are written server-side and remain authoritative for a player's own
+  // record; this is the same outcome as an event, because AI Analytics answers
+  // questions from telemetry rather than from Statistics.
+  useEffect(() => {
+    if (matchRuntimeState.status !== "joined") {
+      return;
+    }
+    const view = matchRuntimeState.view;
+    if (view.phase !== "hand_complete" && view.phase !== "exhaustive_draw") {
+      return;
+    }
+    const key = `${matchRuntimeState.matchId}:${view.state_version}`;
+    if (handTelemetryKeyRef.current === key) {
+      return;
+    }
+    handTelemetryKeyRef.current = key;
+
+    const winner = view.hand_result?.winners?.find((entry) => entry.seat === view.seat);
+    const dealtIn =
+      view.hand_result?.kind === "discard" && view.hand_result?.payer === view.seat;
+    gameTelemetry.track("hand_completed", {
+      dimensions: {
+        mode: isPracticeMatch(view) ? "practice" : "quick_play",
+        outcome: winner ? "won" : view.phase === "exhaustive_draw" ? "draw" : "lost",
+        win_kind: view.hand_result?.kind ?? "none",
+        dealt_in: String(Boolean(dealtIn)),
+        ting: String((view.waits?.length ?? 0) > 0),
+      },
+      measurements: {
+        raw_tai: winner?.score.raw_tai ?? 0,
+        wall_remaining: view.wall?.remaining ?? 0,
+      },
+    });
   }, [matchRuntimeState]);
 
   // Persist a resume pointer while a guest match is live so a reload or

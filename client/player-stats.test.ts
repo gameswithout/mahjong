@@ -83,11 +83,19 @@ describe("readStatValues", () => {
     ).toEqual({ "public-hands-won": 12 });
   });
 
+  // protojson drops a zero double, so an untouched counter arrives as a bare
+  // stat code. Verified against the live service, which returns exactly this
+  // for a player who has not played.
+  it("reads a value-less entry as the zero protojson omitted", () => {
+    expect(readStatValues({ statistics: [{ stat_code: "public-hands-dealt-in" }] })).toEqual({
+      "public-hands-dealt-in": 0,
+    });
+  });
+
   it("skips entries it does not understand rather than failing the screen", () => {
     const values = readStatValues({
       statistics: [
         { stat_code: "public-hands-won", value: 12 },
-        { stat_code: "future-stat" },
         { value: 5 },
         null,
         "nonsense",

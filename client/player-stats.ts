@@ -135,9 +135,14 @@ export function readStatValues(body: unknown): Record<string, number> {
       continue;
     }
     const item = entry as { stat_code?: unknown; value?: unknown };
-    if (typeof item.stat_code === "string" && typeof item.value === "number") {
-      values[item.stat_code] = item.value;
+    if (typeof item.stat_code !== "string" || item.stat_code === "") {
+      continue;
     }
+    // protojson omits a zero double entirely, so a counter the player has
+    // never moved arrives as a stat_code with no value at all. That is a real
+    // zero, not a malformed row — reading it as anything else would show a
+    // player who has never dealt in as having no data rather than none.
+    values[item.stat_code] = typeof item.value === "number" ? item.value : 0;
   }
   return values;
 }
