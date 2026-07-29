@@ -1,41 +1,60 @@
 #!/usr/bin/env bash
 # Creates the §12.3 launch achievements in the AGS Achievement service.
 #
-# Blocked as of 2026-07-28 on ADMIN:NAMESPACE:<ns>:ACHIEVEMENT [CREATE] — the
-# tooling client can list achievements but not create them (error 20013). Run
-# this once that permission is granted; it needs no other setup, because every
-# stat code it references is already live in the namespace.
+# Requires a PUBLISHER-LEVEL USER TOKEN, not the confidential tooling client.
+# This is not a preference — it is the only combination that works, and the
+# failure modes are actively misleading:
 #
-# Safe to re-run: an achievement code that already exists returns a conflict,
-# which is reported as "exists" and skipped rather than treated as a failure.
+#   client token + gameswithout-mahjong subdomain -> 20013 "insufficient
+#       permission", even with g_achievements CREATE granted to the client
+#       (verified: selectedActions [1,2,4,8] and still denied)
+#   client token + gameswithout subdomain         -> 20030 "subdomain mismatch"
+#       (a game-namespace client cannot call the publisher subdomain)
+#   user token   + gameswithout-mahjong subdomain -> 20030 "subdomain mismatch"
+#   user token   + gameswithout subdomain         -> 201 Created
+#
+# So achievement configuration is a publisher-namespace admin operation. The
+# 20013 is genuinely about the caller's namespace level, not a missing grant,
+# which is why granting the client permission did not fix it.
+#
+# Get a token by signing in to the Admin Portal and copying the bearer token,
+# or via `ags auth login` (browser). They last one hour — this script creates
+# 23 achievements in a few seconds, but a token minted long before you run it
+# may expire mid-run. Re-running is safe.
 #
 # Usage:
-#   AGS_CLIENT_SECRET=... scripts/create-achievements.sh
+#   AGS_ADMIN_TOKEN=eyJ... scripts/create-achievements.sh
+#
+# Safe to re-run: an existing achievement code returns 409 and is reported as
+# "exists" and skipped.
 #
 # The XP values ride in customAttributes. AGS does not award them — our XP
-# lives in PostgreSQL — but carrying them here means whatever wires unlock->XP
-# later does not have to re-derive them from the specification.
+# lives in PostgreSQL — but carrying them here means whatever wires
+# unlock -> XP later does not have to re-derive them from the specification.
 
 set -euo pipefail
 
-NAMESPACE="${ACCELBYTE_NAMESPACE:-gameswithout-mahjong}"
-export AGS_BASE_URL="${AGS_BASE_URL:-https://gameswithout-mahjong.prod.gamingservices.accelbyte.io}"
-export AGS_PROFILE="${AGS_PROFILE:-mahjong}"
+NS="${ACCELBYTE_NAMESPACE:-gameswithout-mahjong}"
+# The publisher subdomain, deliberately: see the failure matrix above.
+BASE="${AGS_PUBLISHER_BASE_URL:-https://gameswithout.prod.gamingservices.accelbyte.io}"
 
-if [ -z "${AGS_CLIENT_SECRET:-}" ]; then
-  echo "AGS_CLIENT_SECRET is required (the confidential tooling client's secret)." >&2
+if [ -z "${AGS_ADMIN_TOKEN:-}" ]; then
+  echo "AGS_ADMIN_TOKEN is required (a publisher-level user token)." >&2
+  echo "A confidential client token will NOT work for this operation." >&2
   exit 1
 fi
 
 created=0
 existing=0
 failed=0
+response=$(mktemp)
+trap 'rm -f "${response}"' EXIT
 
 # create <code> <name> <description> <statCode> <goalValue> <xp>
 create() {
   local code="$1" name="$2" description="$3" stat="$4" goal="$5" xp="$6"
-  local json
-  json=$(cat <<JSON
+  local body http
+  body=$(cat <<JSON
 {
   "achievementCode": "${code}",
   "defaultLanguage": "en",
@@ -52,21 +71,34 @@ create() {
 }
 JSON
 )
-  local output
-  if output=$(ags achievement achievements create \
-      --namespace "${NAMESPACE}" --json "${json}" 2>&1); then
-    printf '  created  %-24s %s >= %s\n' "${code}" "${stat}" "${goal}"
-    created=$((created + 1))
-  elif printf '%s' "${output}" | grep -qi "conflict\|already exist\|duplicate"; then
-    printf '  exists   %-24s\n' "${code}"
-    existing=$((existing + 1))
-  else
-    printf '  FAILED   %-24s %s\n' "${code}" "$(printf '%s' "${output}" | head -2 | tr '\n' ' ')"
-    failed=$((failed + 1))
-  fi
+  http=$(curl -s -o "${response}" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer ${AGS_ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "${body}" \
+    "${BASE}/achievement/v1/admin/namespaces/${NS}/achievements")
+
+  case "${http}" in
+    200|201)
+      printf '  created  %-24s %s >= %s\n' "${code}" "${stat}" "${goal}"
+      created=$((created + 1))
+      ;;
+    409)
+      printf '  exists   %-24s\n' "${code}"
+      existing=$((existing + 1))
+      ;;
+    401)
+      printf '  FAILED   %-24s HTTP 401 — token expired or invalid\n' "${code}"
+      failed=$((failed + 1))
+      ;;
+    *)
+      printf '  FAILED   %-24s HTTP %s %s\n' "${code}" "${http}" \
+        "$(head -c 140 "${response}" | tr -d '\n')"
+      failed=$((failed + 1))
+      ;;
+  esac
 }
 
-echo "Creating §12.3 launch achievements in ${NAMESPACE}"
+echo "Creating §12.3 launch achievements in ${NS}"
 
 # --- Participation and mastery counters -------------------------------------
 create first-hand "First Hand" \
