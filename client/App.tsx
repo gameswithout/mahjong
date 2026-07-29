@@ -32,6 +32,7 @@ import { LockedTiers } from "./LockedTiers";
 import { playableTier, tierSummary } from "./lobby-tiers";
 import { queueElapsedLabel, queueHealth, queueHealthMessage } from "./queue-health";
 import { TutorialScreen } from "./tutorial/TutorialScreen";
+import type { TutorialEvent } from "./tutorial/analytics";
 import {
   createProgressionClient,
   ProgressionError,
@@ -63,6 +64,7 @@ import { MINIMUM_ACCOUNT_AGE, ageInYears } from "./age-gate";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
 import { MATCH_LOADING_SCREEN_MS, MatchLoadingScreen } from "./MatchLoadingScreen";
+import { createBrowserTelemetry, type GameTelemetry } from "./telemetry";
 import {
   defaultPlayerProfile,
   loadPlayerProfile,
@@ -250,8 +252,25 @@ function sessionIdFragment(sessionId: string): string {
   return `${sessionId.slice(0, 8)}…${sessionId.slice(-4)}`;
 }
 
-export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
+export function App(
+  {
+    iam: injectedIam,
+    telemetry: injectedTelemetry,
+  }: { iam?: BrowserIam; telemetry?: GameTelemetry } = {},
+) {
   const [stableIam] = useState(() => injectedIam ?? createBrowserIam());
+  const [gameTelemetry] = useState<GameTelemetry>(() =>
+    injectedTelemetry ??
+      createBrowserTelemetry({
+        baseURL: accelByteConfig.baseURL,
+        namespace: accelByteConfig.namespace,
+        clientVersion: accelByteConfig.sessionClientVersion,
+        getAccessToken: () => stableIam.getAccessToken(),
+      }),
+  );
+  const [optionalAnalyticsConsent, setOptionalAnalyticsConsent] = useState(() =>
+    gameTelemetry.optionalConsent(),
+  );
   const [state, setState] = useState<ViewState>({ status: "idle" });
   const [sessionState, setSessionState] = useState<SessionState>({ status: "idle" });
   const [matchmakingState, setMatchmakingState] = useState<MatchmakingState>({ status: "idle" });
@@ -307,6 +326,34 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // invocation cannot start two guest logins / two joins.
   const resumeStartedRef = useRef(false);
   const lobbyRef = useRef<LobbyConnection | null>(null);
+  const queueTelemetryRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const mountedAt = Date.now();
+    gameTelemetry.start();
+    gameTelemetry.track("app_session_started", {
+      dimensions: { entry_point: "web" },
+    });
+    const interactiveTimer = window.setTimeout(() => {
+      gameTelemetry.track("app_interactive", {
+        measurements: { interactive_ms: Math.max(0, Date.now() - mountedAt) },
+      });
+    }, 0);
+    const onVisibilityChange = () => {
+      gameTelemetry.track("app_visibility_changed", {
+        dimensions: { visibility_state: document.visibilityState },
+      });
+    };
+    const onPageHide = () => void gameTelemetry.flush();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.clearTimeout(interactiveTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageHide);
+      gameTelemetry.stop();
+    };
+  }, [gameTelemetry]);
 
   useEffect(() => {
     if (state.status !== "signed_in") return;
@@ -322,6 +369,22 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     if (state.status === "signed_in") {
       savePlayerProfile(state.userId, normalized);
     }
+  }
+
+  function updateOptionalAnalyticsConsent(enabled: boolean) {
+    gameTelemetry.setOptionalConsent(enabled);
+    setOptionalAnalyticsConsent(enabled);
+  }
+
+  function recordTutorialEvent(event: TutorialEvent) {
+    gameTelemetry.track(event.name, {
+      dimensions: {
+        script_version: event.scriptVersion,
+        chapter_id: event.chapterId,
+        step_id: event.stepId,
+        from_step_id: event.fromStepId,
+      },
+    });
   }
   const matchRuntimeRef = useRef<MatchRuntimeConnection | null>(null);
   const matchRuntimeMatchIdRef = useRef<string | null>(null);
@@ -586,6 +649,33 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
   const queueElapsedMs = queueStartedAt === null ? 0 : Math.max(0, nowTick - queueStartedAt);
   const currentQueueHealth = queueHealth(queueElapsedMs);
+
+  useEffect(() => {
+    if (matchmakingState.status !== "searching" || currentQueueHealth === "starting") {
+      return;
+    }
+    const thresholdKey = `threshold:${currentQueueHealth}`;
+    if (!queueTelemetryRef.current.has(thresholdKey)) {
+      queueTelemetryRef.current.add(thresholdKey);
+      gameTelemetry.track("queue_threshold_reached", {
+        dimensions: {
+          queue_health: currentQueueHealth,
+          threshold: currentQueueHealth === "normal" ? "p50_30s" : "patience_90s",
+        },
+        measurements: { elapsed_ms: queueElapsedMs },
+      });
+    }
+    if (currentQueueHealth === "slow" && !queueTelemetryRef.current.has("practice_offered")) {
+      queueTelemetryRef.current.add("practice_offered");
+      gameTelemetry.track("queue_alternative_offered", {
+        dimensions: {
+          alternative: "practice",
+          queue_health: currentQueueHealth,
+        },
+        measurements: { elapsed_ms: queueElapsedMs },
+      });
+    }
+  }, [currentQueueHealth, gameTelemetry, matchmakingState.status, queueElapsedMs]);
 
   const matchedSessionId =
     matchmakingState.status === "matched" ? matchmakingState.ticket.sessionId ?? null : null;
@@ -868,6 +958,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           setState((current) =>
             current.status === "signed_in" ? { ...current, lobbyStatus: "connected" } : current,
           );
+          gameTelemetry.track("lobby_impression", {
+            dimensions: {
+              entry_point: "sign_in",
+              account_type: authMethodRef.current === "guest" ? "guest" : "full",
+            },
+          });
         },
         onMessage: () => {
           // Lobby frames are intentionally not rendered or logged.
@@ -1293,11 +1389,20 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
 
   async function findTable() {
     const requestId = ++matchmakingRequestRef.current;
+    const startedAt = Date.now();
     setOnlineSessionEntryMode("matchmaking");
     autoJoiningSessionIdRef.current = null;
     setMatchmakingState({ status: "loading" });
-    setQueueStartedAt(Date.now());
-    setNowTick(Date.now());
+    setQueueStartedAt(startedAt);
+    setNowTick(startedAt);
+    queueTelemetryRef.current.clear();
+    gameTelemetry.track("mode_selected", {
+      dimensions: {
+        entry_point: "lobby_quick_play",
+        mode: "bamboo_quick_play",
+        tier: playableTier().id,
+      },
+    });
 
     try {
       const ticket = await createStakedMatchmakingTicket(
@@ -1315,6 +1420,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       } else {
         setMatchmakingState({ status: "searching", ticket });
       }
+      gameTelemetry.track("queue_entry_result", {
+        dimensions: {
+          mode: "bamboo_quick_play",
+          outcome: ticket.matchFound || ticket.sessionId ? "matched_immediately" : "queued",
+          tier: playableTier().id,
+        },
+        measurements: { elapsed_ms: Math.max(0, Date.now() - startedAt) },
+      });
     } catch (error) {
       if (requestId !== matchmakingRequestRef.current) {
         return;
@@ -1325,6 +1438,15 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           ? { code: `jade_${error.code}`, message: error.message }
           : matchmakingErrorView(error);
       setMatchmakingState({ status: "error", ...safeError });
+      gameTelemetry.track("queue_entry_result", {
+        dimensions: {
+          mode: "bamboo_quick_play",
+          outcome: "failed",
+          reason_code: safeError.code,
+          tier: playableTier().id,
+        },
+        measurements: { elapsed_ms: Math.max(0, Date.now() - startedAt) },
+      });
     }
   }
 
@@ -1336,6 +1458,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       return false;
     }
 
+    const elapsedMs = Math.max(0, Date.now() - (queueStartedAt ?? Date.now()));
     const requestId = ++matchmakingRequestRef.current;
     setMatchmakingState({ status: "canceling", ticket });
 
@@ -1348,10 +1471,21 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       setOnlineSessionEntryMode("manual");
       if (!release.released) {
         setMatchmakingState(reservationReleaseError(release));
+        gameTelemetry.track("queue_cancel_result", {
+          dimensions: {
+            outcome: "failed",
+            reason_code: `jade_release_${release.code}`,
+          },
+          measurements: { elapsed_ms: elapsedMs },
+        });
         return false;
       }
 
       setMatchmakingState({ status: "idle" });
+      gameTelemetry.track("queue_cancel_result", {
+        dimensions: { outcome: "canceled" },
+        measurements: { elapsed_ms: elapsedMs },
+      });
       return true;
     } catch (error) {
       if (requestId !== matchmakingRequestRef.current) {
@@ -1367,6 +1501,13 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
           "Retry leaving this queue before playing or joining another table.",
         recovery: "cancel_ticket",
         ticket,
+      });
+      gameTelemetry.track("queue_cancel_result", {
+        dimensions: {
+          outcome: "failed",
+          reason_code: `cancel_${safeError.code}`,
+        },
+        measurements: { elapsed_ms: elapsedMs },
       });
       return false;
     }
@@ -1388,6 +1529,12 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   // leaving it held behind a hand that costs nothing would quietly block the
   // player's next staked entry.
   async function leaveQueueForPractice() {
+    gameTelemetry.track("queue_alternative_selected", {
+      dimensions: { alternative: "practice" },
+      measurements: {
+        elapsed_ms: Math.max(0, Date.now() - (queueStartedAt ?? Date.now())),
+      },
+    });
     const canceled = await cancelMatchmaking();
     if (!canceled) {
       return;
@@ -1405,6 +1552,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       return;
     }
     autoJoiningSessionIdRef.current = sessionId;
+    const startedAt = Date.now();
     const matchmakingRequestId = ++matchmakingRequestRef.current;
     const sessionRequestId = ++sessionRequestRef.current;
     setOnlineSessionEntryMode("matchmaking");
@@ -1428,6 +1576,16 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       setJoinSessionId(sessionId);
       setMatchmakingState({ status: "idle" });
       autoJoiningSessionIdRef.current = null;
+      gameTelemetry.track("session_join_result", {
+        dimensions: {
+          entry_point: "matchmaking",
+          outcome: "joined",
+        },
+        measurements: {
+          elapsed_ms: Math.max(0, Date.now() - startedAt),
+          member_count: session.members.length,
+        },
+      });
     } catch (error) {
       if (
         matchmakingRequestId !== matchmakingRequestRef.current ||
@@ -1443,6 +1601,14 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
       const safeError = sessionErrorView(error);
       setSessionState({ status: "error", ...safeError });
       await releaseJadeReservation();
+      gameTelemetry.track("session_join_result", {
+        dimensions: {
+          entry_point: "matchmaking",
+          outcome: "failed",
+          reason_code: safeError.code,
+        },
+        measurements: { elapsed_ms: Math.max(0, Date.now() - startedAt) },
+      });
     }
   }
 
@@ -1755,10 +1921,22 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
   }
 
   function practiceVsBots() {
+    gameTelemetry.track("mode_selected", {
+      dimensions: {
+        entry_point: "lobby_practice",
+        mode: "practice",
+      },
+    });
     return startPracticeHand();
   }
 
   function playPracticeAgain() {
+    gameTelemetry.track("mode_selected", {
+      dimensions: {
+        entry_point: "post_hand",
+        mode: "practice",
+      },
+    });
     const previousSessionId =
       sessionState.status === "loaded" ? sessionState.session.sessionId : undefined;
     return startPracticeHand(previousSessionId);
@@ -1984,6 +2162,7 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
     return (
       <div className="game-screen">
         <TutorialScreen
+          analytics={recordTutorialEvent}
           onExit={(outcome) => {
             setTutorialOpen(false);
             // §10.4 pays the same XP either way, but the server records which
@@ -2213,6 +2392,21 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
             <button className="primary-action" type="button" onClick={signInAsGuest}>
               Continue as Guest
             </button>
+
+            <div className="analytics-consent">
+              <label className="email-auth-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={optionalAnalyticsConsent}
+                  onChange={(event) => updateOptionalAnalyticsConsent(event.target.checked)}
+                />
+                Share optional gameplay analytics to help improve Mahjong.
+              </label>
+              <p>
+                This includes tutorial and queue journey events. Essential reliability diagnostics
+                remain on. We never include email, birth date, chat, or concealed tiles.
+              </p>
+            </div>
 
             <div className="email-auth-panel">
               <div className="email-auth-tabs" role="tablist" aria-label="Email sign-in method">
@@ -2511,15 +2705,23 @@ export function App({ iam: injectedIam }: { iam?: BrowserIam } = {}) {
                   <h2 id="tutorial-title">How to play</h2>
                   <p className="practice-description">
                     {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
-                      ? "Replay any time on the real table. Untimed, skippable, and safe."
+                      ? "Replay the beginner lessons any time. Untimed, skippable, and safe."
                       : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
-                        ? "Pick up the three short chapters whenever you are ready."
-                        : "Three short chapters on the real table. Your first completion or intentional skip awards 500 XP."}
+                        ? "Pick up the four beginner lessons whenever you are ready."
+                        : "Learn turns, winning shapes, claim words, and Tai on the real table. Your first completion or intentional skip awards 500 XP."}
                   </p>
                   <button
                     className="secondary-action session-action"
                     type="button"
-                    onClick={() => setTutorialOpen(true)}
+                    onClick={() => {
+                      gameTelemetry.track("mode_selected", {
+                        dimensions: {
+                          entry_point: "lobby_tutorial",
+                          mode: "tutorial",
+                        },
+                      });
+                      setTutorialOpen(true);
+                    }}
                   >
                     {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
                       ? "Replay the tutorial"

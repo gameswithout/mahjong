@@ -293,3 +293,155 @@ func TestCoordinator_StatsFailureDoesNotFailTheHand(t *testing.T) {
 		t.Fatal("a failed stats projection was swallowed silently")
 	}
 }
+
+type fakeAchievementReader struct {
+	codes []string
+	calls int
+	err   error
+}
+
+func (f *fakeAchievementReader) UnlockedAchievementCodes(
+	_ context.Context,
+	_ string,
+) ([]string, error) {
+	f.calls++
+	return f.codes, f.err
+}
+
+func completedPublicHand() rulesengine.SeatView {
+	return rulesengine.SeatView{
+		Seat:       rulesengine.East,
+		Players:    []rulesengine.PlayerView{{Seat: rulesengine.East}},
+		HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw},
+	}
+}
+
+func TestCoordinator_AwardsAchievementXPOnce(t *testing.T) {
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(&fakeStatsMirror{}, nil)
+	// AGS reports every unlocked achievement on every call, including ones
+	// paid long ago, so the same two codes come back each time.
+	reader := &fakeAchievementReader{codes: []string{"first-hand", "first-win"}}
+	coordinator.SetAchievementReader(reader)
+
+	first, err := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-1", completedPublicHand(), false,
+	)
+	if err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	if len(first.Achievements) != 2 {
+		t.Fatalf("first hand paid %d achievements, want 2", len(first.Achievements))
+	}
+	total := 0
+	for _, award := range first.Achievements {
+		total += award.Total
+	}
+	// First Hand 100 + First Win 200.
+	if total != 300 {
+		t.Fatalf("achievement XP = %d, want 300", total)
+	}
+
+	// A different hand, same unlocks reported: nothing further may be paid.
+	second, err := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-2", completedPublicHand(), false,
+	)
+	if err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	if len(second.Achievements) != 0 {
+		t.Fatalf("already-paid achievements paid again: %+v", second.Achievements)
+	}
+}
+
+func TestCoordinator_UnknownAchievementCodePaysNothingAndReports(t *testing.T) {
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(&fakeStatsMirror{}, nil)
+
+	var reported error
+	coordinator.SetStatsMirror(&fakeStatsMirror{}, func(err error) { reported = err })
+	coordinator.SetAchievementReader(&fakeAchievementReader{
+		codes: []string{"achievement-from-the-future"},
+	})
+
+	result, err := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-1", completedPublicHand(), false,
+	)
+	if err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	if len(result.Achievements) != 0 {
+		t.Fatalf("unknown achievement paid XP: %+v", result.Achievements)
+	}
+	// Silently paying zero would be indistinguishable from having paid.
+	if reported == nil {
+		t.Fatal("unknown achievement code was swallowed silently")
+	}
+}
+
+func TestCoordinator_NoAchievementSweepWhenStatsFailed(t *testing.T) {
+	// AGS evaluates unlocks from the statistics we write. Sweeping after a
+	// failed write asks it about a state it never saw.
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(
+		&fakeStatsMirror{err: errors.New("AGS is down")},
+		func(error) {},
+	)
+	reader := &fakeAchievementReader{codes: []string{"first-hand"}}
+	coordinator.SetAchievementReader(reader)
+
+	if _, err := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-1", completedPublicHand(), false,
+	); err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	if reader.calls != 0 {
+		t.Fatalf("swept achievements %d times after a failed stats write", reader.calls)
+	}
+}
+
+func TestCoordinator_PracticeNeverSweepsAchievements(t *testing.T) {
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(&fakeStatsMirror{}, nil)
+	reader := &fakeAchievementReader{codes: []string{"first-hand"}}
+	coordinator.SetAchievementReader(reader)
+
+	view := completedPublicHand()
+	view.Players = []rulesengine.PlayerView{{Seat: rulesengine.South, IsBot: true}}
+
+	if _, err := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-practice", view, true,
+	); err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	// §11.4: Practice grants no achievements, so it must not even ask.
+	if reader.calls != 0 {
+		t.Fatalf("Practice swept achievements %d times", reader.calls)
+	}
+}
+
+func TestAchievementRewardTableMatchesConfiguredSet(t *testing.T) {
+	// Every reward here must correspond to an achievement actually configured
+	// in the namespace; an entry with no config can never pay, and a config
+	// with no entry pays nothing while looking like it should.
+	if got := len(LaunchAchievements()); got != 23 {
+		t.Fatalf("reward table has %d achievements, want the 23 configured", got)
+	}
+	seen := map[string]bool{}
+	for _, achievement := range LaunchAchievements() {
+		if achievement.XP <= 0 {
+			t.Fatalf("%s awards no XP", achievement.Code)
+		}
+		if seen[achievement.Code] {
+			t.Fatalf("duplicate achievement code %q", achievement.Code)
+		}
+		seen[achievement.Code] = true
+	}
+	if _, known := AchievementByCode("not-an-achievement"); known {
+		t.Fatal("an unknown code resolved to an achievement")
+	}
+}

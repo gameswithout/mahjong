@@ -330,6 +330,9 @@ func (s *MatchService) projectState(
 		if xp != nil {
 			state.XpAward = projectHandXPAward(xp.Award)
 			state.Progression = projectProgression(xp.Player)
+			for _, achievement := range xp.Achievements {
+				state.Achievements = append(state.Achievements, projectHandXPAward(achievement))
+			}
 		}
 	}
 	if settlement != nil {

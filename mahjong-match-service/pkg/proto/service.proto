@@ -322,6 +322,9 @@ message MatchState {
   SelfTurnOptions self_turn_options = 22;
   // §12.1 XP earned by this hand, present once the hand is complete.
   HandXPAward xp_award = 23;
+  // §12.3 achievements this hand unlocked and paid for the first time. Empty
+  // on a repeat projection, because their XP was already awarded.
+  repeated HandXPAward achievements = 25;
   // §12.2 standing after that award.
   PlayerProgression progression = 24;
 }

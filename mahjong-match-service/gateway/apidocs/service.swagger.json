@@ -1048,6 +1048,14 @@
           "$ref": "#/definitions/serviceHandXPAward",
           "description": "§12.1 XP earned by this hand, present once the hand is complete."
         },
+        "achievements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceHandXPAward"
+          },
+          "description": "§12.3 achievements this hand unlocked and paid for the first time. Empty\non a repeat projection, because their XP was already awarded."
+        },
         "progression": {
           "$ref": "#/definitions/servicePlayerProgression",
           "description": "§12.2 standing after that award."

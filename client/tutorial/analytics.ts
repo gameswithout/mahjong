@@ -1,9 +1,8 @@
 import { TUTORIAL_SCRIPT_VERSION } from "./script";
 
-// Every instruction emits an event, per the P1.1 requirement. There is no
-// analytics backend yet (E15), so the default sink drops them — but the call
-// sites and the event shape are real, which is the part that is expensive to
-// retrofit later.
+// Every instruction emits an event, per the P1.1 requirement. The component
+// keeps a no-op default for isolated previews and tests; App supplies the
+// consent-aware, authenticated first-party telemetry sink in the real flow.
 
 export type TutorialEventName =
   | "tutorial_started"

@@ -859,6 +859,20 @@ h1 {
   margin-top: 0.85rem;
 }
 
+.analytics-consent {
+  border: 1px solid rgb(216 220 239 / 18%);
+  border-radius: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.2rem 0.8rem 0.7rem;
+}
+
+.analytics-consent p {
+  color: #969db9;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  margin: 0.45rem 0 0;
+}
+
 .runtime-message {
   color: #d8dcef;
   font-size: 0.85rem;
@@ -2007,59 +2021,351 @@ h1 {
   margin: 0;
 }
 
-/* The table keeps the space it needs; the instruction panel docks beside it
-   on desktop and below it on narrow screens, never over the tiles the
-   instruction is talking about. */
+.tutorial-welcome-screen {
+  align-items: center;
+  background:
+    radial-gradient(circle at 15% 10%, rgb(69 126 105 / 22%), transparent 34rem),
+    radial-gradient(circle at 85% 90%, rgb(242 198 109 / 10%), transparent 28rem),
+    #171b2b;
+  display: flex;
+  justify-content: center;
+  min-height: 100svh;
+  padding: clamp(1rem, 4vw, 3rem);
+}
+
+.tutorial-welcome-card {
+  background: #20263b;
+  border: 1px solid rgb(216 220 239 / 20%);
+  border-radius: 1.5rem;
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 28%);
+  max-width: 52rem;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  width: 100%;
+}
+
+.tutorial-eyebrow,
+.tutorial-task-label {
+  color: #f2c66d;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.tutorial-welcome-card h1,
+.tutorial-complete h1 {
+  font-size: clamp(2rem, 5vw, 3.3rem);
+  margin-top: 0.45rem;
+}
+
+.tutorial-welcome-lead {
+  color: #d8dcef;
+  font-size: clamp(1rem, 2vw, 1.1rem);
+  line-height: 1.6;
+  margin: 1rem 0 1.4rem;
+  max-width: 42rem;
+}
+
+.tutorial-roadmap {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tutorial-roadmap li {
+  align-items: flex-start;
+  background: rgb(216 220 239 / 6%);
+  border: 1px solid rgb(216 220 239 / 12%);
+  border-radius: 0.9rem;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.tutorial-roadmap li > span {
+  align-items: center;
+  background: #315a51;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 1.75rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  height: 1.75rem;
+  justify-content: center;
+}
+
+.tutorial-roadmap strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.tutorial-roadmap p {
+  color: #aeb5cf;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin: 0.2rem 0 0;
+}
+
+.tutorial-welcome-note {
+  background: #152923;
+  border: 1px solid rgb(127 209 166 / 30%);
+  border-radius: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.8rem;
+  padding: 0.85rem 1rem;
+}
+
+.tutorial-welcome-note strong {
+  color: #9ce0bd;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tutorial-welcome-note span {
+  color: #e6e9f6;
+  line-height: 1.5;
+}
+
+.tutorial-welcome-actions {
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 1.2rem;
+}
+
+.tutorial-welcome-actions .primary-action,
+.tutorial-welcome-actions .secondary-action {
+  margin: 0;
+  width: auto;
+}
+
+/* The real table keeps the space it needs; the instruction panel docks beside
+   it on desktop and moves before it on narrow screens. */
 .tutorial-screen {
   align-items: stretch;
-  display: flex;
+  background: #111625;
+  display: grid;
   gap: 1rem;
-  min-height: 100vh;
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+  min-height: 100svh;
   padding: 1rem;
   width: 100%;
 }
 
 .tutorial-table {
-  flex: 1 1 auto;
   min-width: 0;
 }
 
 .tutorial-panel {
-  background: #1b2033;
+  align-self: start;
+  background: #20263b;
   border: 1px solid rgb(216 220 239 / 18%);
   border-radius: 1rem;
   display: flex;
   flex-direction: column;
-  flex: 0 0 20rem;
-  gap: 0.5rem;
-  height: fit-content;
+  gap: 0.75rem;
+  max-height: calc(100svh - 2rem);
+  overflow-y: auto;
   padding: 1rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.tutorial-progress-header {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
 }
 
 .tutorial-progress {
   color: #d8dcef;
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   margin: 0;
   text-transform: uppercase;
 }
 
+.tutorial-progress span {
+  color: #9199b7;
+  display: block;
+  font-size: 0.67rem;
+  margin-top: 0.15rem;
+}
+
+.tutorial-progress-track {
+  background: rgb(216 220 239 / 10%);
+  border-radius: 999px;
+  height: 0.3rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.tutorial-progress-track span {
+  background: #f2c66d;
+  display: block;
+  height: 100%;
+  transition: width 180ms ease;
+}
+
+.tutorial-chapter-heading {
+  border-bottom: 1px solid rgb(216 220 239 / 12%);
+  padding-bottom: 0.7rem;
+}
+
 .tutorial-chapter-title {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   margin: 0;
+}
+
+.tutorial-chapter-heading p {
+  color: #aeb5cf;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0.3rem 0 0;
+}
+
+.tutorial-task {
+  margin-top: 0.1rem;
 }
 
 .tutorial-instruction {
   font-size: 1.05rem;
   font-weight: 600;
-  margin: 0.35rem 0 0;
+  line-height: 1.35;
+  margin: 0.3rem 0 0;
 }
 
 .tutorial-detail {
   color: #d8dcef;
   font-size: 0.9rem;
   line-height: 1.45;
+  margin: 0.45rem 0 0;
+}
+
+.tutorial-key-point {
+  background: #172d27;
+  border: 1px solid rgb(127 209 166 / 24%);
+  border-radius: 0.75rem;
+  color: #e6f5ec;
+  font-size: 0.85rem;
+  line-height: 1.45;
   margin: 0;
+  padding: 0.7rem 0.75rem;
+}
+
+.tutorial-key-point span {
+  color: #9ce0bd;
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+}
+
+.tutorial-glossary {
+  background: rgb(216 220 239 / 5%);
+  border: 1px solid rgb(216 220 239 / 12%);
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.75rem;
+}
+
+.tutorial-glossary h3,
+.tutorial-score h3 {
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.tutorial-glossary dl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.tutorial-glossary dl > div {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.tutorial-glossary dt {
+  color: #f2c66d;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.tutorial-glossary dd {
+  color: #cbd0e3;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.tutorial-score {
+  background: #151a2a;
+  border: 1px solid rgb(242 198 109 / 25%);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+
+.tutorial-score ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tutorial-score li,
+.tutorial-score > p {
+  align-items: baseline;
+  display: flex;
+  font-size: 0.78rem;
+  gap: 0.75rem;
+  justify-content: space-between;
+  line-height: 1.35;
+}
+
+.tutorial-score li span {
+  color: #cbd0e3;
+}
+
+.tutorial-score li strong {
+  color: #f2c66d;
+}
+
+.tutorial-score > p {
+  border-top: 1px solid rgb(216 220 239 / 14%);
+  font-size: 0.9rem;
+  margin: 0.6rem 0 0;
+  padding-top: 0.55rem;
+}
+
+.tutorial-score > p strong {
+  color: #9ce0bd;
+}
+
+.tutorial-answer-grid {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tutorial-answer-grid .secondary-action {
+  font-size: 0.8rem;
+  margin: 0;
+  padding-inline: 0.5rem;
 }
 
 /* Confirmation and hint are distinguished by wording and border side, not by
@@ -2068,8 +2374,9 @@ h1 {
 .tutorial-hint {
   border-left: 3px solid;
   font-size: 0.9rem;
-  margin: 0.35rem 0 0;
-  padding-left: 0.6rem;
+  line-height: 1.45;
+  margin: 0;
+  padding: 0.15rem 0 0.15rem 0.65rem;
 }
 
 .tutorial-confirmation {
@@ -2081,16 +2388,24 @@ h1 {
 }
 
 .tutorial-awaiting {
-  color: #f2c66d;
-  font-size: 0.9rem;
+  background: rgb(242 198 109 / 9%);
+  border-radius: 0.65rem;
+  color: #f5d999;
+  font-size: 0.82rem;
   margin: 0;
+  padding: 0.6rem 0.7rem;
+}
+
+.tutorial-awaiting span {
+  font-size: 1rem;
+  margin-right: 0.2rem;
 }
 
 .tutorial-actions {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
+  gap: 0.55rem;
+  margin-top: 0.1rem;
 }
 
 .tutorial-actions .primary-action,
@@ -2099,31 +2414,138 @@ h1 {
   width: 100%;
 }
 
+.tutorial-step-tools {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.tutorial-text-button {
+  background: transparent;
+  border-radius: 0.25rem;
+  color: #abb2cd;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0;
+  text-decoration: underline;
+  text-decoration-color: rgb(171 178 205 / 40%);
+  text-underline-offset: 0.2rem;
+}
+
+.tutorial-text-button:hover {
+  color: #f7f4ee;
+}
+
 .tutorial-exit {
-  opacity: 0.8;
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.tutorial-finished-screen {
+  align-items: center;
+  display: flex;
+  justify-content: center;
 }
 
 .tutorial-complete {
-  margin: auto;
-  max-width: 32rem;
-  padding: 1.5rem;
-  text-align: center;
+  background: #20263b;
+  border: 1px solid rgb(216 220 239 / 18%);
+  border-radius: 1.5rem;
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 25%);
+  max-width: 46rem;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  width: 100%;
+}
+
+.tutorial-complete > p:not(.tutorial-eyebrow, .tutorial-practice-next) {
+  color: #d8dcef;
+  line-height: 1.55;
+}
+
+.tutorial-finish-checklist {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+  margin: 1.1rem 0 0;
+  padding: 0;
+}
+
+.tutorial-finish-checklist li {
+  background: rgb(216 220 239 / 6%);
+  border: 1px solid rgb(216 220 239 / 12%);
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.8rem;
+}
+
+.tutorial-finish-checklist strong {
+  color: #f2c66d;
+  font-size: 0.85rem;
+}
+
+.tutorial-finish-checklist span {
+  color: #cbd0e3;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.tutorial-practice-next {
+  background: #172d27;
+  border-radius: 0.75rem;
+  color: #e6f5ec;
+  line-height: 1.5;
+  margin: 0.8rem 0 0;
+  padding: 0.8rem;
 }
 
 .tutorial-complete-actions {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.65rem;
   margin-top: 1rem;
 }
 
-@media (max-width: 60rem) {
+.tutorial-complete-actions .primary-action,
+.tutorial-complete-actions .secondary-action {
+  margin: 0;
+  width: auto;
+}
+
+@media (max-width: 70rem) {
   .tutorial-screen {
+    display: flex;
     flex-direction: column;
   }
 
   .tutorial-panel {
-    flex: 0 0 auto;
+    max-height: none;
+    order: -1;
+    position: static;
+  }
+}
+
+@media (max-width: 40rem) {
+  .tutorial-roadmap,
+  .tutorial-finish-checklist {
+    grid-template-columns: 1fr;
+  }
+
+  .tutorial-welcome-actions,
+  .tutorial-complete-actions {
+    flex-direction: column;
+  }
+
+  .tutorial-welcome-actions .primary-action,
+  .tutorial-welcome-actions .secondary-action,
+  .tutorial-complete-actions .primary-action,
+  .tutorial-complete-actions .secondary-action {
+    width: 100%;
+  }
+
+  .tutorial-screen {
+    padding: 0.6rem;
   }
 }
 

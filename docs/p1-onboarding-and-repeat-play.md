@@ -95,31 +95,40 @@ rather than rendered as a button that cannot work.
 
 ## P1.1 Tutorial vertical slice
 
-Three chapters, on the real table:
+Four beginner-first lessons, on the real table:
 
-1. **Five sets and one pair** — the winning shape, and shedding a tile that
-   belongs to nothing.
-2. **Chow, Pong, Kong** — claiming a discard, the upstream-only restriction on
-   Chow, and claim priority.
-3. **Ting, and what to discard** — reading the waits panel, choosing a safe
-   discard from the discard rivers, and completing a hand.
+1. **Your first turn** — the overall goal and the draw-one, discard-one rhythm.
+2. **Build a winning hand** — tile families, five groups plus one pair, and the
+   exact 16-tile Ready shape before a legal winning tile.
+3. **Use another player's discard** — plain-language definitions of Chow,
+   Pong, Kong/Gang, and Pass, followed by guided Pong and Chow actions.
+4. **Count Tai and win** — reading the Ready/Ting panel, adding a visible
+   1 + 1 + 1 Tai breakdown, and choosing Win on the tile that completes the
+   hand.
 
 It renders `MatchTable` — the component live play uses — fed scripted
 `MatchTableState` fixtures. Not a diagram of the table, and not a second
 implementation that would drift from it.
 
-Steps are either *read* or *do*. A do step names the exact tile or button that
-satisfies it and refuses anything else; a tutorial that accepts any input
-teaches nothing. A wrong move re-states the goal rather than scoring the
-attempt. Every step has a skip path, a replay path, and an analytics event.
+The welcome screen assumes no Mahjong vocabulary and sets expectations before
+showing the dense table. New terms are translated where they first appear, the
+Tai lesson makes the arithmetic visible instead of hiding it in a tooltip, and
+the finish screen leaves the player with a four-line first-hand checklist.
+
+Steps are either *read* or *do*. A do step names the exact draw, tile, claim
+button, or Tai answer that satisfies it and refuses anything else. A wrong move
+re-states the goal rather than scoring the attempt. Every step has a skip path,
+a reset path, and an analytics event.
 
 The fixtures are versioned (`TUTORIAL_SCRIPT_VERSION`) so a completion marker
-can eventually name *which* tutorial was completed. Every step is untimed, per
-§5.10 — nothing here punishes a player for reading slowly.
+can name *which* tutorial was completed. Version 2 replaces two invalid v1
+examples that used the wrong concealed count and implied a fifth East Wind
+could form a pair. Every step is untimed, per §5.10 — nothing here punishes a
+player for reading slowly.
 
 Analytics events are emitted through an injectable sink that defaults to a
-no-op, since E15 does not exist yet. The call sites and event shape are the
-expensive part to retrofit; the transport is not.
+no-op for isolated tests and previews. The real App supplies its consent-aware
+first-party telemetry sink.
 
 ### Fixtures tested as data
 
@@ -128,6 +137,8 @@ invariants, not as prose:
 
 - unique step ids;
 - every expected action is one the step's own table can actually accept;
+- every expected Tai answer is one of the visible choices;
+- every displayed Tai total equals the sum of its pattern lines;
 - every failable step has a hint;
 - every step is untimed;
 - no hand exceeds the four-copy tile supply, and no physical tile appears in

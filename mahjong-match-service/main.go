@@ -292,6 +292,17 @@ func main() {
 				logger.Warn("AGS achievement statistics projection failed", "error", err)
 			},
 		)
+		// §12.3 achievement XP. AGS decides unlocks from the statistics above;
+		// this reads the result back and pays the XP, because AGS cannot award
+		// XP that lives in our own database.
+		progressionCoordinator.SetAchievementReader(
+			progression.NewAGSAchievementReader(
+				common.GetEnv("AB_NAMESPACE", ""),
+				factory.NewAchievementClient(configRepo),
+				configRepo,
+				tokenRepo,
+			),
+		)
 	} else {
 		logger.Warn("AGS achievement statistics projection is disabled")
 	}
