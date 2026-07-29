@@ -235,7 +235,33 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      achievements-20260728 (active since
+Image tag:      cond204-ec995cd (active since
+                2026-07-29T03:55:32.353Z; deployment
+                c12927a8-6196-4c7c-87d9-80b5c5ca2095). Makes conditional
+                GET actually work for the browser client, which it never
+                had. Two things were wrong. ETag is not a CORS-safelisted
+                response header, so without Access-Control-Expose-Headers
+                the client could not read the tag and never sent a
+                conditional request at all -- the feature had been inert
+                since it shipped, and a curl check could not see that
+                because curl ignores CORS. Fixing only that made it worse:
+                a 304 tells a browser to serve a copy it holds, these
+                responses carry Authorization so no copy is stored, and
+                Chrome cancelled every poll. An unchanged poll is now
+                answered with 204, which needs no cache entry.
+                Verified against the live client on a throttled link
+                (scripts/mobile-network-probe.mjs): 14 of 16 answered
+                polls came back 204, about 28KB saved in two minutes,
+                and no failed polls outside a deliberate offline window.
+                Carries no schema migration, and no service code beyond
+                this differs from achievements-20260728.
+                Preceding images, newest first:
+                cors-etag-1cf6d68 (2026-07-29, deployed and rolled back
+                within minutes -- it exposed the ETag without the 204
+                change, so the client began sending conditional requests
+                that Chrome then cancelled; the rollback restored
+                mobile-net-fc0b648 and was re-measured clean),
+                achievements-20260728 (active since
                 2026-07-29T02:54:02Z; deployment
                 54ed9b72-e708-4778-b72f-69f66a084149). P2.2: writes the
                 §12.3 achievement statistics after every completed public
