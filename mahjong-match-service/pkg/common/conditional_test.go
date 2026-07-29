@@ -22,7 +22,7 @@ func getWithETag(handler http.Handler, method, ifNoneMatch string) *httptest.Res
 	return recorder
 }
 
-func TestConditionalGetTagsAndRepeatsUnchangedResponses(t *testing.T) {
+func TestConditionalGetTagsAndAnswersUnchangedWithNoContent(t *testing.T) {
 	handler := ConditionalGetMiddleware(handlerWriting(seatViewSized()))
 
 	first := getWithETag(handler, http.MethodGet, "")
@@ -38,14 +38,16 @@ func TestConditionalGetTagsAndRepeatsUnchangedResponses(t *testing.T) {
 	}
 
 	second := getWithETag(handler, http.MethodGet, etag)
-	if second.Code != http.StatusNotModified {
-		t.Errorf("status = %d, want %d", second.Code, http.StatusNotModified)
+	// 204 rather than 304 on purpose: see the middleware for why a browser
+	// cannot use a 304 here.
+	if second.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want %d", second.Code, http.StatusNoContent)
 	}
 	if second.Body.Len() != 0 {
-		t.Errorf("304 carried %d bytes, want none", second.Body.Len())
+		t.Errorf("unchanged reply carried %d bytes, want none", second.Body.Len())
 	}
 	if got := second.Header().Get("ETag"); got != etag {
-		t.Errorf("304 ETag = %q, want %q", got, etag)
+		t.Errorf("unchanged reply ETag = %q, want %q", got, etag)
 	}
 }
 
@@ -153,14 +155,14 @@ func TestConditionalGetComposesWithCompression(t *testing.T) {
 	second := httptest.NewRecorder()
 	handler.ServeHTTP(second, repeat)
 
-	if second.Code != http.StatusNotModified {
-		t.Errorf("status = %d, want %d", second.Code, http.StatusNotModified)
+	if second.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want %d", second.Code, http.StatusNoContent)
 	}
 	if second.Body.Len() != 0 {
-		t.Errorf("304 carried %d bytes, want none", second.Body.Len())
+		t.Errorf("unchanged reply carried %d bytes, want none", second.Body.Len())
 	}
-	// A 304 must not claim an encoding it has no body to carry.
+	// It must not claim an encoding it has no body to carry.
 	if got := second.Header().Get("Content-Encoding"); got != "" {
-		t.Errorf("304 Content-Encoding = %q, want none", got)
+		t.Errorf("unchanged reply Content-Encoding = %q, want none", got)
 	}
 }

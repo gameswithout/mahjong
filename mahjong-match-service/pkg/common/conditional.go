@@ -56,9 +56,21 @@ func ConditionalGetMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Cache-Control", "private, no-cache")
 
 		if etagMatches(r.Header.Get("If-None-Match"), etag) {
-			// A 304 carries no body: net/http will not write one for this
-			// status, and the client keeps what it already had.
-			w.WriteHeader(http.StatusNotModified)
+			// Deliberately 204 rather than the 304 this pattern normally uses.
+			//
+			// A 304 is not a response in its own right — it tells the browser
+			// to serve a copy it already holds. These responses carry
+			// Authorization, which browsers do not store, so there is no copy
+			// to serve: Chrome receives the 304, finds nothing to reconcile it
+			// with, and cancels the request (measured 2026-07-28 — the poll
+			// fails outright, which is worse than sending the body). No fetch
+			// cache mode avoids it; no-store guarantees the miss.
+			//
+			// 204 says the same thing without involving the cache at all: the
+			// request succeeded and there is nothing to send. Every stack
+			// treats it as an ordinary bodiless response, and the client reads
+			// it as "your view is still current".
+			w.WriteHeader(http.StatusNoContent)
 
 			return
 		}

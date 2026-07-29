@@ -388,7 +388,8 @@ describe("createMatchRuntimeConnection", () => {
   });
 
   // Most polls land while somebody is still deciding, so the view has not
-  // moved and resending it is pure cost on a metered link.
+  // moved and resending it is pure cost on a metered link. The service signals
+  // that with 204, not 304 — a browser cannot use a 304 for these responses.
   describe("conditional polling", () => {
     function jsonWithETag(body: unknown, etag: string): Response {
       return new Response(JSON.stringify(body), {
@@ -397,7 +398,7 @@ describe("createMatchRuntimeConnection", () => {
       });
     }
 
-    it("replays the last tag and reports an unchanged view without re-rendering", async () => {
+    it("replays the last tag and reports an unchanged 204 without re-rendering", async () => {
       const fake = new FakeFetch();
       const states: unknown[] = [];
       let unchanged = 0;
@@ -422,7 +423,7 @@ describe("createMatchRuntimeConnection", () => {
       await vi.waitFor(() => expect(states).toHaveLength(1));
       expect(fake.calls[1].headers["if-none-match"]).toBeUndefined();
 
-      fake.enqueueResponse(new Response(null, { status: 304 }));
+      fake.enqueueResponse(new Response(null, { status: 204 }));
       connection.sync();
       await vi.waitFor(() => expect(unchanged).toBe(1));
       expect(fake.calls[2].headers["if-none-match"]).toBe('W/"v2"');
@@ -452,7 +453,7 @@ describe("createMatchRuntimeConnection", () => {
       connection.sync();
       await vi.waitFor(() => expect(states).toHaveLength(2));
 
-      fake.enqueueResponse(new Response(null, { status: 304 }));
+      fake.enqueueResponse(new Response(null, { status: 204 }));
       connection.sync();
       await vi.waitFor(() => expect(fake.calls).toHaveLength(4));
       expect(fake.calls[3].headers["if-none-match"]).toBe('W/"v3"');
