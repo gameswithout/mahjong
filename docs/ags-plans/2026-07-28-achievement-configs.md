@@ -1,29 +1,40 @@
 # §12.3 Achievement Configurations — Slice 2 Reference
 
 - Date: 2026-07-28
-- Blocked on: `ADMIN:NAMESPACE:gameswithout-mahjong:ACHIEVEMENT [CREATE]`
+- Requires: a publisher-level user token (see "Who can create these")
 - Stat definitions these depend on: **already live** (created 2026-07-28)
 
 All 18 stat codes referenced below exist in the namespace and are being
 written by the match service as of `b0d51c6`. Only the achievement
 configurations themselves are missing.
 
-## Permission state
+## Who can create these — resolved 2026-07-28
 
-Verified on a token minted *after* the statistics grant landed:
+Achievement configuration is a **publisher-namespace admin operation**. It
+needs a publisher-level user token on the publisher subdomain; the
+game-namespace confidential client cannot do it at all.
 
-| Operation | Result |
-| --- | --- |
-| `achievement achievements list` | OK |
-| `achievement achievements create` | **DENIED — error 20013** |
-| `social stat-definitions create` / `get` | OK |
+That was worth pinning down because every failure mode points somewhere else:
 
-Read works, write does not. Either the grant went to a client other than the
-tooling client `373617a151fe4d3f92be11f4a045cba5`, it landed as READ-only, or
-achievement creation requires publisher-level access rather than a
-game-namespace client permission — the CLI's own hint says "may require admin
-or publisher-level access". Confirming which needs the client's permission
-list, which requires a browser-authenticated user token.
+| Caller | Host | Result |
+| --- | --- | --- |
+| Client token | `gameswithout-mahjong.prod…` | `20013` insufficient permission |
+| Client token | `gameswithout.prod…` | `20030` subdomain mismatch |
+| User token | `gameswithout-mahjong.prod…` | `20030` subdomain mismatch |
+| **User token** | **`gameswithout.prod…`** | **201 Created** |
+
+The `20013` is the misleading one. `g_achievements` CREATE *was* granted to
+client `373617a151fe4d3f92be11f4a045cba5` — verified as `selectedActions
+[1,2,4,8]` on the client object — and creation still failed with the same
+"insufficient permission" error. The permission was never the problem; the
+caller's namespace level was. Granting more to that client will not help.
+
+Statistics is different and does work from the client, which is why slice 1
+landed: `m_statistics / g_user_statistics_value` already carries `[1,2,4,8]`.
+
+`scripts/create-achievements.sh` therefore takes `AGS_ADMIN_TOKEN`, a
+publisher user token, and calls the REST API on the publisher subdomain.
+Tokens last one hour.
 
 ## Creatable now — 23 achievements
 
@@ -96,9 +107,15 @@ re-deriving it from the spec. Wiring it is not in this slice.
 
 ## Creating them
 
-Once the permission lands, `scripts/create-achievements.sh` creates all 23 in
-one run and is safe to re-run — an existing code returns a conflict, which the
-script reports and skips.
+```shell
+AGS_ADMIN_TOKEN=eyJ... scripts/create-achievements.sh
+```
+
+Creates all 23 in one run, safe to re-run — an existing code returns 409 and is
+reported as "exists" and skipped.
+
+**Status: 1 of 23 created.** `first-hand` exists; the token expired partway
+through the first run, so the remaining 22 still need a fresh token.
 
 For the Admin Portal instead, the table above has every field; leave icons
 empty and tag them `launch`.
