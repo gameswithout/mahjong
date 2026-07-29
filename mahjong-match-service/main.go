@@ -456,7 +456,18 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		// If-None-Match has to be permitted explicitly or the preflight rejects
+		// it and the browser blocks the poll outright. It adds no round trip of
+		// its own: Authorization already makes every one of these requests
+		// preflighted, and the result is cached for Max-Age.
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, If-None-Match")
+		// ETag is not a CORS-safelisted response header, so without this the
+		// browser hides it from the client even though it is on the wire — the
+		// tag reads as null, no If-None-Match is ever sent, and conditional GET
+		// silently does nothing. Non-browser callers never notice, which is why
+		// curl reported the feature working while the only real client could
+		// not use it.
+		w.Header().Set("Access-Control-Expose-Headers", "ETag")
 		w.Header().Set("Access-Control-Max-Age", "600")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

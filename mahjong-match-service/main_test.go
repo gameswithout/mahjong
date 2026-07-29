@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -71,11 +72,45 @@ func TestCorsMiddleware_AnswersPreflightWithoutReachingTheHandler(t *testing.T) 
 	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "*" {
 		t.Fatalf("Access-Control-Allow-Origin = %q", got)
 	}
-	if got := recorder.Header().Get("Access-Control-Allow-Headers"); got != "Authorization, Content-Type" {
+	if got := recorder.Header().Get("Access-Control-Allow-Headers"); got != "Authorization, Content-Type, If-None-Match" {
 		t.Fatalf("Access-Control-Allow-Headers = %q", got)
 	}
 	if got := recorder.Header().Get("Access-Control-Allow-Methods"); got != "GET, POST, DELETE, OPTIONS" {
 		t.Fatalf("Access-Control-Allow-Methods = %q", got)
+	}
+}
+
+// Conditional GET is a browser feature, and a browser cannot use it unless
+// both halves of the CORS contract are in place: permission to send
+// If-None-Match, and permission to read the ETag back. Missing either one
+// makes the whole feature silently do nothing, and only in a browser — which
+// is exactly how it shipped and got past a curl check.
+func TestCorsMiddleware_LetsBrowsersUseConditionalGet(t *testing.T) {
+	handler := corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("ETag", `W/"abc"`)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	preflight := httptest.NewRequest(http.MethodOptions, "/v1/namespaces/ns/sessions/s/matches/m", nil)
+	preflight.Header.Set("Origin", "https://gameswithout.github.io")
+	preflight.Header.Set("Access-Control-Request-Method", "GET")
+	preflight.Header.Set("Access-Control-Request-Headers", "authorization,if-none-match")
+	preflightRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(preflightRecorder, preflight)
+
+	allowed := preflightRecorder.Header().Get("Access-Control-Allow-Headers")
+	if !strings.Contains(strings.ToLower(allowed), "if-none-match") {
+		t.Errorf("Access-Control-Allow-Headers = %q, want it to permit If-None-Match", allowed)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/namespaces/ns/sessions/s/matches/m", nil)
+	request.Header.Set("Origin", "https://gameswithout.github.io")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	exposed := recorder.Header().Get("Access-Control-Expose-Headers")
+	if !strings.Contains(strings.ToLower(exposed), "etag") {
+		t.Errorf("Access-Control-Expose-Headers = %q, want it to expose ETag", exposed)
 	}
 }
 
