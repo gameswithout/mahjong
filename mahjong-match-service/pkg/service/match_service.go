@@ -441,6 +441,47 @@ func projectProgression(player progression.Player) *pb.PlayerProgression {
 	return projected
 }
 
+func namespaceFromGetPlayerStatistics(req *pb.GetPlayerStatisticsRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetNamespace()
+}
+
+// GetPlayerStatistics serves the §P2.3 dashboard's counters for the caller.
+//
+// The browser cannot read these from AGS itself — the Social API sends no CORS
+// headers — and routing them through here also means the dashboard and the
+// achievements evaluate the same numbers rather than two copies.
+//
+// Values are returned raw. Every rate the screen shows is derived there, so
+// this service never has to hold an opinion about what a percentage means.
+func (s *MatchService) GetPlayerStatistics(
+	ctx context.Context,
+	req *pb.GetPlayerStatisticsRequest,
+) (*pb.GetPlayerStatisticsResponse, error) {
+	principal, err := s.progressionPrincipal(ctx, namespaceFromGetPlayerStatistics(req))
+	if err != nil {
+		return nil, err
+	}
+	values, err := s.progression.PlayerStatistics(ctx, principal.UserID)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	statistics := make([]*pb.PlayerStatistic, 0, len(values))
+	for _, code := range progression.DashboardStatCodes() {
+		// Emitted in a stable order, and only for codes the dashboard knows.
+		// A code the player has never moved is absent from AGS; it is left out
+		// here too, and the client reads a missing counter as zero.
+		value, found := values[code]
+		if !found {
+			continue
+		}
+		statistics = append(statistics, &pb.PlayerStatistic{StatCode: code, Value: value})
+	}
+	return &pb.GetPlayerStatisticsResponse{Statistics: statistics}, nil
+}
+
 func namespaceFromGetProgression(req *pb.GetProgressionRequest) string {
 	if req == nil {
 		return ""

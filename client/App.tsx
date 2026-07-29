@@ -39,6 +39,8 @@ import {
   type ProgressionSnapshot,
 } from "./progression";
 import { ProgressionScreen } from "./ProgressionScreen";
+import { createPlayerStatsClient, PlayerStatsError, type PlayerStatSummary } from "./player-stats";
+import { StatisticsScreen } from "./StatisticsScreen";
 import {
   createFreshPracticeSession,
   isPracticeMatch,
@@ -181,6 +183,12 @@ type JadeState =
   | { status: "ready"; account: JadeAccount }
   | { status: "error"; code: string; message: string };
 
+type StatisticsState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; summary: PlayerStatSummary }
+  | { status: "error"; message: string };
+
 type ProgressionState =
   | { status: "idle" }
   | { status: "loading" }
@@ -300,6 +308,10 @@ export function App(
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [progressionState, setProgressionState] = useState<ProgressionState>({ status: "idle" });
   const [progressionOpen, setProgressionOpen] = useState(false);
+  // §P2.3. Statistics come straight from AGS rather than the match service, so
+  // they load on demand instead of riding the lobby's other traffic.
+  const [statisticsOpen, setStatisticsOpen] = useState(false);
+  const [statisticsState, setStatisticsState] = useState<StatisticsState>({ status: "idle" });
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -934,6 +946,8 @@ export function App(
     setJadeRecoveryState({ status: "idle" });
     setProgressionState({ status: "idle" });
     setProgressionOpen(false);
+    setStatisticsState({ status: "idle" });
+    setStatisticsOpen(false);
     setReconnectAttempt(0);
     setOnlineSessionEntryMode("manual");
     autoJoiningSessionIdRef.current = null;
@@ -1229,6 +1243,28 @@ export function App(
 
   // Returns the account so callers deciding whether to commit Jade can act on
   // the value they just fetched instead of the render closure's stale state.
+  async function loadStatistics() {
+    setStatisticsState({ status: "loading" });
+    try {
+      if (!accelByteConfig.matchServiceURL) {
+        throw new PlayerStatsError("configuration", "Match service URL is not configured.");
+      }
+      const summary = await createPlayerStatsClient(stableIam.getAccessToken(), {
+        url: accelByteConfig.matchServiceURL,
+        namespace: accelByteConfig.namespace,
+      }).get();
+      setStatisticsState({ status: "ready", summary });
+    } catch (error) {
+      setStatisticsState({
+        status: "error",
+        message:
+          error instanceof PlayerStatsError
+            ? error.message
+            : "Statistics could not be loaded.",
+      });
+    }
+  }
+
   function createAuthenticatedProgressionClient() {
     if (!accelByteConfig.matchServiceURL) {
       throw new ProgressionError("configuration", "Match service URL is not configured.");
@@ -2158,6 +2194,47 @@ export function App(
     );
   }
 
+  if (statisticsOpen) {
+    return (
+      <div className="game-screen">
+        {statisticsState.status === "ready" ? (
+          <StatisticsScreen
+            summary={statisticsState.summary}
+            onClose={() => setStatisticsOpen(false)}
+            onPlay={() => {
+              setStatisticsOpen(false);
+              void findTable();
+            }}
+          />
+        ) : (
+          <section className="statistics-screen" aria-labelledby="statistics-title">
+            <header className="statistics-header">
+              <div>
+                <p className="status-label">Statistics</p>
+                <h2 id="statistics-title">Quick Play</h2>
+              </div>
+              <button type="button" className="statistics-close" onClick={() => setStatisticsOpen(false)}>
+                Close
+              </button>
+            </header>
+            {statisticsState.status === "error" ? (
+              <div className="session-error" role="alert">
+                <p>{statisticsState.message}</p>
+                <button type="button" className="secondary-action" onClick={() => void loadStatistics()}>
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <p className="status-message" role="status" aria-live="polite">
+                Loading your statistics…
+              </p>
+            )}
+          </section>
+        )}
+      </div>
+    );
+  }
+
   if (tutorialOpen) {
     return (
       <div className="game-screen">
@@ -2664,6 +2741,12 @@ export function App(
                   progressionState.snapshot.curve.length === 0
                 ) {
                   void loadProgression();
+                }
+              }}
+              onOpenStatistics={() => {
+                setStatisticsOpen(true);
+                if (statisticsState.status !== "ready") {
+                  void loadStatistics();
                 }
               }}
               profile={playerProfile}

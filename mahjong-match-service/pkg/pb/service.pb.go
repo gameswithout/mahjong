@@ -137,6 +137,152 @@ func (MatchCommandType) EnumDescriptor() ([]byte, []int) {
 	return file_service_proto_rawDescGZIP(), []int{1}
 }
 
+// GetPlayerStatisticsRequest asks for the authenticated caller's own
+// statistics. There is deliberately no user_id field: a player reads their own
+// record and nobody else's.
+type GetPlayerStatisticsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPlayerStatisticsRequest) Reset() {
+	*x = GetPlayerStatisticsRequest{}
+	mi := &file_service_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPlayerStatisticsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPlayerStatisticsRequest) ProtoMessage() {}
+
+func (x *GetPlayerStatisticsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPlayerStatisticsRequest.ProtoReflect.Descriptor instead.
+func (*GetPlayerStatisticsRequest) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *GetPlayerStatisticsRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+// PlayerStatistic is one counter as AGS holds it. Values are returned raw;
+// every rate the dashboard shows is derived client-side from these, so the
+// service never has to agree with the screen about what a percentage means.
+type PlayerStatistic struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StatCode      string                 `protobuf:"bytes,1,opt,name=stat_code,json=statCode,proto3" json:"stat_code,omitempty"`
+	Value         float64                `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlayerStatistic) Reset() {
+	*x = PlayerStatistic{}
+	mi := &file_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlayerStatistic) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlayerStatistic) ProtoMessage() {}
+
+func (x *PlayerStatistic) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlayerStatistic.ProtoReflect.Descriptor instead.
+func (*PlayerStatistic) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PlayerStatistic) GetStatCode() string {
+	if x != nil {
+		return x.StatCode
+	}
+	return ""
+}
+
+func (x *PlayerStatistic) GetValue() float64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+type GetPlayerStatisticsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Statistics    []*PlayerStatistic     `protobuf:"bytes,1,rep,name=statistics,proto3" json:"statistics,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPlayerStatisticsResponse) Reset() {
+	*x = GetPlayerStatisticsResponse{}
+	mi := &file_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPlayerStatisticsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPlayerStatisticsResponse) ProtoMessage() {}
+
+func (x *GetPlayerStatisticsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPlayerStatisticsResponse.ProtoReflect.Descriptor instead.
+func (*GetPlayerStatisticsResponse) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetPlayerStatisticsResponse) GetStatistics() []*PlayerStatistic {
+	if x != nil {
+		return x.Statistics
+	}
+	return nil
+}
+
 type JoinMatchRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
@@ -148,7 +294,7 @@ type JoinMatchRequest struct {
 
 func (x *JoinMatchRequest) Reset() {
 	*x = JoinMatchRequest{}
-	mi := &file_service_proto_msgTypes[0]
+	mi := &file_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -160,7 +306,7 @@ func (x *JoinMatchRequest) String() string {
 func (*JoinMatchRequest) ProtoMessage() {}
 
 func (x *JoinMatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[0]
+	mi := &file_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -173,7 +319,7 @@ func (x *JoinMatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinMatchRequest.ProtoReflect.Descriptor instead.
 func (*JoinMatchRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{0}
+	return file_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *JoinMatchRequest) GetNamespace() string {
@@ -206,7 +352,7 @@ type JoinMatchResponse struct {
 
 func (x *JoinMatchResponse) Reset() {
 	*x = JoinMatchResponse{}
-	mi := &file_service_proto_msgTypes[1]
+	mi := &file_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -218,7 +364,7 @@ func (x *JoinMatchResponse) String() string {
 func (*JoinMatchResponse) ProtoMessage() {}
 
 func (x *JoinMatchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[1]
+	mi := &file_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -231,7 +377,7 @@ func (x *JoinMatchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinMatchResponse.ProtoReflect.Descriptor instead.
 func (*JoinMatchResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{1}
+	return file_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *JoinMatchResponse) GetState() *MatchState {
@@ -250,7 +396,7 @@ type GetJadeAccountRequest struct {
 
 func (x *GetJadeAccountRequest) Reset() {
 	*x = GetJadeAccountRequest{}
-	mi := &file_service_proto_msgTypes[2]
+	mi := &file_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -262,7 +408,7 @@ func (x *GetJadeAccountRequest) String() string {
 func (*GetJadeAccountRequest) ProtoMessage() {}
 
 func (x *GetJadeAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[2]
+	mi := &file_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -275,7 +421,7 @@ func (x *GetJadeAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetJadeAccountRequest.ProtoReflect.Descriptor instead.
 func (*GetJadeAccountRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{2}
+	return file_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetJadeAccountRequest) GetNamespace() string {
@@ -294,7 +440,7 @@ type GetJadeAccountResponse struct {
 
 func (x *GetJadeAccountResponse) Reset() {
 	*x = GetJadeAccountResponse{}
-	mi := &file_service_proto_msgTypes[3]
+	mi := &file_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -306,7 +452,7 @@ func (x *GetJadeAccountResponse) String() string {
 func (*GetJadeAccountResponse) ProtoMessage() {}
 
 func (x *GetJadeAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[3]
+	mi := &file_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -319,7 +465,7 @@ func (x *GetJadeAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetJadeAccountResponse.ProtoReflect.Descriptor instead.
 func (*GetJadeAccountResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{3}
+	return file_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetJadeAccountResponse) GetAccount() *JadeAccount {
@@ -338,7 +484,7 @@ type ReserveJadeRequest struct {
 
 func (x *ReserveJadeRequest) Reset() {
 	*x = ReserveJadeRequest{}
-	mi := &file_service_proto_msgTypes[4]
+	mi := &file_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -350,7 +496,7 @@ func (x *ReserveJadeRequest) String() string {
 func (*ReserveJadeRequest) ProtoMessage() {}
 
 func (x *ReserveJadeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[4]
+	mi := &file_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -363,7 +509,7 @@ func (x *ReserveJadeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveJadeRequest.ProtoReflect.Descriptor instead.
 func (*ReserveJadeRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{4}
+	return file_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ReserveJadeRequest) GetNamespace() string {
@@ -383,7 +529,7 @@ type ReserveJadeResponse struct {
 
 func (x *ReserveJadeResponse) Reset() {
 	*x = ReserveJadeResponse{}
-	mi := &file_service_proto_msgTypes[5]
+	mi := &file_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -395,7 +541,7 @@ func (x *ReserveJadeResponse) String() string {
 func (*ReserveJadeResponse) ProtoMessage() {}
 
 func (x *ReserveJadeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[5]
+	mi := &file_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -408,7 +554,7 @@ func (x *ReserveJadeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveJadeResponse.ProtoReflect.Descriptor instead.
 func (*ReserveJadeResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{5}
+	return file_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReserveJadeResponse) GetAccount() *JadeAccount {
@@ -434,7 +580,7 @@ type ReleaseJadeRequest struct {
 
 func (x *ReleaseJadeRequest) Reset() {
 	*x = ReleaseJadeRequest{}
-	mi := &file_service_proto_msgTypes[6]
+	mi := &file_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -446,7 +592,7 @@ func (x *ReleaseJadeRequest) String() string {
 func (*ReleaseJadeRequest) ProtoMessage() {}
 
 func (x *ReleaseJadeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[6]
+	mi := &file_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -459,7 +605,7 @@ func (x *ReleaseJadeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseJadeRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseJadeRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{6}
+	return file_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ReleaseJadeRequest) GetNamespace() string {
@@ -478,7 +624,7 @@ type ReleaseJadeResponse struct {
 
 func (x *ReleaseJadeResponse) Reset() {
 	*x = ReleaseJadeResponse{}
-	mi := &file_service_proto_msgTypes[7]
+	mi := &file_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -490,7 +636,7 @@ func (x *ReleaseJadeResponse) String() string {
 func (*ReleaseJadeResponse) ProtoMessage() {}
 
 func (x *ReleaseJadeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[7]
+	mi := &file_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -503,7 +649,7 @@ func (x *ReleaseJadeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseJadeResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseJadeResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{7}
+	return file_service_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ReleaseJadeResponse) GetAccount() *JadeAccount {
@@ -522,7 +668,7 @@ type GetProgressionRequest struct {
 
 func (x *GetProgressionRequest) Reset() {
 	*x = GetProgressionRequest{}
-	mi := &file_service_proto_msgTypes[8]
+	mi := &file_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -534,7 +680,7 @@ func (x *GetProgressionRequest) String() string {
 func (*GetProgressionRequest) ProtoMessage() {}
 
 func (x *GetProgressionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[8]
+	mi := &file_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -547,7 +693,7 @@ func (x *GetProgressionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProgressionRequest.ProtoReflect.Descriptor instead.
 func (*GetProgressionRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{8}
+	return file_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetProgressionRequest) GetNamespace() string {
@@ -568,7 +714,7 @@ type GetProgressionResponse struct {
 
 func (x *GetProgressionResponse) Reset() {
 	*x = GetProgressionResponse{}
-	mi := &file_service_proto_msgTypes[9]
+	mi := &file_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -580,7 +726,7 @@ func (x *GetProgressionResponse) String() string {
 func (*GetProgressionResponse) ProtoMessage() {}
 
 func (x *GetProgressionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[9]
+	mi := &file_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -593,7 +739,7 @@ func (x *GetProgressionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProgressionResponse.ProtoReflect.Descriptor instead.
 func (*GetProgressionResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{9}
+	return file_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetProgressionResponse) GetProgression() *PlayerProgression {
@@ -620,7 +766,7 @@ type AwardOnboardingXPRequest struct {
 
 func (x *AwardOnboardingXPRequest) Reset() {
 	*x = AwardOnboardingXPRequest{}
-	mi := &file_service_proto_msgTypes[10]
+	mi := &file_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -632,7 +778,7 @@ func (x *AwardOnboardingXPRequest) String() string {
 func (*AwardOnboardingXPRequest) ProtoMessage() {}
 
 func (x *AwardOnboardingXPRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[10]
+	mi := &file_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -645,7 +791,7 @@ func (x *AwardOnboardingXPRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AwardOnboardingXPRequest.ProtoReflect.Descriptor instead.
 func (*AwardOnboardingXPRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{10}
+	return file_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AwardOnboardingXPRequest) GetNamespace() string {
@@ -674,7 +820,7 @@ type AwardOnboardingXPResponse struct {
 
 func (x *AwardOnboardingXPResponse) Reset() {
 	*x = AwardOnboardingXPResponse{}
-	mi := &file_service_proto_msgTypes[11]
+	mi := &file_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -686,7 +832,7 @@ func (x *AwardOnboardingXPResponse) String() string {
 func (*AwardOnboardingXPResponse) ProtoMessage() {}
 
 func (x *AwardOnboardingXPResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[11]
+	mi := &file_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -699,7 +845,7 @@ func (x *AwardOnboardingXPResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AwardOnboardingXPResponse.ProtoReflect.Descriptor instead.
 func (*AwardOnboardingXPResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{11}
+	return file_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AwardOnboardingXPResponse) GetProgression() *PlayerProgression {
@@ -732,7 +878,7 @@ type ClaimJadeWelfareRequest struct {
 
 func (x *ClaimJadeWelfareRequest) Reset() {
 	*x = ClaimJadeWelfareRequest{}
-	mi := &file_service_proto_msgTypes[12]
+	mi := &file_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -744,7 +890,7 @@ func (x *ClaimJadeWelfareRequest) String() string {
 func (*ClaimJadeWelfareRequest) ProtoMessage() {}
 
 func (x *ClaimJadeWelfareRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[12]
+	mi := &file_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -757,7 +903,7 @@ func (x *ClaimJadeWelfareRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimJadeWelfareRequest.ProtoReflect.Descriptor instead.
 func (*ClaimJadeWelfareRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{12}
+	return file_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ClaimJadeWelfareRequest) GetNamespace() string {
@@ -781,7 +927,7 @@ type ClaimJadeWelfareResponse struct {
 
 func (x *ClaimJadeWelfareResponse) Reset() {
 	*x = ClaimJadeWelfareResponse{}
-	mi := &file_service_proto_msgTypes[13]
+	mi := &file_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -793,7 +939,7 @@ func (x *ClaimJadeWelfareResponse) String() string {
 func (*ClaimJadeWelfareResponse) ProtoMessage() {}
 
 func (x *ClaimJadeWelfareResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[13]
+	mi := &file_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -806,7 +952,7 @@ func (x *ClaimJadeWelfareResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimJadeWelfareResponse.ProtoReflect.Descriptor instead.
 func (*ClaimJadeWelfareResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{13}
+	return file_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ClaimJadeWelfareResponse) GetAccount() *JadeAccount {
@@ -848,7 +994,7 @@ type GetMatchStateRequest struct {
 
 func (x *GetMatchStateRequest) Reset() {
 	*x = GetMatchStateRequest{}
-	mi := &file_service_proto_msgTypes[14]
+	mi := &file_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -860,7 +1006,7 @@ func (x *GetMatchStateRequest) String() string {
 func (*GetMatchStateRequest) ProtoMessage() {}
 
 func (x *GetMatchStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[14]
+	mi := &file_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -873,7 +1019,7 @@ func (x *GetMatchStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMatchStateRequest.ProtoReflect.Descriptor instead.
 func (*GetMatchStateRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{14}
+	return file_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetMatchStateRequest) GetNamespace() string {
@@ -906,7 +1052,7 @@ type GetMatchStateResponse struct {
 
 func (x *GetMatchStateResponse) Reset() {
 	*x = GetMatchStateResponse{}
-	mi := &file_service_proto_msgTypes[15]
+	mi := &file_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -918,7 +1064,7 @@ func (x *GetMatchStateResponse) String() string {
 func (*GetMatchStateResponse) ProtoMessage() {}
 
 func (x *GetMatchStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[15]
+	mi := &file_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -931,7 +1077,7 @@ func (x *GetMatchStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMatchStateResponse.ProtoReflect.Descriptor instead.
 func (*GetMatchStateResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{15}
+	return file_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetMatchStateResponse) GetState() *MatchState {
@@ -958,7 +1104,7 @@ type SubmitMatchCommandRequest struct {
 
 func (x *SubmitMatchCommandRequest) Reset() {
 	*x = SubmitMatchCommandRequest{}
-	mi := &file_service_proto_msgTypes[16]
+	mi := &file_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -970,7 +1116,7 @@ func (x *SubmitMatchCommandRequest) String() string {
 func (*SubmitMatchCommandRequest) ProtoMessage() {}
 
 func (x *SubmitMatchCommandRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[16]
+	mi := &file_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -983,7 +1129,7 @@ func (x *SubmitMatchCommandRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitMatchCommandRequest.ProtoReflect.Descriptor instead.
 func (*SubmitMatchCommandRequest) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{16}
+	return file_service_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SubmitMatchCommandRequest) GetNamespace() string {
@@ -1062,7 +1208,7 @@ type ClaimCommand struct {
 
 func (x *ClaimCommand) Reset() {
 	*x = ClaimCommand{}
-	mi := &file_service_proto_msgTypes[17]
+	mi := &file_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1074,7 +1220,7 @@ func (x *ClaimCommand) String() string {
 func (*ClaimCommand) ProtoMessage() {}
 
 func (x *ClaimCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[17]
+	mi := &file_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1087,7 +1233,7 @@ func (x *ClaimCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimCommand.ProtoReflect.Descriptor instead.
 func (*ClaimCommand) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{17}
+	return file_service_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ClaimCommand) GetActionId() string {
@@ -1137,7 +1283,7 @@ type SubmitMatchCommandResponse struct {
 
 func (x *SubmitMatchCommandResponse) Reset() {
 	*x = SubmitMatchCommandResponse{}
-	mi := &file_service_proto_msgTypes[18]
+	mi := &file_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1149,7 +1295,7 @@ func (x *SubmitMatchCommandResponse) String() string {
 func (*SubmitMatchCommandResponse) ProtoMessage() {}
 
 func (x *SubmitMatchCommandResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[18]
+	mi := &file_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1162,7 +1308,7 @@ func (x *SubmitMatchCommandResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitMatchCommandResponse.ProtoReflect.Descriptor instead.
 func (*SubmitMatchCommandResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{18}
+	return file_service_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *SubmitMatchCommandResponse) GetRequestId() string {
@@ -1232,7 +1378,7 @@ type MatchState struct {
 
 func (x *MatchState) Reset() {
 	*x = MatchState{}
-	mi := &file_service_proto_msgTypes[19]
+	mi := &file_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1244,7 +1390,7 @@ func (x *MatchState) String() string {
 func (*MatchState) ProtoMessage() {}
 
 func (x *MatchState) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[19]
+	mi := &file_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1257,7 +1403,7 @@ func (x *MatchState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MatchState.ProtoReflect.Descriptor instead.
 func (*MatchState) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{19}
+	return file_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *MatchState) GetMatchId() string {
@@ -1446,7 +1592,7 @@ type XPComponent struct {
 
 func (x *XPComponent) Reset() {
 	*x = XPComponent{}
-	mi := &file_service_proto_msgTypes[20]
+	mi := &file_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1458,7 +1604,7 @@ func (x *XPComponent) String() string {
 func (*XPComponent) ProtoMessage() {}
 
 func (x *XPComponent) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[20]
+	mi := &file_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1471,7 +1617,7 @@ func (x *XPComponent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use XPComponent.ProtoReflect.Descriptor instead.
 func (*XPComponent) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{20}
+	return file_service_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *XPComponent) GetLabel() string {
@@ -1511,7 +1657,7 @@ type HandXPAward struct {
 
 func (x *HandXPAward) Reset() {
 	*x = HandXPAward{}
-	mi := &file_service_proto_msgTypes[21]
+	mi := &file_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1523,7 +1669,7 @@ func (x *HandXPAward) String() string {
 func (*HandXPAward) ProtoMessage() {}
 
 func (x *HandXPAward) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[21]
+	mi := &file_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1536,7 +1682,7 @@ func (x *HandXPAward) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandXPAward.ProtoReflect.Descriptor instead.
 func (*HandXPAward) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{21}
+	return file_service_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *HandXPAward) GetSource() string {
@@ -1586,7 +1732,7 @@ type LevelReward struct {
 
 func (x *LevelReward) Reset() {
 	*x = LevelReward{}
-	mi := &file_service_proto_msgTypes[22]
+	mi := &file_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1598,7 +1744,7 @@ func (x *LevelReward) String() string {
 func (*LevelReward) ProtoMessage() {}
 
 func (x *LevelReward) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[22]
+	mi := &file_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1611,7 +1757,7 @@ func (x *LevelReward) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LevelReward.ProtoReflect.Descriptor instead.
 func (*LevelReward) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{22}
+	return file_service_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *LevelReward) GetLevel() int32 {
@@ -1654,7 +1800,7 @@ type LevelStep struct {
 
 func (x *LevelStep) Reset() {
 	*x = LevelStep{}
-	mi := &file_service_proto_msgTypes[23]
+	mi := &file_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1666,7 +1812,7 @@ func (x *LevelStep) String() string {
 func (*LevelStep) ProtoMessage() {}
 
 func (x *LevelStep) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[23]
+	mi := &file_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1679,7 +1825,7 @@ func (x *LevelStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LevelStep.ProtoReflect.Descriptor instead.
 func (*LevelStep) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{23}
+	return file_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *LevelStep) GetLevel() int32 {
@@ -1720,7 +1866,7 @@ type OnboardingState struct {
 
 func (x *OnboardingState) Reset() {
 	*x = OnboardingState{}
-	mi := &file_service_proto_msgTypes[24]
+	mi := &file_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1732,7 +1878,7 @@ func (x *OnboardingState) String() string {
 func (*OnboardingState) ProtoMessage() {}
 
 func (x *OnboardingState) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[24]
+	mi := &file_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1745,7 +1891,7 @@ func (x *OnboardingState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnboardingState.ProtoReflect.Descriptor instead.
 func (*OnboardingState) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{24}
+	return file_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *OnboardingState) GetOutcome() OnboardingOutcome {
@@ -1778,7 +1924,7 @@ type PlayerProgression struct {
 
 func (x *PlayerProgression) Reset() {
 	*x = PlayerProgression{}
-	mi := &file_service_proto_msgTypes[25]
+	mi := &file_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1790,7 +1936,7 @@ func (x *PlayerProgression) String() string {
 func (*PlayerProgression) ProtoMessage() {}
 
 func (x *PlayerProgression) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[25]
+	mi := &file_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1803,7 +1949,7 @@ func (x *PlayerProgression) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlayerProgression.ProtoReflect.Descriptor instead.
 func (*PlayerProgression) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{25}
+	return file_service_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *PlayerProgression) GetLevel() int32 {
@@ -1871,7 +2017,7 @@ type TileIDSet struct {
 
 func (x *TileIDSet) Reset() {
 	*x = TileIDSet{}
-	mi := &file_service_proto_msgTypes[26]
+	mi := &file_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1883,7 +2029,7 @@ func (x *TileIDSet) String() string {
 func (*TileIDSet) ProtoMessage() {}
 
 func (x *TileIDSet) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[26]
+	mi := &file_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1896,7 +2042,7 @@ func (x *TileIDSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TileIDSet.ProtoReflect.Descriptor instead.
 func (*TileIDSet) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{26}
+	return file_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *TileIDSet) GetTileIds() []string {
@@ -1918,7 +2064,7 @@ type SelfTurnOptions struct {
 
 func (x *SelfTurnOptions) Reset() {
 	*x = SelfTurnOptions{}
-	mi := &file_service_proto_msgTypes[27]
+	mi := &file_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1930,7 +2076,7 @@ func (x *SelfTurnOptions) String() string {
 func (*SelfTurnOptions) ProtoMessage() {}
 
 func (x *SelfTurnOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[27]
+	mi := &file_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1943,7 +2089,7 @@ func (x *SelfTurnOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelfTurnOptions.ProtoReflect.Descriptor instead.
 func (*SelfTurnOptions) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{27}
+	return file_service_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SelfTurnOptions) GetCanWin() bool {
@@ -2000,7 +2146,7 @@ type JadeAccount struct {
 
 func (x *JadeAccount) Reset() {
 	*x = JadeAccount{}
-	mi := &file_service_proto_msgTypes[28]
+	mi := &file_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2012,7 +2158,7 @@ func (x *JadeAccount) String() string {
 func (*JadeAccount) ProtoMessage() {}
 
 func (x *JadeAccount) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[28]
+	mi := &file_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2025,7 +2171,7 @@ func (x *JadeAccount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JadeAccount.ProtoReflect.Descriptor instead.
 func (*JadeAccount) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{28}
+	return file_service_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *JadeAccount) GetCurrencyCode() string {
@@ -2130,7 +2276,7 @@ type JadeReservation struct {
 
 func (x *JadeReservation) Reset() {
 	*x = JadeReservation{}
-	mi := &file_service_proto_msgTypes[29]
+	mi := &file_service_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2142,7 +2288,7 @@ func (x *JadeReservation) String() string {
 func (*JadeReservation) ProtoMessage() {}
 
 func (x *JadeReservation) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[29]
+	mi := &file_service_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2155,7 +2301,7 @@ func (x *JadeReservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JadeReservation.ProtoReflect.Descriptor instead.
 func (*JadeReservation) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{29}
+	return file_service_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *JadeReservation) GetReservationId() string {
@@ -2192,7 +2338,7 @@ type JadeSettlement struct {
 
 func (x *JadeSettlement) Reset() {
 	*x = JadeSettlement{}
-	mi := &file_service_proto_msgTypes[30]
+	mi := &file_service_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2204,7 +2350,7 @@ func (x *JadeSettlement) String() string {
 func (*JadeSettlement) ProtoMessage() {}
 
 func (x *JadeSettlement) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[30]
+	mi := &file_service_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2217,7 +2363,7 @@ func (x *JadeSettlement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JadeSettlement.ProtoReflect.Descriptor instead.
 func (*JadeSettlement) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{30}
+	return file_service_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *JadeSettlement) GetSeat() string {
@@ -2267,7 +2413,7 @@ type Tile struct {
 
 func (x *Tile) Reset() {
 	*x = Tile{}
-	mi := &file_service_proto_msgTypes[31]
+	mi := &file_service_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2279,7 +2425,7 @@ func (x *Tile) String() string {
 func (*Tile) ProtoMessage() {}
 
 func (x *Tile) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[31]
+	mi := &file_service_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2292,7 +2438,7 @@ func (x *Tile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tile.ProtoReflect.Descriptor instead.
 func (*Tile) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{31}
+	return file_service_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *Tile) GetId() string {
@@ -2342,7 +2488,7 @@ type PlayerView struct {
 
 func (x *PlayerView) Reset() {
 	*x = PlayerView{}
-	mi := &file_service_proto_msgTypes[32]
+	mi := &file_service_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2354,7 +2500,7 @@ func (x *PlayerView) String() string {
 func (*PlayerView) ProtoMessage() {}
 
 func (x *PlayerView) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[32]
+	mi := &file_service_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2367,7 +2513,7 @@ func (x *PlayerView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlayerView.ProtoReflect.Descriptor instead.
 func (*PlayerView) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{32}
+	return file_service_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *PlayerView) GetSeat() string {
@@ -2435,7 +2581,7 @@ type Meld struct {
 
 func (x *Meld) Reset() {
 	*x = Meld{}
-	mi := &file_service_proto_msgTypes[33]
+	mi := &file_service_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2447,7 +2593,7 @@ func (x *Meld) String() string {
 func (*Meld) ProtoMessage() {}
 
 func (x *Meld) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[33]
+	mi := &file_service_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2460,7 +2606,7 @@ func (x *Meld) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Meld.ProtoReflect.Descriptor instead.
 func (*Meld) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{33}
+	return file_service_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *Meld) GetType() string {
@@ -2511,7 +2657,7 @@ type MeldView struct {
 
 func (x *MeldView) Reset() {
 	*x = MeldView{}
-	mi := &file_service_proto_msgTypes[34]
+	mi := &file_service_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2523,7 +2669,7 @@ func (x *MeldView) String() string {
 func (*MeldView) ProtoMessage() {}
 
 func (x *MeldView) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[34]
+	mi := &file_service_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2536,7 +2682,7 @@ func (x *MeldView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MeldView.ProtoReflect.Descriptor instead.
 func (*MeldView) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{34}
+	return file_service_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *MeldView) GetType() string {
@@ -2570,7 +2716,7 @@ type WaitTileView struct {
 
 func (x *WaitTileView) Reset() {
 	*x = WaitTileView{}
-	mi := &file_service_proto_msgTypes[35]
+	mi := &file_service_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2582,7 +2728,7 @@ func (x *WaitTileView) String() string {
 func (*WaitTileView) ProtoMessage() {}
 
 func (x *WaitTileView) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[35]
+	mi := &file_service_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2595,7 +2741,7 @@ func (x *WaitTileView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WaitTileView.ProtoReflect.Descriptor instead.
 func (*WaitTileView) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{35}
+	return file_service_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *WaitTileView) GetTile() *Tile {
@@ -2623,7 +2769,7 @@ type WallView struct {
 
 func (x *WallView) Reset() {
 	*x = WallView{}
-	mi := &file_service_proto_msgTypes[36]
+	mi := &file_service_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2635,7 +2781,7 @@ func (x *WallView) String() string {
 func (*WallView) ProtoMessage() {}
 
 func (x *WallView) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[36]
+	mi := &file_service_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2648,7 +2794,7 @@ func (x *WallView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WallView.ProtoReflect.Descriptor instead.
 func (*WallView) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{36}
+	return file_service_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *WallView) GetRemaining() int32 {
@@ -2683,7 +2829,7 @@ type Discard struct {
 
 func (x *Discard) Reset() {
 	*x = Discard{}
-	mi := &file_service_proto_msgTypes[37]
+	mi := &file_service_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2695,7 +2841,7 @@ func (x *Discard) String() string {
 func (*Discard) ProtoMessage() {}
 
 func (x *Discard) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[37]
+	mi := &file_service_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2708,7 +2854,7 @@ func (x *Discard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Discard.ProtoReflect.Descriptor instead.
 func (*Discard) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{37}
+	return file_service_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *Discard) GetSeat() string {
@@ -2747,7 +2893,7 @@ type ClaimView struct {
 
 func (x *ClaimView) Reset() {
 	*x = ClaimView{}
-	mi := &file_service_proto_msgTypes[38]
+	mi := &file_service_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2759,7 +2905,7 @@ func (x *ClaimView) String() string {
 func (*ClaimView) ProtoMessage() {}
 
 func (x *ClaimView) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[38]
+	mi := &file_service_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2772,7 +2918,7 @@ func (x *ClaimView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimView.ProtoReflect.Descriptor instead.
 func (*ClaimView) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{38}
+	return file_service_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ClaimView) GetActionId() string {
@@ -2839,7 +2985,7 @@ type ClaimResponse struct {
 
 func (x *ClaimResponse) Reset() {
 	*x = ClaimResponse{}
-	mi := &file_service_proto_msgTypes[39]
+	mi := &file_service_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2851,7 +2997,7 @@ func (x *ClaimResponse) String() string {
 func (*ClaimResponse) ProtoMessage() {}
 
 func (x *ClaimResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[39]
+	mi := &file_service_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2864,7 +3010,7 @@ func (x *ClaimResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimResponse.ProtoReflect.Descriptor instead.
 func (*ClaimResponse) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{39}
+	return file_service_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ClaimResponse) GetActionId() string {
@@ -2927,7 +3073,7 @@ type ChowSet struct {
 
 func (x *ChowSet) Reset() {
 	*x = ChowSet{}
-	mi := &file_service_proto_msgTypes[40]
+	mi := &file_service_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2939,7 +3085,7 @@ func (x *ChowSet) String() string {
 func (*ChowSet) ProtoMessage() {}
 
 func (x *ChowSet) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[40]
+	mi := &file_service_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2952,7 +3098,7 @@ func (x *ChowSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChowSet.ProtoReflect.Descriptor instead.
 func (*ChowSet) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{40}
+	return file_service_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ChowSet) GetTileIds() []string {
@@ -2975,7 +3121,7 @@ type ClaimOptionsView struct {
 
 func (x *ClaimOptionsView) Reset() {
 	*x = ClaimOptionsView{}
-	mi := &file_service_proto_msgTypes[41]
+	mi := &file_service_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2987,7 +3133,7 @@ func (x *ClaimOptionsView) String() string {
 func (*ClaimOptionsView) ProtoMessage() {}
 
 func (x *ClaimOptionsView) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[41]
+	mi := &file_service_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3000,7 +3146,7 @@ func (x *ClaimOptionsView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimOptionsView.ProtoReflect.Descriptor instead.
 func (*ClaimOptionsView) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{41}
+	return file_service_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ClaimOptionsView) GetCanWin() bool {
@@ -3057,7 +3203,7 @@ type ScoreContext struct {
 
 func (x *ScoreContext) Reset() {
 	*x = ScoreContext{}
-	mi := &file_service_proto_msgTypes[42]
+	mi := &file_service_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3069,7 +3215,7 @@ func (x *ScoreContext) String() string {
 func (*ScoreContext) ProtoMessage() {}
 
 func (x *ScoreContext) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[42]
+	mi := &file_service_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3082,7 +3228,7 @@ func (x *ScoreContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScoreContext.ProtoReflect.Descriptor instead.
 func (*ScoreContext) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{42}
+	return file_service_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ScoreContext) GetSeat() string {
@@ -3172,7 +3318,7 @@ type PatternScore struct {
 
 func (x *PatternScore) Reset() {
 	*x = PatternScore{}
-	mi := &file_service_proto_msgTypes[43]
+	mi := &file_service_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3184,7 +3330,7 @@ func (x *PatternScore) String() string {
 func (*PatternScore) ProtoMessage() {}
 
 func (x *PatternScore) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[43]
+	mi := &file_service_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3197,7 +3343,7 @@ func (x *PatternScore) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatternScore.ProtoReflect.Descriptor instead.
 func (*PatternScore) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{43}
+	return file_service_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *PatternScore) GetName() string {
@@ -3224,7 +3370,7 @@ type HandShape struct {
 
 func (x *HandShape) Reset() {
 	*x = HandShape{}
-	mi := &file_service_proto_msgTypes[44]
+	mi := &file_service_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3236,7 +3382,7 @@ func (x *HandShape) String() string {
 func (*HandShape) ProtoMessage() {}
 
 func (x *HandShape) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[44]
+	mi := &file_service_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3249,7 +3395,7 @@ func (x *HandShape) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandShape.ProtoReflect.Descriptor instead.
 func (*HandShape) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{44}
+	return file_service_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *HandShape) GetPair() []*Tile {
@@ -3279,7 +3425,7 @@ type ScoreResult struct {
 
 func (x *ScoreResult) Reset() {
 	*x = ScoreResult{}
-	mi := &file_service_proto_msgTypes[45]
+	mi := &file_service_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3291,7 +3437,7 @@ func (x *ScoreResult) String() string {
 func (*ScoreResult) ProtoMessage() {}
 
 func (x *ScoreResult) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[45]
+	mi := &file_service_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3304,7 +3450,7 @@ func (x *ScoreResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScoreResult.ProtoReflect.Descriptor instead.
 func (*ScoreResult) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{45}
+	return file_service_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ScoreResult) GetWinning() bool {
@@ -3353,7 +3499,7 @@ type HandWinner struct {
 
 func (x *HandWinner) Reset() {
 	*x = HandWinner{}
-	mi := &file_service_proto_msgTypes[46]
+	mi := &file_service_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3365,7 +3511,7 @@ func (x *HandWinner) String() string {
 func (*HandWinner) ProtoMessage() {}
 
 func (x *HandWinner) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[46]
+	mi := &file_service_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3378,7 +3524,7 @@ func (x *HandWinner) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandWinner.ProtoReflect.Descriptor instead.
 func (*HandWinner) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{46}
+	return file_service_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *HandWinner) GetSeat() string {
@@ -3414,7 +3560,7 @@ type HandResult struct {
 
 func (x *HandResult) Reset() {
 	*x = HandResult{}
-	mi := &file_service_proto_msgTypes[47]
+	mi := &file_service_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3426,7 +3572,7 @@ func (x *HandResult) String() string {
 func (*HandResult) ProtoMessage() {}
 
 func (x *HandResult) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[47]
+	mi := &file_service_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3439,7 +3585,7 @@ func (x *HandResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandResult.ProtoReflect.Descriptor instead.
 func (*HandResult) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{47}
+	return file_service_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *HandResult) GetKind() string {
@@ -3484,7 +3630,7 @@ type Transfer struct {
 
 func (x *Transfer) Reset() {
 	*x = Transfer{}
-	mi := &file_service_proto_msgTypes[48]
+	mi := &file_service_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3496,7 +3642,7 @@ func (x *Transfer) String() string {
 func (*Transfer) ProtoMessage() {}
 
 func (x *Transfer) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[48]
+	mi := &file_service_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3509,7 +3655,7 @@ func (x *Transfer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Transfer.ProtoReflect.Descriptor instead.
 func (*Transfer) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{48}
+	return file_service_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *Transfer) GetFrom() string {
@@ -3566,7 +3712,7 @@ type Settlement struct {
 
 func (x *Settlement) Reset() {
 	*x = Settlement{}
-	mi := &file_service_proto_msgTypes[49]
+	mi := &file_service_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3578,7 +3724,7 @@ func (x *Settlement) String() string {
 func (*Settlement) ProtoMessage() {}
 
 func (x *Settlement) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[49]
+	mi := &file_service_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3591,7 +3737,7 @@ func (x *Settlement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Settlement.ProtoReflect.Descriptor instead.
 func (*Settlement) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{49}
+	return file_service_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *Settlement) GetTransfers() []*Transfer {
@@ -3633,7 +3779,7 @@ type ContinuationOutcome struct {
 
 func (x *ContinuationOutcome) Reset() {
 	*x = ContinuationOutcome{}
-	mi := &file_service_proto_msgTypes[50]
+	mi := &file_service_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3645,7 +3791,7 @@ func (x *ContinuationOutcome) String() string {
 func (*ContinuationOutcome) ProtoMessage() {}
 
 func (x *ContinuationOutcome) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[50]
+	mi := &file_service_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3658,7 +3804,7 @@ func (x *ContinuationOutcome) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContinuationOutcome.ProtoReflect.Descriptor instead.
 func (*ContinuationOutcome) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{50}
+	return file_service_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ContinuationOutcome) GetNextDealer() string {
@@ -3686,7 +3832,16 @@ var File_service_proto protoreflect.FileDescriptor
 
 const file_service_proto_rawDesc = "" +
 	"\n" +
-	"\rservice.proto\x12\aservice\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"j\n" +
+	"\rservice.proto\x12\aservice\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\":\n" +
+	"\x1aGetPlayerStatisticsRequest\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\"D\n" +
+	"\x0fPlayerStatistic\x12\x1b\n" +
+	"\tstat_code\x18\x01 \x01(\tR\bstatCode\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x01R\x05value\"W\n" +
+	"\x1bGetPlayerStatisticsResponse\x128\n" +
+	"\n" +
+	"statistics\x18\x01 \x03(\v2\x18.service.PlayerStatisticR\n" +
+	"statistics\"j\n" +
 	"\x10JoinMatchRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1d\n" +
 	"\n" +
@@ -4002,7 +4157,7 @@ const file_service_proto_rawDesc = "" +
 	"\x1fMATCH_COMMAND_TYPE_SUBMIT_CLAIM\x10\x03\x12#\n" +
 	"\x1fMATCH_COMMAND_TYPE_DECLARE_ZIMO\x10\x04\x12-\n" +
 	")MATCH_COMMAND_TYPE_DECLARE_CONCEALED_KONG\x10\x05\x12)\n" +
-	"%MATCH_COMMAND_TYPE_DECLARE_ADDED_KONG\x10\x062\xae\x17\n" +
+	"%MATCH_COMMAND_TYPE_DECLARE_ADDED_KONG\x10\x062\xcd\x1a\n" +
 	"\aService\x12\xb8\x02\n" +
 	"\x0eGetJadeAccount\x12\x1e.service.GetJadeAccountRequest\x1a\x1f.service.GetJadeAccountResponse\"\xe4\x01\x92A\xb9\x01\x12+Get the authenticated player's Jade account\x1a|Creates the two idempotent new-player grants when needed and returns authoritative Bamboo eligibility and available balance.b\f\n" +
 	"\n" +
@@ -4027,7 +4182,11 @@ const file_service_proto_rawDesc = "" +
 	"\x11AwardOnboardingXP\x12!.service.AwardOnboardingXPRequest\x1a\".service.AwardOnboardingXPResponse\"\xf1\x01\x92A\xb1\x01\x12 Grant the one-time onboarding XP\x1a\x7fAwarded whether the player completed or intentionally skipped the tutorial (§10.4). Idempotent: replays grant nothing further.b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x026:\x01*\"1/v1/namespaces/{namespace}/progression/onboarding\x12\xcb\x02\n" +
+	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x026:\x01*\"1/v1/namespaces/{namespace}/progression/onboarding\x12\x9c\x03\n" +
+	"\x13GetPlayerStatistics\x12#.service.GetPlayerStatisticsRequest\x1a$.service.GetPlayerStatisticsResponse\"\xb9\x02\x92A\x88\x02\x12*Get the caller's own Quick Play statistics\x1a\xcb\x01Reads the caller's AGS Statistics counters (§P2.3 dashboard). Served here rather than read from AGS by the browser because the AGS Social API sends no CORS headers, so a browser cannot call it directly.b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00\x82\xd3\xe4\x93\x02'\x12%/v1/namespaces/{namespace}/statistics\x12\xcb\x02\n" +
 	"\tJoinMatch\x12\x19.service.JoinMatchRequest\x1a\x1a.service.JoinMatchResponse\"\x86\x02\x92A\xaf\x01\x12#Join an authoritative Mahjong match\x1azCreates the match from the fixed AGS Session roster when needed and returns the authenticated player's private projection.b\f\n" +
 	"\n" +
 	"\n" +
@@ -4058,148 +4217,154 @@ func file_service_proto_rawDescGZIP() []byte {
 }
 
 var file_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 52)
+var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_service_proto_goTypes = []any{
-	(OnboardingOutcome)(0),             // 0: service.OnboardingOutcome
-	(MatchCommandType)(0),              // 1: service.MatchCommandType
-	(*JoinMatchRequest)(nil),           // 2: service.JoinMatchRequest
-	(*JoinMatchResponse)(nil),          // 3: service.JoinMatchResponse
-	(*GetJadeAccountRequest)(nil),      // 4: service.GetJadeAccountRequest
-	(*GetJadeAccountResponse)(nil),     // 5: service.GetJadeAccountResponse
-	(*ReserveJadeRequest)(nil),         // 6: service.ReserveJadeRequest
-	(*ReserveJadeResponse)(nil),        // 7: service.ReserveJadeResponse
-	(*ReleaseJadeRequest)(nil),         // 8: service.ReleaseJadeRequest
-	(*ReleaseJadeResponse)(nil),        // 9: service.ReleaseJadeResponse
-	(*GetProgressionRequest)(nil),      // 10: service.GetProgressionRequest
-	(*GetProgressionResponse)(nil),     // 11: service.GetProgressionResponse
-	(*AwardOnboardingXPRequest)(nil),   // 12: service.AwardOnboardingXPRequest
-	(*AwardOnboardingXPResponse)(nil),  // 13: service.AwardOnboardingXPResponse
-	(*ClaimJadeWelfareRequest)(nil),    // 14: service.ClaimJadeWelfareRequest
-	(*ClaimJadeWelfareResponse)(nil),   // 15: service.ClaimJadeWelfareResponse
-	(*GetMatchStateRequest)(nil),       // 16: service.GetMatchStateRequest
-	(*GetMatchStateResponse)(nil),      // 17: service.GetMatchStateResponse
-	(*SubmitMatchCommandRequest)(nil),  // 18: service.SubmitMatchCommandRequest
-	(*ClaimCommand)(nil),               // 19: service.ClaimCommand
-	(*SubmitMatchCommandResponse)(nil), // 20: service.SubmitMatchCommandResponse
-	(*MatchState)(nil),                 // 21: service.MatchState
-	(*XPComponent)(nil),                // 22: service.XPComponent
-	(*HandXPAward)(nil),                // 23: service.HandXPAward
-	(*LevelReward)(nil),                // 24: service.LevelReward
-	(*LevelStep)(nil),                  // 25: service.LevelStep
-	(*OnboardingState)(nil),            // 26: service.OnboardingState
-	(*PlayerProgression)(nil),          // 27: service.PlayerProgression
-	(*TileIDSet)(nil),                  // 28: service.TileIDSet
-	(*SelfTurnOptions)(nil),            // 29: service.SelfTurnOptions
-	(*JadeAccount)(nil),                // 30: service.JadeAccount
-	(*JadeReservation)(nil),            // 31: service.JadeReservation
-	(*JadeSettlement)(nil),             // 32: service.JadeSettlement
-	(*Tile)(nil),                       // 33: service.Tile
-	(*PlayerView)(nil),                 // 34: service.PlayerView
-	(*Meld)(nil),                       // 35: service.Meld
-	(*MeldView)(nil),                   // 36: service.MeldView
-	(*WaitTileView)(nil),               // 37: service.WaitTileView
-	(*WallView)(nil),                   // 38: service.WallView
-	(*Discard)(nil),                    // 39: service.Discard
-	(*ClaimView)(nil),                  // 40: service.ClaimView
-	(*ClaimResponse)(nil),              // 41: service.ClaimResponse
-	(*ChowSet)(nil),                    // 42: service.ChowSet
-	(*ClaimOptionsView)(nil),           // 43: service.ClaimOptionsView
-	(*ScoreContext)(nil),               // 44: service.ScoreContext
-	(*PatternScore)(nil),               // 45: service.PatternScore
-	(*HandShape)(nil),                  // 46: service.HandShape
-	(*ScoreResult)(nil),                // 47: service.ScoreResult
-	(*HandWinner)(nil),                 // 48: service.HandWinner
-	(*HandResult)(nil),                 // 49: service.HandResult
-	(*Transfer)(nil),                   // 50: service.Transfer
-	(*Settlement)(nil),                 // 51: service.Settlement
-	(*ContinuationOutcome)(nil),        // 52: service.ContinuationOutcome
-	nil,                                // 53: service.Settlement.NetEntry
+	(OnboardingOutcome)(0),              // 0: service.OnboardingOutcome
+	(MatchCommandType)(0),               // 1: service.MatchCommandType
+	(*GetPlayerStatisticsRequest)(nil),  // 2: service.GetPlayerStatisticsRequest
+	(*PlayerStatistic)(nil),             // 3: service.PlayerStatistic
+	(*GetPlayerStatisticsResponse)(nil), // 4: service.GetPlayerStatisticsResponse
+	(*JoinMatchRequest)(nil),            // 5: service.JoinMatchRequest
+	(*JoinMatchResponse)(nil),           // 6: service.JoinMatchResponse
+	(*GetJadeAccountRequest)(nil),       // 7: service.GetJadeAccountRequest
+	(*GetJadeAccountResponse)(nil),      // 8: service.GetJadeAccountResponse
+	(*ReserveJadeRequest)(nil),          // 9: service.ReserveJadeRequest
+	(*ReserveJadeResponse)(nil),         // 10: service.ReserveJadeResponse
+	(*ReleaseJadeRequest)(nil),          // 11: service.ReleaseJadeRequest
+	(*ReleaseJadeResponse)(nil),         // 12: service.ReleaseJadeResponse
+	(*GetProgressionRequest)(nil),       // 13: service.GetProgressionRequest
+	(*GetProgressionResponse)(nil),      // 14: service.GetProgressionResponse
+	(*AwardOnboardingXPRequest)(nil),    // 15: service.AwardOnboardingXPRequest
+	(*AwardOnboardingXPResponse)(nil),   // 16: service.AwardOnboardingXPResponse
+	(*ClaimJadeWelfareRequest)(nil),     // 17: service.ClaimJadeWelfareRequest
+	(*ClaimJadeWelfareResponse)(nil),    // 18: service.ClaimJadeWelfareResponse
+	(*GetMatchStateRequest)(nil),        // 19: service.GetMatchStateRequest
+	(*GetMatchStateResponse)(nil),       // 20: service.GetMatchStateResponse
+	(*SubmitMatchCommandRequest)(nil),   // 21: service.SubmitMatchCommandRequest
+	(*ClaimCommand)(nil),                // 22: service.ClaimCommand
+	(*SubmitMatchCommandResponse)(nil),  // 23: service.SubmitMatchCommandResponse
+	(*MatchState)(nil),                  // 24: service.MatchState
+	(*XPComponent)(nil),                 // 25: service.XPComponent
+	(*HandXPAward)(nil),                 // 26: service.HandXPAward
+	(*LevelReward)(nil),                 // 27: service.LevelReward
+	(*LevelStep)(nil),                   // 28: service.LevelStep
+	(*OnboardingState)(nil),             // 29: service.OnboardingState
+	(*PlayerProgression)(nil),           // 30: service.PlayerProgression
+	(*TileIDSet)(nil),                   // 31: service.TileIDSet
+	(*SelfTurnOptions)(nil),             // 32: service.SelfTurnOptions
+	(*JadeAccount)(nil),                 // 33: service.JadeAccount
+	(*JadeReservation)(nil),             // 34: service.JadeReservation
+	(*JadeSettlement)(nil),              // 35: service.JadeSettlement
+	(*Tile)(nil),                        // 36: service.Tile
+	(*PlayerView)(nil),                  // 37: service.PlayerView
+	(*Meld)(nil),                        // 38: service.Meld
+	(*MeldView)(nil),                    // 39: service.MeldView
+	(*WaitTileView)(nil),                // 40: service.WaitTileView
+	(*WallView)(nil),                    // 41: service.WallView
+	(*Discard)(nil),                     // 42: service.Discard
+	(*ClaimView)(nil),                   // 43: service.ClaimView
+	(*ClaimResponse)(nil),               // 44: service.ClaimResponse
+	(*ChowSet)(nil),                     // 45: service.ChowSet
+	(*ClaimOptionsView)(nil),            // 46: service.ClaimOptionsView
+	(*ScoreContext)(nil),                // 47: service.ScoreContext
+	(*PatternScore)(nil),                // 48: service.PatternScore
+	(*HandShape)(nil),                   // 49: service.HandShape
+	(*ScoreResult)(nil),                 // 50: service.ScoreResult
+	(*HandWinner)(nil),                  // 51: service.HandWinner
+	(*HandResult)(nil),                  // 52: service.HandResult
+	(*Transfer)(nil),                    // 53: service.Transfer
+	(*Settlement)(nil),                  // 54: service.Settlement
+	(*ContinuationOutcome)(nil),         // 55: service.ContinuationOutcome
+	nil,                                 // 56: service.Settlement.NetEntry
 }
 var file_service_proto_depIdxs = []int32{
-	21, // 0: service.JoinMatchResponse.state:type_name -> service.MatchState
-	30, // 1: service.GetJadeAccountResponse.account:type_name -> service.JadeAccount
-	30, // 2: service.ReserveJadeResponse.account:type_name -> service.JadeAccount
-	31, // 3: service.ReserveJadeResponse.reservation:type_name -> service.JadeReservation
-	30, // 4: service.ReleaseJadeResponse.account:type_name -> service.JadeAccount
-	27, // 5: service.GetProgressionResponse.progression:type_name -> service.PlayerProgression
-	25, // 6: service.GetProgressionResponse.curve:type_name -> service.LevelStep
-	0,  // 7: service.AwardOnboardingXPRequest.outcome:type_name -> service.OnboardingOutcome
-	27, // 8: service.AwardOnboardingXPResponse.progression:type_name -> service.PlayerProgression
-	23, // 9: service.AwardOnboardingXPResponse.award:type_name -> service.HandXPAward
-	30, // 10: service.ClaimJadeWelfareResponse.account:type_name -> service.JadeAccount
-	21, // 11: service.GetMatchStateResponse.state:type_name -> service.MatchState
-	1,  // 12: service.SubmitMatchCommandRequest.type:type_name -> service.MatchCommandType
-	19, // 13: service.SubmitMatchCommandRequest.claim:type_name -> service.ClaimCommand
-	21, // 14: service.SubmitMatchCommandResponse.state:type_name -> service.MatchState
-	33, // 15: service.MatchState.own_hand:type_name -> service.Tile
-	33, // 16: service.MatchState.own_exposed:type_name -> service.Tile
-	34, // 17: service.MatchState.players:type_name -> service.PlayerView
-	38, // 18: service.MatchState.wall:type_name -> service.WallView
-	39, // 19: service.MatchState.last_discard:type_name -> service.Discard
-	40, // 20: service.MatchState.claim:type_name -> service.ClaimView
-	37, // 21: service.MatchState.waits:type_name -> service.WaitTileView
-	35, // 22: service.MatchState.own_melds:type_name -> service.Meld
-	39, // 23: service.MatchState.discards:type_name -> service.Discard
-	49, // 24: service.MatchState.hand_result:type_name -> service.HandResult
-	51, // 25: service.MatchState.settlement:type_name -> service.Settlement
-	52, // 26: service.MatchState.next_dealer:type_name -> service.ContinuationOutcome
-	30, // 27: service.MatchState.jade_account:type_name -> service.JadeAccount
-	32, // 28: service.MatchState.jade_settlement:type_name -> service.JadeSettlement
-	29, // 29: service.MatchState.self_turn_options:type_name -> service.SelfTurnOptions
-	23, // 30: service.MatchState.xp_award:type_name -> service.HandXPAward
-	23, // 31: service.MatchState.achievements:type_name -> service.HandXPAward
-	27, // 32: service.MatchState.progression:type_name -> service.PlayerProgression
-	22, // 33: service.HandXPAward.components:type_name -> service.XPComponent
-	24, // 34: service.LevelStep.rewards:type_name -> service.LevelReward
-	0,  // 35: service.OnboardingState.outcome:type_name -> service.OnboardingOutcome
-	24, // 36: service.PlayerProgression.earned:type_name -> service.LevelReward
-	24, // 37: service.PlayerProgression.next:type_name -> service.LevelReward
-	26, // 38: service.PlayerProgression.onboarding:type_name -> service.OnboardingState
-	47, // 39: service.SelfTurnOptions.win_preview:type_name -> service.ScoreResult
-	28, // 40: service.SelfTurnOptions.concealed_kongs:type_name -> service.TileIDSet
-	33, // 41: service.PlayerView.exposed:type_name -> service.Tile
-	36, // 42: service.PlayerView.melds:type_name -> service.MeldView
-	33, // 43: service.Meld.tiles:type_name -> service.Tile
-	33, // 44: service.MeldView.tiles:type_name -> service.Tile
-	33, // 45: service.WaitTileView.tile:type_name -> service.Tile
-	33, // 46: service.Discard.tile:type_name -> service.Tile
-	39, // 47: service.ClaimView.discard:type_name -> service.Discard
-	41, // 48: service.ClaimView.own_response:type_name -> service.ClaimResponse
-	43, // 49: service.ClaimView.options:type_name -> service.ClaimOptionsView
-	42, // 50: service.ClaimOptionsView.chow_sets:type_name -> service.ChowSet
-	47, // 51: service.ClaimOptionsView.win_preview:type_name -> service.ScoreResult
-	33, // 52: service.HandShape.pair:type_name -> service.Tile
-	35, // 53: service.HandShape.melds:type_name -> service.Meld
-	45, // 54: service.ScoreResult.patterns:type_name -> service.PatternScore
-	46, // 55: service.ScoreResult.shape:type_name -> service.HandShape
-	44, // 56: service.HandWinner.context:type_name -> service.ScoreContext
-	47, // 57: service.HandWinner.score:type_name -> service.ScoreResult
-	48, // 58: service.HandResult.winners:type_name -> service.HandWinner
-	50, // 59: service.Settlement.transfers:type_name -> service.Transfer
-	53, // 60: service.Settlement.net:type_name -> service.Settlement.NetEntry
-	4,  // 61: service.Service.GetJadeAccount:input_type -> service.GetJadeAccountRequest
-	6,  // 62: service.Service.ReserveJade:input_type -> service.ReserveJadeRequest
-	8,  // 63: service.Service.ReleaseJade:input_type -> service.ReleaseJadeRequest
-	14, // 64: service.Service.ClaimJadeWelfare:input_type -> service.ClaimJadeWelfareRequest
-	10, // 65: service.Service.GetProgression:input_type -> service.GetProgressionRequest
-	12, // 66: service.Service.AwardOnboardingXP:input_type -> service.AwardOnboardingXPRequest
-	2,  // 67: service.Service.JoinMatch:input_type -> service.JoinMatchRequest
-	16, // 68: service.Service.GetMatchState:input_type -> service.GetMatchStateRequest
-	18, // 69: service.Service.SubmitMatchCommand:input_type -> service.SubmitMatchCommandRequest
-	5,  // 70: service.Service.GetJadeAccount:output_type -> service.GetJadeAccountResponse
-	7,  // 71: service.Service.ReserveJade:output_type -> service.ReserveJadeResponse
-	9,  // 72: service.Service.ReleaseJade:output_type -> service.ReleaseJadeResponse
-	15, // 73: service.Service.ClaimJadeWelfare:output_type -> service.ClaimJadeWelfareResponse
-	11, // 74: service.Service.GetProgression:output_type -> service.GetProgressionResponse
-	13, // 75: service.Service.AwardOnboardingXP:output_type -> service.AwardOnboardingXPResponse
-	3,  // 76: service.Service.JoinMatch:output_type -> service.JoinMatchResponse
-	17, // 77: service.Service.GetMatchState:output_type -> service.GetMatchStateResponse
-	20, // 78: service.Service.SubmitMatchCommand:output_type -> service.SubmitMatchCommandResponse
-	70, // [70:79] is the sub-list for method output_type
-	61, // [61:70] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	3,  // 0: service.GetPlayerStatisticsResponse.statistics:type_name -> service.PlayerStatistic
+	24, // 1: service.JoinMatchResponse.state:type_name -> service.MatchState
+	33, // 2: service.GetJadeAccountResponse.account:type_name -> service.JadeAccount
+	33, // 3: service.ReserveJadeResponse.account:type_name -> service.JadeAccount
+	34, // 4: service.ReserveJadeResponse.reservation:type_name -> service.JadeReservation
+	33, // 5: service.ReleaseJadeResponse.account:type_name -> service.JadeAccount
+	30, // 6: service.GetProgressionResponse.progression:type_name -> service.PlayerProgression
+	28, // 7: service.GetProgressionResponse.curve:type_name -> service.LevelStep
+	0,  // 8: service.AwardOnboardingXPRequest.outcome:type_name -> service.OnboardingOutcome
+	30, // 9: service.AwardOnboardingXPResponse.progression:type_name -> service.PlayerProgression
+	26, // 10: service.AwardOnboardingXPResponse.award:type_name -> service.HandXPAward
+	33, // 11: service.ClaimJadeWelfareResponse.account:type_name -> service.JadeAccount
+	24, // 12: service.GetMatchStateResponse.state:type_name -> service.MatchState
+	1,  // 13: service.SubmitMatchCommandRequest.type:type_name -> service.MatchCommandType
+	22, // 14: service.SubmitMatchCommandRequest.claim:type_name -> service.ClaimCommand
+	24, // 15: service.SubmitMatchCommandResponse.state:type_name -> service.MatchState
+	36, // 16: service.MatchState.own_hand:type_name -> service.Tile
+	36, // 17: service.MatchState.own_exposed:type_name -> service.Tile
+	37, // 18: service.MatchState.players:type_name -> service.PlayerView
+	41, // 19: service.MatchState.wall:type_name -> service.WallView
+	42, // 20: service.MatchState.last_discard:type_name -> service.Discard
+	43, // 21: service.MatchState.claim:type_name -> service.ClaimView
+	40, // 22: service.MatchState.waits:type_name -> service.WaitTileView
+	38, // 23: service.MatchState.own_melds:type_name -> service.Meld
+	42, // 24: service.MatchState.discards:type_name -> service.Discard
+	52, // 25: service.MatchState.hand_result:type_name -> service.HandResult
+	54, // 26: service.MatchState.settlement:type_name -> service.Settlement
+	55, // 27: service.MatchState.next_dealer:type_name -> service.ContinuationOutcome
+	33, // 28: service.MatchState.jade_account:type_name -> service.JadeAccount
+	35, // 29: service.MatchState.jade_settlement:type_name -> service.JadeSettlement
+	32, // 30: service.MatchState.self_turn_options:type_name -> service.SelfTurnOptions
+	26, // 31: service.MatchState.xp_award:type_name -> service.HandXPAward
+	26, // 32: service.MatchState.achievements:type_name -> service.HandXPAward
+	30, // 33: service.MatchState.progression:type_name -> service.PlayerProgression
+	25, // 34: service.HandXPAward.components:type_name -> service.XPComponent
+	27, // 35: service.LevelStep.rewards:type_name -> service.LevelReward
+	0,  // 36: service.OnboardingState.outcome:type_name -> service.OnboardingOutcome
+	27, // 37: service.PlayerProgression.earned:type_name -> service.LevelReward
+	27, // 38: service.PlayerProgression.next:type_name -> service.LevelReward
+	29, // 39: service.PlayerProgression.onboarding:type_name -> service.OnboardingState
+	50, // 40: service.SelfTurnOptions.win_preview:type_name -> service.ScoreResult
+	31, // 41: service.SelfTurnOptions.concealed_kongs:type_name -> service.TileIDSet
+	36, // 42: service.PlayerView.exposed:type_name -> service.Tile
+	39, // 43: service.PlayerView.melds:type_name -> service.MeldView
+	36, // 44: service.Meld.tiles:type_name -> service.Tile
+	36, // 45: service.MeldView.tiles:type_name -> service.Tile
+	36, // 46: service.WaitTileView.tile:type_name -> service.Tile
+	36, // 47: service.Discard.tile:type_name -> service.Tile
+	42, // 48: service.ClaimView.discard:type_name -> service.Discard
+	44, // 49: service.ClaimView.own_response:type_name -> service.ClaimResponse
+	46, // 50: service.ClaimView.options:type_name -> service.ClaimOptionsView
+	45, // 51: service.ClaimOptionsView.chow_sets:type_name -> service.ChowSet
+	50, // 52: service.ClaimOptionsView.win_preview:type_name -> service.ScoreResult
+	36, // 53: service.HandShape.pair:type_name -> service.Tile
+	38, // 54: service.HandShape.melds:type_name -> service.Meld
+	48, // 55: service.ScoreResult.patterns:type_name -> service.PatternScore
+	49, // 56: service.ScoreResult.shape:type_name -> service.HandShape
+	47, // 57: service.HandWinner.context:type_name -> service.ScoreContext
+	50, // 58: service.HandWinner.score:type_name -> service.ScoreResult
+	51, // 59: service.HandResult.winners:type_name -> service.HandWinner
+	53, // 60: service.Settlement.transfers:type_name -> service.Transfer
+	56, // 61: service.Settlement.net:type_name -> service.Settlement.NetEntry
+	7,  // 62: service.Service.GetJadeAccount:input_type -> service.GetJadeAccountRequest
+	9,  // 63: service.Service.ReserveJade:input_type -> service.ReserveJadeRequest
+	11, // 64: service.Service.ReleaseJade:input_type -> service.ReleaseJadeRequest
+	17, // 65: service.Service.ClaimJadeWelfare:input_type -> service.ClaimJadeWelfareRequest
+	13, // 66: service.Service.GetProgression:input_type -> service.GetProgressionRequest
+	15, // 67: service.Service.AwardOnboardingXP:input_type -> service.AwardOnboardingXPRequest
+	2,  // 68: service.Service.GetPlayerStatistics:input_type -> service.GetPlayerStatisticsRequest
+	5,  // 69: service.Service.JoinMatch:input_type -> service.JoinMatchRequest
+	19, // 70: service.Service.GetMatchState:input_type -> service.GetMatchStateRequest
+	21, // 71: service.Service.SubmitMatchCommand:input_type -> service.SubmitMatchCommandRequest
+	8,  // 72: service.Service.GetJadeAccount:output_type -> service.GetJadeAccountResponse
+	10, // 73: service.Service.ReserveJade:output_type -> service.ReserveJadeResponse
+	12, // 74: service.Service.ReleaseJade:output_type -> service.ReleaseJadeResponse
+	18, // 75: service.Service.ClaimJadeWelfare:output_type -> service.ClaimJadeWelfareResponse
+	14, // 76: service.Service.GetProgression:output_type -> service.GetProgressionResponse
+	16, // 77: service.Service.AwardOnboardingXP:output_type -> service.AwardOnboardingXPResponse
+	4,  // 78: service.Service.GetPlayerStatistics:output_type -> service.GetPlayerStatisticsResponse
+	6,  // 79: service.Service.JoinMatch:output_type -> service.JoinMatchResponse
+	20, // 80: service.Service.GetMatchState:output_type -> service.GetMatchStateResponse
+	23, // 81: service.Service.SubmitMatchCommand:output_type -> service.SubmitMatchCommandResponse
+	72, // [72:82] is the sub-list for method output_type
+	62, // [62:72] is the sub-list for method input_type
+	62, // [62:62] is the sub-list for extension type_name
+	62, // [62:62] is the sub-list for extension extendee
+	0,  // [0:62] is the sub-list for field type_name
 }
 
 func init() { file_service_proto_init() }
@@ -4213,7 +4378,7 @@ func file_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_proto_rawDesc), len(file_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   52,
+			NumMessages:   55,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -2869,3 +2869,141 @@ h1 {
     display: none;
   }
 }
+
+/* §P2.3 statistics dashboard. Sized and spaced to match the progression
+   screen, since the two are peers reached from the same lobby row. */
+.statistics-screen {
+  margin: 0 auto;
+  max-width: 44rem;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.statistics-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.statistics-header h2 {
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.statistics-subtitle {
+  color: var(--muted, #9aa3b2);
+  margin: 0.25rem 0 0;
+}
+
+.statistics-close {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.5rem;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.4rem 0.9rem;
+}
+
+.statistics-rows {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.statistics-row {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.6rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.statistics-row-head {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.statistics-row-label {
+  font-weight: 600;
+}
+
+.statistics-row-value {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* A provisional figure is a count, not a rate. It reads quieter so it is not
+   mistaken for a percentage at a glance. */
+.statistics-row-value.is-provisional {
+  color: var(--muted, #9aa3b2);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.statistics-row-detail {
+  color: var(--muted, #9aa3b2);
+  font-size: 0.85rem;
+  margin: 0.35rem 0 0;
+}
+
+.statistics-row-hint {
+  opacity: 0.8;
+}
+
+.statistics-totals {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  margin-top: 1rem;
+}
+
+.statistics-total {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.statistics-total-value {
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.statistics-total-label {
+  color: var(--muted, #9aa3b2);
+  font-size: 0.8rem;
+}
+
+.statistics-empty,
+.statistics-rotation {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.6rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+}
+
+.statistics-rotation h3 {
+  font-size: 1rem;
+  margin: 0 0 0.35rem;
+}
+
+.statistics-rotation p,
+.statistics-empty p {
+  color: var(--muted, #9aa3b2);
+  margin: 0;
+}
+
+.statistics-play {
+  background: var(--accent, #145f3f);
+  border: none;
+  border-radius: 0.5rem;
+  color: #fff;
+  cursor: pointer;
+  margin-top: 0.9rem;
+  padding: 0.55rem 1.1rem;
+}

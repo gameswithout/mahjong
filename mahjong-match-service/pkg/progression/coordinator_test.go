@@ -199,6 +199,24 @@ type fakeStatsMirror struct {
 	calls   int
 	updates [][]StatUpdate
 	err     error
+	// values is what ReadStats returns; readCodes records what was asked for.
+	values     map[string]float64
+	readCodes  []string
+	readErr    error
+	readCalled int
+}
+
+func (f *fakeStatsMirror) ReadStats(
+	_ context.Context,
+	_ string,
+	statCodes []string,
+) (map[string]float64, error) {
+	f.readCalled++
+	f.readCodes = statCodes
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
+	return f.values, nil
 }
 
 func (f *fakeStatsMirror) RecordHandStats(
@@ -443,5 +461,43 @@ func TestAchievementRewardTableMatchesConfiguredSet(t *testing.T) {
 	}
 	if _, known := AchievementByCode("not-an-achievement"); known {
 		t.Fatal("an unknown code resolved to an achievement")
+	}
+}
+
+
+// §P2.3. The dashboard reads the same counters the achievements evaluate, so
+// the codes it asks for must be exactly the ones the write path produces.
+func TestPlayerStatistics_ReadsTheDashboardCodes(t *testing.T) {
+	stats := &fakeStatsMirror{values: map[string]float64{StatPublicHandsCompleted: 40}}
+	coordinator := NewCoordinator(nil)
+	coordinator.SetStatsMirror(stats, func(error) {})
+
+	values, err := coordinator.PlayerStatistics(context.Background(), "player-1")
+	if err != nil {
+		t.Fatalf("PlayerStatistics: %v", err)
+	}
+	if values[StatPublicHandsCompleted] != 40 {
+		t.Errorf("hands completed = %v, want 40", values[StatPublicHandsCompleted])
+	}
+
+	asked := map[string]bool{}
+	for _, code := range stats.readCodes {
+		asked[code] = true
+	}
+	for _, code := range []string{
+		StatPublicHandsCompleted, StatPublicHandsWon, StatZimoWins,
+		StatPublicHandsDealtIn, StatPublicHandsTing, StatKongsDeclared, StatHighestRawTai,
+	} {
+		if !asked[code] {
+			t.Errorf("dashboard did not ask AGS for %s", code)
+		}
+	}
+}
+
+// Without the mirror the player would otherwise be shown a record of zeroes,
+// which reads as "you have never won" rather than "this is unavailable".
+func TestPlayerStatistics_WithoutAMirrorIsAnError(t *testing.T) {
+	if _, err := NewCoordinator(nil).PlayerStatistics(context.Background(), "player-1"); err == nil {
+		t.Fatal("a coordinator with no stats mirror returned statistics")
 	}
 }

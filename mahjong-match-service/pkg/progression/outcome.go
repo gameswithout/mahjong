@@ -21,6 +21,13 @@ func OutcomeFromView(
 		Practice:          practice,
 		Kongs:             declaredKongs(view),
 		TakenOverMajority: takenOverMajority,
+		// Payer is only set for a discard win, and names the seat whose tile
+		// was claimed. An exhaustive draw or a Zimo has nobody to blame.
+		DealtIn: view.HandResult.Kind == rulesengine.WinDiscard &&
+			view.HandResult.Payer == view.Seat,
+		// A non-empty wait list is the projection's own statement that this
+		// seat was one tile from a win when the hand ended.
+		Ting: len(view.Waits) > 0,
 	}
 
 	for _, winner := range view.HandResult.Winners {
