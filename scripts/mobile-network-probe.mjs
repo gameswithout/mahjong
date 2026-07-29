@@ -149,11 +149,18 @@ async function run() {
   });
   page.on("requestfailed", (request) => {
     const record = inFlight.get(request);
-    if (record) {
-      record.status = "failed";
-      record.ms = Date.now() - record.startedAt;
-      record.error = request.failure()?.errorText ?? "";
+    if (!record) return;
+    // A response that already arrived is a poll that succeeded. Chrome also
+    // records a cancellation when a bodiless response is dropped without its
+    // (empty) body being read, and treating that as a failure is how this
+    // probe once reported a working client as broken.
+    if (record.status !== null) {
+      record.cancelledAfterResponse = true;
+      return;
     }
+    record.status = "failed";
+    record.ms = Date.now() - record.startedAt;
+    record.error = request.failure()?.errorText ?? "";
   });
   // A CORS rejection never reaches requestfailed with a useful reason; the
   // browser reports it to the console instead.

@@ -449,6 +449,10 @@ export function createMatchRuntimeConnection(
     // cancels the request instead. It has no body, so it must be recognised
     // before anything tries to parse one.
     if (response.status === 204) {
+      // Nothing to release: fetch gives a 204 a null body. The browser still
+      // records the request as cancelled once it is dropped, which looks like
+      // a failure in devtools and in anything reading Chrome's network events
+      // — it is not. The fetch resolved; this is the poll succeeding.
       return { status: "unchanged" };
     }
     if (!response.ok) {
