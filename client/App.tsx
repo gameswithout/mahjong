@@ -32,6 +32,10 @@ import { LockedTiers } from "./LockedTiers";
 import { playableTier, tierSummary } from "./lobby-tiers";
 import { queueElapsedLabel, queueHealth, queueHealthMessage } from "./queue-health";
 import { TutorialScreen } from "./tutorial/TutorialScreen";
+import { createFriendsClient, FriendsError, type Friend, type FriendRequest } from "./friends";
+import { FriendsPanel, type FriendsState } from "./FriendsPanel";
+import { createPartyClient, PartyError, partyIsFull, type Party } from "./party";
+import { PartyPanel, type PartyState } from "./PartyPanel";
 import type { TutorialEvent } from "./tutorial/analytics";
 import {
   createProgressionClient,
@@ -245,6 +249,20 @@ function matchRuntimeErrorView(error: unknown): { code: string; message: string 
   return { code: "unknown", message: "Match runtime failed. Please retry." };
 }
 
+function friendsErrorView(error: unknown): { code: string; message: string } {
+  if (error instanceof FriendsError) {
+    return { code: error.code, message: error.message };
+  }
+  return { code: "unknown", message: "Friends could not be loaded. Please retry." };
+}
+
+function partyErrorView(error: unknown): { code: string; message: string } {
+  if (error instanceof PartyError) {
+    return { code: error.code, message: error.message };
+  }
+  return { code: "unknown", message: "Party could not be loaded. Please retry." };
+}
+
 function jadeErrorView(error: unknown): { code: string; message: string } {
   if (error instanceof JadeError) {
     return { code: error.code, message: error.message };
@@ -306,6 +324,9 @@ export function App(
     defaultPlayerProfile(true),
   );
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [friendsState, setFriendsState] = useState<FriendsState>({ status: "idle" });
+  const [partyState, setPartyState] = useState<PartyState>({ status: "idle" });
+  const [partyBusy, setPartyBusy] = useState(false);
   const [progressionState, setProgressionState] = useState<ProgressionState>({ status: "idle" });
   const [progressionOpen, setProgressionOpen] = useState(false);
   // §P2.3. Statistics come straight from AGS rather than the match service, so
@@ -659,6 +680,22 @@ export function App(
       setQueueStartedAt(null);
     }
   }, [queueing, queueStartedAt]);
+
+  const lobbyConnected = state.status === "signed_in" && state.lobbyStatus === "connected";
+
+  // Friends and party load once, when the lobby is up. Both are lobby-scoped:
+  // presence comes from the same connection, and a party without lobby
+  // presence would show members AGS already considers disconnected.
+  useEffect(() => {
+    if (!lobbyConnected) {
+      return;
+    }
+    void loadFriends();
+    void loadParty();
+    // Deliberately keyed on the connection and identity only. Re-running on
+    // every render would poll AGS from a render loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lobbyConnected, isGuestAccount]);
 
   const queueElapsedMs = queueStartedAt === null ? 0 : Math.max(0, nowTick - queueStartedAt);
   const currentQueueHealth = queueHealth(queueElapsedMs);
@@ -1258,7 +1295,10 @@ export function App(
     );
   }
 
-  function createAuthenticatedMatchmakingClient() {
+  // partySessionId turns a solo ticket into a party ticket: AGS seats every
+  // member of that party at the same table. Passing an empty string — the
+  // previous behaviour — queues the caller alone.
+  function createAuthenticatedMatchmakingClient(partySessionId?: string) {
     if (!accelByteConfig.matchPool) {
       throw new MatchmakingError(
         "configuration",
@@ -1268,6 +1308,25 @@ export function App(
 
     return createMatchmakingClient(stableIam.getAuthenticatedSdk(), accelByteConfig.namespace, {
       matchPool: accelByteConfig.matchPool,
+      sessionId: partySessionId,
+    });
+  }
+
+  function createAuthenticatedFriendsClient() {
+    return createFriendsClient(stableIam.getAccessToken(), {
+      url: accelByteConfig.baseURL,
+      namespace: accelByteConfig.namespace,
+    });
+  }
+
+  function createAuthenticatedPartyClient() {
+    if (!accelByteConfig.partyTemplate) {
+      throw new PartyError("configuration", "Party template is not configured.");
+    }
+    return createPartyClient(stableIam.getAccessToken(), {
+      url: accelByteConfig.baseURL,
+      namespace: accelByteConfig.namespace,
+      configurationName: accelByteConfig.partyTemplate,
     });
   }
 
@@ -1357,6 +1416,73 @@ export function App(
       // A failed award must not block leaving the tutorial. It is idempotent,
       // so the next completion or skip retries it harmlessly.
     }
+  }
+
+  // --- §10.6 friends -------------------------------------------------------
+
+  async function loadFriends() {
+    if (isGuestAccount) {
+      // §10.1: guests have no friend graph. Say so rather than calling AGS and
+      // rendering its refusal as an error.
+      setFriendsState({ status: "guest" });
+      return;
+    }
+    setFriendsState({ status: "loading" });
+    try {
+      const client = createAuthenticatedFriendsClient();
+      const [friends, incoming, outgoing] = await Promise.all([
+        client.list(),
+        client.incoming(),
+        client.outgoing(),
+      ]);
+      setFriendsState({ status: "ready", friends, incoming, outgoing });
+    } catch (error) {
+      setFriendsState({ status: "error", ...friendsErrorView(error) });
+    }
+  }
+
+  // Every mutation re-reads the list rather than patching it locally: AGS owns
+  // the relationship, and a local guess about what a request did to it is a
+  // guess that can be wrong.
+  async function mutateFriends(action: (client: ReturnType<typeof createAuthenticatedFriendsClient>) => Promise<void>) {
+    try {
+      await action(createAuthenticatedFriendsClient());
+    } catch (error) {
+      setFriendsState({ status: "error", ...friendsErrorView(error) });
+      return;
+    }
+    await loadFriends();
+  }
+
+  // --- §8.6 party ----------------------------------------------------------
+
+  async function loadParty() {
+    if (isGuestAccount) {
+      setPartyState({ status: "none" });
+      return;
+    }
+    setPartyState({ status: "loading" });
+    try {
+      const party = await createAuthenticatedPartyClient().current();
+      setPartyState(party ? { status: "ready", party } : { status: "none" });
+    } catch (error) {
+      setPartyState({ status: "error", ...partyErrorView(error) });
+    }
+  }
+
+  async function mutateParty(
+    action: (client: ReturnType<typeof createAuthenticatedPartyClient>) => Promise<void>,
+  ) {
+    setPartyBusy(true);
+    try {
+      await action(createAuthenticatedPartyClient());
+    } catch (error) {
+      setPartyState({ status: "error", ...partyErrorView(error) });
+      setPartyBusy(false);
+      return;
+    }
+    setPartyBusy(false);
+    await loadParty();
   }
 
   async function loadJadeAccount(): Promise<JadeAccount | null> {
@@ -1480,10 +1606,26 @@ export function App(
       },
     });
 
+    // §8.6 + §7.1: a party queues as one ticket, so AGS seats its members at
+    // the same table. Only the leader submits it — every member submitting
+    // would create competing tickets for the same people.
+    const ownUserId = state.status === "signed_in" ? state.userId : undefined;
+    const party = partyState.status === "ready" ? partyState.party : null;
+    const partySessionId = party && party.leaderId === ownUserId ? party.partyId : undefined;
+
+    if (party && party.leaderId !== ownUserId) {
+      setMatchmakingState({
+        status: "error",
+        code: "party_member",
+        message: "Your party leader starts the queue for everyone.",
+      });
+      return;
+    }
+
     try {
       const ticket = await createStakedMatchmakingTicket(
         createAuthenticatedJadeClient(),
-        createAuthenticatedMatchmakingClient(),
+        createAuthenticatedMatchmakingClient(partySessionId),
         (account) => setJadeState({ status: "ready", account }),
         (account) => setJadeState({ status: "ready", account }),
       );
@@ -3052,6 +3194,62 @@ export function App(
                 </section>
 
                 <LockedTiers />
+
+                <PartyPanel
+                  state={partyState}
+                  ownUserId={state.userId}
+                  busy={partyBusy}
+                  onCreate={() => void mutateParty(async (c) => { await c.create(); })}
+                  onLeave={() =>
+                    void mutateParty(async (c) => {
+                      if (partyState.status === "ready") {
+                        await c.leave(partyState.party.partyId);
+                      }
+                    })
+                  }
+                  onJoinByCode={(code) =>
+                    void mutateParty(async (c) => { await c.joinByCode(code); })
+                  }
+                  onGenerateCode={() =>
+                    void mutateParty(async (c) => {
+                      if (partyState.status === "ready") {
+                        await c.generateCode(partyState.party.partyId);
+                      }
+                    })
+                  }
+                  onKick={(userId) =>
+                    void mutateParty(async (c) => {
+                      if (partyState.status === "ready") {
+                        await c.kick(partyState.party.partyId, userId);
+                      }
+                    })
+                  }
+                  onRetry={() => void loadParty()}
+                />
+
+                <FriendsPanel
+                  state={friendsState}
+                  ownUserId={state.userId}
+                  canInviteToParty={
+                    partyState.status === "ready" && !partyIsFull(partyState.party)
+                  }
+                  onInviteToParty={
+                    partyState.status === "ready"
+                      ? (userId) =>
+                          void mutateParty(async (c) => {
+                            if (partyState.status === "ready") {
+                              await c.invite(partyState.party.partyId, userId);
+                            }
+                          })
+                      : undefined
+                  }
+                  onAdd={(userId) => void mutateFriends((c) => c.sendRequest(userId))}
+                  onAccept={(userId) => void mutateFriends((c) => c.accept(userId))}
+                  onReject={(userId) => void mutateFriends((c) => c.reject(userId))}
+                  onCancel={(userId) => void mutateFriends((c) => c.cancel(userId))}
+                  onUnfriend={(userId) => void mutateFriends((c) => c.unfriend(userId))}
+                  onRetry={() => void loadFriends()}
+                />
 
                 <details className="developer-tools">
                   <summary>Developer session tools</summary>

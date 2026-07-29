@@ -218,6 +218,58 @@ Do not open higher tiers based only on implementation completion. Require
 simulation and observed Beta evidence for balance distribution, insolvency
 rate, faucet-to-cap ratio, queue health, dealer advantage, and cap frequency.
 
+## Priority 4 — the social loop (E12)
+
+**Scoping gap, recorded 2026-07-29.** This tier was absent from this backlog
+entirely while being specified in detail elsewhere: §8.6 (private rooms and
+friends), §10.6 (the friends graph and Add Friend flow), §10.7 (emotes), and
+E12 in the development plan. §2.1 names "low-friction play with friends" as a
+product pillar, and §2.4 notes the Closed Beta retention targets are measured
+*with* the social loop present — so its absence understates those readings.
+
+It also had a live consequence: the deployed landing page reads "Play a hand
+with friends" while offering no way to play with a specific person. That copy
+promised a feature that did not exist.
+
+Everything here uses AGS's native Friends, Presence, and Party services. No
+first-party friend graph is built.
+
+### P4.1 Friends and presence
+
+- List friends with live presence; send, accept, reject, and cancel requests;
+  unfriend.
+- Show a player's own share code so a friend can add them without a search
+  surface (§10.6 rate limits make open search a later decision).
+- Guests cannot use any of it (§10.1): a friend list needs a linked identity,
+  so the surface must explain that rather than fail.
+
+### P4.2 Party, and entering matchmaking together
+
+- Create a party, invite friends, join by invite or code, leave, and see who
+  is in it.
+- Submit the matchmaking ticket for the *party* rather than the individual, so
+  a group is seated at one table.
+- The existing ruleset is a single 4-player alliance, so a party of 2 plus a
+  party of 2 fills a table exactly as four solo players do.
+- Party membership must never bypass Jade eligibility: every member is checked
+  on entry, and one ineligible member blocks the party rather than seating a
+  player who cannot pay.
+
+### P4.3 Add Friend from the result screen
+
+- §8.3 and §9.7 item 9 both call for it; the result screen already carries a
+  comment marking it deferred.
+- Only for opponents in a completed public human hand, never Practice bots.
+
+### Deferred within this tier
+
+- **Private rooms** (§8.6, E12.F2) — six-character codes, host presets, bot
+  fill. Larger than the friends loop and independent of it.
+- **Emotes and phrases** (§10.7, E12.F3) — needs localization and cultural
+  review lead time.
+- **Blocks** — AGS supports them natively, but the moderation surface around
+  them is T&S scope (§16).
+
 ## Explicitly deferred
 
 - Paid Jade, currency top-offs, advertisements, randomized rewards, and

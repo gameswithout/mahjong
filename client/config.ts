@@ -6,6 +6,10 @@ export interface AccelByteWebConfig {
   matchPool?: string;
   sessionTemplate?: string;
   sessionClientVersion?: string;
+  // §8.6 party session template. Separate from sessionTemplate: a party is its
+  // own AGS session, INVITE_ONLY and 4 seats, and it exists only to carry a
+  // group into matchmaking together.
+  partyTemplate?: string;
   // AGS TURN Manager endpoint used to fetch short-lived relay (TURN)
   // credentials for video chat. It lives on the same AGS base URL, so it is
   // derived from baseURL by default; ACCELBYTE_ICE_CONFIG_URL can override it.
@@ -22,6 +26,7 @@ export const accelByteConfig: AccelByteWebConfig = {
   matchPool: import.meta.env.ACCELBYTE_MATCH_POOL,
   sessionTemplate: import.meta.env.ACCELBYTE_SESSION_TEMPLATE,
   sessionClientVersion: import.meta.env.ACCELBYTE_SESSION_CLIENT_VERSION,
+  partyTemplate: import.meta.env.ACCELBYTE_PARTY_TEMPLATE || "mahjong-party",
   iceConfigURL:
     import.meta.env.ACCELBYTE_ICE_CONFIG_URL || (baseURL ? `${baseURL}/turnmanager/turn` : undefined),
 };
