@@ -1221,6 +1221,9 @@ type MatchState struct {
 	SelfTurnOptions *SelfTurnOptions       `protobuf:"bytes,22,opt,name=self_turn_options,json=selfTurnOptions,proto3" json:"self_turn_options,omitempty"`
 	// §12.1 XP earned by this hand, present once the hand is complete.
 	XpAward *HandXPAward `protobuf:"bytes,23,opt,name=xp_award,json=xpAward,proto3" json:"xp_award,omitempty"`
+	// §12.3 achievements this hand unlocked and paid for the first time. Empty
+	// on a repeat projection, because their XP was already awarded.
+	Achievements []*HandXPAward `protobuf:"bytes,25,rep,name=achievements,proto3" json:"achievements,omitempty"`
 	// §12.2 standing after that award.
 	Progression   *PlayerProgression `protobuf:"bytes,24,opt,name=progression,proto3" json:"progression,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1414,6 +1417,13 @@ func (x *MatchState) GetSelfTurnOptions() *SelfTurnOptions {
 func (x *MatchState) GetXpAward() *HandXPAward {
 	if x != nil {
 		return x.XpAward
+	}
+	return nil
+}
+
+func (x *MatchState) GetAchievements() []*HandXPAward {
+	if x != nil {
+		return x.Achievements
 	}
 	return nil
 }
@@ -3748,7 +3758,7 @@ const file_service_proto_rawDesc = "" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12#\n" +
 	"\rstate_version\x18\x02 \x01(\x04R\fstateVersion\x12\x14\n" +
 	"\x05phase\x18\x03 \x01(\tR\x05phase\x12)\n" +
-	"\x05state\x18\x04 \x01(\v2\x13.service.MatchStateR\x05state\"\xcb\b\n" +
+	"\x05state\x18\x04 \x01(\v2\x13.service.MatchStateR\x05state\"\x85\t\n" +
 	"\n" +
 	"MatchState\x12\x19\n" +
 	"\bmatch_id\x18\x01 \x01(\tR\amatchId\x12\x12\n" +
@@ -3781,7 +3791,8 @@ const file_service_proto_rawDesc = "" +
 	"\fjade_account\x18\x14 \x01(\v2\x14.service.JadeAccountR\vjadeAccount\x12@\n" +
 	"\x0fjade_settlement\x18\x15 \x01(\v2\x17.service.JadeSettlementR\x0ejadeSettlement\x12D\n" +
 	"\x11self_turn_options\x18\x16 \x01(\v2\x18.service.SelfTurnOptionsR\x0fselfTurnOptions\x12/\n" +
-	"\bxp_award\x18\x17 \x01(\v2\x14.service.HandXPAwardR\axpAward\x12<\n" +
+	"\bxp_award\x18\x17 \x01(\v2\x14.service.HandXPAwardR\axpAward\x128\n" +
+	"\fachievements\x18\x19 \x03(\v2\x14.service.HandXPAwardR\fachievements\x12<\n" +
 	"\vprogression\x18\x18 \x01(\v2\x1a.service.PlayerProgressionR\vprogression\"O\n" +
 	"\vXPComponent\x12\x14\n" +
 	"\x05label\x18\x01 \x01(\tR\x05label\x12\x16\n" +
@@ -4136,58 +4147,59 @@ var file_service_proto_depIdxs = []int32{
 	32, // 28: service.MatchState.jade_settlement:type_name -> service.JadeSettlement
 	29, // 29: service.MatchState.self_turn_options:type_name -> service.SelfTurnOptions
 	23, // 30: service.MatchState.xp_award:type_name -> service.HandXPAward
-	27, // 31: service.MatchState.progression:type_name -> service.PlayerProgression
-	22, // 32: service.HandXPAward.components:type_name -> service.XPComponent
-	24, // 33: service.LevelStep.rewards:type_name -> service.LevelReward
-	0,  // 34: service.OnboardingState.outcome:type_name -> service.OnboardingOutcome
-	24, // 35: service.PlayerProgression.earned:type_name -> service.LevelReward
-	24, // 36: service.PlayerProgression.next:type_name -> service.LevelReward
-	26, // 37: service.PlayerProgression.onboarding:type_name -> service.OnboardingState
-	47, // 38: service.SelfTurnOptions.win_preview:type_name -> service.ScoreResult
-	28, // 39: service.SelfTurnOptions.concealed_kongs:type_name -> service.TileIDSet
-	33, // 40: service.PlayerView.exposed:type_name -> service.Tile
-	36, // 41: service.PlayerView.melds:type_name -> service.MeldView
-	33, // 42: service.Meld.tiles:type_name -> service.Tile
-	33, // 43: service.MeldView.tiles:type_name -> service.Tile
-	33, // 44: service.WaitTileView.tile:type_name -> service.Tile
-	33, // 45: service.Discard.tile:type_name -> service.Tile
-	39, // 46: service.ClaimView.discard:type_name -> service.Discard
-	41, // 47: service.ClaimView.own_response:type_name -> service.ClaimResponse
-	43, // 48: service.ClaimView.options:type_name -> service.ClaimOptionsView
-	42, // 49: service.ClaimOptionsView.chow_sets:type_name -> service.ChowSet
-	47, // 50: service.ClaimOptionsView.win_preview:type_name -> service.ScoreResult
-	33, // 51: service.HandShape.pair:type_name -> service.Tile
-	35, // 52: service.HandShape.melds:type_name -> service.Meld
-	45, // 53: service.ScoreResult.patterns:type_name -> service.PatternScore
-	46, // 54: service.ScoreResult.shape:type_name -> service.HandShape
-	44, // 55: service.HandWinner.context:type_name -> service.ScoreContext
-	47, // 56: service.HandWinner.score:type_name -> service.ScoreResult
-	48, // 57: service.HandResult.winners:type_name -> service.HandWinner
-	50, // 58: service.Settlement.transfers:type_name -> service.Transfer
-	53, // 59: service.Settlement.net:type_name -> service.Settlement.NetEntry
-	4,  // 60: service.Service.GetJadeAccount:input_type -> service.GetJadeAccountRequest
-	6,  // 61: service.Service.ReserveJade:input_type -> service.ReserveJadeRequest
-	8,  // 62: service.Service.ReleaseJade:input_type -> service.ReleaseJadeRequest
-	14, // 63: service.Service.ClaimJadeWelfare:input_type -> service.ClaimJadeWelfareRequest
-	10, // 64: service.Service.GetProgression:input_type -> service.GetProgressionRequest
-	12, // 65: service.Service.AwardOnboardingXP:input_type -> service.AwardOnboardingXPRequest
-	2,  // 66: service.Service.JoinMatch:input_type -> service.JoinMatchRequest
-	16, // 67: service.Service.GetMatchState:input_type -> service.GetMatchStateRequest
-	18, // 68: service.Service.SubmitMatchCommand:input_type -> service.SubmitMatchCommandRequest
-	5,  // 69: service.Service.GetJadeAccount:output_type -> service.GetJadeAccountResponse
-	7,  // 70: service.Service.ReserveJade:output_type -> service.ReserveJadeResponse
-	9,  // 71: service.Service.ReleaseJade:output_type -> service.ReleaseJadeResponse
-	15, // 72: service.Service.ClaimJadeWelfare:output_type -> service.ClaimJadeWelfareResponse
-	11, // 73: service.Service.GetProgression:output_type -> service.GetProgressionResponse
-	13, // 74: service.Service.AwardOnboardingXP:output_type -> service.AwardOnboardingXPResponse
-	3,  // 75: service.Service.JoinMatch:output_type -> service.JoinMatchResponse
-	17, // 76: service.Service.GetMatchState:output_type -> service.GetMatchStateResponse
-	20, // 77: service.Service.SubmitMatchCommand:output_type -> service.SubmitMatchCommandResponse
-	69, // [69:78] is the sub-list for method output_type
-	60, // [60:69] is the sub-list for method input_type
-	60, // [60:60] is the sub-list for extension type_name
-	60, // [60:60] is the sub-list for extension extendee
-	0,  // [0:60] is the sub-list for field type_name
+	23, // 31: service.MatchState.achievements:type_name -> service.HandXPAward
+	27, // 32: service.MatchState.progression:type_name -> service.PlayerProgression
+	22, // 33: service.HandXPAward.components:type_name -> service.XPComponent
+	24, // 34: service.LevelStep.rewards:type_name -> service.LevelReward
+	0,  // 35: service.OnboardingState.outcome:type_name -> service.OnboardingOutcome
+	24, // 36: service.PlayerProgression.earned:type_name -> service.LevelReward
+	24, // 37: service.PlayerProgression.next:type_name -> service.LevelReward
+	26, // 38: service.PlayerProgression.onboarding:type_name -> service.OnboardingState
+	47, // 39: service.SelfTurnOptions.win_preview:type_name -> service.ScoreResult
+	28, // 40: service.SelfTurnOptions.concealed_kongs:type_name -> service.TileIDSet
+	33, // 41: service.PlayerView.exposed:type_name -> service.Tile
+	36, // 42: service.PlayerView.melds:type_name -> service.MeldView
+	33, // 43: service.Meld.tiles:type_name -> service.Tile
+	33, // 44: service.MeldView.tiles:type_name -> service.Tile
+	33, // 45: service.WaitTileView.tile:type_name -> service.Tile
+	33, // 46: service.Discard.tile:type_name -> service.Tile
+	39, // 47: service.ClaimView.discard:type_name -> service.Discard
+	41, // 48: service.ClaimView.own_response:type_name -> service.ClaimResponse
+	43, // 49: service.ClaimView.options:type_name -> service.ClaimOptionsView
+	42, // 50: service.ClaimOptionsView.chow_sets:type_name -> service.ChowSet
+	47, // 51: service.ClaimOptionsView.win_preview:type_name -> service.ScoreResult
+	33, // 52: service.HandShape.pair:type_name -> service.Tile
+	35, // 53: service.HandShape.melds:type_name -> service.Meld
+	45, // 54: service.ScoreResult.patterns:type_name -> service.PatternScore
+	46, // 55: service.ScoreResult.shape:type_name -> service.HandShape
+	44, // 56: service.HandWinner.context:type_name -> service.ScoreContext
+	47, // 57: service.HandWinner.score:type_name -> service.ScoreResult
+	48, // 58: service.HandResult.winners:type_name -> service.HandWinner
+	50, // 59: service.Settlement.transfers:type_name -> service.Transfer
+	53, // 60: service.Settlement.net:type_name -> service.Settlement.NetEntry
+	4,  // 61: service.Service.GetJadeAccount:input_type -> service.GetJadeAccountRequest
+	6,  // 62: service.Service.ReserveJade:input_type -> service.ReserveJadeRequest
+	8,  // 63: service.Service.ReleaseJade:input_type -> service.ReleaseJadeRequest
+	14, // 64: service.Service.ClaimJadeWelfare:input_type -> service.ClaimJadeWelfareRequest
+	10, // 65: service.Service.GetProgression:input_type -> service.GetProgressionRequest
+	12, // 66: service.Service.AwardOnboardingXP:input_type -> service.AwardOnboardingXPRequest
+	2,  // 67: service.Service.JoinMatch:input_type -> service.JoinMatchRequest
+	16, // 68: service.Service.GetMatchState:input_type -> service.GetMatchStateRequest
+	18, // 69: service.Service.SubmitMatchCommand:input_type -> service.SubmitMatchCommandRequest
+	5,  // 70: service.Service.GetJadeAccount:output_type -> service.GetJadeAccountResponse
+	7,  // 71: service.Service.ReserveJade:output_type -> service.ReserveJadeResponse
+	9,  // 72: service.Service.ReleaseJade:output_type -> service.ReleaseJadeResponse
+	15, // 73: service.Service.ClaimJadeWelfare:output_type -> service.ClaimJadeWelfareResponse
+	11, // 74: service.Service.GetProgression:output_type -> service.GetProgressionResponse
+	13, // 75: service.Service.AwardOnboardingXP:output_type -> service.AwardOnboardingXPResponse
+	3,  // 76: service.Service.JoinMatch:output_type -> service.JoinMatchResponse
+	17, // 77: service.Service.GetMatchState:output_type -> service.GetMatchStateResponse
+	20, // 78: service.Service.SubmitMatchCommand:output_type -> service.SubmitMatchCommandResponse
+	70, // [70:79] is the sub-list for method output_type
+	61, // [61:70] is the sub-list for method input_type
+	61, // [61:61] is the sub-list for extension type_name
+	61, // [61:61] is the sub-list for extension extendee
+	0,  // [0:61] is the sub-list for field type_name
 }
 
 func init() { file_service_proto_init() }
