@@ -11,7 +11,6 @@ import type { Friend, FriendRequest, PresenceState } from "./friends";
 export type FriendsState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "guest" }
   | {
       status: "ready";
       friends: Friend[];
@@ -73,21 +72,6 @@ export function FriendsPanel({
     setAddError(null);
     setAddValue("");
     onAdd(target);
-  }
-
-  if (state.status === "guest") {
-    return (
-      <section className="friends-panel" aria-labelledby="friends-title">
-        <p className="status-label">Friends</p>
-        <h2 id="friends-title">Play with people you know</h2>
-        {/* §10.1: a friend list needs a linked identity. Saying why is more
-            useful than hiding the feature or letting it fail. */}
-        <p className="practice-description">
-          Friends need an account. Create one from the end of any match and your
-          friends, party, and progress follow you to any device.
-        </p>
-      </section>
-    );
   }
 
   return (

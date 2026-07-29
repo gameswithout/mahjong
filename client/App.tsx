@@ -430,6 +430,13 @@ export function App(
   const sessionRequestRef = useRef(0);
   const matchmakingRequestRef = useRef(0);
   const progressionRequestRef = useRef(0);
+  // Social reads can outlive the identity that started them. Keeping their
+  // generations separate prevents a full account's friends or party from
+  // appearing after the player switches to a guest identity.
+  const friendsRequestRef = useRef(0);
+  const partyRequestRef = useRef(0);
+  const friendsMutationRef = useRef(0);
+  const partyMutationRef = useRef(0);
   const autoJoiningSessionIdRef = useRef<string | null>(null);
   const autoDrawStateKeyRef = useRef<string | null>(null);
 
@@ -486,6 +493,10 @@ export function App(
     return () => {
       sessionRequestRef.current += 1;
       matchmakingRequestRef.current += 1;
+      friendsRequestRef.current += 1;
+      partyRequestRef.current += 1;
+      friendsMutationRef.current += 1;
+      partyMutationRef.current += 1;
       lobbyRef.current?.disconnect();
       lobbyRef.current = null;
       matchRuntimeRef.current?.close();
@@ -688,6 +699,19 @@ export function App(
   // presence would show members AGS already considers disconnected.
   useEffect(() => {
     if (!lobbyConnected) {
+      return;
+    }
+    if (isGuestAccount) {
+      // Device/headless identities may play, but they do not have access to
+      // account-bound social features. Keep both surfaces absent and make no
+      // Friends or Party requests with the guest token.
+      friendsRequestRef.current += 1;
+      partyRequestRef.current += 1;
+      friendsMutationRef.current += 1;
+      partyMutationRef.current += 1;
+      setFriendsState({ status: "idle" });
+      setPartyState({ status: "idle" });
+      setPartyBusy(false);
       return;
     }
     void loadFriends();
@@ -1016,6 +1040,10 @@ export function App(
     sessionRequestRef.current += 1;
     matchmakingRequestRef.current += 1;
     progressionRequestRef.current += 1;
+    friendsRequestRef.current += 1;
+    partyRequestRef.current += 1;
+    friendsMutationRef.current += 1;
+    partyMutationRef.current += 1;
     setSessionState({ status: "idle" });
     setMatchmakingState({ status: "idle" });
     setMatchRuntimeState({ status: "idle" });
@@ -1025,6 +1053,9 @@ export function App(
     setProgressionOpen(false);
     setStatisticsState({ status: "idle" });
     setStatisticsOpen(false);
+    setFriendsState({ status: "idle" });
+    setPartyState({ status: "idle" });
+    setPartyBusy(false);
     setReconnectAttempt(0);
     setOnlineSessionEntryMode("manual");
     autoJoiningSessionIdRef.current = null;
@@ -1421,10 +1452,9 @@ export function App(
   // --- §10.6 friends -------------------------------------------------------
 
   async function loadFriends() {
+    const requestId = ++friendsRequestRef.current;
     if (isGuestAccount) {
-      // §10.1: guests have no friend graph. Say so rather than calling AGS and
-      // rendering its refusal as an error.
-      setFriendsState({ status: "guest" });
+      setFriendsState({ status: "idle" });
       return;
     }
     setFriendsState({ status: "loading" });
@@ -1435,8 +1465,14 @@ export function App(
         client.incoming(),
         client.outgoing(),
       ]);
+      if (requestId !== friendsRequestRef.current) {
+        return;
+      }
       setFriendsState({ status: "ready", friends, incoming, outgoing });
     } catch (error) {
+      if (requestId !== friendsRequestRef.current) {
+        return;
+      }
       setFriendsState({ status: "error", ...friendsErrorView(error) });
     }
   }
@@ -1445,10 +1481,21 @@ export function App(
   // the relationship, and a local guess about what a request did to it is a
   // guess that can be wrong.
   async function mutateFriends(action: (client: ReturnType<typeof createAuthenticatedFriendsClient>) => Promise<void>) {
+    if (isGuestAccount) {
+      return;
+    }
+    const mutationId = ++friendsMutationRef.current;
+    friendsRequestRef.current += 1;
     try {
       await action(createAuthenticatedFriendsClient());
     } catch (error) {
+      if (mutationId !== friendsMutationRef.current) {
+        return;
+      }
       setFriendsState({ status: "error", ...friendsErrorView(error) });
+      return;
+    }
+    if (mutationId !== friendsMutationRef.current) {
       return;
     }
     await loadFriends();
@@ -1457,15 +1504,22 @@ export function App(
   // --- §8.6 party ----------------------------------------------------------
 
   async function loadParty() {
+    const requestId = ++partyRequestRef.current;
     if (isGuestAccount) {
-      setPartyState({ status: "none" });
+      setPartyState({ status: "idle" });
       return;
     }
     setPartyState({ status: "loading" });
     try {
       const party = await createAuthenticatedPartyClient().current();
+      if (requestId !== partyRequestRef.current) {
+        return;
+      }
       setPartyState(party ? { status: "ready", party } : { status: "none" });
     } catch (error) {
+      if (requestId !== partyRequestRef.current) {
+        return;
+      }
       setPartyState({ status: "error", ...partyErrorView(error) });
     }
   }
@@ -1473,12 +1527,23 @@ export function App(
   async function mutateParty(
     action: (client: ReturnType<typeof createAuthenticatedPartyClient>) => Promise<void>,
   ) {
+    if (isGuestAccount) {
+      return;
+    }
+    const mutationId = ++partyMutationRef.current;
+    partyRequestRef.current += 1;
     setPartyBusy(true);
     try {
       await action(createAuthenticatedPartyClient());
     } catch (error) {
+      if (mutationId !== partyMutationRef.current) {
+        return;
+      }
       setPartyState({ status: "error", ...partyErrorView(error) });
       setPartyBusy(false);
+      return;
+    }
+    if (mutationId !== partyMutationRef.current) {
       return;
     }
     setPartyBusy(false);
@@ -3195,61 +3260,65 @@ export function App(
 
                 <LockedTiers />
 
-                <PartyPanel
-                  state={partyState}
-                  ownUserId={state.userId}
-                  busy={partyBusy}
-                  onCreate={() => void mutateParty(async (c) => { await c.create(); })}
-                  onLeave={() =>
-                    void mutateParty(async (c) => {
-                      if (partyState.status === "ready") {
-                        await c.leave(partyState.party.partyId);
+                {!isGuestAccount && (
+                  <>
+                    <PartyPanel
+                      state={partyState}
+                      ownUserId={state.userId}
+                      busy={partyBusy}
+                      onCreate={() => void mutateParty(async (c) => { await c.create(); })}
+                      onLeave={() =>
+                        void mutateParty(async (c) => {
+                          if (partyState.status === "ready") {
+                            await c.leave(partyState.party.partyId);
+                          }
+                        })
                       }
-                    })
-                  }
-                  onJoinByCode={(code) =>
-                    void mutateParty(async (c) => { await c.joinByCode(code); })
-                  }
-                  onGenerateCode={() =>
-                    void mutateParty(async (c) => {
-                      if (partyState.status === "ready") {
-                        await c.generateCode(partyState.party.partyId);
+                      onJoinByCode={(code) =>
+                        void mutateParty(async (c) => { await c.joinByCode(code); })
                       }
-                    })
-                  }
-                  onKick={(userId) =>
-                    void mutateParty(async (c) => {
-                      if (partyState.status === "ready") {
-                        await c.kick(partyState.party.partyId, userId);
+                      onGenerateCode={() =>
+                        void mutateParty(async (c) => {
+                          if (partyState.status === "ready") {
+                            await c.generateCode(partyState.party.partyId);
+                          }
+                        })
                       }
-                    })
-                  }
-                  onRetry={() => void loadParty()}
-                />
+                      onKick={(userId) =>
+                        void mutateParty(async (c) => {
+                          if (partyState.status === "ready") {
+                            await c.kick(partyState.party.partyId, userId);
+                          }
+                        })
+                      }
+                      onRetry={() => void loadParty()}
+                    />
 
-                <FriendsPanel
-                  state={friendsState}
-                  ownUserId={state.userId}
-                  canInviteToParty={
-                    partyState.status === "ready" && !partyIsFull(partyState.party)
-                  }
-                  onInviteToParty={
-                    partyState.status === "ready"
-                      ? (userId) =>
-                          void mutateParty(async (c) => {
-                            if (partyState.status === "ready") {
-                              await c.invite(partyState.party.partyId, userId);
-                            }
-                          })
-                      : undefined
-                  }
-                  onAdd={(userId) => void mutateFriends((c) => c.sendRequest(userId))}
-                  onAccept={(userId) => void mutateFriends((c) => c.accept(userId))}
-                  onReject={(userId) => void mutateFriends((c) => c.reject(userId))}
-                  onCancel={(userId) => void mutateFriends((c) => c.cancel(userId))}
-                  onUnfriend={(userId) => void mutateFriends((c) => c.unfriend(userId))}
-                  onRetry={() => void loadFriends()}
-                />
+                    <FriendsPanel
+                      state={friendsState}
+                      ownUserId={state.userId}
+                      canInviteToParty={
+                        partyState.status === "ready" && !partyIsFull(partyState.party)
+                      }
+                      onInviteToParty={
+                        partyState.status === "ready"
+                          ? (userId) =>
+                              void mutateParty(async (c) => {
+                                if (partyState.status === "ready") {
+                                  await c.invite(partyState.party.partyId, userId);
+                                }
+                              })
+                          : undefined
+                      }
+                      onAdd={(userId) => void mutateFriends((c) => c.sendRequest(userId))}
+                      onAccept={(userId) => void mutateFriends((c) => c.accept(userId))}
+                      onReject={(userId) => void mutateFriends((c) => c.reject(userId))}
+                      onCancel={(userId) => void mutateFriends((c) => c.cancel(userId))}
+                      onUnfriend={(userId) => void mutateFriends((c) => c.unfriend(userId))}
+                      onRetry={() => void loadFriends()}
+                    />
+                  </>
+                )}
 
                 <details className="developer-tools">
                   <summary>Developer session tools</summary>

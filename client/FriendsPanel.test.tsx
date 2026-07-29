@@ -25,17 +25,6 @@ const partyHandlers = {
 };
 
 describe("FriendsPanel", () => {
-  it("explains why a guest has no friend list instead of failing", () => {
-    const markup = renderToStaticMarkup(
-      <FriendsPanel state={{ status: "guest" }} {...handlers} />,
-    );
-
-    // §10.1: friends need a linked identity. Hiding the feature or letting the
-    // AGS refusal surface as an error would both be worse than saying so.
-    expect(markup).toContain("Friends need an account");
-    expect(markup).not.toContain("Add a friend by player ID");
-  });
-
   it("shows presence as text, not colour alone", () => {
     const state: FriendsState = {
       status: "ready",
