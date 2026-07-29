@@ -68,6 +68,16 @@ type HandOutcome struct {
 	// TakenOverMajority is true when the seat was bot-controlled for more than
 	// half the hand. §12.1: such a player receives completion XP only.
 	TakenOverMajority bool
+	// DealtIn is true when somebody won on this seat's discard. It carries no
+	// XP consequence — §12.1 does not punish dealing in — and exists only as a
+	// P2.3 statistic, because deal-in rate is the number that tells a player
+	// most about their defensive play.
+	DealtIn bool
+	// Ting is true when this seat was still holding a waiting hand as the hand
+	// ended. Deliberately not "reached Ting at any point": that would need the
+	// runtime to watch every transition and remember, and this is derivable
+	// from the final projection alone. The dashboard labels it accordingly.
+	Ting bool
 }
 
 // XPComponent is one line of the award, kept separate so the result screen can

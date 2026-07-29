@@ -235,3 +235,90 @@ func TestHandStats_EveryMappedPatternHasADistinctIntent(t *testing.T) {
 		}
 	}
 }
+
+// P2.3 dashboard statistics. These count against hands completed rather than
+// hands won, so unlike every achievement stat above they have to be recorded
+// for seats that lost — a deal-in only ever happens on a hand you did not win.
+
+func TestOutcomeFromView_ReadsDealtInAndTing(t *testing.T) {
+	view := rulesengine.SeatView{
+		Seat:  rulesengine.South,
+		Waits: []rulesengine.WaitTileView{{VisibleRemaining: 2}},
+		HandResult: &rulesengine.HandResult{
+			Kind:  rulesengine.WinDiscard,
+			Payer: rulesengine.South,
+			Winners: []rulesengine.HandWinner{{
+				Seat: rulesengine.East, Score: rulesengine.ScoreResult{RawTai: 3},
+			}},
+		},
+	}
+
+	outcome, ok := OutcomeFromView(view, false, false)
+	if !ok {
+		t.Fatal("completed hand was not priced")
+	}
+	if !outcome.DealtIn {
+		t.Error("the seat named as payer on a discard win did not register a deal-in")
+	}
+	if !outcome.Ting {
+		t.Error("a seat holding a wait list at hand end did not register Ting")
+	}
+	if outcome.Won {
+		t.Error("another seat's win was credited to this one")
+	}
+}
+
+func TestOutcomeFromView_ZimoBlamesNobody(t *testing.T) {
+	// Payer is only meaningful for a discard win. A self-drawn win must not
+	// leave some seat carrying a deal-in for a tile nobody discarded.
+	view := winningView(rulesengine.East, 4)
+	for _, seat := range []rulesengine.Seat{rulesengine.East, rulesengine.South} {
+		view.Seat = seat
+		outcome, _ := OutcomeFromView(view, false, false)
+		if outcome.DealtIn {
+			t.Errorf("seat %s registered a deal-in on a Zimo win", seat)
+		}
+	}
+}
+
+func TestHandStats_RecordsDealInAndTingOnALostHand(t *testing.T) {
+	updates := HandStats(
+		HandOutcome{DealtIn: true, Ting: true},
+		rulesengine.SeatView{Seat: rulesengine.South},
+	)
+
+	for _, code := range []string{StatPublicHandsCompleted, StatPublicHandsDealtIn, StatPublicHandsTing} {
+		update, found := statValue(updates, code)
+		if !found {
+			t.Fatalf("%s was not recorded", code)
+		}
+		if update.Strategy != StatIncrement || update.Value != 1 {
+			t.Errorf("%s = %s %v, want INCREMENT 1", code, update.Strategy, update.Value)
+		}
+	}
+}
+
+func TestHandStats_DashboardStatsHonourTheExistingExclusions(t *testing.T) {
+	// Practice grants nothing at all, and a mostly-bot seat earns only the
+	// completed hand. Both rules predate these stats and must keep applying.
+	practice := HandStats(
+		HandOutcome{Practice: true, DealtIn: true, Ting: true},
+		rulesengine.SeatView{Seat: rulesengine.South},
+	)
+	if len(practice) != 0 {
+		t.Errorf("Practice recorded %d stats, want none", len(practice))
+	}
+
+	takenOver := HandStats(
+		HandOutcome{TakenOverMajority: true, DealtIn: true, Ting: true},
+		rulesengine.SeatView{Seat: rulesengine.South},
+	)
+	for _, code := range []string{StatPublicHandsDealtIn, StatPublicHandsTing} {
+		if _, found := statValue(takenOver, code); found {
+			t.Errorf("a mostly-bot seat recorded %s", code)
+		}
+	}
+	if _, found := statValue(takenOver, StatPublicHandsCompleted); !found {
+		t.Error("a mostly-bot seat did not record the completed hand")
+	}
+}

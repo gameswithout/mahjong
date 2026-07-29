@@ -60,6 +60,9 @@ type Repository interface {
 // achievements.
 type StatsMirror interface {
 	RecordHandStats(ctx context.Context, userID string, updates []StatUpdate) error
+	// ReadStats returns the player's current values for the requested codes.
+	// Codes the player has never moved are absent rather than zero.
+	ReadStats(ctx context.Context, userID string, statCodes []string) (map[string]float64, error)
 }
 
 // AchievementReader reports which achievements AGS has unlocked for a player.
@@ -312,4 +315,35 @@ func (c *Coordinator) Player(ctx context.Context, userID string) (Player, error)
 		return Player{}, fmt.Errorf("%w: user ID is required", ErrNotInitialized)
 	}
 	return c.repository.PlayerProgression(ctx, userID)
+}
+
+// DashboardStatCodes are the counters the §P2.3 statistics dashboard reads.
+// Kept beside the achievement codes so the two cannot drift: every one of
+// these is written by HandStats above.
+func DashboardStatCodes() []string {
+	return []string{
+		StatPublicHandsCompleted,
+		StatPublicHandsWon,
+		StatZimoWins,
+		StatPublicHandsDealtIn,
+		StatPublicHandsTing,
+		StatKongsDeclared,
+		StatHighestRawTai,
+	}
+}
+
+// PlayerStatistics returns the player's dashboard counters.
+//
+// Unlike the projection on the write path, this is not optional-and-ignored:
+// the player asked to see their record, so a namespace running without the
+// statistics mirror gets an error it can show rather than a screen of zeroes
+// that looks like a player who has never won.
+func (c *Coordinator) PlayerStatistics(
+	ctx context.Context,
+	userID string,
+) (map[string]float64, error) {
+	if c == nil || c.stats == nil {
+		return nil, ErrNotInitialized
+	}
+	return c.stats.ReadStats(ctx, userID, DashboardStatCodes())
 }

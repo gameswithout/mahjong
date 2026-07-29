@@ -27,6 +27,11 @@ const (
 	StatZimoWins             = "zimo-wins"
 	StatKongsDeclared        = "kongs-declared"
 	StatHighestRawTai        = "highest-raw-tai"
+	// P2.3 dashboard statistics. Unlike the codes above, no achievement reads
+	// these — they exist so a player can see how they actually play. They ride
+	// the same bulk update because they come from the same completed hand.
+	StatPublicHandsDealtIn = "public-hands-dealt-in"
+	StatPublicHandsTing    = "public-hands-ting"
 )
 
 // StatUpdate is one entry in a bulk statitem update.
@@ -90,6 +95,20 @@ func HandStats(outcome HandOutcome, view rulesengine.SeatView) []StatUpdate {
 			StatCode: StatKongsDeclared,
 			Strategy: StatIncrement,
 			Value:    float64(outcome.Kongs),
+		})
+	}
+
+	// Both P2.3 rates are counted against hands completed, so they are
+	// recorded for every seat that played its own hand — including the ones
+	// that lost, which is where a deal-in necessarily happens.
+	if outcome.DealtIn {
+		updates = append(updates, StatUpdate{
+			StatCode: StatPublicHandsDealtIn, Strategy: StatIncrement, Value: 1,
+		})
+	}
+	if outcome.Ting {
+		updates = append(updates, StatUpdate{
+			StatCode: StatPublicHandsTing, Strategy: StatIncrement, Value: 1,
 		})
 	}
 

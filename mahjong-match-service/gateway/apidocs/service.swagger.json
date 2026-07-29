@@ -423,6 +423,43 @@
           }
         ]
       }
+    },
+    "/v1/namespaces/{namespace}/statistics": {
+      "get": {
+        "summary": "Get the caller's own Quick Play statistics",
+        "description": "Reads the caller's AGS Statistics counters (§P2.3 dashboard). Served here rather than read from AGS by the browser because the AGS Social API sends no CORS headers, so a browser cannot call it directly.",
+        "operationId": "Service_GetPlayerStatistics",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceGetPlayerStatisticsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
     }
   },
   "definitions": {
@@ -696,6 +733,18 @@
       "properties": {
         "state": {
           "$ref": "#/definitions/serviceMatchState"
+        }
+      }
+    },
+    "serviceGetPlayerStatisticsResponse": {
+      "type": "object",
+      "properties": {
+        "statistics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/servicePlayerStatistic"
+          }
         }
       }
     },
@@ -1175,6 +1224,19 @@
           "$ref": "#/definitions/serviceOnboardingState"
         }
       }
+    },
+    "servicePlayerStatistic": {
+      "type": "object",
+      "properties": {
+        "statCode": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "description": "PlayerStatistic is one counter as AGS holds it. Values are returned raw;\nevery rate the dashboard shows is derived client-side from these, so the\nservice never has to agree with the screen about what a percentage means."
     },
     "servicePlayerView": {
       "type": "object",

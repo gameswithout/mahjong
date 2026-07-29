@@ -10,3 +10,4 @@ node_modules
 dist/
 tmp/
 mahjong-match-service/vendor/
+p23-statistics*.png

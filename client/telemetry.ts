@@ -25,7 +25,13 @@ export type TelemetryEventName =
   | "tutorial_step_replayed"
   | "tutorial_chapter_completed"
   | "tutorial_skipped"
-  | "tutorial_completed";
+  | "tutorial_completed"
+  // §P2.3 / AI Analytics. AGS AI Analytics answers questions from game
+  // telemetry rather than from Statistics, so the hand outcomes the dashboard
+  // counts also have to be emitted as events for anyone to ask about them
+  // across players. The statistics remain authoritative for a player's own
+  // record; these are the analysable stream.
+  | "hand_completed";
 
 export interface TelemetryFields {
   dimensions?: Record<string, string | undefined>;
@@ -116,6 +122,15 @@ const eventSpecs: Record<TelemetryEventName, EventSpec> = {
   tutorial_step_retried: spec("optional", ["chapter_id", "script_version", "step_id"]),
   tutorial_step_replayed: spec("optional", ["chapter_id", "script_version", "step_id"]),
   tutorial_chapter_completed: spec("optional", ["chapter_id", "script_version"]),
+  // Gameplay outcome, the analysable counterpart to the §P2.3 statistics.
+  // Optional like every other behavioural event: a player who declines
+  // optional analytics still has their own statistics, which are essential to
+  // the product rather than to analysis.
+  hand_completed: spec(
+    "optional",
+    ["mode", "outcome", "win_kind", "dealt_in", "ting"],
+    ["raw_tai", "wall_remaining"],
+  ),
   tutorial_skipped: spec("optional", [
     "chapter_id",
     "from_step_id",

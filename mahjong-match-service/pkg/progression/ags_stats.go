@@ -98,3 +98,57 @@ func (m *AGSStatsMirror) RecordHandStats(
 	}
 	return nil
 }
+
+// ReadStats returns the player's current values for the requested stat codes.
+//
+// Read through the confidential client rather than by the browser directly:
+// the AGS Social API sends no CORS headers, so a browser calling it is blocked
+// before the request leaves. Serving it here is also what keeps the dashboard
+// reading the same statistics the achievements evaluate, instead of a second
+// copy that could drift.
+//
+// A stat code the player has never moved simply has no item, and is absent
+// from the result rather than zero — the caller decides what a missing counter
+// means, and for every rate on the dashboard it means zero.
+func (m *AGSStatsMirror) ReadStats(
+	ctx context.Context,
+	userID string,
+	statCodes []string,
+) (map[string]float64, error) {
+	if m == nil || m.social == nil || m.namespace == "" {
+		return nil, fmt.Errorf("AGS statistics mirror is not initialized")
+	}
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, fmt.Errorf("AGS statistics mirror requires a user ID")
+	}
+	if len(statCodes) == 0 {
+		return map[string]float64{}, nil
+	}
+
+	found, err := m.social.UserStatistic.AdminListUsersStatItemsShort(
+		&user_statistic.AdminListUsersStatItemsParams{
+			Namespace: m.namespace,
+			UserID:    userID,
+			StatCodes: statCodes,
+			Context:   ctx,
+		},
+		auth.AuthInfoWriter(
+			auth.Session{Token: m.tokens, Config: m.config, Refresh: nil},
+			[][]string{{"bearer"}},
+			"",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("read AGS statistics: %w", err)
+	}
+
+	values := make(map[string]float64, len(found.Payload))
+	for _, item := range found.Payload {
+		if item == nil || item.StatCode == "" {
+			continue
+		}
+		values[item.StatCode] = item.Value
+	}
+	return values, nil
+}

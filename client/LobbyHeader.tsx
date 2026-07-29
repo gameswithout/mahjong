@@ -13,6 +13,7 @@ export interface LobbyHeaderProps {
   profile?: PlayerProfileConfig;
   onProfileChange?: (profile: PlayerProfileConfig) => void;
   onOpenProgress?: () => void;
+  onOpenStatistics?: () => void;
 }
 
 // The first thing a player sees when signed in. It answers "who am I, what can
@@ -28,6 +29,7 @@ export function LobbyHeader({
   profile = defaultPlayerProfile(guest),
   onProfileChange = () => undefined,
   onOpenProgress = () => undefined,
+  onOpenStatistics,
 }: LobbyHeaderProps) {
   const level = progression?.level ?? 1;
   const xpIntoLevel = progression?.xp_into_level ?? 0;
@@ -87,6 +89,22 @@ export function LobbyHeader({
             <span className="lobby-fact-note">{RULES_VERSION}</span>
           </dd>
         </div>
+        {onOpenStatistics ? (
+          <div className="lobby-fact lobby-statistics-fact">
+            <dt>Statistics</dt>
+            <dd>
+              <button
+                type="button"
+                className="lobby-progress-trigger"
+                onClick={onOpenStatistics}
+                aria-label="Open your Quick Play statistics"
+              >
+                <strong>Your record</strong>
+                <span className="lobby-fact-note">Win rate, deal-in, Ting</span>
+              </button>
+            </dd>
+          </div>
+        ) : null}
         <div className="lobby-fact lobby-progress-fact">
           <dt>Progress</dt>
           <dd>

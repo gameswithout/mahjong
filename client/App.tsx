@@ -39,6 +39,8 @@ import {
   type ProgressionSnapshot,
 } from "./progression";
 import { ProgressionScreen } from "./ProgressionScreen";
+import { createPlayerStatsClient, PlayerStatsError, type PlayerStatSummary } from "./player-stats";
+import { StatisticsScreen } from "./StatisticsScreen";
 import {
   createFreshPracticeSession,
   isPracticeMatch,
@@ -181,6 +183,12 @@ type JadeState =
   | { status: "ready"; account: JadeAccount }
   | { status: "error"; code: string; message: string };
 
+type StatisticsState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; summary: PlayerStatSummary }
+  | { status: "error"; message: string };
+
 type ProgressionState =
   | { status: "idle" }
   | { status: "loading" }
@@ -300,6 +308,10 @@ export function App(
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [progressionState, setProgressionState] = useState<ProgressionState>({ status: "idle" });
   const [progressionOpen, setProgressionOpen] = useState(false);
+  // §P2.3. Statistics come straight from AGS rather than the match service, so
+  // they load on demand instead of riding the lobby's other traffic.
+  const [statisticsOpen, setStatisticsOpen] = useState(false);
+  const [statisticsState, setStatisticsState] = useState<StatisticsState>({ status: "idle" });
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -327,6 +339,7 @@ export function App(
   const resumeStartedRef = useRef(false);
   const lobbyRef = useRef<LobbyConnection | null>(null);
   const queueTelemetryRef = useRef(new Set<string>());
+  const handTelemetryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const mountedAt = Date.now();
@@ -901,6 +914,45 @@ export function App(
     wasTakenOverRef.current = isTakenOver;
   }, [matchRuntimeState]);
 
+  // §P2.3 / AI Analytics: one event per completed hand.
+  //
+  // Keyed on match and state version so it fires once for the hand rather than
+  // on every render or poll of a finished table. The statistics the dashboard
+  // reads are written server-side and remain authoritative for a player's own
+  // record; this is the same outcome as an event, because AI Analytics answers
+  // questions from telemetry rather than from Statistics.
+  useEffect(() => {
+    if (matchRuntimeState.status !== "joined") {
+      return;
+    }
+    const view = matchRuntimeState.view;
+    if (view.phase !== "hand_complete" && view.phase !== "exhaustive_draw") {
+      return;
+    }
+    const key = `${matchRuntimeState.matchId}:${view.state_version}`;
+    if (handTelemetryKeyRef.current === key) {
+      return;
+    }
+    handTelemetryKeyRef.current = key;
+
+    const winner = view.hand_result?.winners?.find((entry) => entry.seat === view.seat);
+    const dealtIn =
+      view.hand_result?.kind === "discard" && view.hand_result?.payer === view.seat;
+    gameTelemetry.track("hand_completed", {
+      dimensions: {
+        mode: isPracticeMatch(view) ? "practice" : "quick_play",
+        outcome: winner ? "won" : view.phase === "exhaustive_draw" ? "draw" : "lost",
+        win_kind: view.hand_result?.kind ?? "none",
+        dealt_in: String(Boolean(dealtIn)),
+        ting: String((view.waits?.length ?? 0) > 0),
+      },
+      measurements: {
+        raw_tai: winner?.score.raw_tai ?? 0,
+        wall_remaining: view.wall?.remaining ?? 0,
+      },
+    });
+  }, [matchRuntimeState]);
+
   // Persist a resume pointer while a guest match is live so a reload or
   // tab-crash mid-hand can silently re-authenticate and rejoin (§8.7,
   // abnormal termination) instead of dropping the player back at sign-in. Only
@@ -934,6 +986,8 @@ export function App(
     setJadeRecoveryState({ status: "idle" });
     setProgressionState({ status: "idle" });
     setProgressionOpen(false);
+    setStatisticsState({ status: "idle" });
+    setStatisticsOpen(false);
     setReconnectAttempt(0);
     setOnlineSessionEntryMode("manual");
     autoJoiningSessionIdRef.current = null;
@@ -1229,6 +1283,28 @@ export function App(
 
   // Returns the account so callers deciding whether to commit Jade can act on
   // the value they just fetched instead of the render closure's stale state.
+  async function loadStatistics() {
+    setStatisticsState({ status: "loading" });
+    try {
+      if (!accelByteConfig.matchServiceURL) {
+        throw new PlayerStatsError("configuration", "Match service URL is not configured.");
+      }
+      const summary = await createPlayerStatsClient(stableIam.getAccessToken(), {
+        url: accelByteConfig.matchServiceURL,
+        namespace: accelByteConfig.namespace,
+      }).get();
+      setStatisticsState({ status: "ready", summary });
+    } catch (error) {
+      setStatisticsState({
+        status: "error",
+        message:
+          error instanceof PlayerStatsError
+            ? error.message
+            : "Statistics could not be loaded.",
+      });
+    }
+  }
+
   function createAuthenticatedProgressionClient() {
     if (!accelByteConfig.matchServiceURL) {
       throw new ProgressionError("configuration", "Match service URL is not configured.");
@@ -2158,6 +2234,47 @@ export function App(
     );
   }
 
+  if (statisticsOpen) {
+    return (
+      <div className="game-screen">
+        {statisticsState.status === "ready" ? (
+          <StatisticsScreen
+            summary={statisticsState.summary}
+            onClose={() => setStatisticsOpen(false)}
+            onPlay={() => {
+              setStatisticsOpen(false);
+              void findTable();
+            }}
+          />
+        ) : (
+          <section className="statistics-screen" aria-labelledby="statistics-title">
+            <header className="statistics-header">
+              <div>
+                <p className="status-label">Statistics</p>
+                <h2 id="statistics-title">Quick Play</h2>
+              </div>
+              <button type="button" className="statistics-close" onClick={() => setStatisticsOpen(false)}>
+                Close
+              </button>
+            </header>
+            {statisticsState.status === "error" ? (
+              <div className="session-error" role="alert">
+                <p>{statisticsState.message}</p>
+                <button type="button" className="secondary-action" onClick={() => void loadStatistics()}>
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <p className="status-message" role="status" aria-live="polite">
+                Loading your statistics…
+              </p>
+            )}
+          </section>
+        )}
+      </div>
+    );
+  }
+
   if (tutorialOpen) {
     return (
       <div className="game-screen">
@@ -2664,6 +2781,12 @@ export function App(
                   progressionState.snapshot.curve.length === 0
                 ) {
                   void loadProgression();
+                }
+              }}
+              onOpenStatistics={() => {
+                setStatisticsOpen(true);
+                if (statisticsState.status !== "ready") {
+                  void loadStatistics();
                 }
               }}
               profile={playerProfile}

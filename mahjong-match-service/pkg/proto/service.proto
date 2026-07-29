@@ -117,6 +117,22 @@ service Service {
   // JoinMatch creates the authoritative match from the fixed AGS Session
   // roster when necessary, assigns stable seats, and returns only the
   // authenticated caller's view.
+  rpc GetPlayerStatistics(GetPlayerStatisticsRequest) returns (GetPlayerStatisticsResponse) {
+    option (google.api.http) = {
+      get: "/v1/namespaces/{namespace}/statistics"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the caller's own Quick Play statistics"
+      description: "Reads the caller's AGS Statistics counters (\u00a7P2.3 dashboard). Served here rather than read from AGS by the browser because the AGS Social API sends no CORS headers, so a browser cannot call it directly."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   rpc JoinMatch(JoinMatchRequest) returns (JoinMatchResponse) {
     option (google.api.http) = {
       post: "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join"
@@ -170,6 +186,25 @@ service Service {
       }
     };
   }
+}
+
+// GetPlayerStatisticsRequest asks for the authenticated caller's own
+// statistics. There is deliberately no user_id field: a player reads their own
+// record and nobody else's.
+message GetPlayerStatisticsRequest {
+  string namespace = 1;
+}
+
+// PlayerStatistic is one counter as AGS holds it. Values are returned raw;
+// every rate the dashboard shows is derived client-side from these, so the
+// service never has to agree with the screen about what a percentage means.
+message PlayerStatistic {
+  string stat_code = 1;
+  double value = 2;
+}
+
+message GetPlayerStatisticsResponse {
+  repeated PlayerStatistic statistics = 1;
 }
 
 message JoinMatchRequest {
