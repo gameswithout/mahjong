@@ -14,6 +14,19 @@
 // Practice vs Bots is the vehicle deliberately: it needs no other players but
 // still runs against the deployed match service, so the polls, the ETags and
 // the compression are all real.
+//
+// DO NOT DEPLOY THE CORS CHANGE ON THIS BRANCH ON ITS OWN. Exposing ETag makes
+// the client start sending If-None-Match, and against the live service every
+// such poll then died with net::ERR_ABORTED — a stalling table, worse than the
+// no-op the feature was before. Measured 2026-07-28 and rolled back within
+// minutes. Ruled out so far: the fetch cache mode (304 resolves cleanly under
+// default/no-store/no-cache/reload), gzip, and a malformed 304 (the live
+// response is well-formed over HTTP/2 with gzip negotiated). ERR_ABORTED is
+// what this client's own 8s AbortController produces, so the requests appear
+// to hang rather than be rejected; confirming that needs one instrumented
+// deploy that records time-to-abort. Note also that this probe reads
+// response.body() on every response, which throws on a 304 — rule the probe
+// itself out before blaming the client.
 import { chromium } from "playwright";
 
 const baseUrl = process.argv[2] ?? "http://localhost:5199";
@@ -32,10 +45,11 @@ const OFFLINE = { offline: true, downloadThroughput: 0, uploadThroughput: 0, lat
 
 // Shorter than the 60s stall grace, so a table that ejects here is ejecting
 // early rather than as designed.
-const BLACKOUT_MS = 45_000;
-const OBSERVE_MS = 30_000;
+const BLACKOUT_MS = Number(process.env.PROBE_BLACKOUT_MS ?? 45_000);
+const OBSERVE_MS = Number(process.env.PROBE_OBSERVE_MS ?? 30_000);
 
 const calls = [];
+const consoleErrors = [];
 let phase = "startup";
 
 function classify(url, method) {
@@ -105,7 +119,14 @@ async function run() {
     if (record) {
       record.status = "failed";
       record.ms = Date.now() - record.startedAt;
+      record.error = request.failure()?.errorText ?? "";
     }
+  });
+  // A CORS rejection never reaches requestfailed with a useful reason; the
+  // browser reports it to the console instead.
+  page.on("console", (message) => {
+    const text = message.text();
+    if (/CORS|Access-Control|blocked by/i.test(text)) consoleErrors.push(text.slice(0, 300));
   });
 
   const log = (message) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${message}`);
@@ -242,6 +263,18 @@ function summarise(observations) {
   console.log(`distinct state versions seen       ${new Set(versions).size} across ${versions.length} bodies`);
   console.log(`consecutive polls at same version  ${repeats}  <- the only ones a 304 was ever available for`);
   console.log(`versions: ${versions.join(" ")}`);
+
+  const failedPolls = polls.filter((p) => p.status === "failed");
+  if (failedPolls.length) {
+    const reasons = {};
+    for (const f of failedPolls) reasons[f.error || "(no error text)"] = (reasons[f.error || "(no error text)"] ?? 0) + 1;
+    console.log("\n=== failed polls ===");
+    for (const [reason, count] of Object.entries(reasons)) console.log(`  ${count} x ${reason}`);
+  }
+  if (consoleErrors.length) {
+    console.log("\n=== browser console (CORS) ===");
+    for (const line of [...new Set(consoleErrors)].slice(0, 4)) console.log(`  ${line}`);
+  }
 
   console.log("\n=== behaviour ===");
   const checks = [
