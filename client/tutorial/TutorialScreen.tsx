@@ -384,7 +384,7 @@ export function TutorialScreen({
         </div>
 
         <div className="tutorial-chapter-heading">
-          <h2 className="tutorial-chapter-title">{chapter.title}</h2>
+          <h1 className="tutorial-chapter-title">{chapter.title}</h1>
           <p>{chapter.summary}</p>
         </div>
 

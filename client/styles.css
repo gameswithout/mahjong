@@ -2426,6 +2426,8 @@ h1 {
   color: #abb2cd;
   font-size: 0.75rem;
   font-weight: 700;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
   padding: 0.2rem 0;
   text-decoration: underline;
   text-decoration-color: rgb(171 178 205 / 40%);
@@ -2511,6 +2513,12 @@ h1 {
 .tutorial-complete-actions .secondary-action {
   margin: 0;
   width: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-progress-track span {
+    transition: none;
+  }
 }
 
 @media (max-width: 70rem) {

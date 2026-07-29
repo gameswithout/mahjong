@@ -173,11 +173,14 @@ New coverage:
 
 ## Open follow-ups
 
-- **No rendered captures.** The P0 documents carry headless-Chromium evidence
-  produced by `scripts/capture-result-evidence.mjs`. Nothing equivalent was
-  produced here, so the lobby, queue, and tutorial screens are verified by
-  component and integration tests but not by a rendered capture at the
-  certified 640px minimum width. That is the honest gap in this document.
+- **Rendered captures are reproducible but still pending.** A deterministic
+  lobby, queue, and tutorial harness plus its browser measurement script now
+  exist, and the pass fixed the active tutorial heading hierarchy, 44px text
+  action targets, and reduced-motion behavior. The browser integration had no
+  available backend during this execution, so no screenshots are claimed.
+  The scenarios, automated DOM evidence, exact capture command, and remaining
+  limitation are recorded in
+  [`wireframe-evidence/p1-onboarding-responsive-validation.md`](wireframe-evidence/p1-onboarding-responsive-validation.md).
 - **Account level and progression** are now present in the lobby header and
   progression screen; P2.1 supplies the authoritative XP and level curve.
 - **Sparrow Pavilion** is open in the specification but locked here, because

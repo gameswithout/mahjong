@@ -1,0 +1,48 @@
+.onboarding-evidence-shell {
+  align-items: flex-start;
+}
+
+.onboarding-evidence-card {
+  max-width: 64rem;
+}
+
+.onboarding-evidence-nav {
+  background: #10131f;
+  border-bottom: 1px solid rgb(216 220 239 / 18%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+.onboarding-evidence-nav a {
+  border: 1px solid #f2c66d;
+  border-radius: 999px;
+  color: #f2c66d;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.55rem 0.8rem;
+  text-decoration: none;
+  text-transform: capitalize;
+}
+
+.onboarding-evidence-nav a[aria-current="page"] {
+  background: #f2c66d;
+  color: #211c2c;
+}
+
+.onboarding-evidence-nav a:focus-visible {
+  outline: 3px solid #f2c66d;
+  outline-offset: 3px;
+}
+
+@media (max-width: 40rem) {
+  .onboarding-evidence-shell {
+    padding: 0.75rem;
+  }
+
+  .onboarding-evidence-card {
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+}

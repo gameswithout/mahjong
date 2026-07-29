@@ -65,6 +65,7 @@ export default defineConfig(({ mode, command }) => {
           wireframe: "wireframe.html",
           resultWireframe: "result-wireframe.html",
           progressionWireframe: "progression-wireframe.html",
+          onboardingEvidence: "onboarding-evidence.html",
         },
       },
     },

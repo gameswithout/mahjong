@@ -11,6 +11,7 @@
     "test:table-ux": "vitest run client/MatchTable.ux.test.tsx client/App.test.ts client/App.practice.test.tsx client/matchTableAdapter.test.ts",
     "test:four-human": "npm run build && node --env-file=.env scripts/test-four-human.mjs",
     "test:watch": "vitest",
+    "capture:onboarding": "node scripts/capture-onboarding-evidence.mjs",
     "smoke:matchmaking": "node --env-file=.env scripts/smoke-matchmaking.mjs",
     "smoke:telemetry": "node --env-file=.env scripts/smoke-game-telemetry.mjs"
   },
