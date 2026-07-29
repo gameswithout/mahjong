@@ -83,8 +83,8 @@ execution.
 
 ```text
 npm test
-  41 files passed
-  326 tests passed
+  46 files passed
+  377 tests passed
 
 npm run build
   production build passed
