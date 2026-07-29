@@ -235,7 +235,25 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      cond204-ec995cd (active since
+Image tag:      stats-p23-05fe308 (active since
+                2026-07-29T16:55:33.103Z; deployment
+                8c3cb8ab-5854-4377-baf1-90828ff3b840). Adds the P2.3
+                statistics dashboard: two new counters
+                (public-hands-dealt-in, public-hands-ting) written from
+                the completed-hand projection, and a
+                GetPlayerStatistics RPC serving the caller their own
+                record. The RPC exists because the AGS Social API sends
+                no CORS headers, so the browser cannot read AGS
+                Statistics directly even though the configurations are
+                public and the player owns the record; AGS IAM does send
+                them, which is why the rest of the client can talk to AGS
+                and this could not. Verified live end to end with a
+                seeded player: 26% win rate over 120 hands, 39% Zimo
+                share over 31 wins, correct denominators throughout. The
+                seeded values were reset afterwards so they do not skew
+                the namespace. Carries no schema migration.
+                Preceding images, newest first:
+                cond204-ec995cd (active since
                 2026-07-29T03:55:32.353Z; deployment
                 c12927a8-6196-4c7c-87d9-80b5c5ca2095). Makes conditional
                 GET actually work for the browser client, which it never

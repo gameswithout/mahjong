@@ -169,6 +169,16 @@ recorded in
 
 ### P2.3 Statistics dashboard
 
+**Implemented 2026-07-29.** Deal-in and Ting are recorded from the completed-hand
+projection; the dashboard reads the player's AGS Statistics through the match
+service and is reachable from the lobby. Ting is measured at hand end rather
+than "reached at any point", and is labelled that way. Placement distribution
+and the Full Rotation half wait on Full Rotation being playable at all — the
+screen says so rather than rendering an empty panel. AI Analytics reads game
+telemetry rather than Statistics, so hand outcomes are also emitted as a
+`hand_completed` event, with the context file it needs in
+[`ags-plans/ai-analytics-context.md`](ags-plans/ai-analytics-context.md).
+
 - Separate Quick Play and Full Rotation.
 - Lead with Win rate, Zimo share, deal-in rate, Ting reach rate, and placement
   distribution where applicable.
