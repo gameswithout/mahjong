@@ -21,6 +21,8 @@ export function CompletedHandFlow({
   resultFriends,
   onAddResultFriend,
   onRetryResultFriends,
+  viewerUserId,
+  nameOf,
 }: {
   view: SeatView;
   practice: boolean;
