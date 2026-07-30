@@ -325,6 +325,39 @@ func (p *PostgreSQLStorage) SettleHand(
 	return true, nil
 }
 
+// Hand reads one hand of a rotation, including the match it is played as.
+//
+// This is a read, not a create. The hand a rotation is currently on cannot be
+// reconstructed from the rotation state: once a hand has been folded, the
+// state's dealer is the *next* hand's dealer while hand_index still names the
+// one just finished. Only the hand row knows who dealt it.
+func (p *PostgreSQLStorage) Hand(
+	ctx context.Context,
+	rotation RotationRecord,
+	handIndex int,
+) (RotationHand, error) {
+	hand := RotationHand{Index: handIndex}
+	var dealer string
+	if err := p.pool.QueryRow(ctx, `
+		SELECT dealer, continuations, settled, settled_at
+		FROM rotation_hands
+		WHERE rotation_id = $1 AND hand_index = $2`,
+		rotation.RuntimeID, handIndex,
+	).Scan(&dealer, &hand.Continuations, &hand.Settled, &hand.SettledAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return RotationHand{}, ErrRotationNotFound
+		}
+		return RotationHand{}, fmt.Errorf("read rotation hand: %w", err)
+	}
+	hand.Dealer = rulesengine.Seat(dealer)
+	match, err := p.GetMatch(ctx, HandKey(rotation.Key, handIndex))
+	if err != nil {
+		return RotationHand{}, fmt.Errorf("read rotation hand match: %w", err)
+	}
+	hand.Match = match
+	return hand, nil
+}
+
 // Hands lists a rotation's hands in play order.
 func (p *PostgreSQLStorage) Hands(ctx context.Context, rotationRuntimeID string) ([]RotationHand, error) {
 	rows, err := p.pool.Query(ctx, `

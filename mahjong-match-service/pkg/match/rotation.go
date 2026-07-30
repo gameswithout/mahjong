@@ -41,6 +41,7 @@ type RotationRepository interface {
 	EnsureRotation(context.Context, storage.MatchKey, []string, time.Time) (storage.RotationRecord, bool, error)
 	GetRotation(context.Context, storage.MatchKey) (storage.RotationRecord, error)
 	OpenHand(context.Context, storage.RotationRecord, int, rulesengine.Seat, int) (storage.RotationHand, error)
+	Hand(context.Context, storage.RotationRecord, int) (storage.RotationHand, error)
 	SettleHand(context.Context, string, int, rulesengine.RotationState, time.Time) (bool, error)
 	Hands(context.Context, string) ([]storage.RotationHand, error)
 }
@@ -170,10 +171,10 @@ func (r *Runtime) currentHand(
 		record.HandIndex = 1
 		return &rotationTable{record: record, hand: hand}, nil
 	}
-	// Re-opening is idempotent, so this reads the existing row rather than
-	// creating one. Passing the state's dealer and continuations also asserts
-	// they agree with what was persisted when the hand was opened.
-	hand, err := r.rotations.OpenHand(ctx, record, index, record.State.Dealer, record.State.Continuations)
+	// A read, not an open. The current hand cannot be reconstructed from the
+	// rotation state: once a hand has been folded the state's dealer is the
+	// *next* hand's, while the hand index still names the one just finished.
+	hand, err := r.rotations.Hand(ctx, record, index)
 	if err != nil {
 		return nil, err
 	}
