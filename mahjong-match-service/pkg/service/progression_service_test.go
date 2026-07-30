@@ -22,6 +22,27 @@ type fakeProgressionRepository struct {
 	takeoverHistoryReads int
 }
 
+type fakeServiceAchievementReader struct {
+	userID string
+	rows   []progression.AchievementProgress
+	err    error
+}
+
+func (f *fakeServiceAchievementReader) UnlockedAchievementCodes(
+	context.Context,
+	string,
+) ([]string, error) {
+	return nil, f.err
+}
+
+func (f *fakeServiceAchievementReader) AchievementProgress(
+	_ context.Context,
+	userID string,
+) ([]progression.AchievementProgress, error) {
+	f.userID = userID
+	return f.rows, f.err
+}
+
 func (f *fakeProgressionRepository) AwardXP(
 	_ context.Context,
 	userID string,
@@ -111,6 +132,75 @@ func TestMatchServiceGetProgressionProjectsFullCurve(t *testing.T) {
 			response.GetCurve()[0],
 			response.GetCurve()[49],
 		)
+	}
+}
+
+func TestMatchServiceGetPlayerAchievementsUsesBearerIdentityAndProjectsCatalog(t *testing.T) {
+	reader := &fakeServiceAchievementReader{rows: []progression.AchievementProgress{
+		{Code: "first-hand", Current: 1, Unlocked: true},
+		{Code: "self-reliant", Current: 4},
+	}}
+	coordinator := progression.NewCoordinator(nil)
+	coordinator.SetAchievementReader(reader)
+	matchService := NewMatchService("gameswithout-mahjong", &fakeRuntime{})
+	matchService.SetProgression(coordinator)
+	ctx := common.ContextWithPrincipal(
+		context.Background(),
+		common.Principal{UserID: "player-from-token"},
+	)
+
+	response, err := matchService.GetPlayerAchievements(
+		ctx,
+		&pb.GetPlayerAchievementsRequest{Namespace: "gameswithout-mahjong"},
+	)
+	if err != nil {
+		t.Fatalf("GetPlayerAchievements() error = %v", err)
+	}
+	if reader.userID != "player-from-token" {
+		t.Fatalf("reader user ID = %q", reader.userID)
+	}
+	if len(response.GetAchievements()) != 32 {
+		t.Fatalf("achievement count = %d, want 32", len(response.GetAchievements()))
+	}
+	eligible := 0
+	byCode := map[string]*pb.PlayerAchievement{}
+	for _, achievement := range response.GetAchievements() {
+		byCode[achievement.GetCode()] = achievement
+		if achievement.GetEligible() {
+			eligible++
+		}
+	}
+	if eligible != 23 {
+		t.Fatalf("eligible count = %d, want 23", eligible)
+	}
+	if got := byCode["first-hand"]; got == nil || !got.GetUnlocked() ||
+		got.GetCurrent() != 1 || got.GetGoal() != 1 || got.GetXpReward() != 100 {
+		t.Fatalf("first-hand = %#v", got)
+	}
+	if got := byCode["first-win"]; got == nil ||
+		got.GetBonusReward() != "First Victory title" {
+		t.Fatalf("first-win = %#v", got)
+	}
+	if got := byCode["claim-student"]; got == nil || got.GetEligible() ||
+		got.GetUnavailableReason() == "" {
+		t.Fatalf("claim-student = %#v", got)
+	}
+}
+
+func TestMatchServiceGetPlayerAchievementsRequiresConfiguredReader(t *testing.T) {
+	matchService := NewMatchService("gameswithout-mahjong", &fakeRuntime{})
+	matchService.SetProgression(progression.NewCoordinator(nil))
+	ctx := common.ContextWithPrincipal(
+		context.Background(),
+		common.Principal{UserID: "player-1"},
+	)
+
+	_, err := matchService.GetPlayerAchievements(
+		ctx,
+		&pb.GetPlayerAchievementsRequest{Namespace: "gameswithout-mahjong"},
+	)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("error code = %s, want FailedPrecondition", status.Code(err))
 	}
 }
 

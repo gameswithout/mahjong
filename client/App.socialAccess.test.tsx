@@ -103,6 +103,18 @@ describe("App social feature access", () => {
         progression: { level: 1, lifetime_xp: 0 },
         curve: [],
       }),
+      getAchievements: vi.fn().mockResolvedValue([
+        {
+          code: "first-hand",
+          name: "First Hand",
+          description: "Complete your first public hand.",
+          current: 0,
+          goal: 1,
+          xp_reward: 100,
+          eligible: true,
+          unlocked: false,
+        },
+      ]),
     });
     dependencies.createLobbyConnection.mockImplementation((_sdk, callbacks) => {
       queueMicrotask(() => callbacks.onOpen());
@@ -169,5 +181,27 @@ describe("App social feature access", () => {
     await vi.waitFor(() => expect(partyClient.current).toHaveBeenCalledOnce());
     expect(container.textContent).toContain("Start a party");
     expect(container.textContent).toContain("Add a friend by player ID");
+  });
+
+  it("opens account achievement progress from the progression screen", async () => {
+    await enterLobby(false);
+
+    const progressionButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label^="Open progression"]',
+    );
+    await act(async () => {
+      progressionButton?.click();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(container.querySelector(".achievement-entry")).not.toBeNull());
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(".achievement-entry")?.click();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(container.textContent).toContain("First Hand"));
+
+    expect(container.textContent).toContain("Only completed public human hands");
+    expect(container.textContent).toContain("Back to Progress");
   });
 });

@@ -165,6 +165,20 @@ function jadeCappedView(): SeatView {
 // zero as explicitly as it shows a debit.
 function jadeStandardView(): SeatView {
   const view = baseCompletedView();
+  view.achievements = [
+    {
+      award_id: "achievement:first-hand:player-east",
+      source: "achievement",
+      total: 100,
+      components: [{ code: "first-hand", label: "First Hand", amount: 100 }],
+    },
+    {
+      award_id: "achievement:first-win:player-east",
+      source: "achievement",
+      total: 200,
+      components: [{ code: "first-win", label: "First Win", amount: 200 }],
+    },
+  ];
   view.jade_account = {
     currency_code: "JADE",
     balance: 5_000,

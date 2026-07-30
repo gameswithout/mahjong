@@ -2,13 +2,19 @@
 // 1-7 (winning hand/tile, decomposition, patterns, raw Tai, Dealer Tai,
 // settlement transfers, dealer continuation) plus item 8's XP (§12.1),
 // item 9's post-match Add Friend action, and the Match ID and Practice
-// replay/return slice of item 10. Achievements and rating (the rest of item
-// 8, needing E13), result-card image export (the rest of item 9), and
-// human-queue Report remain deferred. Play Again covers both Practice and
-// staked requeue (§P1.3 session closure).
+// replay/return slice of item 10. Rating (the rest of item 8), result-card
+// image export (the rest of item 9), and human-queue Report remain deferred.
+// Play Again covers both Practice and staked requeue (§P1.3 session closure).
 import { useState, type ReactNode } from "react";
 
-import type { HandResult, HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
+import type {
+  HandResult,
+  HandWinner,
+  HandXPAward,
+  MahjongSeat,
+  SeatView,
+  Transfer,
+} from "../protocol/envelope";
 import { TileFace } from "./TileFace";
 import { XPAward } from "./XPAward";
 import type { SeatId } from "./matchTableTypes";
@@ -462,6 +468,48 @@ function SettlementStory({
   );
 }
 
+function AchievementUnlocks({ awards }: { awards: HandXPAward[] }) {
+  return (
+    <section
+      className="result-achievements"
+      aria-labelledby="result-achievements-title"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="result-achievements-heading">
+        <div>
+          <p className="hand-result-kicker">Milestone reached</p>
+          <h3 id="result-achievements-title">
+            {awards.length === 1 ? "Achievement unlocked" : "Achievements unlocked"}
+          </h3>
+        </div>
+        <span>{awards.length}</span>
+      </div>
+      <ul className="result-achievement-list">
+        {awards.map((award, index) => {
+          const component = award.components?.[0];
+          const name = component?.label ?? "Achievement unlocked";
+          return (
+            <li
+              key={award.award_id ?? component?.code ?? `${name}-${index}`}
+              data-achievement-code={component?.code}
+            >
+              <span aria-hidden="true" className="result-achievement-mark">✓</span>
+              <span>
+                <strong>{name}</strong>
+                <small>Completed on this public hand</small>
+              </span>
+              <strong className="result-achievement-xp">
+                +{(award.total ?? component?.amount ?? 0).toLocaleString()} XP
+              </strong>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export interface HandResultScreenProps {
   view: SeatView;
   practice?: boolean;
@@ -600,6 +648,10 @@ export function HandResultScreen({
               : `Dealer rotates to ${seatLabel(view.next_dealer.next_dealer, view.seat)}`}
           </p>
         </div>
+      )}
+
+      {!practice && (view.achievements?.length ?? 0) > 0 && (
+        <AchievementUnlocks awards={view.achievements ?? []} />
       )}
 
       {/* §12.1 XP sits after the settlement explanation and before the Match

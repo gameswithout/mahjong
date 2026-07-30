@@ -163,6 +163,15 @@ recorded in
 
 ### P2.2 Achievement set
 
+**Implemented 2026-07-29.** The authenticated Progress → Achievements surface
+shows all 32 launch goals in product order: exact AGS-owned progress for the 23
+currently configured achievements and explicit reasons for the nine that wait
+on missing counters or Full Rotation. Completed public hands retain and present
+new unlock awards alongside settlement and XP; Practice states that it does not
+advance achievements and can never show an unlock. Architecture, authorization,
+tests, rendered responsive evidence, and deferred counters are recorded in
+[`ags-plans/2026-07-29-p2-2-achievement-experience.md`](ags-plans/2026-07-29-p2-2-achievement-experience.md).
+
 - Start with milestones already derivable from canonical events.
 - Favor achievements that teach rules or celebrate mastery over grind.
 - Display exact progress and eligibility; never hide launch achievements.

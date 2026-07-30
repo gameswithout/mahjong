@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createProgressionClient,
   normalizeHandXPAward,
+  normalizePlayerAchievements,
   normalizePlayerProgression,
 } from "./progression";
 
@@ -139,6 +140,66 @@ describe("Progression client", () => {
     ]);
   });
 
+  it("loads the complete achievement catalog from the authenticated sibling endpoint", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          achievements: [
+            {
+              code: "first-hand",
+              name: "First Hand",
+              description: "Complete your first public hand.",
+              current: "1",
+              goal: "1",
+              xp_reward: 100,
+              eligible: true,
+              unlocked: true,
+            },
+            {
+              code: "claim-student",
+              name: "Claim Student",
+              description: "Complete 50 Chow or Pong claims.",
+              goal: "50",
+              xp_reward: 300,
+              unavailable_reason: "Progress tracking is not available yet.",
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = createProgressionClient("player-token", {
+      url: "https://match.example.test",
+      namespace: "mahjong test",
+      fetchImpl,
+    });
+
+    await expect(client.getAchievements()).resolves.toEqual([
+      expect.objectContaining({
+        code: "first-hand",
+        current: 1,
+        goal: 1,
+        xp_reward: 100,
+        eligible: true,
+        unlocked: true,
+      }),
+      expect.objectContaining({
+        code: "claim-student",
+        current: 0,
+        goal: 50,
+        eligible: false,
+        unlocked: false,
+      }),
+    ]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://match.example.test/v1/namespaces/mahjong%20test/achievements",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ Authorization: "Bearer player-token" }),
+      }),
+    );
+  });
+
   it("defaults protojson-omitted zero fields without inventing a level zero", () => {
     expect(normalizePlayerProgression({})).toMatchObject({
       level: 1,
@@ -167,5 +228,35 @@ describe("Progression client", () => {
     expect(() => normalizePlayerProgression({ lifetime_xp: "many" })).toThrow(
       expect.objectContaining({ code: "protocol" }),
     );
+  });
+
+  it("ignores malformed achievement rows without inventing catalog entries", () => {
+    expect(normalizePlayerAchievements([
+      null,
+      { code: "missing-copy" },
+      {
+        code: "first-win",
+        name: "First Win",
+        description: "Win your first public hand.",
+        current: "0",
+        goal: "1",
+        xp_reward: "200",
+        bonus_reward: "First Victory title",
+        eligible: true,
+      },
+    ])).toEqual([
+      {
+        code: "first-win",
+        name: "First Win",
+        description: "Win your first public hand.",
+        current: 0,
+        goal: 1,
+        xp_reward: 200,
+        bonus_reward: "First Victory title",
+        eligible: true,
+        unlocked: false,
+        unavailable_reason: undefined,
+      },
+    ]);
   });
 });

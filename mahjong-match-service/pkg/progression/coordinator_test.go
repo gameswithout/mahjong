@@ -313,9 +313,11 @@ func TestCoordinator_StatsFailureDoesNotFailTheHand(t *testing.T) {
 }
 
 type fakeAchievementReader struct {
-	codes []string
-	calls int
-	err   error
+	codes    []string
+	progress []AchievementProgress
+	calls    int
+	userID   string
+	err      error
 }
 
 func (f *fakeAchievementReader) UnlockedAchievementCodes(
@@ -324,6 +326,15 @@ func (f *fakeAchievementReader) UnlockedAchievementCodes(
 ) ([]string, error) {
 	f.calls++
 	return f.codes, f.err
+}
+
+func (f *fakeAchievementReader) AchievementProgress(
+	_ context.Context,
+	userID string,
+) ([]AchievementProgress, error) {
+	f.calls++
+	f.userID = userID
+	return f.progress, f.err
 }
 
 func completedPublicHand() rulesengine.SeatView {
@@ -463,6 +474,89 @@ func TestAchievementRewardTableMatchesConfiguredSet(t *testing.T) {
 	}
 	if _, known := AchievementByCode("not-an-achievement"); known {
 		t.Fatal("an unknown code resolved to an achievement")
+	}
+
+	catalog := AchievementCatalog()
+	if got := len(catalog); got != 32 {
+		t.Fatalf("catalog has %d achievements, want 32", got)
+	}
+	unavailable := 0
+	for _, achievement := range catalog {
+		if achievement.Description == "" || achievement.Goal <= 0 || achievement.XP <= 0 {
+			t.Errorf("incomplete catalog entry: %+v", achievement)
+		}
+		if !achievement.Available {
+			unavailable++
+			if achievement.UnavailableReason == "" {
+				t.Errorf("%s is unavailable without a reason", achievement.Code)
+			}
+		}
+	}
+	if unavailable != 9 {
+		t.Fatalf("unavailable catalog entries = %d, want 9", unavailable)
+	}
+}
+
+func TestCoordinator_PlayerAchievementsMergesAGSProgressWithCompleteCatalog(t *testing.T) {
+	reader := &fakeAchievementReader{progress: []AchievementProgress{
+		{Code: "first-hand", Current: 1, Unlocked: true},
+		{Code: "self-reliant", Current: 4},
+		// Duplicate rows are merged conservatively.
+		{Code: "self-reliant", Current: 3, Unlocked: true},
+		// Invalid values never escape into JSON.
+		{Code: "first-win", Current: -4},
+		{Code: "achievement-from-the-future", Current: 7},
+	}}
+	coordinator := NewCoordinator(nil)
+	var reported error
+	coordinator.SetStatsMirror(nil, func(err error) { reported = err })
+	coordinator.SetAchievementReader(reader)
+
+	achievements, err := coordinator.PlayerAchievements(
+		context.Background(),
+		" player-1 ",
+	)
+	if err != nil {
+		t.Fatalf("PlayerAchievements() error = %v", err)
+	}
+	if reader.userID != "player-1" {
+		t.Fatalf("reader user ID = %q, want player-1", reader.userID)
+	}
+	if len(achievements) != 32 {
+		t.Fatalf("catalog length = %d, want 32", len(achievements))
+	}
+	byCode := map[string]PlayerAchievement{}
+	for _, achievement := range achievements {
+		byCode[achievement.Achievement.Code] = achievement
+	}
+	if got := byCode["first-hand"]; got.Current != 1 || !got.Unlocked {
+		t.Errorf("first-hand = %+v", got)
+	}
+	if got := byCode["self-reliant"]; got.Current != 4 || !got.Unlocked {
+		t.Errorf("self-reliant duplicate merge = %+v", got)
+	}
+	if got := byCode["first-win"]; got.Current != 0 {
+		t.Errorf("negative progress escaped: %+v", got)
+	}
+	if got := byCode["kong-collector"]; got.Current != 0 || got.Unlocked {
+		t.Errorf("missing configured row did not default to zero: %+v", got)
+	}
+	if got := byCode["claim-student"]; got.Achievement.Available ||
+		got.Current != 0 || got.Achievement.UnavailableReason == "" {
+		t.Errorf("unavailable entry = %+v", got)
+	}
+	if reported == nil {
+		t.Fatal("unknown AGS achievement was not reported")
+	}
+}
+
+func TestCoordinator_PlayerAchievementsRequiresProgressReader(t *testing.T) {
+	coordinator := NewCoordinator(nil)
+	if _, err := coordinator.PlayerAchievements(context.Background(), "player-1"); !errors.Is(
+		err,
+		ErrNotInitialized,
+	) {
+		t.Fatalf("PlayerAchievements() error = %v, want ErrNotInitialized", err)
 	}
 }
 

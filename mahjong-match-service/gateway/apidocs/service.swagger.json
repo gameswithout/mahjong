@@ -17,6 +17,43 @@
     "application/json"
   ],
   "paths": {
+    "/v1/namespaces/{namespace}/achievements": {
+      "get": {
+        "summary": "Get the caller's achievement catalog and exact progress",
+        "description": "Merges the caller's AGS Achievement progress with all 32 visible launch achievements. Entries whose tracking or game mode is unavailable remain visible with an eligibility reason.",
+        "operationId": "Service_GetPlayerAchievements",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceGetPlayerAchievementsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/namespaces/{namespace}/jade": {
       "get": {
         "summary": "Get the authenticated player's Jade account",
@@ -736,6 +773,18 @@
         }
       }
     },
+    "serviceGetPlayerAchievementsResponse": {
+      "type": "object",
+      "properties": {
+        "achievements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/servicePlayerAchievement"
+          }
+        }
+      }
+    },
     "serviceGetPlayerStatisticsResponse": {
       "type": "object",
       "properties": {
@@ -1185,6 +1234,44 @@
         "tai": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "servicePlayerAchievement": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "current": {
+          "type": "number",
+          "format": "double"
+        },
+        "goal": {
+          "type": "number",
+          "format": "double"
+        },
+        "xpReward": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "bonusReward": {
+          "type": "string"
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "unlocked": {
+          "type": "boolean"
+        },
+        "unavailableReason": {
+          "type": "string"
         }
       }
     },

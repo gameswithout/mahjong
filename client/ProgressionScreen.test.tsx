@@ -1,8 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import type { LevelStep, PlayerProgression } from "../protocol/envelope";
-import { ProgressionScreen } from "./ProgressionScreen";
+import type {
+  LevelStep,
+  PlayerAchievement,
+  PlayerProgression,
+} from "../protocol/envelope";
+import { AchievementScreen, ProgressionScreen } from "./ProgressionScreen";
 
 const curve: LevelStep[] = [
   { level: 1, total_xp_required: 0, xp_for_next_level: 500 },
@@ -33,6 +37,36 @@ const progression: PlayerProgression = {
     recorded_at: "2026-07-27T12:00:00Z",
   },
 };
+
+const achievements: PlayerAchievement[] = Array.from({ length: 32 }, (_, index) => {
+  const eligible = index < 23;
+  return {
+    code: `achievement-${index + 1}`,
+    name:
+      index === 0
+        ? "First Hand"
+        : index === 1
+          ? "First Win"
+          : index === 23
+            ? "Claim Student"
+            : `Achievement ${index + 1}`,
+    description:
+      index === 23
+        ? "Complete 50 Chow or Pong claims."
+        : `Complete goal ${index + 1}.`,
+    current: index === 0 ? 1 : index === 1 ? 4 : 0,
+    goal: index === 1 ? 10 : index === 23 ? 50 : 1,
+    xp_reward: index === 1 ? 200 : 100,
+    bonus_reward: index === 1 ? "First Victory title" : undefined,
+    eligible,
+    unlocked: index === 0,
+    unavailable_reason: eligible
+      ? undefined
+      : index < 27
+        ? "Progress tracking for this achievement is not available yet."
+        : "Full Rotation is not available yet.",
+  };
+});
 
 describe("ProgressionScreen", () => {
   it("shows the whole curve, including levels that grant nothing", () => {
@@ -99,5 +133,49 @@ describe("ProgressionScreen", () => {
 
     expect(markup).toContain("maximum level");
     expect(markup).not.toContain("to level 51");
+  });
+
+  it("offers the authenticated achievement catalog from progression", () => {
+    const markup = renderToStaticMarkup(
+      <ProgressionScreen
+        progression={progression}
+        curve={curve}
+        onClose={vi.fn()}
+        onOpenAchievements={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain("Achievements");
+    expect(markup).toContain("View all 32");
+  });
+});
+
+describe("AchievementScreen", () => {
+  it("shows all 32 launch goals while separating 23 available from 9 unavailable", () => {
+    const markup = renderToStaticMarkup(
+      <AchievementScreen achievements={achievements} onClose={vi.fn()} />,
+    );
+
+    expect(markup).toContain("Achievements");
+    expect(markup).toContain("23 goals");
+    expect(markup).toContain("9 goals");
+    expect(markup).toContain("Claim Student");
+    expect(markup).toContain("Progress tracking for this achievement is not available yet.");
+    expect(markup).toContain("Full Rotation is not available yet.");
+  });
+
+  it("uses explicit states, exact progress, rewards, and the Practice exclusion", () => {
+    const markup = renderToStaticMarkup(
+      <AchievementScreen achievements={achievements} onClose={vi.fn()} />,
+    );
+
+    expect(markup).toContain("Unlocked");
+    expect(markup).toContain("In progress");
+    expect(markup).toContain("<strong>4</strong> / 10");
+    expect(markup).toContain("+200 XP");
+    expect(markup).toContain("Bonus: First Victory title");
+    expect(markup).toContain("Practice does not");
+    expect(markup).toContain('aria-label="First Win progress"');
+    expect(markup).toContain("Back to Progress");
   });
 });

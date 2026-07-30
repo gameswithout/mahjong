@@ -133,6 +133,22 @@ service Service {
     };
   }
 
+  rpc GetPlayerAchievements(GetPlayerAchievementsRequest) returns (GetPlayerAchievementsResponse) {
+    option (google.api.http) = {
+      get: "/v1/namespaces/{namespace}/achievements"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the caller's achievement catalog and exact progress"
+      description: "Merges the caller's AGS Achievement progress with all 32 visible launch achievements. Entries whose tracking or game mode is unavailable remain visible with an eligibility reason."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   rpc JoinMatch(JoinMatchRequest) returns (JoinMatchResponse) {
     option (google.api.http) = {
       post: "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join"
@@ -205,6 +221,29 @@ message PlayerStatistic {
 
 message GetPlayerStatisticsResponse {
   repeated PlayerStatistic statistics = 1;
+}
+
+// GetPlayerAchievementsRequest asks for the authenticated caller's own
+// achievement progress. There is deliberately no user_id field.
+message GetPlayerAchievementsRequest {
+  string namespace = 1;
+}
+
+message PlayerAchievement {
+  string code = 1;
+  string name = 2;
+  string description = 3;
+  double current = 4;
+  double goal = 5;
+  int32 xp_reward = 6;
+  string bonus_reward = 7;
+  bool eligible = 8;
+  bool unlocked = 9;
+  string unavailable_reason = 10;
+}
+
+message GetPlayerAchievementsResponse {
+  repeated PlayerAchievement achievements = 1;
 }
 
 message JoinMatchRequest {

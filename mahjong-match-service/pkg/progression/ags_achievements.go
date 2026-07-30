@@ -46,6 +46,34 @@ func (r *AGSAchievementReader) UnlockedAchievementCodes(
 	ctx context.Context,
 	userID string,
 ) ([]string, error) {
+	rows, err := r.listAchievementProgress(ctx, userID, true)
+	if err != nil {
+		return nil, err
+	}
+	codes := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.Unlocked {
+			codes = append(codes, row.Code)
+		}
+	}
+	return codes, nil
+}
+
+// AchievementProgress returns every player-achievement row AGS currently
+// holds. preferUnlocked is false so untouched and in-progress rows are not
+// displaced by the unlocked-first optimization used by the award sweep.
+func (r *AGSAchievementReader) AchievementProgress(
+	ctx context.Context,
+	userID string,
+) ([]AchievementProgress, error) {
+	return r.listAchievementProgress(ctx, userID, false)
+}
+
+func (r *AGSAchievementReader) listAchievementProgress(
+	ctx context.Context,
+	userID string,
+	preferUnlocked bool,
+) ([]AchievementProgress, error) {
 	if r == nil || r.achievements == nil || r.namespace == "" {
 		return nil, fmt.Errorf("AGS achievement reader is not initialized")
 	}
@@ -54,10 +82,9 @@ func (r *AGSAchievementReader) UnlockedAchievementCodes(
 		return nil, fmt.Errorf("AGS achievement reader requires a user ID")
 	}
 
-	var codes []string
+	var rows []AchievementProgress
 	offset := int64(0)
 	limit := achievementPageLimit
-	preferUnlocked := true
 
 	for {
 		response, err := r.achievements.UserAchievements.AdminListUserAchievementsShort(
@@ -80,18 +107,24 @@ func (r *AGSAchievementReader) UnlockedAchievementCodes(
 		}
 		payload := response.GetPayload()
 		if payload == nil || len(payload.Data) == 0 {
-			return codes, nil
+			return rows, nil
 		}
 		for _, entry := range payload.Data {
 			if entry == nil || entry.AchievementCode == nil || entry.Status == nil {
 				continue
 			}
-			if *entry.Status == agsAchievementUnlocked {
-				codes = append(codes, *entry.AchievementCode)
+			current := float64(0)
+			if entry.LatestValue != nil {
+				current = *entry.LatestValue
 			}
+			rows = append(rows, AchievementProgress{
+				Code:     *entry.AchievementCode,
+				Current:  current,
+				Unlocked: *entry.Status == agsAchievementUnlocked,
+			})
 		}
 		if int64(len(payload.Data)) < limit {
-			return codes, nil
+			return rows, nil
 		}
 		offset += limit
 	}

@@ -482,6 +482,56 @@ func (s *MatchService) GetPlayerStatistics(
 	return &pb.GetPlayerStatisticsResponse{Statistics: statistics}, nil
 }
 
+func namespaceFromGetPlayerAchievements(req *pb.GetPlayerAchievementsRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.GetNamespace()
+}
+
+func projectPlayerAchievement(achievement progression.PlayerAchievement) *pb.PlayerAchievement {
+	definition := achievement.Achievement
+	return &pb.PlayerAchievement{
+		Code:              definition.Code,
+		Name:              definition.Name,
+		Description:       definition.Description,
+		Current:           achievement.Current,
+		Goal:              definition.Goal,
+		XpReward:          int32(definition.XP),
+		BonusReward:       definition.BonusReward,
+		Eligible:          definition.Available,
+		Unlocked:          achievement.Unlocked,
+		UnavailableReason: definition.UnavailableReason,
+	}
+}
+
+// GetPlayerAchievements serves the complete §12.3 catalog for the caller.
+//
+// The bearer token supplies the only user identity accepted by this endpoint.
+// AGS owns current values and unlock state for configured entries; the product
+// catalog keeps the other nine visible with an honest eligibility reason.
+func (s *MatchService) GetPlayerAchievements(
+	ctx context.Context,
+	req *pb.GetPlayerAchievementsRequest,
+) (*pb.GetPlayerAchievementsResponse, error) {
+	principal, err := s.progressionPrincipal(ctx, namespaceFromGetPlayerAchievements(req))
+	if err != nil {
+		return nil, err
+	}
+	achievements, err := s.progression.PlayerAchievements(ctx, principal.UserID)
+	if err != nil {
+		if errors.Is(err, progression.ErrNotInitialized) {
+			return nil, status.Error(codes.FailedPrecondition, "achievement progress is not initialized")
+		}
+		return nil, status.Error(codes.Unavailable, "achievement progress is unavailable")
+	}
+	projected := make([]*pb.PlayerAchievement, 0, len(achievements))
+	for _, achievement := range achievements {
+		projected = append(projected, projectPlayerAchievement(achievement))
+	}
+	return &pb.GetPlayerAchievementsResponse{Achievements: projected}, nil
+}
+
 func namespaceFromGetProgression(req *pb.GetProgressionRequest) string {
 	if req == nil {
 		return ""
