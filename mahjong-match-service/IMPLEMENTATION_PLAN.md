@@ -217,7 +217,8 @@ image, event log, or public payload.
 ## Deployment record
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
-ahead of the append-latency benchmark. The current 2026-07-27 deployment is the
+ahead of the append-latency benchmark. The current 2026-07-30 deployment adds
+the caller-owned player achievement experience while retaining the
 mobile-network work: gzip on every response, conditional GET so an unchanged
 seat view costs headers instead of a body, and HTTP server timeouts.
 
@@ -235,7 +236,25 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      stats-p23-05fe308 (active since
+Image tag:      p22-achievements-4b266d4 (active since
+                2026-07-30T12:01:49.565Z; deployment
+                f9dd0216-c98b-456f-a0b4-418e8c8b4e09). Adds the P2.2
+                player achievement experience: a caller-only
+                GetPlayerAchievements RPC with no user-id input, exact
+                progress merged with the complete 32-entry visible catalog,
+                explicit eligibility reasons for the nine unavailable
+                entries, and hand-result unlock retention across later polls.
+                Verified after rollout: Extend reports
+                deployment-running on this exact image; the deployed OpenAPI
+                path set equals the source tree and includes
+                /v1/namespaces/{namespace}/achievements; an unauthenticated
+                request returns 401 rather than 404; and the browser-origin
+                CORS preflight returns 204.
+                Preceding images, newest first:
+                ach-sweep-20260730 (active since
+                2026-07-30T02:13:21.998Z; deployment
+                3d4db67e-b598-4c8c-8bd2-bd38ce995272),
+                stats-p23-05fe308 (active since
                 2026-07-29T16:55:33.103Z; deployment
                 8c3cb8ab-5854-4377-baf1-90828ff3b840). Adds the P2.3
                 statistics dashboard: two new counters
@@ -252,7 +271,6 @@ Image tag:      stats-p23-05fe308 (active since
                 share over 31 wins, correct denominators throughout. The
                 seeded values were reset afterwards so they do not skew
                 the namespace. Carries no schema migration.
-                Preceding images, newest first:
                 cond204-ec995cd (active since
                 2026-07-29T03:55:32.353Z; deployment
                 c12927a8-6196-4c7c-87d9-80b5c5ca2095). Makes conditional

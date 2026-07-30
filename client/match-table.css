@@ -2348,11 +2348,17 @@ body {
   }
 
   .local-seat > .local-seat-footer {
-    left: 50%;
+    /* An absolutely positioned grid item otherwise keeps its named
+       `local-meta` cell as the containing block. That cell collapses while
+       the item is out of flow, so centring at 50% sends the entire identity
+       strip off the left edge at 640x360. Anchor it to the full local-seat
+       padding box; the Ting panel remains independently right-aligned. */
+    grid-area: unset;
+    left: 6px;
     max-width: none;
     position: absolute;
     top: 2px;
-    transform: translateX(-50%);
+    transform: none;
     width: max-content;
   }
 

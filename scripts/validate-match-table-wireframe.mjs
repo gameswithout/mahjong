@@ -49,12 +49,11 @@ await page.screenshot({
   clip,
 });
 
-// The count explanation is deliberately a disclosure so it remains available
-// to touch, pointer, and keyboard users without permanently consuming the
-// certified compact table's limited vertical space.
-await page.locator(".wait-explainer summary").click();
+// The compact table keeps the server-projected Ting waits directly visible.
+// Confirm the panel is present before preserving its current responsive state.
+await page.locator('.wait-panel[aria-label="Ting waits"]').waitFor();
 await page.screenshot({
-  path: join(evidenceDir, "ting-count-explanation.png"),
+  path: join(evidenceDir, "ting-waits-visible.png"),
   clip,
 });
 
@@ -136,6 +135,7 @@ const report = await measurePage.evaluate(() => {
     countdown: ".countdown",
     "legal action buttons": ".action-row .action-button",
     "drawable wall count": ".wall-count",
+    "Ting wait list": '.wait-panel[aria-label="Ting waits"]',
   };
   results.elements = {};
   for (const [name, selector] of Object.entries(requiredSelectors)) {

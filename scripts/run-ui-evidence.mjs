@@ -12,7 +12,14 @@ const viteCli = fileURLToPath(
 );
 const host = "127.0.0.1";
 const port = process.env.UI_EVIDENCE_PORT?.trim() || "5191";
-const baseUrl = `http://${host}:${port}`;
+const previewOrigin = `http://${host}:${port}`;
+const configuredBasePath =
+  process.env.UI_EVIDENCE_BASE_PATH?.trim() || "/mahjong/";
+const basePathSegment = configuredBasePath.replace(/^\/+|\/+$/g, "");
+const previewBasePath = basePathSegment ? `/${basePathSegment}/` : "/";
+const baseUrl = new URL(previewBasePath, `${previewOrigin}/`)
+  .toString()
+  .replace(/\/$/, "");
 const outputDirectory = evidenceDirectory();
 const previewLog = [];
 let previewSpawnError = null;
@@ -28,6 +35,8 @@ const preview = spawn(
   [
     viteCli,
     "preview",
+    "--base",
+    previewBasePath,
     "--host",
     host,
     "--port",

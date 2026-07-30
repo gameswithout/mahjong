@@ -216,8 +216,9 @@ for (const capture of captures) {
   }
 
   const text = await page.locator("body").innerText();
+  const normalizedText = text.toLocaleLowerCase();
   const missing = capture.expectations.filter(
-    (expectation) => !text.includes(expectation),
+    (expectation) => !normalizedText.includes(expectation.toLocaleLowerCase()),
   );
   const measurements = await page.evaluate(inspectRenderedPage);
   await page.screenshot({

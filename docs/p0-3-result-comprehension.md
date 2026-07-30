@@ -35,8 +35,9 @@ the browser.
 AI Practice uses the same readable hand and scoring explanation, but the
 settlement chapter is titled **Practice score only** and explicitly says:
 
-- no Jade, rating, or progression changes;
-- the displayed points do not persist;
+- no Jade or rating changes;
+- the displayed Practice points do not persist;
+- completed Practice hands can still earn separately presented capped XP;
 - no Jade balance or Wallet state is shown.
 
 ## Cap and conservation evidence
@@ -44,7 +45,7 @@ settlement chapter is titled **Practice score only** and explicitly says:
 Component coverage includes the product specification's capped-payment shape:
 
 ```text
-10,000 Jade per Tai × 45 Tai = 450,000 Jade
+10,000 Jade per 台 × 45 台 = 450,000 Jade
 Debit cap applied: 450,000 → 300,000 Jade
 300,000 Jade paid = 300,000 received
 ```
@@ -109,7 +110,7 @@ What the captures show against the acceptance criteria:
   neither paid nor received, above the explicit "300,000 Jade paid = 300,000
   received. No Jade was created or removed."
 - **Capped settlements show both the uncapped calculation and the applied
-  cap.** `10,000 Jade per Tai × 45 Tai = 450,000 Jade` sits directly above
+  cap.** `10,000 Jade per 台 × 45 台 = 450,000 Jade` sits directly above
   `Debit cap applied: 450,000 → 300,000 Jade`, with the final 300,000 Jade
   transfer beside them.
 - **Practice never implies persistent financial or score rewards.** The

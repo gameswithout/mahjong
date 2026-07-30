@@ -188,7 +188,17 @@ Give every authenticated player a truthful P2.2 experience:
 - Branch: `agent/p2-2-achievement-experience`
 - Production target: Extend app `mahjong-match-service` in namespace
   `gameswithout-mahjong`.
-- Deployment and live endpoint evidence will be appended after rollout.
+- Deployed image: `p22-achievements-4b266d4`, deployment
+  `f9dd0216-c98b-456f-a0b4-418e8c8b4e09`, active since
+  `2026-07-30T12:01:49.565Z`.
+- Extend readback reports `deployment-running` on that exact image.
+- The live OpenAPI path set matches the source tree and includes
+  `/v1/namespaces/{namespace}/achievements`.
+- The live endpoint returns `401` without a token rather than `404`, proving
+  the new route is present and enforcing caller authentication. Its
+  browser-origin CORS preflight returns `204`.
+- An authenticated positive-progress read remains a separate player-journey
+  check; the route, contract, deployment identity, and auth boundary are live.
 
 ## Deferred Requested Integrations
 

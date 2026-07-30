@@ -33,13 +33,17 @@ const DESKTOP_VIEWPORT = { width: 1280, height: 720 };
 // browser actually rendered rather than against a server-side string.
 const SCENARIO_EXPECTATIONS = {
   "jade-capped": [
-    "10,000 Jade per Tai × 45 Tai = 450,000 Jade",
+    "10,000 Jade per 台 × 45 台 = 450,000 Jade",
     "Debit cap applied: 450,000 → 300,000 Jade",
     "300,000 Jade paid = 300,000 received",
     "Balances to zero",
   ],
-  "jade-standard": ["10 Jade per Tai × 3 Tai = 30 Jade", "Balances to zero"],
-  practice: ["Practice score only", "No Jade, rating, or progression is changed.", "Nothing persists."],
+  "jade-standard": ["10 Jade per 台 × 3 台 = 30 Jade", "Balances to zero"],
+  practice: [
+    "Practice score only",
+    "No Jade or rating changed. Completed hands still earn capped XP.",
+    "Practice points do not persist.",
+  ],
 };
 
 const browser = await chromium.launch();

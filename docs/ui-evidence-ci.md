@@ -10,6 +10,9 @@ The `UI evidence (Chromium)` CI job turns the existing UX capture scripts into
 a release gate. It builds the production client, serves `dist/` through Vite
 Preview, exercises the deterministic evidence pages in headless Chromium, and
 uploads the resulting images, reports, and logs as one workflow artifact.
+The preview defaults to the production `/mahjong/` base path so those pages
+load the same rooted asset URLs that GitHub Pages serves. A build made with a
+different base can set `UI_EVIDENCE_BASE_PATH` explicitly.
 
 It does not authenticate or call AGS. The evidence pages use fixed fixtures and
 production components/CSS, making failures reproducible without player data,

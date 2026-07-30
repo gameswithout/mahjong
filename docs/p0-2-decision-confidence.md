@@ -28,11 +28,10 @@ pointer input. Selection state is also exposed through `aria-pressed`.
 ## Authoritative assistance
 
 Ting entries continue to come only from `SeatView.waits`, including the
-server-computed `visible_remaining` value. The new **How counted** disclosure
-explains the information boundary:
-
-> Count means copies not visible to you. It subtracts your hand and all public
-> tiles; concealed opponent tiles may be among those copies.
+server-computed `visible_remaining` value. The compact panel keeps each wait
+and its count directly visible as **N left** or **All visible**. Its accessible
+label states **copies not visible** rather than implying the count is a
+wall-order prediction.
 
 The client does not infer waits, hidden tiles, or action legality. Disabled
 legal-action buttons now show a public request-state explanation while the
@@ -41,7 +40,8 @@ previous command is awaiting acknowledgement.
 ## Responsive evidence
 
 - [Selected tile at 640×360](wireframe-evidence/selected-tile-inspection.png)
-- [Ting count explanation at 640×360](wireframe-evidence/ting-count-explanation.png)
+- The current rendered gate captures the directly visible Ting waits as
+  `ting-waits-visible.png` in its per-commit UI evidence artifact.
 - [Decision-confidence table at 1280×720](wireframe-evidence/decision-confidence-desktop.png)
 
 The wireframe validator confirms at 640×360 that the table stays within the
@@ -62,7 +62,7 @@ Component coverage includes:
 
 - inspect-first/discard-second behavior;
 - matching-copy highlighting across hand, meld, and river;
-- Ting count explanation;
+- directly visible Ting waits and remaining-copy labels;
 - Gang confirmation;
 - disabled-action explanation;
 - Practice flow using the same two-activation discard path.
