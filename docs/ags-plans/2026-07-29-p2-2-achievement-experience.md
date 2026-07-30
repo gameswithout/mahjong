@@ -4,8 +4,7 @@
 - Approved feature: finish P2.2 with exact achievement progress, eligibility,
   a complete launch catalog, and post-hand unlock presentation
 - Approval: the user selected P2.2 and replied “proceed”
-- Status: implementation and verification complete; production release in
-  progress
+- Status: implementation, verification, and production release complete
 
 ## Confirmed context
 
@@ -154,8 +153,8 @@ Give every authenticated player a truthful P2.2 experience:
   or 390×844.
 - Rendered result verification: two simultaneous unlock cards remained
   readable beside settlement and XP with no horizontal overflow.
-- Authenticated live service read and production deployment health: pending
-  the release recorded below.
+- Authenticated live service read and production deployment health: passed;
+  the release evidence is recorded below.
 
 ## Risks and open questions
 
@@ -185,20 +184,21 @@ Give every authenticated player a truthful P2.2 experience:
 
 ## Release
 
-- Branch: `agent/p2-2-achievement-experience`
+- Branch: `agent/p2-2-achievement-experience-v2`
 - Production target: Extend app `mahjong-match-service` in namespace
   `gameswithout-mahjong`.
-- Deployed image: `p22-achievements-4b266d4`, deployment
-  `f9dd0216-c98b-456f-a0b4-418e8c8b4e09`, active since
-  `2026-07-30T12:01:49.565Z`.
+- Deployed image: `p2-2-achievements-94508d7`, deployment
+  `69c9da91-31ef-42d6-9fbd-3668f17d32df`, active since
+  `2026-07-30T13:25:23.392Z`.
 - Extend readback reports `deployment-running` on that exact image.
 - The live OpenAPI path set matches the source tree and includes
   `/v1/namespaces/{namespace}/achievements`.
 - The live endpoint returns `401` without a token rather than `404`, proving
   the new route is present and enforcing caller authentication. Its
   browser-origin CORS preflight returns `204`.
-- An authenticated positive-progress read remains a separate player-journey
-  check; the route, contract, deployment identity, and auth boundary are live.
+- An authenticated read with a stable zero-progress verification identity
+  returned `200` with 32 unique entries: 23 eligible, nine unavailable, and
+  an explicit reason for every unavailable entry.
 
 ## Deferred Requested Integrations
 
