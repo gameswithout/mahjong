@@ -1157,6 +1157,10 @@
         "progression": {
           "$ref": "#/definitions/servicePlayerProgression",
           "description": "§12.2 standing after that award."
+        },
+        "rotation": {
+          "$ref": "#/definitions/serviceRotationState",
+          "description": "§8.4 Full Rotation state. Absent for Quick Play and AI Practice."
         }
       },
       "description": "MatchState is a privacy-filtered projection for exactly one authenticated\nplayer. It is not a serializable authoritative snapshot."
@@ -1380,6 +1384,127 @@
           "$ref": "#/definitions/serviceJadeReservation"
         }
       }
+    },
+    "serviceRotationPlacement": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "position": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "tablePoints": {
+          "type": "string",
+          "format": "int64"
+        },
+        "ratingTie": {
+          "type": "boolean",
+          "description": "Equal table points are a genuine rating tie (§8.4) even though the podium\nshows an order, so anything computing Elo must not read position as a\nstrict result."
+        }
+      }
+    },
+    "serviceRotationStanding": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "position": {
+          "type": "string",
+          "description": "The player's fixed table position for the whole rotation."
+        },
+        "wind": {
+          "type": "string",
+          "description": "The seat wind they are playing this hand, which turns with the dealership."
+        },
+        "tablePoints": {
+          "type": "string",
+          "format": "int64",
+          "description": "Table points, which start at zero and may go negative. Not an account\ncurrency: §8.4 Full Rotation uses no Jade."
+        },
+        "dealIns": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "zimoWins": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "rawTaiWon": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "dealing": {
+          "type": "boolean"
+        },
+        "hasDealt": {
+          "type": "boolean"
+        }
+      }
+    },
+    "serviceRotationState": {
+      "type": "object",
+      "properties": {
+        "handNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Which hand of the rotation is being played, numbered from 1."
+        },
+        "handsPlayed": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "continuations": {
+          "type": "integer",
+          "format": "int32",
+          "description": "§5.11 continuations standing behind the current hand, which set Dealer Tai."
+        },
+        "dealerUserId": {
+          "type": "string"
+        },
+        "seatsDealt": {
+          "type": "integer",
+          "format": "int32",
+          "description": "How many of the four table positions have dealt. The rotation ends when\nall four have, which continuations can postpone, so this rather than\nhands_played is the measure of progress."
+        },
+        "standings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceRotationStanding"
+          }
+        },
+        "timeLimitAt": {
+          "type": "string",
+          "description": "RFC 3339 instant at which §8.4's 60-minute limit expires. The hand in\nprogress then is finished before the match ends."
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "description": "\"rotation_complete\" or \"time_limit\". §8.4 makes the share of matches\nending on the limit a required telemetry metric, so the two endings are\nnever merged."
+        },
+        "nextHandOpensAt": {
+          "type": "string",
+          "description": "RFC 3339 instant at which the next hand opens, set while a completed\nhand's result is on screen and the rotation continues."
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceRotationPlacement"
+          },
+          "description": "Final standings, present once the match is complete."
+        },
+        "placementXpAward": {
+          "$ref": "#/definitions/serviceHandXPAward",
+          "description": "§12.1 XP for the completed rotation, paid once at the end."
+        }
+      },
+      "description": "RotationState is the §8.4 Full Rotation around the current hand.\n\nStandings are keyed by player rather than by seat because a player's seat\nwind changes every time the dealership moves, so a seat does not identify\nanyone across a rotation."
     },
     "serviceScoreContext": {
       "type": "object",

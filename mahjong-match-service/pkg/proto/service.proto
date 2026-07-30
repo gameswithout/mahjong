@@ -401,6 +401,68 @@ message MatchState {
   repeated HandXPAward achievements = 25;
   // §12.2 standing after that award.
   PlayerProgression progression = 24;
+  // §8.4 Full Rotation state. Absent for Quick Play and AI Practice.
+  RotationState rotation = 26;
+}
+
+// RotationState is the §8.4 Full Rotation around the current hand.
+//
+// Standings are keyed by player rather than by seat because a player's seat
+// wind changes every time the dealership moves, so a seat does not identify
+// anyone across a rotation.
+message RotationState {
+  // Which hand of the rotation is being played, numbered from 1.
+  int32 hand_number = 1;
+  int32 hands_played = 2;
+  // §5.11 continuations standing behind the current hand, which set Dealer Tai.
+  int32 continuations = 3;
+  string dealer_user_id = 4;
+  // How many of the four table positions have dealt. The rotation ends when
+  // all four have, which continuations can postpone, so this rather than
+  // hands_played is the measure of progress.
+  int32 seats_dealt = 5;
+  repeated RotationStanding standings = 6;
+  // RFC 3339 instant at which §8.4's 60-minute limit expires. The hand in
+  // progress then is finished before the match ends.
+  string time_limit_at = 7;
+  bool complete = 8;
+  // "rotation_complete" or "time_limit". §8.4 makes the share of matches
+  // ending on the limit a required telemetry metric, so the two endings are
+  // never merged.
+  string reason = 9;
+  // RFC 3339 instant at which the next hand opens, set while a completed
+  // hand's result is on screen and the rotation continues.
+  string next_hand_opens_at = 10;
+  // Final standings, present once the match is complete.
+  repeated RotationPlacement placements = 11;
+  // §12.1 XP for the completed rotation, paid once at the end.
+  HandXPAward placement_xp_award = 12;
+}
+
+message RotationStanding {
+  string user_id = 1;
+  // The player's fixed table position for the whole rotation.
+  string position = 2;
+  // The seat wind they are playing this hand, which turns with the dealership.
+  string wind = 3;
+  // Table points, which start at zero and may go negative. Not an account
+  // currency: §8.4 Full Rotation uses no Jade.
+  int64 table_points = 4;
+  int32 deal_ins = 5;
+  int32 zimo_wins = 6;
+  int32 raw_tai_won = 7;
+  bool dealing = 8;
+  bool has_dealt = 9;
+}
+
+message RotationPlacement {
+  string user_id = 1;
+  int32 position = 2;
+  int64 table_points = 3;
+  // Equal table points are a genuine rating tie (§8.4) even though the podium
+  // shows an order, so anything computing Elo must not read position as a
+  // strict result.
+  bool rating_tie = 4;
 }
 
 message XPComponent {

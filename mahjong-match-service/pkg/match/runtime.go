@@ -62,15 +62,26 @@ func applyBotSeats(engine *rulesengine.TurnEngine, seats map[string]rulesengine.
 // ended, attaches the §9.7 items ProjectSeat itself cannot compute
 // (Settlement, NextDealer) since those need dealer/continuation/tier
 // session state ProjectSeat has no visibility into.
-func enrichedView(actor *rulesengine.MatchActor, seat rulesengine.Seat) (rulesengine.SeatView, error) {
+//
+// tier is what the hand settles in: Jade at the table's tier for Quick Play,
+// or §8.4 table points for a Full Rotation hand, which uses no Jade at all.
+// The dealer is East either way — in a rotation the winds turn with the
+// dealership, so every hand is dealt and settled as an East-dealer hand, and
+// only the rotation container tracks who that actually is.
+func enrichedView(
+	actor *rulesengine.MatchActor,
+	seat rulesengine.Seat,
+	tier rulesengine.LobbyTier,
+	continuations int,
+) (rulesengine.SeatView, error) {
 	view, err := actor.View(seat)
 	if err != nil || view.HandResult == nil {
 		return view, err
 	}
 	settlement, settleErr := rulesengine.SettleHand(rulesengine.SettlementInput{
-		Tier:          matchTier,
+		Tier:          tier,
 		Dealer:        matchDealer,
-		Continuations: matchContinuations,
+		Continuations: continuations,
 		Result:        view.HandResult,
 	})
 	if settleErr == nil {
@@ -88,7 +99,7 @@ func enrichedView(actor *rulesengine.MatchActor, seat rulesengine.Seat) (rulesen
 			}
 		}
 	}
-	outcome, outcomeErr := rulesengine.NextDealerState(matchDealer, matchContinuations, view.HandResult, dealerTing)
+	outcome, outcomeErr := rulesengine.NextDealerState(matchDealer, continuations, view.HandResult, dealerTing)
 	if outcomeErr == nil {
 		view.NextDealer = &outcome
 	}
@@ -107,13 +118,51 @@ type MatchRepository interface {
 }
 
 type Runtime struct {
-	mu      sync.Mutex
-	rosters session.Resolver
-	matches MatchRepository
-	events  rulesengine.EventStore
-	now     func() time.Time
-	actors  map[string]*loadedMatch
-	locks   map[string]*sync.Mutex
+	mu        sync.Mutex
+	rosters   session.Resolver
+	matches   MatchRepository
+	rotations RotationRepository
+	events    rulesengine.EventStore
+	now       func() time.Time
+	actors    map[string]*loadedMatch
+	locks     map[string]*sync.Mutex
+}
+
+// SetRotations supplies the storage a Full Rotation needs. Without it the
+// runtime plays Quick Play only, and a session asking for Full Rotation is
+// refused rather than quietly downgraded to a single hand.
+func (r *Runtime) SetRotations(repository RotationRepository) {
+	if r != nil {
+		r.rotations = repository
+	}
+}
+
+// table is the hand a player is acting on, plus the rotation around it when
+// there is one. Quick Play is the degenerate case: one hand, no rotation.
+type table struct {
+	current  *loadedMatch
+	seat     rulesengine.Seat
+	userID   string
+	rotation *rotationTable
+}
+
+// tier is what the hand settles in. §8.4 Full Rotation "is ranked and uses no
+// Jade": its hands settle in table points, which are not an account currency,
+// so no Jade tier applies to them.
+func (t *table) tier() rulesengine.LobbyTier {
+	if t.rotation != nil {
+		return rulesengine.TablePointTier
+	}
+	return matchTier
+}
+
+// continuations is the §5.11 count standing behind this hand, which sets the
+// Dealer Tai. Quick Play always plays the first hand of a notional round.
+func (t *table) continuations() int {
+	if t.rotation != nil {
+		return t.rotation.hand.Continuations
+	}
+	return matchContinuations
 }
 
 type loadedMatch struct {
@@ -178,79 +227,204 @@ func (r *Runtime) Join(
 	ctx context.Context,
 	key storage.MatchKey,
 	userID string,
-) (rulesengine.SeatView, error) {
+) (TableView, error) {
 	if r == nil || r.rosters == nil || r.matches == nil || r.events == nil {
-		return rulesengine.SeatView{}, fmt.Errorf("match runtime is not initialized")
+		return TableView{}, fmt.Errorf("match runtime is not initialized")
 	}
 	if err := key.Validate(); err != nil {
-		return rulesengine.SeatView{}, err
+		return TableView{}, err
 	}
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return rulesengine.SeatView{}, ErrNotMember
+		return TableView{}, ErrNotMember
 	}
 
 	matchLock := r.matchLock(key.RuntimeID())
 	matchLock.Lock()
 	defer matchLock.Unlock()
+	current, err := r.joinLocked(ctx, key, userID)
+	if err != nil {
+		return TableView{}, err
+	}
+	if err := r.refreshLocked(ctx, current.current); err != nil {
+		return TableView{}, err
+	}
+	r.markPresentIfTakenOver(current.current, current.seat)
+	if err := r.driveLocked(ctx, current.current); err != nil {
+		return TableView{}, err
+	}
+	return r.settleAndView(ctx, current)
+}
+
+// joinLocked resolves the table a joining player belongs to, creating the
+// match on first contact.
+//
+// A persisted rotation is authoritative: the mode is decided once, when the
+// match is created, and cannot change under a match already being played.
+func (r *Runtime) joinLocked(
+	ctx context.Context,
+	key storage.MatchKey,
+	userID string,
+) (*table, error) {
+	rotation, err := r.loadRotation(ctx, key)
+	if err == nil {
+		return r.seatInRotation(ctx, rotation, userID)
+	}
+	if !errors.Is(err, storage.ErrRotationNotFound) {
+		return nil, err
+	}
+
 	record, err := r.matches.GetMatch(ctx, key)
 	if errors.Is(err, storage.ErrMatchNotFound) {
 		roster, rosterErr := r.rosters.Roster(ctx, key.Namespace, key.SessionID)
 		if rosterErr != nil {
-			return rulesengine.SeatView{}, rosterErr
+			return nil, rosterErr
 		}
 		if !contains(roster, userID) {
-			return rulesengine.SeatView{}, ErrNotMember
+			return nil, ErrNotMember
+		}
+		mode, modeErr := r.rosters.Mode(ctx, key.Namespace, key.SessionID)
+		if modeErr != nil {
+			return nil, modeErr
+		}
+		if mode == session.ModeFullRotation {
+			opened, openErr := r.openRotation(ctx, key, roster)
+			if openErr != nil {
+				return nil, openErr
+			}
+			return r.seatInRotation(ctx, opened, userID)
 		}
 		record, _, err = r.matches.EnsureMatch(ctx, key, roster)
 	}
 	if err != nil {
-		return rulesengine.SeatView{}, err
+		return nil, err
 	}
-	current, err := r.loadLocked(ctx, record)
+	loaded, err := r.loadLocked(ctx, record)
 	if err != nil {
-		return rulesengine.SeatView{}, err
+		return nil, err
 	}
-	seat, ok := current.record.Seats[userID]
-	if !ok {
-		return rulesengine.SeatView{}, ErrNotMember
+	seat, seated := loaded.record.Seats[userID]
+	if !seated {
+		return nil, ErrNotMember
 	}
-	if err := r.refreshLocked(ctx, current); err != nil {
-		return rulesengine.SeatView{}, err
+	return &table{current: loaded, seat: seat, userID: userID}, nil
+}
+
+// seatInRotation loads the actor for the rotation's current hand and finds the
+// player's wind in it.
+func (r *Runtime) seatInRotation(
+	ctx context.Context,
+	rotation *rotationTable,
+	userID string,
+) (*table, error) {
+	loaded, err := r.loadLocked(ctx, rotation.hand.Match)
+	if err != nil {
+		return nil, err
 	}
-	r.markPresentIfTakenOver(current, seat)
-	if err := r.driveLocked(ctx, current); err != nil {
-		return rulesengine.SeatView{}, err
+	seat, seated := loaded.record.Seats[userID]
+	if !seated {
+		return nil, ErrNotMember
 	}
-	return enrichedView(current.actor, seat)
+	return &table{current: loaded, seat: seat, userID: userID, rotation: rotation}, nil
+}
+
+// loadTable resolves the table for a player who has already joined.
+func (r *Runtime) loadTable(
+	ctx context.Context,
+	key storage.MatchKey,
+	userID string,
+) (*table, error) {
+	rotation, err := r.loadRotation(ctx, key)
+	if err == nil {
+		return r.seatInRotation(ctx, rotation, userID)
+	}
+	if !errors.Is(err, storage.ErrRotationNotFound) {
+		return nil, err
+	}
+	loaded, seat, err := r.loadPersisted(ctx, key, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &table{current: loaded, seat: seat, userID: strings.TrimSpace(userID)}, nil
+}
+
+// settleAndView folds a finished rotation hand into the standings, opens the
+// next one when the result has been on screen long enough, and projects
+// whichever hand the player should now be looking at.
+func (r *Runtime) settleAndView(ctx context.Context, current *table) (TableView, error) {
+	current, err := r.advanceLocked(ctx, current)
+	if err != nil {
+		return TableView{}, err
+	}
+	view, err := enrichedView(current.current.actor, current.seat, current.tier(), current.continuations())
+	if err != nil {
+		return TableView{}, err
+	}
+	projected := TableView{SeatView: view, HandRuntimeID: current.current.record.RuntimeID}
+	if current.rotation != nil {
+		rotationView, rotationErr := r.rotationView(current.rotation)
+		if rotationErr != nil {
+			return TableView{}, rotationErr
+		}
+		projected.Rotation = rotationView
+	}
+	return projected, nil
+}
+
+// advanceLocked is settleAndView's rotation half, separated so the view logic
+// stays readable. It returns the table to serve, which becomes the next hand
+// once the inter-hand pause has elapsed.
+func (r *Runtime) advanceLocked(ctx context.Context, current *table) (*table, error) {
+	if current.rotation == nil {
+		return current, nil
+	}
+	advanced, err := r.foldCompletedHand(ctx, current.rotation, current.current)
+	if err != nil {
+		return nil, err
+	}
+	if advanced.hand.Index == current.rotation.hand.Index {
+		current.rotation = advanced
+		return current, nil
+	}
+	next, err := r.seatInRotation(ctx, advanced, current.userID)
+	if err != nil {
+		return nil, err
+	}
+	// The freshly opened hand needs the same opening treatment any match gets:
+	// initial Flower replacement (done by loadLocked) and, if the dealer is a
+	// taken-over seat, its first move.
+	if err := r.driveLocked(ctx, next.current); err != nil {
+		return nil, err
+	}
+	return next, nil
 }
 
 func (r *Runtime) View(
 	ctx context.Context,
 	key storage.MatchKey,
 	userID string,
-) (rulesengine.SeatView, error) {
+) (TableView, error) {
 	if r == nil {
-		return rulesengine.SeatView{}, ErrMatchNotLoaded
+		return TableView{}, ErrMatchNotLoaded
 	}
 	if err := key.Validate(); err != nil {
-		return rulesengine.SeatView{}, err
+		return TableView{}, err
 	}
 	matchLock := r.matchLock(key.RuntimeID())
 	matchLock.Lock()
 	defer matchLock.Unlock()
-	current, seat, err := r.loadPersisted(ctx, key, userID)
+	current, err := r.loadTable(ctx, key, userID)
 	if err != nil {
-		return rulesengine.SeatView{}, err
+		return TableView{}, err
 	}
-	if err := r.refreshLocked(ctx, current); err != nil {
-		return rulesengine.SeatView{}, err
+	if err := r.refreshLocked(ctx, current.current); err != nil {
+		return TableView{}, err
 	}
-	r.markPresentIfTakenOver(current, seat)
-	if err := r.driveLocked(ctx, current); err != nil {
-		return rulesengine.SeatView{}, err
+	r.markPresentIfTakenOver(current.current, current.seat)
+	if err := r.driveLocked(ctx, current.current); err != nil {
+		return TableView{}, err
 	}
-	return enrichedView(current.actor, seat)
+	return r.settleAndView(ctx, current)
 }
 
 func (r *Runtime) Apply(
@@ -258,26 +432,27 @@ func (r *Runtime) Apply(
 	key storage.MatchKey,
 	userID string,
 	command rulesengine.MatchCommand,
-) (rulesengine.CommandResult, rulesengine.SeatView, error) {
+) (rulesengine.CommandResult, TableView, error) {
 	if r == nil || strings.TrimSpace(command.RequestID) == "" {
-		return rulesengine.CommandResult{}, rulesengine.SeatView{}, ErrActionNotAllowed
+		return rulesengine.CommandResult{}, TableView{}, ErrActionNotAllowed
 	}
 	if err := key.Validate(); err != nil {
-		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
+		return rulesengine.CommandResult{}, TableView{}, err
 	}
 	matchLock := r.matchLock(key.RuntimeID())
 	matchLock.Lock()
 	defer matchLock.Unlock()
-	current, seat, err := r.loadPersisted(ctx, key, userID)
+	table, err := r.loadTable(ctx, key, userID)
 	if err != nil {
-		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
+		return rulesengine.CommandResult{}, TableView{}, err
 	}
+	current, seat := table.current, table.seat
 	if err := r.refreshLocked(ctx, current); err != nil {
-		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
+		return rulesengine.CommandResult{}, TableView{}, err
 	}
 	r.markPresentIfTakenOver(current, seat)
 	if err := r.driveLocked(ctx, current); err != nil {
-		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
+		return rulesengine.CommandResult{}, TableView{}, err
 	}
 
 	command.MatchID = current.record.RuntimeID
@@ -287,54 +462,54 @@ func (r *Runtime) Apply(
 		if command.Type == rulesengine.CommandSubmitClaim {
 			previous, err = r.resolveClaimResponse(ctx, current, previous)
 			if err != nil {
-				return previous, rulesengine.SeatView{}, err
+				return previous, TableView{}, err
 			}
 			if err = r.driveLocked(ctx, current); err != nil {
-				return previous, rulesengine.SeatView{}, err
+				return previous, TableView{}, err
 			}
 		}
-		view, err := enrichedView(current.actor, seat)
+		view, err := r.settleAndView(ctx, table)
 		return previous, view, err
 	}
 	view, err := current.actor.View(seat)
 	if err != nil {
-		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
+		return rulesengine.CommandResult{}, TableView{}, err
 	}
 	if command.ExpectedVersion != view.StateVersion {
-		return rulesengine.CommandResult{}, rulesengine.SeatView{}, rulesengine.ErrStaleAction
+		return rulesengine.CommandResult{}, TableView{}, rulesengine.ErrStaleAction
 	}
 	if err := authorizeCommand(view, seat, &command); err != nil {
-		return rulesengine.CommandResult{}, rulesengine.SeatView{}, err
+		return rulesengine.CommandResult{}, TableView{}, err
 	}
 	result, err := current.actor.Apply(ctx, command)
 	if err != nil {
 		if errors.Is(err, rulesengine.ErrEventSequence) {
 			restored, restoreErr := rulesengine.RestoreMatchActor(ctx, current.record.RuntimeID, r.events, r.now)
 			if restoreErr != nil {
-				return result, rulesengine.SeatView{}, fmt.Errorf("restore after concurrent command: %w", restoreErr)
+				return result, TableView{}, fmt.Errorf("restore after concurrent command: %w", restoreErr)
 			}
 			current.actor = restored
 			if previous, found := restored.Previous(command.RequestID); found {
-				view, viewErr := enrichedView(restored, seat)
+				view, viewErr := r.settleAndView(ctx, table)
 				return previous, view, viewErr
 			}
-			return result, rulesengine.SeatView{}, fmt.Errorf("%w: another replica committed first", rulesengine.ErrStaleAction)
+			return result, TableView{}, fmt.Errorf("%w: another replica committed first", rulesengine.ErrStaleAction)
 		}
-		return result, rulesengine.SeatView{}, err
+		return result, TableView{}, err
 	}
 	if command.Type == rulesengine.CommandSubmitClaim {
 		result, err = r.resolveClaimResponse(ctx, current, result)
 		if err != nil {
-			return result, rulesengine.SeatView{}, err
+			return result, TableView{}, err
 		}
 		// A human Pass can leave bot-controlled eligible seats unanswered.
 		// Finish those responses in this same request instead of making the
 		// table wait for its next polling tick to call driveLocked.
 		if err = r.driveLocked(ctx, current); err != nil {
-			return result, rulesengine.SeatView{}, err
+			return result, TableView{}, err
 		}
 	}
-	nextView, err := enrichedView(current.actor, seat)
+	nextView, err := r.settleAndView(ctx, table)
 	return result, nextView, err
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/common"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
@@ -18,9 +19,9 @@ import (
 )
 
 type MatchRuntime interface {
-	Join(context.Context, storage.MatchKey, string) (rulesengine.SeatView, error)
-	View(context.Context, storage.MatchKey, string) (rulesengine.SeatView, error)
-	Apply(context.Context, storage.MatchKey, string, rulesengine.MatchCommand) (rulesengine.CommandResult, rulesengine.SeatView, error)
+	Join(context.Context, storage.MatchKey, string) (match.TableView, error)
+	View(context.Context, storage.MatchKey, string) (match.TableView, error)
+	Apply(context.Context, storage.MatchKey, string, rulesengine.MatchCommand) (rulesengine.CommandResult, match.TableView, error)
 }
 
 type MatchService struct {
@@ -142,7 +143,7 @@ func (s *MatchService) JoinMatch(
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	if s.economy != nil && !economy.IsPractice(view) {
+	if s.economy != nil && stakesJade(view) {
 		if err := s.economy.Bind(ctx, principal.UserID, key.RuntimeID()); err != nil {
 			return nil, rpcError(err)
 		}
@@ -166,7 +167,7 @@ func (s *MatchService) GetMatchState(
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	if s.economy != nil && !economy.IsPractice(view) {
+	if s.economy != nil && stakesJade(view) {
 		if err := s.economy.Bind(ctx, principal.UserID, key.RuntimeID()); err != nil {
 			return nil, rpcError(err)
 		}
@@ -197,7 +198,7 @@ func (s *MatchService) SubmitMatchCommand(
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	if s.economy != nil && !economy.IsPractice(current) {
+	if s.economy != nil && stakesJade(current) {
 		if err := s.economy.Bind(ctx, principal.UserID, key.RuntimeID()); err != nil {
 			return nil, rpcError(err)
 		}
@@ -297,17 +298,25 @@ func (s *MatchService) progressionPrincipal(
 	return principal, nil
 }
 
+// stakesJade reports whether a table moves Jade. §8.4 Full Rotation "is ranked
+// and uses no Jade" — it settles in table points, which are not an account
+// currency — and §11.4 makes Practice grant nothing. Neither may touch a
+// wallet, so neither is bound to an economy account.
+func stakesJade(view match.TableView) bool {
+	return view.Rotation == nil && !economy.IsPractice(view.SeatView)
+}
+
 func (s *MatchService) projectState(
 	ctx context.Context,
 	key storage.MatchKey,
 	userID string,
-	view rulesengine.SeatView,
+	view match.TableView,
 ) (*pb.MatchState, error) {
-	state := projectState(key.MatchID, view)
+	state := projectState(key.MatchID, view.SeatView)
 	var settlement *economy.PlayerSettlement
-	if s.economy != nil {
+	if s.economy != nil && view.Rotation == nil {
 		account, projectedSettlement, err := s.economy.Project(
-			ctx, userID, key.RuntimeID(), view,
+			ctx, userID, key.RuntimeID(), view.SeatView,
 		)
 		if err != nil {
 			return nil, err
@@ -319,11 +328,23 @@ func (s *MatchService) projectState(
 	}
 	if s.progression != nil {
 		// Priced from the same authoritative view the state is built from, and
-		// idempotent per (match, player), so the projection poll that repeats a
+		// idempotent per (hand, player), so the projection poll that repeats a
 		// finished hand cannot pay for it twice.
-		xp, xpErr := s.progression.RecordHand(
-			ctx, userID, key.RuntimeID(), view, economy.IsPractice(view),
+		//
+		// The key is the *hand's* runtime ID rather than the match key's. They
+		// are the same thing in Quick Play; in a rotation they differ, and
+		// keying on the match would pay for the first hand and nothing after.
+		var (
+			xp    *progression.HandXPResult
+			xpErr error
 		)
+		if view.Rotation != nil {
+			xp, xpErr = s.progression.RecordRotationHand(ctx, userID, view.HandRuntimeID, view.SeatView)
+		} else {
+			xp, xpErr = s.progression.RecordHand(
+				ctx, userID, view.HandRuntimeID, view.SeatView, economy.IsPractice(view.SeatView),
+			)
+		}
 		if xpErr != nil {
 			return nil, rpcError(xpErr)
 		}
@@ -334,6 +355,13 @@ func (s *MatchService) projectState(
 				state.Achievements = append(state.Achievements, projectHandXPAward(achievement))
 			}
 		}
+	}
+	if view.Rotation != nil {
+		rotation, err := s.projectRotation(ctx, userID, key, *view.Rotation)
+		if err != nil {
+			return nil, err
+		}
+		state.Rotation = rotation
 	}
 	if settlement != nil {
 		state.JadeSettlement = &pb.JadeSettlement{
@@ -984,4 +1012,73 @@ func projectClaimResponse(response rulesengine.ClaimResponse) *pb.ClaimResponse 
 		ResponseRevision: response.ResponseRevision,
 		Deliberate:       response.Deliberate,
 	}
+}
+
+// projectRotation renders the §8.4 rotation and, once the match is complete,
+// pays the §12.1 placement award.
+//
+// The award is made here, on the projection of a finished rotation, for the
+// same reason the per-hand award is: every replica sees the completed state,
+// the award ID is derived from (rotation, player), and the client is already
+// polling the result screen. Paying it from a one-shot moment instead would
+// mean a player who disconnected on the final hand never received it.
+func (s *MatchService) projectRotation(
+	ctx context.Context,
+	userID string,
+	key storage.MatchKey,
+	view match.RotationView,
+) (*pb.RotationState, error) {
+	projected := &pb.RotationState{
+		HandNumber:    int32(view.HandNumber),
+		HandsPlayed:   int32(view.HandsPlayed),
+		Continuations: int32(view.Continuations),
+		DealerUserId:  view.DealerUserID,
+		SeatsDealt:    int32(view.SeatsDealt),
+		TimeLimitAt:   view.TimeLimitAt.UTC().Format(time.RFC3339),
+		Complete:      view.Complete,
+		Reason:        string(view.Reason),
+	}
+	if view.NextHandOpensAt != nil {
+		projected.NextHandOpensAt = view.NextHandOpensAt.UTC().Format(time.RFC3339)
+	}
+	for _, standing := range view.Standings {
+		projected.Standings = append(projected.Standings, &pb.RotationStanding{
+			UserId:      standing.UserID,
+			Position:    string(standing.Position),
+			Wind:        string(standing.Wind),
+			TablePoints: standing.TablePoints,
+			DealIns:     int32(standing.DealIns),
+			ZimoWins:    int32(standing.ZimoWins),
+			RawTaiWon:   int32(standing.RawTaiWon),
+			Dealing:     standing.Dealing,
+			HasDealt:    standing.HasDealt,
+		})
+	}
+	for _, placement := range view.Placements {
+		projected.Placements = append(projected.Placements, &pb.RotationPlacement{
+			UserId:      placement.UserID,
+			Position:    int32(placement.Position),
+			TablePoints: placement.TablePoints,
+			RatingTie:   placement.RatingTie,
+		})
+	}
+	if !view.Complete || s.progression == nil {
+		return projected, nil
+	}
+	for _, placement := range view.Placements {
+		if placement.UserID != userID {
+			continue
+		}
+		award, err := s.progression.AwardRotationPlacement(
+			ctx, userID, key.RuntimeID(), placement.Position, placement.RatingTie,
+		)
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		if award != nil {
+			projected.PlacementXpAward = projectHandXPAward(award.Award)
+		}
+		break
+	}
+	return projected, nil
 }

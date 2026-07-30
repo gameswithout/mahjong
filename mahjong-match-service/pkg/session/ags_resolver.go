@@ -118,3 +118,56 @@ func terminalStatus(status *string) bool {
 		return false
 	}
 }
+
+// Mode reads the client-supplied "full_rotation" custom session attribute,
+// set at session creation alongside "ai_practice" (see client/session.ts).
+//
+// AI Practice wins when both are set. §11.4 makes Practice grant nothing, and
+// §8.4 makes Full Rotation ranked; a session claiming to be both is
+// contradictory, and resolving it toward the mode that awards nothing is the
+// safe direction to be wrong in.
+func (r AGSResolver) Mode(ctx context.Context, namespace, sessionID string) (Mode, error) {
+	if r.GameSessions == nil {
+		return "", fmt.Errorf("AGS Session client is not initialized")
+	}
+	response, err := r.GameSessions.GetGameSessionShort(
+		game_session.NewGetGameSessionParamsWithContext(ctx).
+			WithNamespace(namespace).
+			WithSessionID(sessionID),
+	)
+	if err != nil {
+		return "", fmt.Errorf("get AGS game session: %w", err)
+	}
+	if response == nil {
+		return "", ErrSessionNotFound
+	}
+	return modeFromAttributes(response.Attributes), nil
+}
+
+func modeFromAttributes(attributes interface{}) Mode {
+	if aiPracticeAttribute(attributes) {
+		return ModeQuickPlay
+	}
+	if booleanAttribute(attributes, "full_rotation") {
+		return ModeFullRotation
+	}
+	return ModeQuickPlay
+}
+
+// booleanAttribute reads a custom session attribute that AGS round-trips as
+// arbitrary JSON, decoded as map[string]interface{}. Both a JSON boolean and a
+// JSON string are accepted, matching how the client may serialize it.
+func booleanAttribute(attributes interface{}, name string) bool {
+	values, ok := attributes.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	switch value := values[name].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(value, "true")
+	default:
+		return false
+	}
+}

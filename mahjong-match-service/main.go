@@ -249,6 +249,10 @@ func main() {
 		logger.Warn("using static test roster; do not enable MATCH_TEST_ROSTER in production")
 	}
 	matchRuntime := match.NewRuntime(rosterResolver, postgresStorage, postgresStorage, time.Now)
+	// §8.4 Full Rotation shares the same storage. Without this the runtime
+	// refuses a session that asks for Full Rotation rather than silently
+	// playing it as a single Quick Play hand.
+	matchRuntime.SetRotations(postgresStorage)
 	testUserID := strings.TrimSpace(common.GetEnv("MATCH_TEST_USER_ID", ""))
 	if testUserID != "" {
 		if authEnabled {

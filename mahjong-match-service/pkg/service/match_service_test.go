@@ -100,7 +100,7 @@ func (f *fakeEconomyRepository) MarkJadeWalletSyncFailed(
 }
 
 type fakeRuntime struct {
-	joinView  rulesengine.SeatView
+	joinView  match.TableView
 	joinKey   storage.MatchKey
 	joinUser  string
 	viewKey   storage.MatchKey
@@ -117,7 +117,7 @@ func (f *fakeRuntime) Join(
 	_ context.Context,
 	key storage.MatchKey,
 	userID string,
-) (rulesengine.SeatView, error) {
+) (match.TableView, error) {
 	f.joinKey = key
 	f.joinUser = userID
 	return f.joinView, f.joinErr
@@ -127,7 +127,7 @@ func (f *fakeRuntime) View(
 	_ context.Context,
 	key storage.MatchKey,
 	userID string,
-) (rulesengine.SeatView, error) {
+) (match.TableView, error) {
 	f.viewKey = key
 	f.viewUser = userID
 	return f.joinView, f.viewErr
@@ -138,7 +138,7 @@ func (f *fakeRuntime) Apply(
 	key storage.MatchKey,
 	userID string,
 	command rulesengine.MatchCommand,
-) (rulesengine.CommandResult, rulesengine.SeatView, error) {
+) (rulesengine.CommandResult, match.TableView, error) {
 	f.applyKey = key
 	f.applyUser = userID
 	f.applyCmd = command
@@ -560,7 +560,7 @@ func TestProjectState_ProjectsDiscardAndOnlyOwnClaimResponse(t *testing.T) {
 		},
 	}
 
-	state := projectState("public-match-id", view)
+	state := projectState("public-match-id", view.SeatView)
 	if state.GetMatchId() != "public-match-id" ||
 		state.GetLastDiscard().GetTile().GetId() != "dots-9-1" {
 		t.Fatalf("projected state/discard = %#v", state)
@@ -592,7 +592,7 @@ func TestProjectState_ProjectsWaitsOwnMeldsDiscardsAndTurnDeadline(t *testing.T)
 	}
 	view.TurnDeadline = "2026-07-18T12:00:10Z"
 
-	state := projectState("public-match-id", view)
+	state := projectState("public-match-id", view.SeatView)
 	if len(state.GetWaits()) != 1 || state.GetWaits()[0].GetVisibleRemaining() != 3 {
 		t.Fatalf("projected waits = %#v", state.GetWaits())
 	}
@@ -618,7 +618,7 @@ func TestProjectState_ProjectsPlayerMeldsAndTakenOver(t *testing.T) {
 		},
 	}
 
-	state := projectState("public-match-id", view)
+	state := projectState("public-match-id", view.SeatView)
 	south := state.GetPlayers()[1]
 	if !south.GetTakenOver() {
 		t.Fatalf("expected taken_over projected, got %#v", south)
@@ -653,7 +653,7 @@ func TestProjectState_ProjectsIsBotDistinctFromTakenOver(t *testing.T) {
 		IsBot:     false,
 	}
 
-	state := projectState("public-match-id", view)
+	state := projectState("public-match-id", view.SeatView)
 	south := state.GetPlayers()[1]
 	west := state.GetPlayers()[2]
 	if !south.GetIsBot() {
@@ -692,7 +692,7 @@ func TestProjectState_ProjectsClaimOptionsWithWinPreview(t *testing.T) {
 		},
 	}
 
-	state := projectState("public-match-id", view)
+	state := projectState("public-match-id", view.SeatView)
 	options := state.GetClaim().GetOptions()
 	if !options.GetCanWin() || !options.GetCanPong() {
 		t.Fatalf("projected claim options = %#v", options)
@@ -747,7 +747,7 @@ func TestProjectState_ProjectsHandResultSettlementAndNextDealer(t *testing.T) {
 		DealerRetains:     false,
 	}
 
-	state := projectState("public-match-id", view)
+	state := projectState("public-match-id", view.SeatView)
 	result := state.GetHandResult()
 	if result.GetKind() != string(rulesengine.WinDiscard) || result.GetPayer() != "S" {
 		t.Fatalf("projected hand_result = %#v", result)
@@ -771,8 +771,12 @@ func TestProjectState_ProjectsHandResultSettlementAndNextDealer(t *testing.T) {
 	}
 }
 
-func privateView() rulesengine.SeatView {
-	return rulesengine.SeatView{
+func privateView() match.TableView {
+	// HandRuntimeID is what per-hand XP and statistics are keyed on. The real
+	// runtime always sets it; the service refuses an empty one rather than
+	// falling back to the match key, because that fallback would pay a
+	// rotation for its first hand and nothing after.
+	return match.TableView{HandRuntimeID: "internal-runtime-id", SeatView: rulesengine.SeatView{
 		MatchID:      "internal-runtime-id",
 		Seat:         rulesengine.East,
 		StateVersion: 2,
@@ -788,7 +792,7 @@ func privateView() rulesengine.SeatView {
 			{Seat: rulesengine.North, HandCount: 16},
 		},
 		Wall: rulesengine.WallView{Remaining: 79, DrawableRemaining: 63, ReserveRemaining: 16},
-	}
+	}}
 }
 
 func (f *fakeEconomyRepository) JadeAccountWithFaucets(

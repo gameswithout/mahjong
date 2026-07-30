@@ -42,7 +42,7 @@ func TestRuntime_ConcurrentReplicaInitialization(t *testing.T) {
 
 	start := make(chan struct{})
 	errorsFound := make(chan error, 2)
-	views := make(chan rulesengine.SeatView, 2)
+	views := make(chan TableView, 2)
 	var wait sync.WaitGroup
 	for _, runtime := range []*Runtime{first, second} {
 		runtime := runtime
@@ -64,7 +64,7 @@ func TestRuntime_ConcurrentReplicaInitialization(t *testing.T) {
 			t.Errorf("concurrent Join() error = %v", err)
 		}
 	}
-	var canonical rulesengine.SeatView
+	var canonical TableView
 	for view := range views {
 		if canonical.MatchID == "" {
 			canonical = view
@@ -97,7 +97,7 @@ func TestRuntime_ConcurrentReplicaCommandsRefreshLoser(t *testing.T) {
 	}
 	cleanupPostgreSQLMatch(t, connectionString, key)
 	var eastUser string
-	var firstView rulesengine.SeatView
+	var firstView TableView
 	for _, userID := range resolver.Members {
 		view, joinErr := first.Join(context.Background(), key, userID)
 		if joinErr != nil {
@@ -206,7 +206,7 @@ func TestRuntime_ConcurrentReplicaDuplicateRequestReturnsCommittedResult(t *test
 	}
 	cleanupPostgreSQLMatch(t, connectionString, key)
 	var eastUser string
-	var eastView rulesengine.SeatView
+	var eastView TableView
 	for _, userID := range resolver.Members {
 		view, joinErr := first.Join(context.Background(), key, userID)
 		if joinErr != nil {

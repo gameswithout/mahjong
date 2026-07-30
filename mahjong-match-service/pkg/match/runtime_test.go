@@ -52,6 +52,10 @@ func (r failingResolver) Roster(context.Context, string, string) ([]string, erro
 	return nil, r.err
 }
 
+func (r failingResolver) Mode(context.Context, string, string) (session.Mode, error) {
+	return session.ModeQuickPlay, nil
+}
+
 func (f *fakeMatchRepository) EnsureMatch(
 	_ context.Context,
 	key storage.MatchKey,
@@ -935,7 +939,7 @@ func TestEnrichedViewAttachesSettlementAndNextDealerOnlyAtHandEnd(t *testing.T) 
 		t.Fatalf("BeginInitialReplacement error = %v", err)
 	}
 
-	midHandView, err := enrichedView(actor, rulesengine.West)
+	midHandView, err := enrichedView(actor, rulesengine.West, matchTier, matchContinuations)
 	if err != nil {
 		t.Fatalf("enrichedView(West) mid-hand error = %v", err)
 	}
@@ -982,7 +986,7 @@ func TestEnrichedViewAttachesSettlementAndNextDealerOnlyAtHandEnd(t *testing.T) 
 	}
 
 	for _, seat := range []rulesengine.Seat{rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North} {
-		view, err := enrichedView(actor, seat)
+		view, err := enrichedView(actor, seat, matchTier, matchContinuations)
 		if err != nil {
 			t.Fatalf("enrichedView(%s) error = %v", seat, err)
 		}

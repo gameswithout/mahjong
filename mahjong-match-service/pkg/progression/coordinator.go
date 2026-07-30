@@ -192,6 +192,12 @@ func handAwardID(runtimeID, userID string) string {
 	return fmt.Sprintf("hand:%s:%s", runtimeID, userID)
 }
 
+// rotationPlacementAwardID keys the §12.1 end-of-match award to the rotation
+// and the player, so the poll that repeats a finished rotation pays once.
+func rotationPlacementAwardID(rotationRuntimeID, userID string) string {
+	return fmt.Sprintf("rotation-placement:%s:%s", rotationRuntimeID, userID)
+}
+
 func onboardingAwardID(userID string) string {
 	return "onboarding:" + userID
 }
@@ -207,6 +213,33 @@ func (c *Coordinator) RecordHand(
 	runtimeID string,
 	view rulesengine.SeatView,
 	practice bool,
+) (*HandXPResult, error) {
+	return c.recordHand(ctx, userID, runtimeID, view, practice, false)
+}
+
+// RecordRotationHand pays the §12.1 flat award for one completed Full Rotation
+// hand. runtimeID is the *hand's* runtime ID, not the rotation's, so a
+// rotation pays for each of its hands rather than once for the match.
+//
+// Full Rotation is public and ranked, so unlike Practice it feeds statistics
+// and can unlock achievements. The placement award is separate and paid once,
+// by AwardRotationPlacement, when the match ends.
+func (c *Coordinator) RecordRotationHand(
+	ctx context.Context,
+	userID string,
+	handRuntimeID string,
+	view rulesengine.SeatView,
+) (*HandXPResult, error) {
+	return c.recordHand(ctx, userID, handRuntimeID, view, false, true)
+}
+
+func (c *Coordinator) recordHand(
+	ctx context.Context,
+	userID string,
+	runtimeID string,
+	view rulesengine.SeatView,
+	practice bool,
+	rotation bool,
 ) (*HandXPResult, error) {
 	if c == nil || c.repository == nil {
 		return nil, nil
@@ -233,7 +266,14 @@ func (c *Coordinator) RecordHand(
 	// Passing zero here prevents a stale read-then-write cap race between two
 	// replicas; HandXP still owns the pure per-hand arithmetic.
 	var achievements []HandAward
+	// §12.1 scores the two modes differently: Quick Play prices the hand
+	// itself, Full Rotation pays a flat rate and settles the rest on final
+	// placement, because a hand lost early in a rotation can be the right play
+	// for the match.
 	award := HandXP(outcome, 0)
+	if rotation {
+		award = RotationHandAward()
+	}
 	award.AwardID = handAwardID(runtimeID, userID)
 	player, persisted, applied, err := c.repository.AwardXP(
 		ctx, userID, runtimeID, award,
@@ -294,6 +334,43 @@ func (c *Coordinator) RecordHand(
 		Player:         player,
 		AlreadyAwarded: !applied,
 		Achievements:   achievements,
+	}, nil
+}
+
+// AwardRotationPlacement pays the §12.1 end-of-match award for a completed
+// Full Rotation.
+//
+// Safe to call on every projection of a finished rotation: the award ID is
+// derived from (rotation, player), so repeats are no-ops. Positions outside
+// first through fourth award nothing, which RotationPlacementAward enforces.
+func (c *Coordinator) AwardRotationPlacement(
+	ctx context.Context,
+	userID string,
+	rotationRuntimeID string,
+	position int,
+	ratingTie bool,
+) (*HandXPResult, error) {
+	if c == nil || c.repository == nil {
+		return nil, nil
+	}
+	userID = strings.TrimSpace(userID)
+	rotationRuntimeID = strings.TrimSpace(rotationRuntimeID)
+	if userID == "" || rotationRuntimeID == "" {
+		return nil, fmt.Errorf("%w: user and rotation are required", ErrNotInitialized)
+	}
+	award := RotationPlacementAward(position, ratingTie)
+	if award.Total == 0 {
+		return nil, nil
+	}
+	award.AwardID = rotationPlacementAwardID(rotationRuntimeID, userID)
+	player, persisted, applied, err := c.repository.AwardXP(ctx, userID, rotationRuntimeID, award)
+	if err != nil {
+		return nil, err
+	}
+	return &HandXPResult{
+		Award:          persisted,
+		Player:         player,
+		AlreadyAwarded: !applied,
 	}, nil
 }
 

@@ -57,7 +57,7 @@ func TestFourHumanSoak_ViewNeverFailsMidHand(t *testing.T) {
 			for step := 0; step < 250; step++ {
 				// Every client polls every tick, exactly as the browser
 				// clients do. All four must always succeed.
-				views := make(map[string]rulesengine.SeatView, len(players))
+				views := make(map[string]TableView, len(players))
 				for _, player := range players {
 					view, err := runtime.View(ctx, key, player)
 					if err != nil {
@@ -107,7 +107,7 @@ func actOnce(
 	runtime *Runtime,
 	key storage.MatchKey,
 	players []string,
-	views map[string]rulesengine.SeatView,
+	views map[string]TableView,
 	seq int,
 ) bool {
 	t.Helper()
