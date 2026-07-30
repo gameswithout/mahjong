@@ -399,9 +399,11 @@ func TestCoordinator_UnknownAchievementCodePaysNothingAndReports(t *testing.T) {
 	}
 }
 
-func TestCoordinator_NoAchievementSweepWhenStatsFailed(t *testing.T) {
-	// AGS evaluates unlocks from the statistics we write. Sweeping after a
-	// failed write asks it about a state it never saw.
+func TestCoordinator_SweepsEvenWhenThisCallsStatsWriteFailed(t *testing.T) {
+	// The sweep is deliberately decoupled from the write. AGS evaluates
+	// unlocks asynchronously, so binding the sweep to a successful write in
+	// the same call made it miss its own hand — verified live. A failed write
+	// now says nothing about whether an earlier hand's unlock is pending.
 	repository := newMemoryProgressionRepository()
 	coordinator := NewCoordinator(repository)
 	coordinator.SetStatsMirror(
@@ -416,8 +418,8 @@ func TestCoordinator_NoAchievementSweepWhenStatsFailed(t *testing.T) {
 	); err != nil {
 		t.Fatalf("RecordHand() error = %v", err)
 	}
-	if reader.calls != 0 {
-		t.Fatalf("swept achievements %d times after a failed stats write", reader.calls)
+	if reader.calls == 0 {
+		t.Fatal("a failed stats write suppressed the sweep entirely")
 	}
 }
 
@@ -464,7 +466,6 @@ func TestAchievementRewardTableMatchesConfiguredSet(t *testing.T) {
 	}
 }
 
-
 // §P2.3. The dashboard reads the same counters the achievements evaluate, so
 // the codes it asks for must be exactly the ones the write path produces.
 func TestPlayerStatistics_ReadsTheDashboardCodes(t *testing.T) {
@@ -499,5 +500,51 @@ func TestPlayerStatistics_ReadsTheDashboardCodes(t *testing.T) {
 func TestPlayerStatistics_WithoutAMirrorIsAnError(t *testing.T) {
 	if _, err := NewCoordinator(nil).PlayerStatistics(context.Background(), "player-1"); err == nil {
 		t.Fatal("a coordinator with no stats mirror returned statistics")
+	}
+}
+
+func TestCoordinator_SweepsOnEveryProjectionSoALateUnlockStillPays(t *testing.T) {
+	// The bug this pins: AGS evaluates unlocks asynchronously from the stat
+	// write, so the unlock is usually not visible on the call that wrote the
+	// stats. Binding the sweep to that one call paid the XP a hand late — or
+	// not at all. Verified live 2026-07-30 before the fix.
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(&fakeStatsMirror{}, nil)
+
+	// AGS reports nothing on the first look, as if it has not evaluated yet.
+	reader := &fakeAchievementReader{}
+	coordinator.SetAchievementReader(reader)
+
+	view := completedPublicHand()
+	first, err := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-1", view, false,
+	)
+	if err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	if len(first.Achievements) != 0 {
+		t.Fatalf("paid an achievement AGS had not reported: %+v", first.Achievements)
+	}
+
+	// The unlock lands a moment later. A subsequent projection of the *same*
+	// finished hand — which the result screen produces by polling — must pay it.
+	reader.codes = []string{"first-hand"}
+	second, err := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-1", view, false,
+	)
+	if err != nil {
+		t.Fatalf("RecordHand() error = %v", err)
+	}
+	if len(second.Achievements) != 1 || second.Achievements[0].Total != 100 {
+		t.Fatalf("late unlock was not paid on a later projection: %+v", second.Achievements)
+	}
+
+	// And still only once, however many more times it is reported.
+	third, _ := coordinator.RecordHand(
+		context.Background(), "user-east", "runtime-1", view, false,
+	)
+	if len(third.Achievements) != 0 {
+		t.Fatalf("paid the same achievement twice: %+v", third.Achievements)
 	}
 }

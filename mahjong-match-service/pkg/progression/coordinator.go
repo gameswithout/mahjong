@@ -228,27 +228,40 @@ func (c *Coordinator) RecordHand(
 			// A failed projection must not fail the hand or undo the XP. The
 			// ledger is authoritative; AGS is a downstream mirror, exactly as
 			// the Jade wallet mirror is.
-			if statsErr := c.stats.RecordHandStats(ctx, userID, updates); statsErr != nil {
-				if c.onStatsError != nil {
-					c.onStatsError(statsErr)
-				}
-			} else if c.achievements != nil {
-				// Only sweep when the stats actually landed. AGS evaluates
-				// unlocks from those values, so sweeping after a failed write
-				// asks it about a state it never saw.
-				unlocked, sweepErr := c.awardUnlockedAchievements(ctx, userID)
-				if sweepErr != nil && c.onStatsError != nil {
-					c.onStatsError(sweepErr)
-				}
-				if len(unlocked) > 0 {
-					// Re-read so the caller sees the level the achievement XP
-					// produced, not the pre-achievement standing.
-					if refreshed, refreshErr := c.repository.PlayerProgression(ctx, userID); refreshErr == nil {
-						player = refreshed
-					}
-					achievements = unlocked
-				}
+			if statsErr := c.stats.RecordHandStats(ctx, userID, updates); statsErr != nil && c.onStatsError != nil {
+				c.onStatsError(statsErr)
 			}
+		}
+	}
+
+	// The achievement sweep runs on every projection of a completed hand, not
+	// only the one that wrote the statistics.
+	//
+	// AGS evaluates unlocks asynchronously from the stat write, so at the
+	// instant the write returns the unlock has usually not happened yet. A
+	// sweep bound to that single moment therefore misses its own hand and pays
+	// the XP a hand late — verified live on 2026-07-30, where four players who
+	// each completed their first public hand ended on 100 XP instead of 200,
+	// and a earlier run paid exactly one of four purely on timing.
+	//
+	// Repeating the sweep is free: the award ID is derived from (achievement,
+	// player), so AwardXP pays each unlock once however many times it is seen.
+	// The client polls a finished hand while the result screen is up, so the
+	// unlock lands within a few seconds and is visible where it belongs.
+	// Never for Practice: §11.4 grants no achievements there, so a Practice
+	// hand must not even ask AGS about unlocks.
+	if c.achievements != nil && !practice {
+		unlocked, sweepErr := c.awardUnlockedAchievements(ctx, userID)
+		if sweepErr != nil && c.onStatsError != nil {
+			c.onStatsError(sweepErr)
+		}
+		if len(unlocked) > 0 {
+			// Re-read so the caller sees the level the achievement XP
+			// produced, not the pre-achievement standing.
+			if refreshed, refreshErr := c.repository.PlayerProgression(ctx, userID); refreshErr == nil {
+				player = refreshed
+			}
+			achievements = unlocked
 		}
 	}
 
