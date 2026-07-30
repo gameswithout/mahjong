@@ -52,6 +52,11 @@ func TestMahjongServiceHTTPContract(t *testing.T) {
 			path:   "/v1/namespaces/{namespace}/statistics",
 		},
 		{
+			method: "GetPlayerAchievements",
+			verb:   http.MethodGet,
+			path:   "/v1/namespaces/{namespace}/achievements",
+		},
+		{
 			method: "AwardOnboardingXP",
 			verb:   http.MethodPost,
 			path:   "/v1/namespaces/{namespace}/progression/onboarding",
@@ -124,6 +129,7 @@ func TestMahjongCommandContract_DoesNotAcceptCallerIdentityOrSeat(t *testing.T) 
 		"ClaimJadeWelfareRequest",
 		"GetProgressionRequest",
 		"GetPlayerStatisticsRequest",
+		"GetPlayerAchievementsRequest",
 		"AwardOnboardingXPRequest",
 		"JoinMatchRequest",
 		"GetMatchStateRequest",
@@ -157,6 +163,11 @@ func TestProgressionContractCarriesStableIDsAndFullCurveTypes(t *testing.T) {
 		{"PlayerProgression", "lifetime_xp", protoreflect.Int64Kind, false},
 		{"PlayerProgression", "onboarding", protoreflect.MessageKind, false},
 		{"AwardOnboardingXPRequest", "outcome", protoreflect.EnumKind, false},
+		{"GetPlayerAchievementsResponse", "achievements", protoreflect.MessageKind, true},
+		{"PlayerAchievement", "current", protoreflect.DoubleKind, false},
+		{"PlayerAchievement", "goal", protoreflect.DoubleKind, false},
+		{"PlayerAchievement", "eligible", protoreflect.BoolKind, false},
+		{"PlayerAchievement", "unavailable_reason", protoreflect.StringKind, false},
 	}
 	for _, test := range tests {
 		message := pb.File_service_proto.Messages().ByName(test.message)

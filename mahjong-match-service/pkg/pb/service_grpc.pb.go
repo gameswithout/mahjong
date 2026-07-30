@@ -23,16 +23,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Service_GetJadeAccount_FullMethodName      = "/service.Service/GetJadeAccount"
-	Service_ReserveJade_FullMethodName         = "/service.Service/ReserveJade"
-	Service_ReleaseJade_FullMethodName         = "/service.Service/ReleaseJade"
-	Service_ClaimJadeWelfare_FullMethodName    = "/service.Service/ClaimJadeWelfare"
-	Service_GetProgression_FullMethodName      = "/service.Service/GetProgression"
-	Service_AwardOnboardingXP_FullMethodName   = "/service.Service/AwardOnboardingXP"
-	Service_GetPlayerStatistics_FullMethodName = "/service.Service/GetPlayerStatistics"
-	Service_JoinMatch_FullMethodName           = "/service.Service/JoinMatch"
-	Service_GetMatchState_FullMethodName       = "/service.Service/GetMatchState"
-	Service_SubmitMatchCommand_FullMethodName  = "/service.Service/SubmitMatchCommand"
+	Service_GetJadeAccount_FullMethodName        = "/service.Service/GetJadeAccount"
+	Service_ReserveJade_FullMethodName           = "/service.Service/ReserveJade"
+	Service_ReleaseJade_FullMethodName           = "/service.Service/ReleaseJade"
+	Service_ClaimJadeWelfare_FullMethodName      = "/service.Service/ClaimJadeWelfare"
+	Service_GetProgression_FullMethodName        = "/service.Service/GetProgression"
+	Service_AwardOnboardingXP_FullMethodName     = "/service.Service/AwardOnboardingXP"
+	Service_GetPlayerStatistics_FullMethodName   = "/service.Service/GetPlayerStatistics"
+	Service_GetPlayerAchievements_FullMethodName = "/service.Service/GetPlayerAchievements"
+	Service_JoinMatch_FullMethodName             = "/service.Service/JoinMatch"
+	Service_GetMatchState_FullMethodName         = "/service.Service/GetMatchState"
+	Service_SubmitMatchCommand_FullMethodName    = "/service.Service/SubmitMatchCommand"
 )
 
 // ServiceClient is the client API for Service service.
@@ -49,6 +50,7 @@ type ServiceClient interface {
 	// roster when necessary, assigns stable seats, and returns only the
 	// authenticated caller's view.
 	GetPlayerStatistics(ctx context.Context, in *GetPlayerStatisticsRequest, opts ...grpc.CallOption) (*GetPlayerStatisticsResponse, error)
+	GetPlayerAchievements(ctx context.Context, in *GetPlayerAchievementsRequest, opts ...grpc.CallOption) (*GetPlayerAchievementsResponse, error)
 	JoinMatch(ctx context.Context, in *JoinMatchRequest, opts ...grpc.CallOption) (*JoinMatchResponse, error)
 	// GetMatchState returns a caller-specific projection. Concealed tiles and
 	// private claim responses belonging to other players are never included.
@@ -136,6 +138,16 @@ func (c *serviceClient) GetPlayerStatistics(ctx context.Context, in *GetPlayerSt
 	return out, nil
 }
 
+func (c *serviceClient) GetPlayerAchievements(ctx context.Context, in *GetPlayerAchievementsRequest, opts ...grpc.CallOption) (*GetPlayerAchievementsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPlayerAchievementsResponse)
+	err := c.cc.Invoke(ctx, Service_GetPlayerAchievements_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serviceClient) JoinMatch(ctx context.Context, in *JoinMatchRequest, opts ...grpc.CallOption) (*JoinMatchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(JoinMatchResponse)
@@ -180,6 +192,7 @@ type ServiceServer interface {
 	// roster when necessary, assigns stable seats, and returns only the
 	// authenticated caller's view.
 	GetPlayerStatistics(context.Context, *GetPlayerStatisticsRequest) (*GetPlayerStatisticsResponse, error)
+	GetPlayerAchievements(context.Context, *GetPlayerAchievementsRequest) (*GetPlayerAchievementsResponse, error)
 	JoinMatch(context.Context, *JoinMatchRequest) (*JoinMatchResponse, error)
 	// GetMatchState returns a caller-specific projection. Concealed tiles and
 	// private claim responses belonging to other players are never included.
@@ -216,6 +229,9 @@ func (UnimplementedServiceServer) AwardOnboardingXP(context.Context, *AwardOnboa
 }
 func (UnimplementedServiceServer) GetPlayerStatistics(context.Context, *GetPlayerStatisticsRequest) (*GetPlayerStatisticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPlayerStatistics not implemented")
+}
+func (UnimplementedServiceServer) GetPlayerAchievements(context.Context, *GetPlayerAchievementsRequest) (*GetPlayerAchievementsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPlayerAchievements not implemented")
 }
 func (UnimplementedServiceServer) JoinMatch(context.Context, *JoinMatchRequest) (*JoinMatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method JoinMatch not implemented")
@@ -372,6 +388,24 @@ func _Service_GetPlayerStatistics_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_GetPlayerAchievements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPlayerAchievementsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).GetPlayerAchievements(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_GetPlayerAchievements_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).GetPlayerAchievements(ctx, req.(*GetPlayerAchievementsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Service_JoinMatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(JoinMatchRequest)
 	if err := dec(in); err != nil {
@@ -460,6 +494,10 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPlayerStatistics",
 			Handler:    _Service_GetPlayerStatistics_Handler,
+		},
+		{
+			MethodName: "GetPlayerAchievements",
+			Handler:    _Service_GetPlayerAchievements_Handler,
 		},
 		{
 			MethodName: "JoinMatch",

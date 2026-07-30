@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/gameswithout/mahjong/rulesengine"
@@ -70,6 +71,29 @@ type StatsMirror interface {
 // service only reads the result and pays the §12.3 XP for it.
 type AchievementReader interface {
 	UnlockedAchievementCodes(ctx context.Context, userID string) ([]string, error)
+}
+
+// AchievementProgressReader is the read side of the player-facing catalog.
+// Kept separate from AchievementReader so the hand-award path remains usable
+// with a minimal unlock-only reader, while the production AGS reader supports
+// both contracts.
+type AchievementProgressReader interface {
+	AchievementProgress(ctx context.Context, userID string) ([]AchievementProgress, error)
+}
+
+// AchievementProgress is AGS's current state for one configured achievement.
+type AchievementProgress struct {
+	Code     string
+	Current  float64
+	Unlocked bool
+}
+
+// PlayerAchievement merges one fixed product definition with AGS's current
+// value. Unavailable launch entries have no AGS row but stay in the result.
+type PlayerAchievement struct {
+	Achievement Achievement
+	Current     float64
+	Unlocked    bool
 }
 
 type Coordinator struct {
@@ -328,6 +352,78 @@ func (c *Coordinator) Player(ctx context.Context, userID string) (Player, error)
 		return Player{}, fmt.Errorf("%w: user ID is required", ErrNotInitialized)
 	}
 	return c.repository.PlayerProgression(ctx, userID)
+}
+
+// PlayerAchievements returns the complete visible §12.3 launch catalog.
+//
+// AGS is authoritative for current values and unlock status for the 23
+// configured entries. The fixed catalog is authoritative for product order,
+// display copy, goals/rewards, and the nine entries whose tracking or game
+// mode is not available yet. An untouched configured achievement may be absent
+// from AGS; that is an exact zero, not a reason to hide it.
+func (c *Coordinator) PlayerAchievements(
+	ctx context.Context,
+	userID string,
+) ([]PlayerAchievement, error) {
+	if c == nil {
+		return nil, ErrNotInitialized
+	}
+	reader, ok := c.achievements.(AchievementProgressReader)
+	if !ok {
+		return nil, ErrNotInitialized
+	}
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, fmt.Errorf("%w: user ID is required", ErrNotInitialized)
+	}
+
+	rows, err := reader.AchievementProgress(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	byCode := make(map[string]AchievementProgress, len(rows))
+	for _, row := range rows {
+		row.Code = strings.TrimSpace(row.Code)
+		if row.Code == "" {
+			continue
+		}
+		if math.IsNaN(row.Current) || math.IsInf(row.Current, 0) || row.Current < 0 {
+			row.Current = 0
+		}
+		if existing, found := byCode[row.Code]; found {
+			if existing.Current > row.Current {
+				row.Current = existing.Current
+			}
+			row.Unlocked = row.Unlocked || existing.Unlocked
+		}
+		byCode[row.Code] = row
+	}
+
+	catalog := AchievementCatalog()
+	result := make([]PlayerAchievement, 0, len(catalog))
+	known := make(map[string]bool, len(catalog))
+	for _, definition := range catalog {
+		known[definition.Code] = true
+		current := AchievementProgress{}
+		if definition.Available {
+			current = byCode[definition.Code]
+		}
+		result = append(result, PlayerAchievement{
+			Achievement: definition,
+			Current:     current.Current,
+			Unlocked:    definition.Available && current.Unlocked,
+		})
+	}
+	for code := range byCode {
+		if !known[code] && c.onStatsError != nil {
+			c.onStatsError(fmt.Errorf(
+				"AGS returned unknown achievement %q for user %s; omitted from catalog",
+				code,
+				userID,
+			))
+		}
+	}
+	return result, nil
 }
 
 // DashboardStatCodes are the counters the §P2.3 statistics dashboard reads.

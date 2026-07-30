@@ -3,6 +3,7 @@ import type {
   LevelStep,
   LevelReward,
   OnboardingOutcome,
+  PlayerAchievement,
   PlayerProgression,
   XPComponent,
 } from "../protocol/envelope";
@@ -45,6 +46,7 @@ export interface OnboardingAwardResult {
 
 export interface ProgressionClient {
   get(): Promise<ProgressionSnapshot>;
+  getAchievements(): Promise<PlayerAchievement[]>;
   // §10.4: the award is the same either way, but which exit the player took
   // is recorded, so the outcome is required rather than assumed.
   awardOnboarding(outcome: OnboardingOutcome): Promise<OnboardingAwardResult>;
@@ -209,6 +211,44 @@ export function normalizeHandXPAward(value: unknown): HandXPAward | undefined {
   };
 }
 
+export function normalizePlayerAchievements(value: unknown): PlayerAchievement[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return [];
+    }
+    const raw = entry as Record<string, unknown>;
+    if (
+      typeof raw.code !== "string" ||
+      typeof raw.name !== "string" ||
+      typeof raw.description !== "string"
+    ) {
+      return [];
+    }
+    return [{
+      code: raw.code,
+      name: raw.name,
+      description: raw.description,
+      current: numericValue(raw.current),
+      goal: numericValue(raw.goal),
+      xp_reward: numericValue(raw.xp_reward),
+      bonus_reward:
+        typeof raw.bonus_reward === "string" && raw.bonus_reward
+          ? raw.bonus_reward
+          : undefined,
+      // protojson omits false booleans, so strict true checks are deliberate.
+      eligible: raw.eligible === true,
+      unlocked: raw.unlocked === true,
+      unavailable_reason:
+        typeof raw.unavailable_reason === "string" && raw.unavailable_reason
+          ? raw.unavailable_reason
+          : undefined,
+    }];
+  });
+}
+
 export function createProgressionClient(
   accessToken: string,
   options: ProgressionClientOptions,
@@ -218,11 +258,11 @@ export function createProgressionClient(
   }
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const path =
-    `${options.url}/v1/namespaces/${encodeURIComponent(options.namespace)}/progression`;
+  const path = `${options.url}/v1/namespaces/${encodeURIComponent(options.namespace)}`;
 
   async function request(
     method: "GET" | "POST",
+    resource: "progression" | "achievements",
     suffix = "",
     payload: Record<string, unknown> = {},
   ): Promise<unknown> {
@@ -230,7 +270,7 @@ export function createProgressionClient(
     const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
-      response = await fetchImpl(`${path}${suffix}`, {
+      response = await fetchImpl(`${path}/${resource}${suffix}`, {
         method,
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -266,14 +306,23 @@ export function createProgressionClient(
 
   return {
     async get() {
-      const body = (await request("GET")) as { progression?: unknown; curve?: unknown };
+      const body = (await request("GET", "progression")) as {
+        progression?: unknown;
+        curve?: unknown;
+      };
       return {
         progression: normalizePlayerProgression(body.progression),
         curve: readCurve(body.curve),
       };
     },
+    async getAchievements() {
+      const body = (await request("GET", "achievements")) as {
+        achievements?: unknown;
+      };
+      return normalizePlayerAchievements(body.achievements);
+    },
     async awardOnboarding(outcome: OnboardingOutcome) {
-      const body = (await request("POST", "/onboarding", { outcome })) as {
+      const body = (await request("POST", "progression", "/onboarding", { outcome })) as {
         progression?: unknown;
         award?: unknown;
         granted?: unknown;

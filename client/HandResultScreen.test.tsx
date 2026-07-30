@@ -104,6 +104,47 @@ describe("HandResultScreen", () => {
     expect(markup).toContain("Return to Lobby");
   });
 
+  it("celebrates every achievement unlocked by the public hand", () => {
+    const view = completedView();
+    view.achievements = [
+      {
+        award_id: "achievement:first-hand:player-1",
+        source: "achievement",
+        total: 100,
+        components: [{ code: "first-hand", label: "First Hand", amount: 100 }],
+      },
+      {
+        award_id: "achievement:first-win:player-1",
+        source: "achievement",
+        total: 200,
+        components: [{ code: "first-win", label: "First Win", amount: 200 }],
+      },
+    ];
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain("Achievements unlocked");
+    expect(markup).toContain("First Hand");
+    expect(markup).toContain("First Win");
+    expect(markup).toContain("+100 XP");
+    expect(markup).toContain("+200 XP");
+    expect(markup).toContain('data-achievement-code="first-win"');
+  });
+
+  it("never presents public achievement unlocks in Practice", () => {
+    const view = completedView();
+    view.achievements = [{
+      award_id: "achievement:first-hand:player-1",
+      total: 100,
+      components: [{ code: "first-hand", label: "First Hand", amount: 100 }],
+    }];
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} practice />);
+
+    expect(markup).not.toContain("Achievement unlocked");
+    expect(markup).not.toContain("First Hand");
+  });
+
   it("shows the caller's durable Jade delta and resulting balance", () => {
     const view = completedView();
     view.players = view.players.map((player) => ({ ...player, is_bot: false }));

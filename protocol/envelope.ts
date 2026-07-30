@@ -279,6 +279,10 @@ export interface SeatView {
   // capped participation XP even though it never touches Jade.
   xp_award?: HandXPAward;
   progression?: PlayerProgression;
+  // Newly unlocked §12.3 achievements. These are one-shot award projections:
+  // later state polls may omit them, so the App retains them for the result
+  // screen until the player leaves this completed hand.
+  achievements?: HandXPAward[];
 }
 
 export interface XPComponent {
@@ -335,6 +339,22 @@ export interface PlayerProgression {
   earned?: LevelReward[];
   next?: LevelReward;
   onboarding?: OnboardingState;
+}
+
+// The authenticated player's §12.3 catalog row. The service merges AGS-owned
+// progress with the complete product catalog, including goals whose required
+// tracking or mode is not available yet.
+export interface PlayerAchievement {
+  code: string;
+  name: string;
+  description: string;
+  current: number;
+  goal: number;
+  xp_reward: number;
+  bonus_reward?: string;
+  eligible: boolean;
+  unlocked: boolean;
+  unavailable_reason?: string;
 }
 
 // WaitTileView is one tile type in the §9.4 wait list — tile is a concrete

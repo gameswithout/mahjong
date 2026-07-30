@@ -4,6 +4,7 @@ import type { SeatView } from "../protocol/envelope";
 import { ageInYears } from "./age-gate";
 import {
   buildResultFriendsState,
+  retainAchievementAwards,
   shouldAutomaticallyDraw,
   shouldAutomaticallyEnterHumanMatch,
 } from "./App";
@@ -70,6 +71,44 @@ describe("shouldAutomaticallyDraw", () => {
     expect(
       shouldAutomaticallyDraw(drawView({ phase: "awaiting_discard" }), false),
     ).toBe(false);
+  });
+});
+
+describe("retainAchievementAwards", () => {
+  it("keeps one-shot unlocks through later same-hand polls and deduplicates repeats", () => {
+    const award = {
+      award_id: "achievement:first-hand:player-1",
+      source: "achievement",
+      total: 100,
+      components: [{ code: "first-hand", label: "First Hand", amount: 100 }],
+    };
+    const previous = drawView({
+      phase: "hand_complete",
+      achievements: [award],
+    });
+    const next = drawView({
+      state_version: 5,
+      phase: "hand_complete",
+      achievements: [],
+    });
+
+    expect(retainAchievementAwards(previous, next).achievements).toEqual([award]);
+    expect(
+      retainAchievementAwards(previous, { ...next, achievements: [award] }).achievements,
+    ).toEqual([award]);
+  });
+
+  it("never carries an unlock into another match", () => {
+    const previous = drawView({
+      achievements: [{
+        award_id: "achievement:first-hand:player-1",
+        total: 100,
+      }],
+    });
+    const next = drawView({ match_id: "match-2" });
+
+    expect(retainAchievementAwards(previous, next)).toBe(next);
+    expect(retainAchievementAwards(previous, next).achievements).toBeUndefined();
   });
 });
 

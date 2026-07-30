@@ -43,7 +43,7 @@ import {
   ProgressionError,
   type ProgressionSnapshot,
 } from "./progression";
-import { ProgressionScreen } from "./ProgressionScreen";
+import { AchievementScreen, ProgressionScreen } from "./ProgressionScreen";
 import { createPlayerStatsClient, PlayerStatsError, type PlayerStatSummary } from "./player-stats";
 import { StatisticsScreen } from "./StatisticsScreen";
 import {
@@ -59,6 +59,7 @@ import type {
   JadeAccount,
   OnboardingOutcome,
   MatchCommandRequest,
+  PlayerAchievement,
   SeatView,
 } from "../protocol/envelope";
 import { MatchTable } from "./MatchTable";
@@ -206,6 +207,12 @@ type ProgressionState =
   | { status: "ready"; snapshot: ProgressionSnapshot }
   | { status: "error"; code: string; message: string };
 
+type AchievementState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; achievements: PlayerAchievement[] }
+  | { status: "error"; code: string; message: string };
+
 type OnlineSessionEntryMode = "manual" | "matchmaking";
 
 export function shouldAutomaticallyEnterHumanMatch(
@@ -276,6 +283,43 @@ export function shouldAutomaticallyDraw(view: SeatView, commandPending: boolean)
     view.phase === "awaiting_draw" &&
     view.active_seat === view.seat
   );
+}
+
+function achievementAwardKey(award: NonNullable<SeatView["achievements"]>[number]): string {
+  if (award.award_id) {
+    return `id:${award.award_id}`;
+  }
+  const components = (award.components ?? [])
+    .map((component) => component.code ?? component.label)
+    .sort()
+    .join(",");
+  return `content:${award.source ?? ""}:${components}:${award.total ?? 0}`;
+}
+
+// Achievement awards are emitted only when AGS first reports the unlock. A
+// later poll for the same completed hand legitimately omits that one-shot
+// event, but the result screen must keep it visible until the player leaves.
+export function retainAchievementAwards(
+  previous: SeatView | undefined,
+  next: SeatView,
+): SeatView {
+  if (!previous || previous.match_id !== next.match_id) {
+    return next;
+  }
+  const combined = [...(previous.achievements ?? []), ...(next.achievements ?? [])];
+  if (combined.length === 0) {
+    return next;
+  }
+  const seen = new Set<string>();
+  const achievements = combined.filter((award) => {
+    const key = achievementAwardKey(award);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+  return { ...next, achievements };
 }
 
 function errorView(error: unknown): { code: string; message: string } {
@@ -390,6 +434,8 @@ export function App(
   const [partyBusy, setPartyBusy] = useState(false);
   const [progressionState, setProgressionState] = useState<ProgressionState>({ status: "idle" });
   const [progressionOpen, setProgressionOpen] = useState(false);
+  const [achievementState, setAchievementState] = useState<AchievementState>({ status: "idle" });
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
   // §P2.3. Statistics come straight from AGS rather than the match service, so
   // they load on demand instead of riding the lobby's other traffic.
   const [statisticsOpen, setStatisticsOpen] = useState(false);
@@ -492,6 +538,7 @@ export function App(
   const sessionRequestRef = useRef(0);
   const matchmakingRequestRef = useRef(0);
   const progressionRequestRef = useRef(0);
+  const achievementRequestRef = useRef(0);
   // Social reads can outlive the identity that started them. Keeping their
   // generations separate prevents a full account's friends or party from
   // appearing after the player switches to a guest identity.
@@ -555,6 +602,8 @@ export function App(
     return () => {
       sessionRequestRef.current += 1;
       matchmakingRequestRef.current += 1;
+      progressionRequestRef.current += 1;
+      achievementRequestRef.current += 1;
       friendsRequestRef.current += 1;
       partyRequestRef.current += 1;
       friendsMutationRef.current += 1;
@@ -1139,6 +1188,7 @@ export function App(
     sessionRequestRef.current += 1;
     matchmakingRequestRef.current += 1;
     progressionRequestRef.current += 1;
+    achievementRequestRef.current += 1;
     friendsRequestRef.current += 1;
     partyRequestRef.current += 1;
     friendsMutationRef.current += 1;
@@ -1150,6 +1200,8 @@ export function App(
     setJadeRecoveryState({ status: "idle" });
     setProgressionState({ status: "idle" });
     setProgressionOpen(false);
+    setAchievementState({ status: "idle" });
+    setAchievementsOpen(false);
     setStatisticsState({ status: "idle" });
     setStatisticsOpen(false);
     setFriendsState({ status: "idle" });
@@ -1522,6 +1574,27 @@ export function App(
           ? { code: error.code, message: error.message }
           : { code: "unknown", message: "Progression could not be loaded." };
       setProgressionState({ status: "error", ...safeError });
+    }
+  }
+
+  async function loadAchievements() {
+    const requestId = ++achievementRequestRef.current;
+    setAchievementState({ status: "loading" });
+    try {
+      const achievements = await createAuthenticatedProgressionClient().getAchievements();
+      if (requestId !== achievementRequestRef.current) {
+        return;
+      }
+      setAchievementState({ status: "ready", achievements });
+    } catch (error) {
+      if (requestId !== achievementRequestRef.current) {
+        return;
+      }
+      const safeError =
+        error instanceof ProgressionError
+          ? { code: error.code, message: error.message }
+          : { code: "unknown", message: "Achievements could not be loaded." };
+      setAchievementState({ status: "error", ...safeError });
     }
   }
 
@@ -2192,12 +2265,15 @@ export function App(
             syncFailuresRef.current = 0;
             adoptJadeAccount(payload.view);
             adoptProgression(payload.view);
-            setMatchRuntimeState({
+            setMatchRuntimeState((current) => ({
               status: "joined",
               matchId,
-              view: payload.view,
+              view: retainAchievementAwards(
+                current.status === "joined" ? current.view : undefined,
+                payload.view,
+              ),
               commandPending: false,
-            });
+            }));
           }
         },
         onState: (payload) => {
@@ -2207,12 +2283,15 @@ export function App(
             syncFailuresRef.current = 0;
             adoptJadeAccount(payload.view);
             adoptProgression(payload.view);
-            setMatchRuntimeState({
+            setMatchRuntimeState((current) => ({
               status: "joined",
               matchId,
-              view: payload.view,
+              view: retainAchievementAwards(
+                current.status === "joined" ? current.view : undefined,
+                payload.view,
+              ),
               commandPending: false,
-            });
+            }));
           }
         },
         // A 304 is a healthy poll with nothing to show: the board is already
@@ -2547,6 +2626,51 @@ export function App(
       ? progressionState.snapshot.progression.onboarding?.outcome
       : undefined;
 
+  if (achievementsOpen) {
+    return (
+      <div className="game-screen">
+        {achievementState.status === "ready" ? (
+          <AchievementScreen
+            achievements={achievementState.achievements}
+            onClose={() => setAchievementsOpen(false)}
+          />
+        ) : (
+          <section className="achievement-screen" aria-labelledby="achievement-title">
+            <header className="achievement-header">
+              <div>
+                <p className="status-label">Progression</p>
+                <h2 id="achievement-title">Achievements</h2>
+              </div>
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => setAchievementsOpen(false)}
+              >
+                Back to Progress
+              </button>
+            </header>
+            {achievementState.status === "error" ? (
+              <div className="session-error" role="alert">
+                <p>{achievementState.message}</p>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => void loadAchievements()}
+                >
+                  Retry achievements
+                </button>
+              </div>
+            ) : (
+              <p className="status-message" role="status" aria-live="polite">
+                Loading your achievements…
+              </p>
+            )}
+          </section>
+        )}
+      </div>
+    );
+  }
+
   // The tutorial owns the screen for the same reason a live match does, and
   // takes precedence over the lobby beneath it. It cannot open over a live
   // match: the lobby is the only place it can be started from.
@@ -2556,7 +2680,16 @@ export function App(
         <ProgressionScreen
           progression={progressionState.snapshot.progression}
           curve={progressionState.snapshot.curve}
-          onClose={() => setProgressionOpen(false)}
+          onClose={() => {
+            setAchievementsOpen(false);
+            setProgressionOpen(false);
+          }}
+          onOpenAchievements={() => {
+            setAchievementsOpen(true);
+            if (achievementState.status !== "ready") {
+              void loadAchievements();
+            }
+          }}
         />
       </div>
     );
@@ -3110,6 +3243,7 @@ export function App(
               }
               progressionStatus={progressionState.status}
               onOpenProgress={() => {
+                setAchievementsOpen(false);
                 setProgressionOpen(true);
                 if (
                   progressionState.status !== "ready" ||

@@ -282,6 +282,12 @@ function normalizeMatchState(raw: unknown): unknown {
   if (state.xp_award) {
     normalized.xp_award = normalizeHandXPAward(state.xp_award);
   }
+  if (Array.isArray(state.achievements)) {
+    normalized.achievements = state.achievements.flatMap((award) => {
+      const normalizedAward = normalizeHandXPAward(award);
+      return normalizedAward ? [normalizedAward] : [];
+    });
+  }
   if (state.progression) {
     normalized.progression = normalizePlayerProgression(state.progression);
   }

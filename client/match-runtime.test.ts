@@ -201,6 +201,16 @@ describe("createMatchRuntimeConnection", () => {
             { code: "hand_won", label: "Won the hand", amount: 75 },
           ],
         },
+        achievements: [
+          {
+            award_id: "achievement:first-hand:player-1",
+            source: "achievement",
+            total: "100",
+            components: [
+              { code: "first-hand", label: "First Hand", amount: "100" },
+            ],
+          },
+        ],
         progression: {
           level: 3,
           lifetime_xp: "1400",
@@ -234,6 +244,20 @@ describe("createMatchRuntimeConnection", () => {
       code: "hand_completed",
       amount: 100,
     });
+    expect(view.achievements).toEqual([
+      expect.objectContaining({
+        award_id: "achievement:first-hand:player-1",
+        source: "achievement",
+        total: 100,
+        components: [
+          expect.objectContaining({
+            code: "first-hand",
+            label: "First Hand",
+            amount: 100,
+          }),
+        ],
+      }),
+    ]);
     expect(view.progression).toMatchObject({
       level: 3,
       lifetime_xp: 1400,

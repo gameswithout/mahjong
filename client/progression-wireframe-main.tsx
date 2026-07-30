@@ -1,12 +1,13 @@
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import type {
   LevelReward,
   LevelStep,
+  PlayerAchievement,
   PlayerProgression,
 } from "../protocol/envelope";
-import { ProgressionScreen } from "./ProgressionScreen";
+import { AchievementScreen, ProgressionScreen } from "./ProgressionScreen";
 import "./styles.css";
 
 // P2.1 visual-evidence harness. Production always receives this curve from
@@ -55,17 +56,107 @@ const progression: PlayerProgression = {
   },
 };
 
-const container = document.querySelector("#root");
-if (container) {
-  createRoot(container).render(
-    <StrictMode>
-      <div className="game-screen">
+const availableAchievementNames = [
+  "First Hand",
+  "First Win",
+  "Self Reliant",
+  "Kong Collector",
+  "All Pongs",
+  "Pure Hand",
+  "Dragon Caller",
+  "Four Winds",
+  "High Value",
+  "Master Craft",
+  "Kong Robber",
+  "Replacement Artist",
+  "Last Chance",
+  "Quiet Strength",
+  "Three of a Mind",
+  "Half and Half",
+  "Garden Party",
+  "Honor Guard",
+  "Eightfold Bloom",
+  "Self Reliant II",
+  "Kong Master",
+  "Hundred Hands",
+  "Centurion of the Table",
+];
+
+const unavailableAchievementNames = [
+  "Claim Student",
+  "Ready Regular",
+  "Full Rotation Regular",
+  "Clean Defense",
+  "Claim Scholar",
+  "Ready Veteran",
+  "Rotation Master",
+  "Podium Regular",
+  "Stone Wall",
+];
+
+const achievements: PlayerAchievement[] = [
+  ...availableAchievementNames.map((name, index) => ({
+    code: name.toLowerCase().replace(/\s+/g, "-"),
+    name,
+    description:
+      index === 0
+        ? "Complete your first public hand."
+        : index === 1
+          ? "Win your first public hand."
+          : index === 2
+            ? "Win by Zimo 10 times."
+            : `Complete the ${name} goal in public play.`,
+    current: index === 0 ? 1 : index === 1 ? 0 : index === 2 ? 4 : 0,
+    goal: index === 2 ? 10 : index >= 20 ? 100 : 1,
+    xp_reward: index === 1 ? 200 : index >= 20 ? 750 : 100,
+    bonus_reward: index === 1 ? "First Victory title" : undefined,
+    eligible: true,
+    unlocked: index === 0,
+  })),
+  ...unavailableAchievementNames.map((name, index) => ({
+    code: name.toLowerCase().replace(/\s+/g, "-"),
+    name,
+    description: `Complete the ${name} goal in public play.`,
+    current: 0,
+    goal: index === 0 ? 50 : index === 4 ? 250 : 10,
+    xp_reward: 500,
+    eligible: false,
+    unlocked: false,
+    unavailable_reason:
+      name.includes("Rotation") || name === "Clean Defense" || name === "Podium Regular"
+        ? "Full Rotation is not available yet."
+        : "Progress tracking for this achievement is not available yet.",
+  })),
+];
+
+function ProgressionHarness() {
+  const startsOnAchievements =
+    new URLSearchParams(window.location.search).get("view") === "achievements";
+  const [showAchievements, setShowAchievements] = useState(startsOnAchievements);
+  return (
+    <div className="game-screen">
+      {showAchievements ? (
+        <AchievementScreen
+          achievements={achievements}
+          onClose={() => setShowAchievements(false)}
+        />
+      ) : (
         <ProgressionScreen
           progression={progression}
           curve={levelCurve()}
           onClose={() => undefined}
+          onOpenAchievements={() => setShowAchievements(true)}
         />
-      </div>
+      )}
+    </div>
+  );
+}
+
+const container = document.querySelector("#root");
+if (container) {
+  createRoot(container).render(
+    <StrictMode>
+      <ProgressionHarness />
     </StrictMode>,
   );
 }
