@@ -12,6 +12,7 @@ import {
   createSessionClient,
   SessionLookupError,
   type GameSessionSummary,
+  type SessionMember,
   type SessionCreateConfig,
 } from "./session";
 import {
@@ -65,6 +66,12 @@ import { VideoCallPanel } from "./VideoCallPanel";
 import { useVideoCall } from "./useVideoCall";
 import type { SeatId } from "./matchTableTypes";
 import { CompletedHandFlow } from "./CompletedHandFlow";
+import type {
+  FriendRequestOutcome,
+  ResultFriendOpponent,
+  ResultFriendRelationship,
+  ResultFriendsState,
+} from "./HandResultScreen";
 import { AccountUpgradeCard } from "./AccountUpgradeCard";
 import { MINIMUM_ACCOUNT_AGE, ageInYears } from "./age-gate";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
@@ -207,6 +214,60 @@ export function shouldAutomaticallyEnterHumanMatch(
   runtimeStatus: MatchRuntimeState["status"],
 ): boolean {
   return mode === "matchmaking" && memberCount >= HUMAN_MATCH_SIZE && runtimeStatus === "idle";
+}
+
+function resultOpponents(members: SessionMember[], ownUserId: string): ResultFriendOpponent[] {
+  const seen = new Set<string>();
+  const opponents: ResultFriendOpponent[] = [];
+  for (const member of members) {
+    const userId = member.userId.trim();
+    if (!userId || userId === ownUserId || seen.has(userId)) {
+      continue;
+    }
+    seen.add(userId);
+    const displayName = member.displayName?.trim();
+    opponents.push({
+      userId,
+      ...(displayName ? { displayName } : {}),
+    });
+  }
+  return opponents;
+}
+
+// P4.3 relationship projection. The AGS Session roster is the source for
+// "who was at this public table"; AGS Friends remains the source for whether
+// each opponent can receive a new request. No match-state identity field or
+// client-side guessed friendship is needed.
+export function buildResultFriendsState(
+  session: GameSessionSummary,
+  friends: FriendsState,
+  ownUserId: string,
+): ResultFriendsState {
+  const opponents = resultOpponents(session.members, ownUserId);
+  if (friends.status === "error") {
+    return { status: "error", opponents, code: friends.code, message: friends.message };
+  }
+  if (friends.status !== "ready") {
+    return { status: "loading", opponents };
+  }
+
+  const friendIds = new Set(friends.friends.map((friend) => friend.userId));
+  const incomingIds = new Set(friends.incoming.map((request) => request.userId));
+  const outgoingIds = new Set(friends.outgoing.map((request) => request.userId));
+  return {
+    status: "ready",
+    opponents: opponents.map((opponent) => {
+      let relationship: ResultFriendRelationship = "available";
+      if (friendIds.has(opponent.userId)) {
+        relationship = "friend";
+      } else if (outgoingIds.has(opponent.userId)) {
+        relationship = "outgoing";
+      } else if (incomingIds.has(opponent.userId)) {
+        relationship = "incoming";
+      }
+      return { ...opponent, relationship };
+    }),
+  };
 }
 
 export function shouldAutomaticallyDraw(view: SeatView, commandPending: boolean): boolean {
@@ -361,6 +422,7 @@ export function App(
   const lobbyRef = useRef<LobbyConnection | null>(null);
   const queueTelemetryRef = useRef(new Set<string>());
   const handTelemetryKeyRef = useRef<string | null>(null);
+  const resultFriendsTelemetryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const mountedAt = Date.now();
@@ -796,6 +858,18 @@ export function App(
 
   const matchRuntimeJoined = matchRuntimeState.status === "joined";
   const joinedMatchId = matchRuntimeState.status === "joined" ? matchRuntimeState.matchId : null;
+  const resultFriendsForCurrentMatch =
+    matchRuntimeState.status === "joined" &&
+    (matchRuntimeState.view.phase === "hand_complete" ||
+      matchRuntimeState.view.phase === "exhaustive_draw") &&
+    !isPracticeMatch(matchRuntimeState.view) &&
+    onlineSessionEntryMode === "matchmaking" &&
+    !isGuestAccount &&
+    state.status === "signed_in" &&
+    sessionState.status === "loaded" &&
+    sessionState.session.sessionId === matchRuntimeState.matchId
+      ? buildResultFriendsState(sessionState.session, friendsState, state.userId)
+      : undefined;
 
   useEffect(() => {
     if (!joinedMatchId || introducedMatchId === joinedMatchId) {
@@ -1013,6 +1087,31 @@ export function App(
       },
     });
   }, [matchRuntimeState]);
+
+  // P4.3 view telemetry contains counts only. Opponent IDs and display names
+  // are intentionally excluded from product analytics.
+  useEffect(() => {
+    if (
+      matchRuntimeState.status !== "joined" ||
+      resultFriendsForCurrentMatch?.status !== "ready"
+    ) {
+      return;
+    }
+    const key = `${matchRuntimeState.matchId}:${matchRuntimeState.view.state_version}`;
+    if (resultFriendsTelemetryKeyRef.current === key) {
+      return;
+    }
+    resultFriendsTelemetryKeyRef.current = key;
+    gameTelemetry.track("result_friend_options_shown", {
+      dimensions: { source: "hand_result" },
+      measurements: {
+        opponent_count: resultFriendsForCurrentMatch.opponents.length,
+        eligible_count: resultFriendsForCurrentMatch.opponents.filter(
+          (opponent) => opponent.relationship === "available",
+        ).length,
+      },
+    });
+  }, [gameTelemetry, matchRuntimeState, resultFriendsForCurrentMatch]);
 
   // Persist a resume pointer while a guest match is live so a reload or
   // tab-crash mid-hand can silently re-authenticate and rejoin (§8.7,
@@ -1480,25 +1579,47 @@ export function App(
   // Every mutation re-reads the list rather than patching it locally: AGS owns
   // the relationship, and a local guess about what a request did to it is a
   // guess that can be wrong.
-  async function mutateFriends(action: (client: ReturnType<typeof createAuthenticatedFriendsClient>) => Promise<void>) {
+  async function mutateFriends(
+    action: (client: ReturnType<typeof createAuthenticatedFriendsClient>) => Promise<void>,
+  ): Promise<FriendRequestOutcome> {
     if (isGuestAccount) {
-      return;
+      return {
+        ok: false,
+        code: "full_account_required",
+        message: "Friend requests require a full account.",
+      };
     }
     const mutationId = ++friendsMutationRef.current;
     friendsRequestRef.current += 1;
     try {
       await action(createAuthenticatedFriendsClient());
     } catch (error) {
+      const safeError = friendsErrorView(error);
       if (mutationId !== friendsMutationRef.current) {
-        return;
+        return { ok: false, ...safeError };
       }
-      setFriendsState({ status: "error", ...friendsErrorView(error) });
-      return;
+      setFriendsState({ status: "error", ...safeError });
+      return { ok: false, ...safeError };
     }
     if (mutationId !== friendsMutationRef.current) {
-      return;
+      // A newer friend action owns the refresh, but this request still
+      // succeeded and its own result-screen row should say so.
+      return { ok: true };
     }
     await loadFriends();
+    return { ok: true };
+  }
+
+  async function addResultFriend(userId: string): Promise<FriendRequestOutcome> {
+    const outcome = await mutateFriends((client) => client.sendRequest(userId));
+    gameTelemetry.track("friend_request_result", {
+      dimensions: {
+        source: "hand_result",
+        outcome: outcome.ok ? "sent" : "failed",
+        ...(!outcome.ok ? { reason_code: outcome.code } : {}),
+      },
+    });
+    return outcome;
   }
 
   // --- §8.6 party ----------------------------------------------------------
@@ -2584,6 +2705,13 @@ export function App(
                       onUpgraded={() => setIsGuestAccount(false)}
                     />
                   ) : undefined
+                }
+                resultFriends={resultFriendsForCurrentMatch}
+                onAddResultFriend={
+                  resultFriendsForCurrentMatch ? addResultFriend : undefined
+                }
+                onRetryResultFriends={
+                  resultFriendsForCurrentMatch ? () => void loadFriends() : undefined
                 }
               />
             </div>

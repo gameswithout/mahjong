@@ -112,6 +112,43 @@ describe("browser telemetry", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it("records result-friend outcomes without accepting opponent identity", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const telemetry = createBrowserTelemetry(telemetryOptions(fetchImpl, true));
+
+    expect(
+      telemetry.track("result_friend_options_shown", {
+        dimensions: { source: "hand_result" },
+        measurements: { opponent_count: 3, eligible_count: 2 },
+      }),
+    ).toBe(true);
+    expect(
+      telemetry.track("friend_request_result", {
+        dimensions: {
+          source: "hand_result",
+          outcome: "sent",
+          user_id: "must-not-leave-the-client",
+        },
+      }),
+    ).toBe(false);
+    expect(
+      telemetry.track("friend_request_result", {
+        dimensions: { source: "hand_result", outcome: "sent" },
+      }),
+    ).toBe(true);
+    await telemetry.flush();
+
+    const body = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body)) as Array<{
+      EventName: string;
+      Payload: { dimensions: Record<string, string>; measurements: Record<string, number> };
+    }>;
+    expect(body.map((event) => event.EventName)).toEqual([
+      "result_friend_options_shown",
+      "friend_request_result",
+    ]);
+    expect(JSON.stringify(body)).not.toContain("must-not-leave-the-client");
+  });
+
   it("omits absent allowlisted fields without suppressing the event", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
     const telemetry = createBrowserTelemetry(telemetryOptions(fetchImpl, true));

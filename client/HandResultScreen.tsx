@@ -1,11 +1,11 @@
 // §9.7 "Results and explanation": the end-of-hand tally. Covers items
 // 1-7 (winning hand/tile, decomposition, patterns, raw Tai, Dealer Tai,
-// settlement transfers, dealer continuation) plus the Match ID and
-// Practice replay/return slice of item 10, and item 8's XP (§12.1).
-// Achievements and rating (the rest of item 8, needing E13), Add Friend and
-// result-card image export (item 9, needs E12) and human-queue Report remain
-// deferred. Play Again now covers both
-// Practice and staked requeue (§P1.3 session closure).
+// settlement transfers, dealer continuation) plus item 8's XP (§12.1),
+// item 9's post-match Add Friend action, and the Match ID and Practice
+// replay/return slice of item 10. Achievements and rating (the rest of item
+// 8, needing E13), result-card image export (the rest of item 9), and
+// human-queue Report remain deferred. Play Again covers both Practice and
+// staked requeue (§P1.3 session closure).
 import { useState, type ReactNode } from "react";
 
 import type { HandResult, HandWinner, MahjongSeat, SeatView, Transfer } from "../protocol/envelope";
@@ -15,6 +15,158 @@ import type { SeatId } from "./matchTableTypes";
 import { tile, windName } from "./matchTableTypes";
 
 const SEAT_ORDER: MahjongSeat[] = ["E", "S", "W", "N"];
+
+export interface ResultFriendOpponent {
+  userId: string;
+  displayName?: string;
+}
+
+export type ResultFriendRelationship = "available" | "friend" | "incoming" | "outgoing";
+
+export interface ResultFriendOption extends ResultFriendOpponent {
+  relationship: ResultFriendRelationship;
+}
+
+export type ResultFriendsState =
+  | { status: "loading"; opponents: ResultFriendOpponent[] }
+  | { status: "ready"; opponents: ResultFriendOption[] }
+  | {
+      status: "error";
+      opponents: ResultFriendOpponent[];
+      code: string;
+      message: string;
+    };
+
+export type FriendRequestOutcome =
+  | { ok: true }
+  | { ok: false; code: string; message: string };
+
+function shortPlayerId(userId: string): string {
+  return userId.length <= 12 ? userId : `${userId.slice(0, 8)}…${userId.slice(-4)}`;
+}
+
+function ResultFriends({
+  state,
+  onAdd,
+  onRetry,
+}: {
+  state: ResultFriendsState;
+  onAdd: (userId: string) => Promise<FriendRequestOutcome>;
+  onRetry: () => void;
+}) {
+  const [requestStates, setRequestStates] = useState<
+    Record<string, "sending" | "sent" | { code: string; message: string }>
+  >({});
+
+  async function addFriend(userId: string) {
+    setRequestStates((current) => ({ ...current, [userId]: "sending" }));
+    let outcome: FriendRequestOutcome;
+    try {
+      outcome = await onAdd(userId);
+    } catch {
+      outcome = {
+        ok: false,
+        code: "unknown",
+        message: "The friend request could not be sent. Please retry.",
+      };
+    }
+    setRequestStates((current) => ({
+      ...current,
+      [userId]: outcome.ok ? "sent" : { code: outcome.code, message: outcome.message },
+    }));
+  }
+
+  return (
+    <section className="result-friends" aria-labelledby="result-friends-title">
+      <div className="result-friends-heading">
+        <div>
+          <p className="hand-result-kicker">Players</p>
+          <h3 id="result-friends-title">Add friends from this hand</h3>
+        </div>
+        <span>
+          {state.opponents.length} {state.opponents.length === 1 ? "opponent" : "opponents"}
+        </span>
+      </div>
+      <p className="result-friends-intro">
+        Send a request while this table is still fresh. Your next match will still use a new queue.
+      </p>
+
+      {state.status === "loading" && (
+        <p className="result-friends-status" role="status" aria-live="polite">
+          Checking friend status…
+        </p>
+      )}
+
+      {state.status === "error" && (
+        <div className="result-friends-error" role="alert" data-error-code={state.code}>
+          <p>
+            {state.message} <span className="result-friends-error-code">({state.code})</span>
+          </p>
+          <button type="button" className="secondary-action friend-action" onClick={onRetry}>
+            Retry
+          </button>
+        </div>
+      )}
+
+      {state.status === "ready" && (
+        state.opponents.length === 0 ? (
+          <p className="result-friends-status">No eligible opponents were found for this hand.</p>
+        ) : (
+          <ul className="result-friends-list">
+            {state.opponents.map((opponent) => {
+              const localState = requestStates[opponent.userId];
+              const sent =
+                localState === "sent" ||
+                opponent.relationship === "friend" ||
+                opponent.relationship === "outgoing";
+              const sending = localState === "sending";
+              const requestError =
+                localState && typeof localState === "object" ? localState : undefined;
+              const playerLabel = opponent.displayName ?? shortPlayerId(opponent.userId);
+              return (
+                <li key={opponent.userId} className="result-friend-row">
+                  <span className="result-friend-identity">
+                    <strong>{playerLabel}</strong>
+                    {opponent.displayName && <small>{shortPlayerId(opponent.userId)}</small>}
+                  </span>
+                  <span className="result-friend-action">
+                    {sent ? (
+                      <span className="result-friend-relationship" role="status">
+                        {opponent.relationship === "friend" ? "Friends" : "Request sent"}
+                      </span>
+                    ) : opponent.relationship === "incoming" ? (
+                      <span className="result-friend-relationship">Request received</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="secondary-action friend-action"
+                        aria-label={`Add ${playerLabel} as a friend`}
+                        disabled={sending}
+                        onClick={() => void addFriend(opponent.userId)}
+                      >
+                        {sending ? "Sending…" : "Add Friend"}
+                      </button>
+                    )}
+                  </span>
+                  {requestError && (
+                    <p
+                      className="result-friend-request-error"
+                      role="alert"
+                      data-error-code={requestError.code}
+                    >
+                      {requestError.message}{" "}
+                      <span className="result-friends-error-code">({requestError.code})</span>
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )
+      )}
+    </section>
+  );
+}
 
 function seatLabel(seat: MahjongSeat, localSeat: MahjongSeat): string {
   return seat === localSeat ? `You (${windName(seat as SeatId)})` : windName(seat as SeatId);
@@ -324,6 +476,12 @@ export interface HandResultScreenProps {
   // Passed in rather than built here so this screen stays presentational and
   // knows nothing about IAM.
   accountUpgrade?: ReactNode;
+  // §10.6 / P4.3. The caller owns eligibility and AGS state because it knows
+  // whether this was public matchmaking and whether the current identity is
+  // a full account. This screen owns only the result-time interaction.
+  resultFriends?: ResultFriendsState;
+  onAddResultFriend?: (userId: string) => Promise<FriendRequestOutcome>;
+  onRetryResultFriends?: () => void;
 }
 
 export function HandResultScreen({
@@ -333,6 +491,9 @@ export function HandResultScreen({
   playAgainNote,
   onReturn,
   accountUpgrade,
+  resultFriends,
+  onAddResultFriend,
+  onRetryResultFriends,
 }: HandResultScreenProps) {
   const result = view.hand_result;
   if (!result) {
@@ -446,6 +607,14 @@ export function HandResultScreen({
           for it. Practice earns capped participation XP, so this renders in
           both modes — unlike Jade, which Practice never touches. */}
       <XPAward award={view.xp_award} progression={view.progression} />
+
+      {!practice && resultFriends && onAddResultFriend && onRetryResultFriends && (
+        <ResultFriends
+          state={resultFriends}
+          onAdd={onAddResultFriend}
+          onRetry={onRetryResultFriends}
+        />
+      )}
 
       <p className="hand-result-match-id">
         <span>Match ID</span>

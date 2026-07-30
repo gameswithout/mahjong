@@ -1450,6 +1450,117 @@ h1 {
   margin: 0;
 }
 
+.result-friends {
+  background:
+    radial-gradient(circle at 100% 0%, rgb(94 187 139 / 12%), transparent 45%),
+    rgb(26 35 56 / 72%);
+  border: 1px solid rgb(103 209 165 / 28%);
+  border-radius: 0.85rem;
+  margin-top: 0.9rem;
+  padding: 0.8rem 0.9rem;
+}
+
+.result-friends-heading {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.result-friends-heading h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.result-friends-heading > span {
+  color: #b9f1cd;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.result-friends-intro,
+.result-friends-status {
+  color: #c6cbe0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin: 0.45rem 0 0;
+}
+
+.result-friends-list {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+}
+
+.result-friend-row {
+  align-items: center;
+  background: rgb(7 10 18 / 30%);
+  border-radius: 0.6rem;
+  display: grid;
+  gap: 0.35rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.5rem 0.6rem;
+}
+
+.result-friend-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.result-friend-identity strong {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.result-friend-identity small {
+  color: #9ca5c3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  margin-top: 0.1rem;
+}
+
+.result-friend-action .friend-action {
+  margin: 0;
+}
+
+.result-friend-relationship {
+  color: #b9f1cd;
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.result-friends-error {
+  align-items: center;
+  background: rgb(119 68 68 / 35%);
+  border: 1px solid rgb(220 123 123 / 28%);
+  border-radius: 0.6rem;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: space-between;
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.result-friends-error p,
+.result-friend-request-error {
+  color: #efc5c5;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.result-friends-error-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+}
+
+.result-friend-request-error {
+  grid-column: 1 / -1;
+}
+
 .hand-result-match-id {
   align-items: center;
   color: #939bb9;
@@ -1489,6 +1600,20 @@ h1 {
     align-items: flex-start;
     flex-direction: column;
     gap: 0.2rem;
+  }
+
+  .result-friend-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .result-friend-action .friend-action {
+    width: 100%;
+  }
+
+  .result-friends-error {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

@@ -112,4 +112,25 @@ describe("CompletedHandFlow", () => {
     expect(container.querySelector(".winning-hand-reveal")).toBeNull();
     expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull();
   });
+
+  it("holds result friend actions until after the winning-hand reveal", () => {
+    act(() => root.render(
+      <CompletedHandFlow
+        view={winningView()}
+        practice={false}
+        revealTable={<div>table</div>}
+        onReturn={vi.fn()}
+        resultFriends={{
+          status: "ready",
+          opponents: [{ userId: "opponent-1", relationship: "available" }],
+        }}
+        onAddResultFriend={vi.fn().mockResolvedValue({ ok: true })}
+        onRetryResultFriends={vi.fn()}
+      />,
+    ));
+
+    expect(container.textContent).not.toContain("Add friends from this hand");
+    act(() => vi.advanceTimersByTime(WINNING_HAND_REVEAL_MS));
+    expect(container.textContent).toContain("Add friends from this hand");
+  });
 });

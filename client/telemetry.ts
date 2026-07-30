@@ -18,6 +18,8 @@ export type TelemetryEventName =
   | "queue_alternative_selected"
   | "queue_cancel_result"
   | "session_join_result"
+  | "result_friend_options_shown"
+  | "friend_request_result"
   | "tutorial_started"
   | "tutorial_step_shown"
   | "tutorial_step_completed"
@@ -116,6 +118,12 @@ const eventSpecs: Record<TelemetryEventName, EventSpec> = {
     ["entry_point", "outcome", "reason_code"],
     ["elapsed_ms", "member_count"],
   ),
+  result_friend_options_shown: spec(
+    "optional",
+    ["source"],
+    ["eligible_count", "opponent_count"],
+  ),
+  friend_request_result: spec("optional", ["outcome", "reason_code", "source"]),
   tutorial_started: spec("optional", ["script_version"]),
   tutorial_step_shown: spec("optional", ["chapter_id", "script_version", "step_id"]),
   tutorial_step_completed: spec("optional", ["chapter_id", "script_version", "step_id"]),

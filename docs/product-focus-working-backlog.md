@@ -257,6 +257,13 @@ first-party friend graph is built.
 
 ### P4.3 Add Friend from the result screen
 
+**Implemented 2026-07-29.** A full account can send an AGS friend request to
+an opponent directly from a completed matchmade hand. The action uses the
+authenticated AGS Session roster, reflects existing and pending relationships,
+and remains absent for guests, Practice, and manually joined development
+tables. Product telemetry records only prompt counts and request outcomes,
+never opponent identity.
+
 - §8.3 and §9.7 item 9 both call for it; the result screen already carries a
   comment marking it deferred.
 - Only for opponents in a completed public human hand, never Practice bots.
