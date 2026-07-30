@@ -186,6 +186,13 @@ telemetry rather than Statistics, so hand outcomes are also emitted as a
 
 ### P2.4 Competitive progression
 
+**Blocked on Full Rotation, which does not exist as a playable mode.** The
+§8.4 rotation domain — table points, dealer sequencing, the 60-minute ending,
+and placement — landed 2026-07-30 with §12.1 scoring
+([`full-rotation-plan.md`](full-rotation-plan.md)); the runtime is still one
+match, one hand, so there is no mode for Elo to attach to.
+
+
 - Keep Elo exclusive to public Full Rotation.
 - Use Quick Play seasonal ladder points for short-session progression without
   changing matchmaking or Jade.
