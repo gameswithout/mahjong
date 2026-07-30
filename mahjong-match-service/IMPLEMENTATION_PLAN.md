@@ -218,9 +218,9 @@ image, event log, or public payload.
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
 ahead of the append-latency benchmark. The current 2026-07-30 deployment adds
-the caller-owned player achievement experience while retaining the
-mobile-network work: gzip on every response, conditional GET so an unchanged
-seat view costs headers instead of a body, and HTTP server timeouts.
+the §8.4 Full Rotation runtime, retaining the P2.2 achievement experience and
+the mobile-network work: gzip on every response, conditional GET so an
+unchanged seat view costs headers instead of a body, and HTTP server timeouts.
 
 **Keep this block current.** Its staleness caused a 2026-07-25 mis-diagnosis:
 the record said 2026-07-20 while the live service already carried the Jade
@@ -236,7 +236,46 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      p22-achievements-4b266d4 (active since
+Image tag:      full-rotation-c50ca0f (active since
+                2026-07-30T22:16:54Z; deployment
+                9b78e3c4-33df-4ec2-9460-41f2b4f0e923). Adds the §8.4 Full
+                Rotation runtime: a rotation container above the
+                single-hand match runtime, migration 007 creating
+                rotation_matches and rotation_hands, session-attribute
+                mode selection (full_rotation), table-point settlement
+                that touches no Jade, and §12.1 per-hand and placement XP.
+                Each hand of a rotation is still an ordinary match with
+                its own event stream — seat winds turn with the
+                dealership so every hand is dealt and logged as an
+                East-dealer hand, leaving TurnEngine, MatchActor, and the
+                event log untouched.
+                Verified after rollout: Extend reports deployment-running
+                on this exact image with 1/1 replicas ready; the deployed
+                OpenAPI now defines serviceRotationState,
+                serviceRotationStanding, and serviceRotationPlacement and
+                MatchState carries the rotation field (it defined none of
+                these before this deploy, which is how the previous image
+                was identified as stale); and unauthenticated requests to
+                the jade, progression, and achievements endpoints all
+                return 401 rather than 404 or 5xx, so the service reached
+                a serving state — which it only does after the embedded
+                migrations, 007 included, commit.
+                NOT yet verified: no Full Rotation has been played against
+                this deployment. Matchmaking for the mode still has no AGS
+                pool, so the lobby entry reports itself unavailable.
+
+                Deploying this app needs the *publisher* subdomain
+                (https://gameswithout.prod.gamingservices.accelbyte.io)
+                even though the app lives in gameswithout-mahjong. The
+                game subdomain returns "(20030) data not found: subdomain
+                mismatch" for both get-app-info and deploy-app. The vendor
+                bundle is not checked in, so `make vendor` must run before
+                image-upload or the build fails on modules.txt drift.
+                Preceding images, newest first:
+                p2-2-achievements-94508d7 (active since
+                2026-07-30T13:25:23.392Z; deployment
+                69c9da91-31ef-42d6-9fbd-3668f17d32df),
+                p22-achievements-4b266d4 (active since
                 2026-07-30T12:01:49.565Z; deployment
                 f9dd0216-c98b-456f-a0b4-418e8c8b4e09). Adds the P2.2
                 player achievement experience: a caller-only
