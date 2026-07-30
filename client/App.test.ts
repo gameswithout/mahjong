@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SeatView } from "../protocol/envelope";
 import { ageInYears } from "./age-gate";
-import { shouldAutomaticallyDraw, shouldAutomaticallyEnterHumanMatch } from "./App";
+import {
+  buildResultFriendsState,
+  shouldAutomaticallyDraw,
+  shouldAutomaticallyEnterHumanMatch,
+} from "./App";
 
 function drawView(overrides: Partial<SeatView> = {}): SeatView {
   return {
@@ -66,5 +70,70 @@ describe("shouldAutomaticallyDraw", () => {
     expect(
       shouldAutomaticallyDraw(drawView({ phase: "awaiting_discard" }), false),
     ).toBe(false);
+  });
+});
+
+describe("buildResultFriendsState", () => {
+  const session = {
+    sessionId: "public-table-1",
+    members: [
+      { userId: "player-self", displayName: "Me" },
+      { userId: "player-south", displayName: "Bamboo Fox" },
+      { userId: "player-west", displayName: "Jade Crane" },
+      { userId: "player-north", displayName: "Plum Tiger" },
+      // A duplicated AGS roster entry must never become a duplicated action.
+      { userId: "player-south", displayName: "Bamboo Fox" },
+    ],
+  };
+
+  it("excludes the caller, deduplicates opponents, and projects AGS relationships", () => {
+    const state = buildResultFriendsState(
+      session,
+      {
+        status: "ready",
+        friends: [{ userId: "player-west", presence: "offline" }],
+        incoming: [{ userId: "player-north" }],
+        outgoing: [],
+      },
+      "player-self",
+    );
+
+    expect(state).toEqual({
+      status: "ready",
+      opponents: [
+        {
+          userId: "player-south",
+          displayName: "Bamboo Fox",
+          relationship: "available",
+        },
+        {
+          userId: "player-west",
+          displayName: "Jade Crane",
+          relationship: "friend",
+        },
+        {
+          userId: "player-north",
+          displayName: "Plum Tiger",
+          relationship: "incoming",
+        },
+      ],
+    });
+  });
+
+  it("does not offer actions until AGS Friends has loaded successfully", () => {
+    expect(
+      buildResultFriendsState(session, { status: "loading" }, "player-self"),
+    ).toMatchObject({ status: "loading" });
+    expect(
+      buildResultFriendsState(
+        session,
+        { status: "error", code: "network", message: "Friends unavailable." },
+        "player-self",
+      ),
+    ).toMatchObject({
+      status: "error",
+      code: "network",
+      message: "Friends unavailable.",
+    });
   });
 });

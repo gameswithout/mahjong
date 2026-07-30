@@ -9,13 +9,20 @@ import { SessionLookupError, type SessionClient } from "./session";
 import type { MatchRuntimeConnection, MatchRuntimeConnectionOptions } from "./match-runtime";
 
 const dependencies = vi.hoisted(() => ({
+  createFriendsClient: vi.fn(),
   createJadeClient: vi.fn(),
   createProgressionClient: vi.fn(),
   createLobbyConnection: vi.fn(),
   createMatchRuntimeConnection: vi.fn(),
   createMatchmakingClient: vi.fn(),
+  createPartyClient: vi.fn(),
   createSessionClient: vi.fn(),
 }));
+
+vi.mock("./friends", async () => {
+  const actual = await vi.importActual<typeof import("./friends")>("./friends");
+  return { ...actual, createFriendsClient: dependencies.createFriendsClient };
+});
 
 vi.mock("./jade", async () => {
   const actual = await vi.importActual<typeof import("./jade")>("./jade");
@@ -62,6 +69,11 @@ vi.mock("./match-runtime", async () => {
 vi.mock("./matchmaking", async () => {
   const actual = await vi.importActual<typeof import("./matchmaking")>("./matchmaking");
   return { ...actual, createMatchmakingClient: dependencies.createMatchmakingClient };
+});
+
+vi.mock("./party", async () => {
+  const actual = await vi.importActual<typeof import("./party")>("./party");
+  return { ...actual, createPartyClient: dependencies.createPartyClient };
 });
 
 vi.mock("./session", async () => {
@@ -133,10 +145,15 @@ describe("App staked requeue (P1.3 session closure)", () => {
   let sessionClient: SessionClient;
   let getAccount: ReturnType<typeof vi.fn>;
   let createTicket: ReturnType<typeof vi.fn>;
+  let sendFriendRequest: ReturnType<typeof vi.fn>;
   let tableNumber: number;
 
   const iam = {
-    loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+    loginAsGuest: vi.fn().mockResolvedValue({
+      userId: "guest-1",
+      deviceId: "device-1",
+      isGuest: true,
+    }),
     getAuthenticatedSdk: vi.fn().mockReturnValue({}),
     getAccessToken: vi.fn().mockReturnValue("guest-token"),
   } as unknown as BrowserIam;
@@ -153,6 +170,20 @@ describe("App staked requeue (P1.3 session closure)", () => {
     tableNumber = 0;
 
     getAccount = vi.fn().mockResolvedValue(ELIGIBLE_ACCOUNT);
+    sendFriendRequest = vi.fn().mockResolvedValue(undefined);
+    dependencies.createFriendsClient.mockReturnValue({
+      list: vi.fn().mockResolvedValue([]),
+      incoming: vi.fn().mockResolvedValue([]),
+      outgoing: vi.fn().mockResolvedValue([]),
+      sendRequest: sendFriendRequest,
+      accept: vi.fn(),
+      reject: vi.fn(),
+      cancel: vi.fn(),
+      unfriend: vi.fn(),
+    });
+    dependencies.createPartyClient.mockReturnValue({
+      current: vi.fn().mockResolvedValue(null),
+    });
     dependencies.createJadeClient.mockReturnValue({
       getAccount,
       reserve: vi.fn().mockResolvedValue({
@@ -426,6 +457,7 @@ describe("App staked requeue (P1.3 session closure)", () => {
 
     // The staked result must not read as a Practice result.
     expect(container.textContent).not.toContain("Practice result");
+    expect(container.querySelector(".result-friends")).toBeNull();
     expect(button(container, "Play Again")).toBeInstanceOf(HTMLButtonElement);
 
     const note = container.querySelector(".hand-result-play-again-note");
@@ -433,6 +465,25 @@ describe("App staked requeue (P1.3 session closure)", () => {
     expect(note?.textContent).toContain("300 Jade maximum loss");
     // The note is announced with the button rather than floating unattached.
     expect(button(container, "Play Again").getAttribute("aria-describedby")).toBe("play-again-note");
+  });
+
+  it("lets a full account add only opponents from a completed matchmade hand", async () => {
+    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({
+      userId: "guest-1",
+      deviceId: "device-1",
+      isGuest: false,
+    });
+
+    await reachCompletedStakedHand();
+    await vi.waitFor(() => expect(container.querySelector(".result-friends")).not.toBeNull());
+
+    expect(container.textContent).toContain("3 opponents");
+    expect(container.querySelector(".result-friends")?.textContent).not.toContain("guest-1");
+    await clickAndFlush(container, "Add Friend");
+
+    expect(sendFriendRequest).toHaveBeenCalledOnce();
+    expect(sendFriendRequest).toHaveBeenCalledWith("guest-2");
+    await vi.waitFor(() => expect(container.textContent).toContain("Request sent"));
   });
 
   it("releases the finished seat, re-checks Jade, then queues a fresh ticket", async () => {
@@ -497,6 +548,11 @@ describe("App staked requeue (P1.3 session closure)", () => {
   });
 
   it("does not offer matchmaking requeue for a manually joined developer table", async () => {
+    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({
+      userId: "guest-1",
+      deviceId: "device-1",
+      isGuest: false,
+    });
     sessionClient.createSession = vi.fn().mockResolvedValue({
       sessionId: "manual-table",
       status: "JOINED",
@@ -519,6 +575,7 @@ describe("App staked requeue (P1.3 session closure)", () => {
     );
 
     expect(container.textContent).not.toContain("Play Again");
+    expect(container.querySelector(".result-friends")).toBeNull();
     expect(button(container, "Return to Lobby")).toBeInstanceOf(HTMLButtonElement);
     expect(createTicket).not.toHaveBeenCalled();
   });

@@ -1,7 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import type { SeatView } from "../protocol/envelope";
-import { HandResultScreen } from "./HandResultScreen";
+import {
+  HandResultScreen,
+  type FriendRequestOutcome,
+  type ResultFriendsState,
+} from "./HandResultScreen";
 
 export const WINNING_HAND_REVEAL_MS = 5000;
 
@@ -13,6 +17,9 @@ export function CompletedHandFlow({
   playAgainNote,
   onReturn,
   accountUpgrade,
+  resultFriends,
+  onAddResultFriend,
+  onRetryResultFriends,
 }: {
   view: SeatView;
   practice: boolean;
@@ -24,6 +31,9 @@ export function CompletedHandFlow({
   // never the winning-hand reveal: the reveal is a five-second celebration
   // nobody should be asked to fill in a form during.
   accountUpgrade?: ReactNode;
+  resultFriends?: ResultFriendsState;
+  onAddResultFriend?: (userId: string) => Promise<FriendRequestOutcome>;
+  onRetryResultFriends?: () => void;
 }) {
   const hasWinningHand =
     view.hand_result?.kind !== "exhaustive_draw" &&
@@ -56,6 +66,9 @@ export function CompletedHandFlow({
       playAgainNote={playAgainNote}
       onReturn={onReturn}
       accountUpgrade={accountUpgrade}
+      resultFriends={resultFriends}
+      onAddResultFriend={onAddResultFriend}
+      onRetryResultFriends={onRetryResultFriends}
     />
   );
 }

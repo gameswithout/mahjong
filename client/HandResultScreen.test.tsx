@@ -274,6 +274,115 @@ describe("HandResultScreen", () => {
     expect(markup).not.toContain("Keep this progress");
   });
 
+  it("offers friend requests for available opponents and explains existing relationships", async () => {
+    const onAdd = vi.fn().mockResolvedValue({ ok: true });
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+
+    act(() => {
+      root.render(
+        <HandResultScreen
+          view={completedView()}
+          resultFriends={{
+            status: "ready",
+            opponents: [
+              {
+                userId: "player-south-1234",
+                displayName: "BambooFox",
+                relationship: "available",
+              },
+              { userId: "player-west", relationship: "friend" },
+              { userId: "player-north", relationship: "outgoing" },
+            ],
+          }}
+          onAddResultFriend={onAdd}
+          onRetryResultFriends={vi.fn()}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("Add friends from this hand");
+    expect(container.textContent).toContain("BambooFox");
+    expect(container.textContent).toContain("Friends");
+    expect(container.textContent).toContain("Request sent");
+
+    const add = Array.from(container.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent === "Add Friend",
+    );
+    expect(add?.getAttribute("aria-label")).toBe("Add BambooFox as a friend");
+    await act(async () => {
+      add?.click();
+      await Promise.resolve();
+    });
+
+    expect(onAdd).toHaveBeenCalledWith("player-south-1234");
+    expect(container.textContent).toContain("Request sent");
+    act(() => root.unmount());
+  });
+
+  it("keeps a failed result-screen friend request retryable with a stable error code", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    const onAdd = vi.fn().mockResolvedValue({
+      ok: false,
+      code: "rate_limited",
+      message: "You have sent too many friend requests. Try again later.",
+    });
+
+    act(() => {
+      root.render(
+        <HandResultScreen
+          view={completedView()}
+          resultFriends={{
+            status: "ready",
+            opponents: [
+              { userId: "player-south", relationship: "available" },
+            ],
+          }}
+          onAddResultFriend={onAdd}
+          onRetryResultFriends={vi.fn()}
+        />,
+      );
+    });
+
+    const add = container.querySelector<HTMLButtonElement>(".result-friend-action button");
+    await act(async () => {
+      add?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-error-code="rate_limited"]')).not.toBeNull();
+    expect(container.textContent).toContain("Try again later");
+    expect(container.querySelector<HTMLButtonElement>(".result-friend-action button")?.disabled).toBe(false);
+    act(() => root.unmount());
+  });
+
+  it("never renders result friends in Practice even if a caller supplies them", () => {
+    const markup = renderToStaticMarkup(
+      <HandResultScreen
+        view={completedView()}
+        practice
+        resultFriends={{
+          status: "ready",
+          opponents: [
+            { userId: "bot-shaped-id", relationship: "available" },
+          ],
+        }}
+        onAddResultFriend={vi.fn()}
+        onRetryResultFriends={vi.fn()}
+      />,
+    );
+
+    expect(markup).not.toContain("Add friends from this hand");
+    expect(markup).not.toContain("Add Friend");
+  });
+
   it("makes a capped transfer and zero-sum Jade reconciliation explicit", () => {
     const view = completedView();
     if (!view.settlement?.transfers) {
