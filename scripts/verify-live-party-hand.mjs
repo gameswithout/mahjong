@@ -382,6 +382,18 @@ async function main() {
     achievements: finalView.achievements,
   });
 
+  // The result screen keeps polling a finished hand, and that is what drives
+  // the achievement sweep: AGS evaluates unlocks asynchronously, so the first
+  // projection after the hand almost never sees them. Reproduce that polling
+  // rather than reading progression once and calling the unlock missing.
+  for (let poll = 0; poll < 10; poll += 1) {
+    await wait(2_000);
+    for (const player of players) {
+      await matchState(player, sessionId);
+    }
+  }
+  report("result_screen_polled", { ok: true, note: "10 polls per seat, as a client would" });
+
   // AGS evaluates achievement unlocks from the statistics we just wrote, and
   // that evaluation is not synchronous with the write. Read once immediately
   // and once after a pause, so an unlock that lands late is visible as late
