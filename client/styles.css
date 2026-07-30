@@ -3647,3 +3647,172 @@ h1 {
   gap: 0.4rem;
   margin-top: 0.75rem;
 }
+
+/* §8.4 Full Rotation. The standings sit above the table and stay legible at a
+   glance: a player mid-hand needs to know where they stand without reading. */
+.rotation-panel {
+  background: rgb(216 220 239 / 7%);
+  border: 1px solid rgb(216 220 239 / 16%);
+  border-radius: 0.7rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.rotation-panel-heading {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.rotation-hand {
+  font-weight: 600;
+  margin: 0;
+}
+
+.rotation-progress {
+  color: rgb(216 220 239 / 72%);
+  font-size: 0.85rem;
+  margin: 0.35rem 0 0.6rem;
+}
+
+.rotation-standings {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+
+.rotation-standings th,
+.rotation-standings td {
+  padding: 0.3rem 0.4rem;
+  text-align: left;
+}
+
+.rotation-standings th {
+  color: rgb(216 220 239 / 62%);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.rotation-standings tbody tr + tr {
+  border-top: 1px solid rgb(216 220 239 / 10%);
+}
+
+/* Table points are the whole ranking, so they get the alignment and weight. */
+.rotation-points {
+  font-weight: 600;
+  text-align: right;
+}
+
+.rotation-standings .rotation-points {
+  text-align: right;
+}
+
+.rotation-standing.is-self {
+  background: rgb(216 220 239 / 8%);
+}
+
+.rotation-you {
+  color: rgb(216 220 239 / 62%);
+  font-size: 0.85em;
+}
+
+.rotation-dealing {
+  color: rgb(233 196 106 / 90%);
+  font-size: 0.85em;
+}
+
+.rotation-footnote {
+  color: rgb(216 220 239 / 62%);
+  font-size: 0.78rem;
+  margin: 0.6rem 0 0;
+}
+
+.rotation-countdown {
+  font-weight: 600;
+  margin: 0.75rem 0 0;
+  text-align: center;
+}
+
+.rotation-result {
+  margin-top: 1rem;
+}
+
+.rotation-podium {
+  background: rgb(216 220 239 / 7%);
+  border: 1px solid rgb(216 220 239 / 16%);
+  border-radius: 0.7rem;
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+}
+
+.rotation-podium-summary {
+  color: rgb(216 220 239 / 78%);
+  margin: 0.35rem 0 0.75rem;
+}
+
+.rotation-podium-list {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rotation-placement {
+  align-items: baseline;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 3rem 1fr auto;
+}
+
+.rotation-placement.is-self {
+  background: rgb(216 220 239 / 8%);
+  border-radius: 0.4rem;
+}
+
+.rotation-placement-position {
+  font-weight: 700;
+}
+
+.rotation-placement-points {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* A tie takes the full row beneath the entry rather than being squeezed in
+   beside the points, so it is never the thing that gets truncated. */
+.rotation-placement-note {
+  color: rgb(216 220 239 / 62%);
+  font-size: 0.8rem;
+  grid-column: 2 / -1;
+}
+
+.rotation-placement-xp {
+  font-weight: 600;
+  margin: 0.75rem 0 0;
+}
+
+@media (width <= 40rem) {
+  .rotation-standings th:nth-child(3),
+  .rotation-standings td:nth-child(3) {
+    display: none;
+  }
+}
+
+/* Available to assistive technology, absent from the visual layout. Used for
+   the standings table caption, which explains that table points are not Jade
+   and may be negative — context a sighted player gets from the footnote. */
+.visually-hidden {
+  border: 0;
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

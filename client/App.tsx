@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BrowserIam, IamAuthError, createBrowserIam, type GuestIdentity } from "./iam";
 import { CLOSED_BETA_COUNTRIES, DEFAULT_COUNTRY_CODE } from "./countries";
@@ -67,6 +67,7 @@ import { VideoCallPanel } from "./VideoCallPanel";
 import { useVideoCall } from "./useVideoCall";
 import type { SeatId } from "./matchTableTypes";
 import { CompletedHandFlow } from "./CompletedHandFlow";
+import { RotationPanel } from "./RotationPanel";
 import type {
   FriendRequestOutcome,
   ResultFriendOpponent,
@@ -920,6 +921,19 @@ export function App(
       ? buildResultFriendsState(sessionState.session, friendsState, state.userId)
       : undefined;
 
+  const rotationViewerUserId = state.status === "signed_in" ? state.userId : undefined;
+  // Names come from the AGS Session roster, the same source the result screen's
+  // Add Friend surface uses. Where a member has no display name the rotation
+  // surfaces fall back to the seat rather than showing a raw AGS user ID.
+  const rotationNameOf = useCallback(
+    (userId: string): string | undefined => {
+      if (sessionState.status !== "loaded") return undefined;
+      const member = sessionState.session.members.find((entry) => entry.userId === userId);
+      return member?.displayName?.trim() || undefined;
+    },
+    [sessionState],
+  );
+
   useEffect(() => {
     if (!joinedMatchId || introducedMatchId === joinedMatchId) {
       return;
@@ -1480,8 +1494,9 @@ export function App(
   // partySessionId turns a solo ticket into a party ticket: AGS seats every
   // member of that party at the same table. Passing an empty string — the
   // previous behaviour — queues the caller alone.
-  function createAuthenticatedMatchmakingClient(partySessionId?: string) {
-    if (!accelByteConfig.matchPool) {
+  function createAuthenticatedMatchmakingClient(partySessionId?: string, matchPool?: string) {
+    const pool = matchPool ?? accelByteConfig.matchPool;
+    if (!pool) {
       throw new MatchmakingError(
         "configuration",
         "Matchmaking pool configuration is incomplete. Restart the dev server after updating .env.",
@@ -1489,7 +1504,7 @@ export function App(
     }
 
     return createMatchmakingClient(stableIam.getAuthenticatedSdk(), accelByteConfig.namespace, {
-      matchPool: accelByteConfig.matchPool,
+      matchPool: pool,
       sessionId: partySessionId,
     });
   }
@@ -1921,6 +1936,71 @@ export function App(
           outcome: "failed",
           reason_code: safeError.code,
           tier: playableTier().id,
+        },
+        measurements: { elapsed_ms: Math.max(0, Date.now() - startedAt) },
+      });
+    }
+  }
+
+  // §8.4 Full Rotation queue. Deliberately not findTable with a different
+  // pool: Quick Play reserves Jade before queueing, and Full Rotation "is
+  // ranked and uses no Jade" — reserving for it would lock a balance the match
+  // can never spend and block the player out of tables they are eligible for.
+  async function findRotationTable() {
+    const pool = accelByteConfig.rotationMatchPool;
+    if (!pool) return;
+    const requestId = ++matchmakingRequestRef.current;
+    const startedAt = Date.now();
+    setOnlineSessionEntryMode("matchmaking");
+    autoJoiningSessionIdRef.current = null;
+    setMatchmakingState({ status: "loading" });
+    setQueueStartedAt(startedAt);
+    setNowTick(startedAt);
+    queueTelemetryRef.current.clear();
+    gameTelemetry.track("mode_selected", {
+      dimensions: { entry_point: "lobby_full_rotation", mode: "full_rotation" },
+    });
+
+    const ownUserId = state.status === "signed_in" ? state.userId : undefined;
+    const party = partyState.status === "ready" ? partyState.party : null;
+    const partySessionId = party && party.leaderId === ownUserId ? party.partyId : undefined;
+    if (party && party.leaderId !== ownUserId) {
+      setMatchmakingState({
+        status: "error",
+        code: "party_member",
+        message: "Your party leader starts the queue for everyone.",
+      });
+      return;
+    }
+
+    try {
+      const ticket = await createAuthenticatedMatchmakingClient(partySessionId, pool).createTicket();
+      if (requestId !== matchmakingRequestRef.current) {
+        return;
+      }
+      if (ticket.matchFound || ticket.sessionId) {
+        setMatchmakingState({ status: "matched", ticket });
+      } else {
+        setMatchmakingState({ status: "searching", ticket });
+      }
+      gameTelemetry.track("queue_entry_result", {
+        dimensions: {
+          mode: "full_rotation",
+          outcome: ticket.matchFound || ticket.sessionId ? "matched_immediately" : "queued",
+        },
+        measurements: { elapsed_ms: Math.max(0, Date.now() - startedAt) },
+      });
+    } catch (error) {
+      if (requestId !== matchmakingRequestRef.current) {
+        return;
+      }
+      const safeError = matchmakingErrorView(error);
+      setMatchmakingState({ status: "error", ...safeError });
+      gameTelemetry.track("queue_entry_result", {
+        dimensions: {
+          mode: "full_rotation",
+          outcome: "failed",
+          reason_code: safeError.code,
         },
         measurements: { elapsed_ms: Math.max(0, Date.now() - startedAt) },
       });
@@ -2846,6 +2926,8 @@ export function App(
                 onRetryResultFriends={
                   resultFriendsForCurrentMatch ? () => void loadFriends() : undefined
                 }
+                viewerUserId={rotationViewerUserId}
+                nameOf={rotationNameOf}
               />
             </div>
           ) : introducedMatchId !== matchRuntimeState.matchId ? (
@@ -2894,6 +2976,13 @@ export function App(
                   />
                 </div>
               )}
+              {matchRuntimeState.view.rotation ? (
+                <RotationPanel
+                  rotation={matchRuntimeState.view.rotation}
+                  viewerUserId={rotationViewerUserId}
+                  nameOf={rotationNameOf}
+                />
+              ) : null}
               <div
                 className="match-table-frame"
                 data-testid="live-match"
@@ -3336,6 +3425,41 @@ export function App(
                   onStart={() => void practiceVsBots()}
                   onLeaveSelectedSession={() => void leaveTable()}
                 />
+
+                <section
+                  className="matchmaking-panel online-card"
+                  aria-labelledby="full-rotation-title"
+                >
+                  <p className="status-label">Full Rotation</p>
+                  <h2 id="full-rotation-title">Ranked East round</h2>
+                  <p className="practice-description">
+                    Every player deals once · up to 60 minutes.
+                  </p>
+                  {/* Said plainly, because it is the difference players will
+                      most easily get wrong: this mode settles in table points,
+                      not Jade, so nothing is at stake and nothing is won. */}
+                  <p className="practice-description">
+                    Scored in table points. No Jade is staked or won.
+                  </p>
+
+                  {!accelByteConfig.rotationMatchPool && (
+                    <p className="matchmaking-result" role="status" aria-live="polite">
+                      Full Rotation matchmaking is not configured yet. It needs its own pool,
+                      because Quick Play&rsquo;s stakes Jade and plays a single hand.
+                    </p>
+                  )}
+
+                  {accelByteConfig.rotationMatchPool && matchmakingState.status === "idle" && (
+                    <button
+                      className="primary-action session-action"
+                      type="button"
+                      onClick={() => void findRotationTable()}
+                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                    >
+                      Find a rotation
+                    </button>
+                  )}
+                </section>
 
                 <section className="matchmaking-panel online-card" aria-labelledby="online-title">
                   <p className="status-label">Quick Play</p>

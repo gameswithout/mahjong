@@ -6,6 +6,7 @@ import {
   type FriendRequestOutcome,
   type ResultFriendsState,
 } from "./HandResultScreen";
+import { InterHandCountdown, RotationPanel, RotationPodium } from "./RotationPanel";
 
 export const WINNING_HAND_REVEAL_MS = 5000;
 
@@ -34,6 +35,10 @@ export function CompletedHandFlow({
   resultFriends?: ResultFriendsState;
   onAddResultFriend?: (userId: string) => Promise<FriendRequestOutcome>;
   onRetryResultFriends?: () => void;
+  // §8.4 Full Rotation. The viewer and a name resolver come from the caller,
+  // which is the only place that knows who is at the table.
+  viewerUserId?: string;
+  nameOf?: (userId: string) => string | undefined;
 }) {
   const hasWinningHand =
     view.hand_result?.kind !== "exhaustive_draw" &&
@@ -58,17 +63,34 @@ export function CompletedHandFlow({
       </div>
     );
   }
+  const rotation = view.rotation;
+  const midRotation = Boolean(rotation) && !rotation?.complete;
   return (
-    <HandResultScreen
-      view={view}
-      practice={practice}
-      onPlayAgain={onPlayAgain}
-      playAgainNote={playAgainNote}
-      onReturn={onReturn}
-      accountUpgrade={accountUpgrade}
-      resultFriends={resultFriends}
-      onAddResultFriend={onAddResultFriend}
-      onRetryResultFriends={onRetryResultFriends}
-    />
+    <>
+      <HandResultScreen
+        view={view}
+        practice={practice}
+        // Mid-rotation the match is not over, so neither offer applies: the
+        // next hand is already coming, and "Play again" would queue for a new
+        // match while this one is still running. The countdown below says what
+        // actually happens next. Leaving the table stays available.
+        onPlayAgain={midRotation ? undefined : onPlayAgain}
+        playAgainNote={midRotation ? undefined : playAgainNote}
+        onReturn={onReturn}
+        accountUpgrade={accountUpgrade}
+        resultFriends={resultFriends}
+        onAddResultFriend={onAddResultFriend}
+        onRetryResultFriends={onRetryResultFriends}
+      />
+      {rotation ? (
+        <div className="rotation-result">
+          <InterHandCountdown rotation={rotation} />
+          <RotationPodium rotation={rotation} viewerUserId={viewerUserId} nameOf={nameOf} />
+          {midRotation ? (
+            <RotationPanel rotation={rotation} viewerUserId={viewerUserId} nameOf={nameOf} />
+          ) : null}
+        </div>
+      ) : null}
+    </>
   );
 }

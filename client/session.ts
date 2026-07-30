@@ -5,6 +5,15 @@ import type { AccelByteSDK } from "@accelbyte/sdk";
 // the roster with bot seats instead of requiring three more real players.
 export const AI_PRACTICE_SESSION_ATTRIBUTES: Record<string, unknown> = { ai_practice: "true" };
 
+// §8.4 Full Rotation: read by the match service's session resolver
+// (AGSResolver.Mode, pkg/session/ags_resolver.go) to play the match as a
+// rotation rather than a single hand.
+//
+// Used when a table is created directly. A matchmade rotation gets the same
+// attribute from its pool's session template instead, which is why the pool
+// cannot be shared with Quick Play.
+export const FULL_ROTATION_SESSION_ATTRIBUTES: Record<string, unknown> = { full_rotation: "true" };
+
 export type SessionErrorCode =
   | "network"
   | "unauthorized"

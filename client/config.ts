@@ -4,6 +4,12 @@ export interface AccelByteWebConfig {
   clientId: string;
   matchServiceURL?: string;
   matchPool?: string;
+  // §8.4 Full Rotation queues into its own pool. It cannot share Quick Play's:
+  // that pool's session template stakes Jade and produces a single-hand match,
+  // and Full Rotation is ranked, unstaked, and several hands long. The pool's
+  // session template is what carries full_rotation=true to the match service,
+  // so a client cannot fake it by sending attributes of its own.
+  rotationMatchPool?: string;
   sessionTemplate?: string;
   sessionClientVersion?: string;
   // §8.6 party session template. Separate from sessionTemplate: a party is its
@@ -24,6 +30,7 @@ export const accelByteConfig: AccelByteWebConfig = {
   clientId: import.meta.env.ACCELBYTE_CLIENT_ID,
   matchServiceURL: import.meta.env.ACCELBYTE_MATCH_SERVICE_URL,
   matchPool: import.meta.env.ACCELBYTE_MATCH_POOL,
+  rotationMatchPool: import.meta.env.ACCELBYTE_ROTATION_MATCH_POOL,
   sessionTemplate: import.meta.env.ACCELBYTE_SESSION_TEMPLATE,
   sessionClientVersion: import.meta.env.ACCELBYTE_SESSION_CLIENT_VERSION,
   partyTemplate: import.meta.env.ACCELBYTE_PARTY_TEMPLATE || "mahjong-party",

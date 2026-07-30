@@ -283,6 +283,70 @@ export interface SeatView {
   // later state polls may omit them, so the App retains them for the result
   // screen until the player leaves this completed hand.
   achievements?: HandXPAward[];
+  // §8.4 Full Rotation state. Absent for Quick Play and Practice, which are
+  // single hands.
+  rotation?: RotationState;
+}
+
+// RotationState is the §8.4 Full Rotation around the current hand.
+//
+// Standings are keyed by player rather than by seat, because a player's seat
+// wind turns with the dealership: "South has 40 points" means a different
+// person each hand, so a seat does not identify anyone across a rotation.
+export interface RotationState {
+  // Which hand of the rotation is being played, numbered from 1.
+  hand_number?: number;
+  hands_played?: number;
+  // §5.11 continuations behind the current hand, which set Dealer Tai.
+  continuations?: number;
+  dealer_user_id?: string;
+  // How many of the four table positions have dealt. The rotation ends when
+  // all four have, which a continuation can postpone, so this rather than
+  // hands_played is the real measure of progress.
+  seats_dealt?: number;
+  standings?: RotationStanding[];
+  // RFC 3339 instant at which §8.4's 60-minute limit expires. The hand in
+  // progress then is played out before the match ends.
+  time_limit_at?: string;
+  complete?: boolean;
+  // "rotation_complete" or "time_limit". A match cut short by the limit is
+  // structurally different from one that ran its course, so the two endings
+  // are reported separately.
+  reason?: RotationCompletionReason;
+  // RFC 3339 instant at which the next hand opens, set while a completed
+  // hand's result is on screen and the rotation continues.
+  next_hand_opens_at?: string;
+  // Final standings, present once the match is complete.
+  placements?: RotationPlacement[];
+  // §12.1 XP for the rotation as a whole, paid once on final placement.
+  placement_xp_award?: HandXPAward;
+}
+
+export type RotationCompletionReason = "rotation_complete" | "time_limit";
+
+export interface RotationStanding {
+  user_id: string;
+  // The player's fixed table position for the whole rotation.
+  position: MahjongSeat;
+  // The wind they are playing this hand, which turns with the dealership.
+  wind: MahjongSeat;
+  // Table points start at zero and may go negative. §8.4 Full Rotation uses
+  // no Jade, so these are not an account currency and never settle to one.
+  table_points?: number;
+  deal_ins?: number;
+  zimo_wins?: number;
+  raw_tai_won?: number;
+  dealing?: boolean;
+  has_dealt?: boolean;
+}
+
+export interface RotationPlacement {
+  user_id: string;
+  position: number;
+  table_points?: number;
+  // Equal table points are a genuine rating tie (§8.4) even though the podium
+  // shows an order.
+  rating_tie?: boolean;
 }
 
 export interface XPComponent {
