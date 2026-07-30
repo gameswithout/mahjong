@@ -77,14 +77,16 @@ no browser runtime, so the captures were deferred rather than claimed).
 | Jade, standard hand | [`result-jade-standard-desktop.png`](wireframe-evidence/result-jade-standard-desktop.png) | [`result-jade-standard-360-landscape.png`](wireframe-evidence/result-jade-standard-360-landscape.png) |
 | Practice | [`result-practice-desktop.png`](wireframe-evidence/result-practice-desktop.png) | [`result-practice-360-landscape.png`](wireframe-evidence/result-practice-360-landscape.png) |
 
-Regenerate with the dev server running:
+Regenerate through the production-mode evidence gate:
 
 ```shell
-npm run dev
-node scripts/capture-result-evidence.mjs
+npm run build
+npm run evidence:ui
 ```
 
-The script is an assertion, not just a screenshotter. It fails if any
+Outputs are written to `.artifacts/ui-evidence/` and uploaded by CI as the
+`ui-evidence-<commit>` artifact. The script is an assertion, not just a
+screenshotter. It fails if any
 acceptance-critical string is absent from the rendered DOM — the uncapped
 calculation, the applied cap, the paid-equals-received reconciliation, and the
 Practice non-persistence wording — or if the result surface scrolls

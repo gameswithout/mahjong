@@ -301,17 +301,17 @@ never opponent identity.
 - Playable Hong Kong and Riichi rulesets.
 - Spectating, public replay sharing, clubs, and tournament operations.
 
-## Recommended first implementation slice
+## Current implementation sequence
 
-Start with **P0.1 Table comprehension pass**. It improves Practice and online
-play immediately, creates the reusable table surface needed by the tutorial,
-and gives progression/economy feedback a stable visual home.
+P0, P1, P2.1, and P2.3 are implemented. The Full Rotation domain foundation
+landed on 2026-07-30, while its playable runtime remains separate work. The
+P2.2 achievement experience is developed on its own branch but is not yet
+merged, so a new feature slice should not compete for its client, protocol, or
+progression files.
 
-Deliverables:
-
-1. A table-state visual inventory mapped to current components.
-2. Updated table hierarchy and interaction states.
-3. Responsive and accessibility regression tests.
-4. Before/after captures at the certified minimum viewport and desktop.
-5. A short playtest script measuring turn-owner, latest-discard, and legal-action
-   comprehension.
+The cross-cutting rendered UI gate now runs the match-table, result, onboarding,
+responsive, accessibility, runtime-error, and bundle-budget checks in Chromium
+for every pull request and `main` push. Its screenshots, measurements, and logs
+are retained as a workflow artifact; see [`ui-evidence-ci.md`](ui-evidence-ci.md).
+Select the next product slice after the two active branches land and their
+combined state can be reviewed without planning against stale code.

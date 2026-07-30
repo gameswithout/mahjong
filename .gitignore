@@ -8,6 +8,7 @@ node_modules/
 node_modules
 .pnpm-store/
 dist/
+.artifacts/
 tmp/
 mahjong-match-service/vendor/
 p23-statistics*.png

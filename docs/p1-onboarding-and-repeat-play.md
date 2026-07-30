@@ -173,13 +173,12 @@ New coverage:
 
 ## Open follow-ups
 
-- **Rendered captures are reproducible but still pending.** A deterministic
-  lobby, queue, and tutorial harness plus its browser measurement script now
-  exist, and the pass fixed the active tutorial heading hierarchy, 44px text
-  action targets, and reduced-motion behavior. The browser integration had no
-  available backend during this execution, so no screenshots are claimed.
-  The scenarios, automated DOM evidence, exact capture command, and remaining
-  limitation are recorded in
+- **Rendered captures are now a CI gate.** A deterministic lobby, queue, and
+  tutorial harness plus its browser measurement script run in production-mode
+  Chromium on every pull request and `main` push. Screenshots, runtime errors,
+  DOM measurements, and bundle sizes upload as the `ui-evidence-<commit>`
+  artifact. The scenarios, local reproduction command, and remaining
+  physical-device/manual-review limits are recorded in
   [`wireframe-evidence/p1-onboarding-responsive-validation.md`](wireframe-evidence/p1-onboarding-responsive-validation.md).
 - **Account level and progression** are now present in the lobby header and
   progression screen; P2.1 supplies the authoritative XP and level curve.

@@ -6,27 +6,37 @@
 //   npm run dev  (in one terminal, serving client/wireframe-main.tsx at /wireframe.html)
 //   node scripts/validate-match-table-wireframe.mjs [devServerURL]
 //
-// Writes two evidence screenshots (normal turn, urgent/automatic-pass
-// window) to docs/wireframe-evidence/ and prints a JSON measurement report
-// to stdout. Exits non-zero if any required element is missing, clipped
-// outside the table bounds, the table itself overflows 640x360, or any
-// accessible touch target falls under its §9.9 minimum.
-import { mkdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+// Writes evidence screenshots and a JSON measurement report to
+// UI_EVIDENCE_DIR (default: .artifacts/ui-evidence/). Exits non-zero if any
+// required element is missing, clipped outside the table bounds, the table
+// itself overflows 640x360, a runtime error occurs, or an accessible touch
+// target falls under its §9.9 minimum.
+import { join } from "node:path";
 import { chromium } from "playwright";
+
+import {
+  evidenceDirectory,
+  trackPageFailures,
+  writeEvidenceJson,
+} from "./ui-evidence-support.mjs";
 
 const baseUrl = process.argv[2] ?? "http://localhost:5183";
 const url = `${baseUrl}/wireframe.html`;
-const evidenceDir = fileURLToPath(new URL("../docs/wireframe-evidence/", import.meta.url));
-mkdirSync(evidenceDir, { recursive: true });
+const allowedOrigin = new URL(baseUrl).origin;
+const evidenceDir = evidenceDirectory();
+const runtimeFailures = [];
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
+runtimeFailures.push({
+  page: "compact interaction",
+  failures: trackPageFailures(page, allowedOrigin),
+});
 await page.goto(url, { waitUntil: "networkidle" });
 await page.waitForSelector('[data-testid="match-table"]');
 
 const clip = { x: 0, y: 0, width: 640, height: 360 };
-await page.screenshot({ path: `${evidenceDir}normal-turn.png`, clip });
+await page.screenshot({ path: join(evidenceDir, "normal-turn.png"), clip });
 
 // Decision-confidence state: one activation selects the tile for inspection,
 // raises it, and highlights every visible matching copy without discarding.
@@ -34,13 +44,19 @@ await page
   .locator('.local-hand-tile-button[aria-label*="6 of dots"]')
   .first()
   .click();
-await page.screenshot({ path: `${evidenceDir}selected-tile-inspection.png`, clip });
+await page.screenshot({
+  path: join(evidenceDir, "selected-tile-inspection.png"),
+  clip,
+});
 
 // The count explanation is deliberately a disclosure so it remains available
 // to touch, pointer, and keyboard users without permanently consuming the
 // certified compact table's limited vertical space.
 await page.locator(".wait-explainer summary").click();
-await page.screenshot({ path: `${evidenceDir}ting-count-explanation.png`, clip });
+await page.screenshot({
+  path: join(evidenceDir, "ting-count-explanation.png"),
+  clip,
+});
 
 // Toggle to the urgent-countdown / automatic-pass scenario and screenshot too.
 // The toggle button sits below the fold, so Playwright's actionability
@@ -50,10 +66,17 @@ await page.screenshot({ path: `${evidenceDir}ting-count-explanation.png`, clip }
 await page.evaluate(() => document.querySelector('[data-testid="scenario-toggle"]')?.click());
 await page.waitForTimeout(200);
 await page.evaluate(() => window.scrollTo(0, 0));
-await page.screenshot({ path: `${evidenceDir}urgent-claim-window.png`, clip });
+await page.screenshot({
+  path: join(evidenceDir, "urgent-claim-window.png"),
+  clip,
+});
 await page.close();
 
 const desktopPage = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+runtimeFailures.push({
+  page: "desktop interaction",
+  failures: trackPageFailures(desktopPage, allowedOrigin),
+});
 await desktopPage.goto(url, { waitUntil: "networkidle" });
 await desktopPage.waitForSelector('[data-testid="match-table"]');
 await desktopPage.evaluate(() => {
@@ -68,7 +91,7 @@ await desktopPage
   .first()
   .click();
 await desktopPage.screenshot({
-  path: `${evidenceDir}decision-confidence-desktop.png`,
+  path: join(evidenceDir, "decision-confidence-desktop.png"),
   clip: { x: 0, y: 0, width: 1280, height: 720 },
 });
 await desktopPage.close();
@@ -77,6 +100,10 @@ await desktopPage.close();
 // runs on a brand-new page rather than page.reload() to guarantee a
 // pristine, unscrolled viewport.
 const measurePage = await browser.newPage({ viewport: { width: 640, height: 360 } });
+runtimeFailures.push({
+  page: "compact measurement",
+  failures: trackPageFailures(measurePage, allowedOrigin),
+});
 await measurePage.goto(url, { waitUntil: "networkidle" });
 await measurePage.waitForSelector('[data-testid="match-table"]');
 
@@ -172,8 +199,18 @@ for (const box of report.localHandTileBoxes) {
 for (const box of report.actionButtonBoxes) {
   if (box.width < 44 || box.height < 44) failures.push(`action button below 44x44: ${box.width}x${box.height}`);
 }
+for (const pageResult of runtimeFailures) {
+  for (const failure of pageResult.failures) {
+    failures.push(`${pageResult.page}: ${failure}`);
+  }
+}
 
-console.log(JSON.stringify(report, null, 2));
+const finalReport = { ...report, runtimeFailures, failures };
+writeEvidenceJson(
+  join(evidenceDir, "match-table-report.json"),
+  finalReport,
+);
+console.log(JSON.stringify(finalReport, null, 2));
 if (failures.length > 0) {
   console.error("\nFAILURES:");
   for (const failure of failures) console.error(`  - ${failure}`);

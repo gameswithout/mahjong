@@ -4,9 +4,8 @@
 - Branch: `agent/p1-rendered-evidence`
 - Scope: P1 lobby, queue-health states, tutorial welcome, active lesson, and
   tutorial completion
-- Result: deterministic evidence surface, automated DOM checks, and production
-  accessibility fixes are complete; browser screenshots remain pending because
-  no browser backend was available in this execution
+- Result: deterministic evidence surface, automated DOM checks, production
+  accessibility fixes, and a rendered Chromium CI gate are complete
 
 This pass closes the reproducibility gap recorded in
 `docs/p1-onboarding-and-repeat-play.md` without changing the P2.3 statistics
@@ -64,20 +63,21 @@ capture gate. It covers:
 
 For every scenario it checks expected copy, horizontal overflow, landmarks,
 heading hierarchy, duplicate IDs, control names, and 44 CSS-pixel action
-targets. It writes PNG files and `p1-onboarding-report.json` to this directory.
+targets. It writes PNG files and `p1-onboarding-report.json` to
+`.artifacts/ui-evidence/` by default. CI uploads that directory as the
+`ui-evidence-<commit>` artifact for 14 days.
 
-Run:
+Run the complete production-mode gate:
 
 ```shell
-npm run dev -- --host 127.0.0.1 --port 5191
-npm run capture:onboarding -- http://127.0.0.1:5191
+npm run build
+npm run evidence:ui
 ```
 
-No images or rendered measurements are claimed in this pass. The in-app
-browser integration reported that no browser backend was available, so the
-capture command was deliberately not substituted with an unapproved
-browser-control path. The script above is ready for the next browser-capable
-execution.
+The CI gate also captures the match table and result screens, fails on browser
+runtime/console/request errors, and records bundle-size measurements. See
+[`../ui-evidence-ci.md`](../ui-evidence-ci.md) for the artifact contract and
+deliberate device/manual-review limits.
 
 ## Verification completed in this pass
 
@@ -97,6 +97,7 @@ git diff --check
   passed
 ```
 
-The production build retains the existing warning that the main minified chunk
-is larger than 500 kB. This pass does not add code to the main application
-entry; the evidence harness builds as a separate HTML entry.
+The evidence harness builds as a separate HTML entry and does not add code to
+the main application entry. The CI gate uses gzip bytes rather than Vite's
+uncompressed 500 kB warning and enforces the versioned budgets in
+`.github/ui-evidence-budgets.json`.

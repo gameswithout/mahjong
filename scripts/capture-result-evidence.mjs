@@ -7,18 +7,24 @@
 //   node scripts/capture-result-evidence.mjs [devServerURL]
 //
 // Writes desktop and 640x360-landscape captures per scenario into
-// docs/wireframe-evidence/ and prints a JSON report. Exits non-zero if the
+// UI_EVIDENCE_DIR (default: .artifacts/ui-evidence/) and prints a JSON report.
+// Exits non-zero if the
 // acceptance-critical strings are missing from the rendered DOM, or if the
 // result surface overflows the certified minimum viewport horizontally —
 // vertical scrolling is expected and fine for a result, horizontal is not.
-import { mkdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { chromium } from "playwright";
+
+import {
+  evidenceDirectory,
+  trackPageFailures,
+  writeEvidenceJson,
+} from "./ui-evidence-support.mjs";
 
 const baseUrl = process.argv[2] ?? "http://localhost:5183";
 const url = `${baseUrl}/result-wireframe.html`;
-const evidenceDir = fileURLToPath(new URL("../docs/wireframe-evidence/", import.meta.url));
-mkdirSync(evidenceDir, { recursive: true });
+const allowedOrigin = new URL(baseUrl).origin;
+const evidenceDir = evidenceDirectory();
 
 const MINIMUM_VIEWPORT = { width: 640, height: 360 };
 const DESKTOP_VIEWPORT = { width: 1280, height: 720 };
@@ -38,10 +44,11 @@ const SCENARIO_EXPECTATIONS = {
 
 const browser = await chromium.launch();
 const failures = [];
-const report = { url, scenarios: [] };
+const report = { url, scenarios: [], runtimeFailures: [] };
 
 for (const [scenario, expectations] of Object.entries(SCENARIO_EXPECTATIONS)) {
   const page = await browser.newPage({ viewport: DESKTOP_VIEWPORT });
+  const desktopRuntimeFailures = trackPageFailures(page, allowedOrigin);
   await page.goto(url, { waitUntil: "networkidle" });
   await page.locator(`[data-testid="scenario-${scenario}"]`).click();
   await page.waitForSelector('[data-testid="result-surface"]');
@@ -55,13 +62,17 @@ for (const [scenario, expectations] of Object.entries(SCENARIO_EXPECTATIONS)) {
   // The four-seat net summary must name every seat, including seats whose
   // change is zero, so a player can see the hand reconcile across the table.
   const netSeats = await page.locator('[aria-label^="Net "] li').count();
+  if (netSeats !== 4) {
+    failures.push(`${scenario}: expected four seats in the net summary`);
+  }
 
   await page.screenshot({
-    path: `${evidenceDir}result-${scenario}-desktop.png`,
+    path: join(evidenceDir, `result-${scenario}-desktop.png`),
     fullPage: true,
   });
 
   const compact = await browser.newPage({ viewport: MINIMUM_VIEWPORT });
+  const compactRuntimeFailures = trackPageFailures(compact, allowedOrigin);
   await compact.goto(url, { waitUntil: "networkidle" });
   await compact.locator(`[data-testid="scenario-${scenario}"]`).click();
   await compact.waitForSelector('[data-testid="result-surface"]');
@@ -69,7 +80,7 @@ for (const [scenario, expectations] of Object.entries(SCENARIO_EXPECTATIONS)) {
   // vertically, so the evidence that matters is the whole column staying
   // readable at the certified minimum width, not what fits in 360px of height.
   await compact.screenshot({
-    path: `${evidenceDir}result-${scenario}-360-landscape.png`,
+    path: join(evidenceDir, `result-${scenario}-360-landscape.png`),
     fullPage: true,
   });
 
@@ -80,6 +91,17 @@ for (const [scenario, expectations] of Object.entries(SCENARIO_EXPECTATIONS)) {
     failures.push(`${scenario}: result surface scrolls horizontally at 640x360`);
   }
 
+  const scenarioRuntimeFailures = [
+    ...desktopRuntimeFailures.map((failure) => `desktop: ${failure}`),
+    ...compactRuntimeFailures.map((failure) => `compact: ${failure}`),
+  ];
+  report.runtimeFailures.push({
+    scenario,
+    failures: scenarioRuntimeFailures,
+  });
+  for (const failure of scenarioRuntimeFailures) {
+    failures.push(`${scenario}: ${failure}`);
+  }
   report.scenarios.push({ scenario, netSeats, overflowsHorizontally, missing });
   await compact.close();
   await page.close();
@@ -87,6 +109,8 @@ for (const [scenario, expectations] of Object.entries(SCENARIO_EXPECTATIONS)) {
 
 await browser.close();
 
+report.failures = failures;
+writeEvidenceJson(join(evidenceDir, "result-screen-report.json"), report);
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 
 if (failures.length > 0) {

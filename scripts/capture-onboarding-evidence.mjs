@@ -6,22 +6,26 @@
 //   npm run capture:onboarding -- http://127.0.0.1:5191
 //
 // The result page is deterministic and makes no AGS calls. Images and a JSON
-// measurement report are written to docs/wireframe-evidence/.
-import { mkdirSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+// measurement report are written to UI_EVIDENCE_DIR (default:
+// .artifacts/ui-evidence/).
+import { join } from "node:path";
 import { chromium } from "playwright";
 
+import {
+  evidenceDirectory,
+  trackPageFailures,
+  writeEvidenceJson,
+} from "./ui-evidence-support.mjs";
+
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:5191";
-const evidenceDir = fileURLToPath(
-  new URL("../docs/wireframe-evidence/", import.meta.url),
-);
-mkdirSync(evidenceDir, { recursive: true });
+const allowedOrigin = new URL(baseUrl).origin;
+const evidenceDir = evidenceDirectory();
 
 const MOBILE_PORTRAIT = { width: 360, height: 640 };
 const COMPACT_LANDSCAPE = { width: 640, height: 360 };
 const DESKTOP = { width: 1280, height: 720 };
 const failures = [];
-const report = { baseUrl, captures: [] };
+const report = { baseUrl, captures: [], runtimeFailures: [] };
 
 async function finishTutorial(page) {
   await page.getByRole("button", { name: "Start with the basics" }).click();
@@ -179,9 +183,31 @@ function inspectRenderedPage() {
   };
 }
 
+function recordMeasurementFailures(id, measurements) {
+  if (measurements.horizontalOverflow) {
+    failures.push(`${id}: horizontal viewport overflow`);
+  }
+  if (measurements.mainCount !== 1) {
+    failures.push(`${id}: expected one main landmark`);
+  }
+  if (measurements.h1Count !== 1) {
+    failures.push(`${id}: expected one h1`);
+  }
+  if (measurements.duplicateIds.length) {
+    failures.push(`${id}: duplicate IDs ${measurements.duplicateIds.join(", ")}`);
+  }
+  if (measurements.unnamedControls.length) {
+    failures.push(`${id}: unnamed controls`);
+  }
+  if (measurements.undersizedControls.length) {
+    failures.push(`${id}: undersized controls`);
+  }
+}
+
 const browser = await chromium.launch();
 for (const capture of captures) {
   const page = await browser.newPage({ viewport: capture.viewport });
+  const runtimeFailures = trackPageFailures(page, allowedOrigin);
   await page.emulateMedia({ reducedMotion: "reduce" });
   const url = `${baseUrl}/onboarding-evidence.html?capture=1&scenario=${capture.scenario}`;
   await page.goto(url, { waitUntil: "networkidle" });
@@ -195,28 +221,14 @@ for (const capture of captures) {
   );
   const measurements = await page.evaluate(inspectRenderedPage);
   await page.screenshot({
-    path: `${evidenceDir}p1-${capture.id}.png`,
+    path: join(evidenceDir, `p1-${capture.id}.png`),
     fullPage: true,
   });
 
   if (missing.length) failures.push(`${capture.id}: missing ${missing.join(", ")}`);
-  if (measurements.horizontalOverflow) {
-    failures.push(`${capture.id}: horizontal viewport overflow`);
-  }
-  if (measurements.mainCount !== 1) {
-    failures.push(`${capture.id}: expected one main landmark`);
-  }
-  if (measurements.h1Count !== 1) {
-    failures.push(`${capture.id}: expected one h1`);
-  }
-  if (measurements.duplicateIds.length) {
-    failures.push(`${capture.id}: duplicate IDs ${measurements.duplicateIds.join(", ")}`);
-  }
-  if (measurements.unnamedControls.length) {
-    failures.push(`${capture.id}: unnamed controls`);
-  }
-  if (measurements.undersizedControls.length) {
-    failures.push(`${capture.id}: undersized controls`);
+  recordMeasurementFailures(capture.id, measurements);
+  for (const failure of runtimeFailures) {
+    failures.push(`${capture.id}: ${failure}`);
   }
 
   report.captures.push({
@@ -226,10 +238,15 @@ for (const capture of captures) {
     missing,
     ...measurements,
   });
+  report.runtimeFailures.push({ id: capture.id, failures: runtimeFailures });
   await page.close();
 }
 
 const contrastPage = await browser.newPage({ viewport: MOBILE_PORTRAIT });
+const contrastRuntimeFailures = trackPageFailures(
+  contrastPage,
+  allowedOrigin,
+);
 await contrastPage.emulateMedia({
   forcedColors: "active",
   reducedMotion: "reduce",
@@ -239,16 +256,24 @@ await contrastPage.goto(
   { waitUntil: "networkidle" },
 );
 await contrastPage.screenshot({
-  path: `${evidenceDir}p1-lobby-forced-colors.png`,
+  path: join(evidenceDir, "p1-lobby-forced-colors.png"),
   fullPage: true,
 });
+const contrastMeasurements = await contrastPage.evaluate(inspectRenderedPage);
+recordMeasurementFailures("forced-colors lobby", contrastMeasurements);
+for (const failure of contrastRuntimeFailures) {
+  failures.push(`forced-colors lobby: ${failure}`);
+}
+report.forcedColors = {
+  viewport: MOBILE_PORTRAIT,
+  ...contrastMeasurements,
+  runtimeFailures: contrastRuntimeFailures,
+};
 await contrastPage.close();
 await browser.close();
 
-writeFileSync(
-  `${evidenceDir}p1-onboarding-report.json`,
-  `${JSON.stringify(report, null, 2)}\n`,
-);
+report.failures = failures;
+writeEvidenceJson(join(evidenceDir, "p1-onboarding-report.json"), report);
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 if (failures.length) {
   process.stderr.write(`${failures.map((failure) => `FAIL: ${failure}`).join("\n")}\n`);
