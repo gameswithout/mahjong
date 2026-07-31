@@ -48,7 +48,7 @@ const captures = [
       "Start the tutorial",
       "Practice vs Bots",
       "Find a table",
-      "Higher tables",
+      "Higher stakes, rewarding progression, and more personalization features",
     ],
   },
   {
