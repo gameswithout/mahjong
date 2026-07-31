@@ -262,9 +262,8 @@ func (c *Coordinator) recordHand(
 		outcome.TakenOverMajority = takenOverMajority
 	}
 
-	// Storage enforces the Practice cap while holding the player XP row lock.
-	// Passing zero here prevents a stale read-then-write cap race between two
-	// replicas; HandXP still owns the pure per-hand arithmetic.
+	// Alpha has no daily XP cap. The second argument remains for compatibility
+	// with the existing pure award API and is deliberately ignored.
 	var achievements []HandAward
 	// §12.1 scores the two modes differently: Quick Play prices the hand
 	// itself, Full Rotation pays a flat rate and settles the rest on final
@@ -435,7 +434,7 @@ func (c *Coordinator) Player(ctx context.Context, userID string) (Player, error)
 //
 // AGS is authoritative for current values and unlock status for the 23
 // configured entries. The fixed catalog is authoritative for product order,
-// display copy, goals/rewards, and the nine entries whose tracking or game
+// display copy, goals/rewards, and entries whose tracking or game
 // mode is not available yet. An untouched configured achievement may be absent
 // from AGS; that is an exact zero, not a reason to hide it.
 func (c *Coordinator) PlayerAchievements(
@@ -457,6 +456,12 @@ func (c *Coordinator) PlayerAchievements(
 	rows, err := reader.AchievementProgress(ctx, userID)
 	if err != nil {
 		return nil, err
+	}
+	playerLevel := 0
+	if c.repository != nil {
+		if player, progressionErr := c.repository.PlayerProgression(ctx, userID); progressionErr == nil {
+			playerLevel = player.Level.Level
+		}
 	}
 	byCode := make(map[string]AchievementProgress, len(rows))
 	for _, row := range rows {
@@ -482,7 +487,10 @@ func (c *Coordinator) PlayerAchievements(
 	for _, definition := range catalog {
 		known[definition.Code] = true
 		current := AchievementProgress{}
-		if definition.Available {
+		if definition.Code == "max-alpha-player" {
+			current.Current = float64(playerLevel)
+			current.Unlocked = playerLevel >= MaxLevel
+		} else if definition.Available {
 			current = byCode[definition.Code]
 		}
 		result = append(result, PlayerAchievement{

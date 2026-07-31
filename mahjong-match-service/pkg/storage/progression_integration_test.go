@@ -137,7 +137,7 @@ func TestPostgreSQLStorage_LevelRewardsAreGrantedMonotonically(t *testing.T) {
 	}
 }
 
-func TestPostgreSQLStorage_PracticeCapIsAtomicAcrossConcurrentAwards(t *testing.T) {
+func TestPostgreSQLStorage_PracticeAwardsHaveNoDailyCap(t *testing.T) {
 	store := progressionStore(t)
 	ctx := context.Background()
 	user := "xp-practice-" + randomSuffix(t)
@@ -170,28 +170,22 @@ func TestPostgreSQLStorage_PracticeCapIsAtomicAcrossConcurrentAwards(t *testing.
 	close(results)
 
 	total := 0
-	capped := 0
 	for result := range results {
 		if result.err != nil {
 			t.Fatalf("concurrent AwardXP() error = %v", result.err)
 		}
 		total += result.award.Total
-		if result.award.CappedByDaily {
-			capped++
-		}
 	}
-	if total != progression.PracticeDailyCapXP {
-		t.Fatalf("concurrent Practice XP = %d, want %d", total, progression.PracticeDailyCapXP)
-	}
-	if capped != hands-progression.PracticeDailyCapXP/progression.PracticeHandXP {
-		t.Fatalf("capped hands = %d, want 4", capped)
+	want := hands * progression.PracticeHandXP
+	if total != want {
+		t.Fatalf("concurrent Practice XP = %d, want %d", total, want)
 	}
 	player, err := store.PlayerProgression(ctx, user)
 	if err != nil {
 		t.Fatalf("PlayerProgression() error = %v", err)
 	}
-	if player.LifetimeXP != progression.PracticeDailyCapXP {
-		t.Fatalf("lifetime XP = %d, want %d", player.LifetimeXP, progression.PracticeDailyCapXP)
+	if player.LifetimeXP != want {
+		t.Fatalf("lifetime XP = %d, want %d", player.LifetimeXP, want)
 	}
 }
 

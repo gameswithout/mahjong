@@ -40,12 +40,12 @@ describe("LockedTiers", () => {
     expect(markup).not.toContain("Bamboo Courtyard");
   });
 
-  it("gives every locked tier a reason and no way to click it", () => {
+  it("previews every upcoming tier without presenting locked controls", () => {
     const markup = renderToStaticMarkup(<LockedTiers />);
 
     expect(markup).not.toContain("<button");
-    expect(markup.match(/Locked/g)).toHaveLength(3);
-    expect(markup).toContain("Opens once its queue is running.");
-    expect(markup).toContain("Opens when enough players hold the minimum balance.");
+    expect(markup.match(/Coming soon/g)).toHaveLength(1);
+    expect(markup).not.toContain("Locked");
+    expect(markup).not.toContain("Opens once");
   });
 });

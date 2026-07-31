@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import type { JadeAccount } from "../protocol/envelope";
 import { LobbyHeader } from "./LobbyHeader";
-import { RULES_VERSION } from "./rules-version";
 
 const account: JadeAccount = {
   currency_code: "JADE",
@@ -17,14 +16,14 @@ const account: JadeAccount = {
 };
 
 describe("LobbyHeader", () => {
-  it("leads with spendable Jade and the ruleset in play", () => {
+  it("leads with spendable Jade while keeping rules in Settings", () => {
     const markup = renderToStaticMarkup(
       <LobbyHeader guest={false} account={account} jadeStatus="ready" connection="connected" />,
     );
 
     expect(markup).toContain("5,000");
-    expect(markup).toContain("Taiwanese 16-tile");
-    expect(markup).toContain(RULES_VERSION);
+    expect(markup).not.toContain("Taiwanese 16-tile");
+    expect(markup).not.toContain("Rules");
   });
 
   it("shows authoritative level progress as the route to the full curve", () => {
@@ -49,6 +48,25 @@ describe("LobbyHeader", () => {
     expect(markup).toContain('role="progressbar"');
     expect(markup).toContain('aria-label="Open progression, level 3"');
     expect(markup).not.toContain("Level 0");
+  });
+
+  it("shows a new account without enabling empty progression", () => {
+    const markup = renderToStaticMarkup(
+      <LobbyHeader
+        guest={false}
+        account={account}
+        jadeStatus="ready"
+        connection="connected"
+        progressionStatus="ready"
+        progression={{ level: 1, lifetime_xp: 0, xp_into_level: 0, xp_for_next_level: 500 }}
+      />,
+    );
+
+    expect(markup).toContain("No progress yet");
+    expect(markup).toContain("0 / 500 XP");
+    expect(markup).not.toContain("0 experience");
+    expect(markup).toContain("disabled");
+    expect(markup).not.toContain(">Unavailable<");
   });
 
   it("separates reserved Jade from what can actually be spent", () => {
@@ -96,9 +114,10 @@ describe("LobbyHeader", () => {
       <LobbyHeader guest={false} jadeStatus="error" connection="connected" />,
     );
 
+    expect(markup).toContain("View Progress");
+    expect(markup).toContain("disabled");
     expect(markup).toContain("Unavailable");
-    expect(markup).toContain(">0<");
-    expect(markup).toContain("Tael");
+    expect(markup).not.toContain("Tael");
   });
 
   it("uses the same tile-based profile shape and locks guest nicknames", () => {
@@ -112,12 +131,18 @@ describe("LobbyHeader", () => {
     expect(markup).toContain("Slot 1");
     expect(markup).toContain("Slot 2");
     expect(markup).toContain("Slot 3");
-    expect(markup).toContain("Create a full account to edit your nickname");
+    expect(markup).toContain("Personalize your player profile");
+    expect(markup).toContain('maxLength="16"');
+    expect(markup).toContain(">Store<");
+    expect(markup).toContain(">create an account<");
     expect(markup).toContain("disabled");
     expect(markup.match(/for slot 1/g)?.length).toBe(42);
     expect(markup.indexOf("tied to this device")).toBeLessThan(
-      markup.indexOf("Edit profile"),
+      markup.length,
     );
-    expect(markup.indexOf("Edit profile")).toBeLessThan(markup.indexOf("Rules"));
+    expect(markup.indexOf("<summary>Edit</summary>")).toBeGreaterThan(
+      markup.indexOf("Guest player"),
+    );
+    expect(markup).not.toContain("Rules");
   });
 });

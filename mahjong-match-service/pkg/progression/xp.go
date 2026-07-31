@@ -16,7 +16,6 @@ const (
 	OnboardingXP = 500
 
 	PracticeHandXP     = 25
-	PracticeDailyCapXP = 200
 	PublicHandXP       = 100
 	PublicWinXP        = 75
 	ZimoXP             = 25
@@ -31,7 +30,7 @@ const (
 const (
 	BaseLevelXP   = 500
 	LevelXPStep   = 100
-	MaxLevel      = 50
+	MaxLevel      = 10
 	StartingLevel = 1
 )
 
@@ -93,43 +92,29 @@ type HandAward struct {
 	Source     string
 	Total      int
 	Components []XPComponent
-	// CappedByDaily is set when the practice daily cap reduced the award,
-	// including to zero — the difference between "you earned nothing" and
-	// "you have hit today's ceiling" is worth saying out loud.
+	// Retained on the wire for compatibility with earlier clients. Alpha has
+	// no daily XP cap, so new awards leave this false.
 	CappedByDaily bool
 }
 
 // HandXP prices one completed hand.
 //
-// practiceXPToday is the Practice XP already awarded this UTC day, used only
-// for the §12.1 200-per-day Practice cap. Public play has no daily cap.
+// practiceXPToday is retained in the signature for storage/API compatibility.
+// Alpha progression has no daily XP cap.
 func HandXP(outcome HandOutcome, practiceXPToday int) HandAward {
 	if outcome.Practice {
-		return practiceAward(practiceXPToday)
+		return practiceAward()
 	}
 	return publicAward(outcome)
 }
 
-func practiceAward(practiceXPToday int) HandAward {
-	remaining := PracticeDailyCapXP - practiceXPToday
-	if remaining <= 0 {
-		return HandAward{Source: SourcePractice, CappedByDaily: true}
-	}
-	amount := PracticeHandXP
-	capped := false
-	if amount > remaining {
-		// The last Practice hand of the day pays only the remainder, so the
-		// day's total lands exactly on the cap rather than stepping past it.
-		amount = remaining
-		capped = true
-	}
+func practiceAward() HandAward {
 	return HandAward{
 		Source: SourcePractice,
-		Total:  amount,
+		Total:  PracticeHandXP,
 		Components: []XPComponent{{
-			Code: ComponentPracticeHand, Label: "Practice hand", Amount: amount,
+			Code: ComponentPracticeHand, Label: "Practice hand", Amount: PracticeHandXP,
 		}},
-		CappedByDaily: capped,
 	}
 }
 
@@ -225,7 +210,7 @@ func XPToAdvance(level int) int {
 	return BaseLevelXP + LevelXPStep*(level-StartingLevel)
 }
 
-// LevelForXP walks the curve from level 1. §12.2 caps Version 1 at level 50;
+// LevelForXP walks the increasingly difficult curve from level 1. Alpha caps at level 10;
 // excess XP is retained but does not display a higher level.
 func LevelForXP(lifetimeXP int) Level {
 	if lifetimeXP < 0 {
@@ -253,8 +238,7 @@ func LevelForXP(lifetimeXP int) Level {
 	}
 }
 
-// UTCDay is the daily-cap boundary, matching the economy's faucet reset.
-// §12.1: all daily caps reset at 00:00 UTC.
+// UTCDay keeps XP ledger rows partitionable and auditable by UTC date.
 func UTCDay(at time.Time) time.Time {
 	utc := at.UTC()
 	return time.Date(utc.Year(), utc.Month(), utc.Day(), 0, 0, 0, 0, time.UTC)

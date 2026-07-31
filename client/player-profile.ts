@@ -8,6 +8,8 @@ export interface ProfileTileOption {
   label: string;
 }
 
+export const MAX_PROFILE_NICKNAME_LENGTH = 16;
+
 const NUMBER_NAMES = [
   "one",
   "two",
@@ -63,7 +65,7 @@ function isTileOption(value: unknown): value is string {
 
 function safeNickname(value: unknown, fallback: string): string {
   if (typeof value !== "string") return fallback;
-  const trimmed = value.trim().slice(0, 24);
+  const trimmed = value.trim().slice(0, MAX_PROFILE_NICKNAME_LENGTH);
   return trimmed || fallback;
 }
 
@@ -106,5 +108,12 @@ export function loadPlayerProfile(userId: string, guest: boolean): PlayerProfile
 }
 
 export function savePlayerProfile(userId: string, profile: PlayerProfileConfig): void {
-  localStorage.setItem(`${STORAGE_PREFIX}${userId}`, JSON.stringify(profile));
+  const fallback = defaultPlayerProfile(false);
+  localStorage.setItem(
+    `${STORAGE_PREFIX}${userId}`,
+    JSON.stringify({
+      ...profile,
+      nickname: safeNickname(profile.nickname, fallback.nickname),
+    }),
+  );
 }

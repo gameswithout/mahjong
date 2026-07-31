@@ -184,6 +184,29 @@ describe("App social feature access", () => {
   });
 
   it("opens account achievement progress from the progression screen", async () => {
+    dependencies.createProgressionClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue({
+        progression: {
+          level: 2,
+          lifetime_xp: 500,
+          xp_into_level: 0,
+          xp_for_next_level: 600,
+        },
+        curve: [],
+      }),
+      getAchievements: vi.fn().mockResolvedValue([
+        {
+          code: "first-hand",
+          name: "First Hand",
+          description: "Complete your first public hand.",
+          current: 1,
+          goal: 1,
+          xp_reward: 100,
+          eligible: true,
+          unlocked: true,
+        },
+      ]),
+    });
     await enterLobby(false);
 
     const progressionButton = container.querySelector<HTMLButtonElement>(

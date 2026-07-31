@@ -1,26 +1,25 @@
 import { lockedTiers, tierSummary } from "./lobby-tiers";
 
-// The tiers above the one a player can enter. Shown, not hidden: the ladder is
-// the shape of the economy, and a first session that only ever mentions Bamboo
-// makes the game look smaller than it is. Each card says why it is closed, so
-// none of them reads as a broken button.
+// A compact preview of the planned table ladder. These are roadmap context,
+// not disabled choices in the current build.
 export function LockedTiers() {
   return (
     <section className="locked-tiers" aria-labelledby="locked-tiers-title">
-      <h2 id="locked-tiers-title" className="status-label">
-        Higher tables
+      <p className="status-label">Coming soon</p>
+      <h2 id="locked-tiers-title">
+        Higher stakes, rewarding progression, and more personalization features to be introduced
+        in the future.
       </h2>
+      <p className="locked-tier-intro">
+        Preview the higher-stakes tables planned for future releases.
+      </p>
       <ul className="locked-tier-list">
         {lockedTiers().map((tier) => (
           <li className="locked-tier" key={tier.id}>
             <div className="locked-tier-heading">
               <span className="locked-tier-name">{tier.name}</span>
-              {/* "Locked" as text, not as a padlock glyph alone: the state has
-                  to survive a screen reader and a monochrome display. */}
-              <span className="locked-tier-state">Locked</span>
             </div>
             <p className="locked-tier-summary">{tierSummary(tier)}</p>
-            <p className="locked-tier-reason">{tier.lockedReason}</p>
           </li>
         ))}
       </ul>

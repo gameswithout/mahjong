@@ -69,26 +69,35 @@ function readAccount(value: unknown): JadeAccount {
     throw new JadeError("protocol", "Jade service returned an invalid account.");
   }
   const raw = value as Record<string, unknown>;
-  if (typeof raw.currency_code !== "string" || typeof raw.eligible !== "boolean") {
+  const field = (protoName: string, jsonName: string) =>
+    raw[protoName] !== undefined ? raw[protoName] : raw[jsonName];
+  const currencyCode = field("currency_code", "currencyCode");
+  if (typeof currencyCode !== "string" || typeof raw.eligible !== "boolean") {
     throw new JadeError("protocol", "Jade service returned an invalid account.");
   }
   return {
-    currency_code: raw.currency_code,
+    currency_code: currencyCode,
     balance: toNumber(raw.balance),
     reserved: toNumber(raw.reserved),
     available: toNumber(raw.available),
     eligible: raw.eligible,
-    minimum_balance: toNumber(raw.minimum_balance),
-    stake_per_tai: toNumber(raw.stake_per_tai),
-    debit_cap: toNumber(raw.debit_cap),
+    minimum_balance: toNumber(field("minimum_balance", "minimumBalance")),
+    stake_per_tai: toNumber(field("stake_per_tai", "stakePerTai")),
+    debit_cap: toNumber(field("debit_cap", "debitCap")),
     wallet_sync_status:
-      typeof raw.wallet_sync_status === "string" ? raw.wallet_sync_status : undefined,
+      typeof field("wallet_sync_status", "walletSyncStatus") === "string"
+        ? field("wallet_sync_status", "walletSyncStatus") as string
+        : undefined,
     wallet_sync_error:
-      typeof raw.wallet_sync_error === "string" ? raw.wallet_sync_error : undefined,
-    welfare_eligible: raw.welfare_eligible === true,
-    welfare_amount: toNumber(raw.welfare_amount),
+      typeof field("wallet_sync_error", "walletSyncError") === "string"
+        ? field("wallet_sync_error", "walletSyncError") as string
+        : undefined,
+    welfare_eligible: field("welfare_eligible", "welfareEligible") === true,
+    welfare_amount: toNumber(field("welfare_amount", "welfareAmount")),
     welfare_reason:
-      typeof raw.welfare_reason === "string" ? raw.welfare_reason : undefined,
+      typeof field("welfare_reason", "welfareReason") === "string"
+        ? field("welfare_reason", "welfareReason") as string
+        : undefined,
   };
 }
 
@@ -126,7 +135,11 @@ export function createJadeClient(
   }
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const path = `${options.url}/v1/namespaces/${encodeURIComponent(options.namespace)}/jade`;
+  // Deployment variables are commonly entered with a trailing slash. Avoid a
+  // double-slash route, which some gateways answer with the hosting shell
+  // (HTML and HTTP 200) instead of the Jade JSON endpoint.
+  const serviceURL = options.url.replace(/\/+$/, "");
+  const path = `${serviceURL}/v1/namespaces/${encodeURIComponent(options.namespace)}/jade`;
 
   async function request(method: "GET" | "POST" | "DELETE", suffix = ""): Promise<unknown> {
     const controller = new AbortController();
@@ -137,8 +150,11 @@ export function createJadeClient(
         method,
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "Cache-Control": "no-cache",
           ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
         },
+        cache: "no-store",
         body: method === "POST" ? "{}" : undefined,
         signal: controller.signal,
       });
@@ -153,10 +169,27 @@ export function createJadeClient(
     if (!response.ok) {
       throw new JadeError(codeForStatus(response.status), await errorMessage(response));
     }
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    let text: string;
     try {
-      return await response.json();
+      text = await response.text();
     } catch (error) {
-      throw new JadeError("protocol", "Jade service returned invalid JSON.", { cause: error });
+      throw new JadeError("network", "Jade service response could not be read.", { cause: error });
+    }
+    if (!text.trim() || contentType.includes("text/html")) {
+      throw new JadeError(
+        "network",
+        "Jade service is temporarily unavailable. Please retry your balance.",
+      );
+    }
+    try {
+      return JSON.parse(text) as unknown;
+    } catch (error) {
+      throw new JadeError(
+        "network",
+        "Jade service is temporarily unavailable. Please retry your balance.",
+        { cause: error },
+      );
     }
   }
 
@@ -174,13 +207,15 @@ export function createJadeClient(
         throw new JadeError("protocol", "Jade service returned an invalid reservation.");
       }
       const raw = body.reservation as Record<string, unknown>;
-      if (typeof raw.reservation_id !== "string" || typeof raw.status !== "string") {
+      const reservationID =
+        typeof raw.reservation_id === "string" ? raw.reservation_id : raw.reservationId;
+      if (typeof reservationID !== "string" || typeof raw.status !== "string") {
         throw new JadeError("protocol", "Jade service returned an invalid reservation.");
       }
       return {
         account: readAccount(body.account),
         reservation: {
-          reservation_id: raw.reservation_id,
+          reservation_id: reservationID,
           amount: toNumber(raw.amount),
           status: raw.status,
         },

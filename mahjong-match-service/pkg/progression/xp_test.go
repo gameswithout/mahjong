@@ -10,12 +10,8 @@ func TestHandXP_Practice(t *testing.T) {
 		wantCapped bool
 	}{
 		{name: "first Practice hand of the day", xpToday: 0, wantTotal: 25},
-		{name: "seventh hand still under the cap", xpToday: 150, wantTotal: 25},
-		// §12.1 caps Practice at 200/day. The hand that would cross it pays
-		// only the remainder so the day lands exactly on the cap.
-		{name: "the hand that reaches the cap pays the remainder", xpToday: 190, wantTotal: 10, wantCapped: true},
-		{name: "at the cap, nothing more", xpToday: 200, wantTotal: 0, wantCapped: true},
-		{name: "past the cap cannot go negative", xpToday: 500, wantTotal: 0, wantCapped: true},
+		{name: "later Practice hands pay the same", xpToday: 150, wantTotal: 25},
+		{name: "there is no daily cap", xpToday: 10_000, wantTotal: 25},
 	}
 
 	for _, test := range tests {
@@ -147,8 +143,8 @@ func TestHandXP_PublicHasNoDailyCap(t *testing.T) {
 }
 
 func TestXPToAdvance(t *testing.T) {
-	// §12.2: 500 + 100*(L-1).
-	cases := map[int]int{1: 500, 2: 600, 3: 700, 10: 1_400, 49: 5_300}
+	// Each Alpha level takes more XP than the one before it.
+	cases := map[int]int{1: 500, 2: 600, 3: 700, 9: 1_300}
 	for level, want := range cases {
 		if got := XPToAdvance(level); got != want {
 			t.Fatalf("XPToAdvance(%d) = %d, want %d", level, got, want)
@@ -174,7 +170,7 @@ func TestLevelCurveContainsEveryThresholdAndReward(t *testing.T) {
 		t.Fatalf("last level = %+v", last)
 	}
 	if len(last.Rewards) != 2 {
-		t.Fatalf("level 50 rewards = %+v, want title and frame", last.Rewards)
+		t.Fatalf("level 10 rewards = %+v, want Jade and Alpha Max placeholders", last.Rewards)
 	}
 	for index := 1; index < len(curve); index++ {
 		want := curve[index-1].TotalXPRequired + curve[index-1].XPForNextLevel
@@ -217,8 +213,8 @@ func TestLevelForXP(t *testing.T) {
 	}
 }
 
-func TestLevelForXP_CapsAtFifty(t *testing.T) {
-	// Total XP to reach level 50 is the sum of advancing through levels 1..49.
+func TestLevelForXP_CapsAtAlphaLevelTen(t *testing.T) {
+	// Total XP to reach Alpha level 10 is the sum of levels 1..9.
 	total := 0
 	for level := 1; level < MaxLevel; level++ {
 		total += XPToAdvance(level)
@@ -261,8 +257,7 @@ func TestRewards(t *testing.T) {
 	if got := EarnedRewards(2); len(got) != 1 || got[0].Name != "Student" {
 		t.Fatalf("level 2 rewards = %+v", got)
 	}
-	// Level 50 grants two rewards, so the count exceeds the number of levels
-	// that grant anything.
+	// Alpha level 10 grants two rewards.
 	if got := len(EarnedRewards(MaxLevel)); got != len(LevelRewards()) {
 		t.Fatalf("level %d earned %d of %d rewards", MaxLevel, got, len(LevelRewards()))
 	}
@@ -273,10 +268,6 @@ func TestRewards(t *testing.T) {
 	}
 	if got := NextReward(MaxLevel); got != nil {
 		t.Fatalf("NextReward at cap = %+v, want nil", got)
-	}
-	// A level between reward tiers still points at the next real one.
-	if got := NextReward(11); got == nil || got.Level != 15 {
-		t.Fatalf("NextReward(11) = %+v, want the level 15 frame", got)
 	}
 }
 

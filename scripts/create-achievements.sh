@@ -101,6 +101,8 @@ JSON
 echo "Creating §12.3 launch achievements in ${NS}"
 
 # --- Participation and mastery counters -------------------------------------
+create alpha-player "Alpha Player" \
+  "Complete a public hand during Alpha." public-hands-completed 1 100
 create first-hand "First Hand" \
   "Complete your first public hand." public-hands-completed 1 100
 create first-win "First Win" \

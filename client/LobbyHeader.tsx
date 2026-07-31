@@ -1,7 +1,7 @@
 import type { JadeAccount, PlayerProgression } from "../protocol/envelope";
 import { PlayerProfileBadge, PlayerProfileEditor } from "./PlayerProfile";
 import { defaultPlayerProfile, type PlayerProfileConfig } from "./player-profile";
-import { RULES_NAME, RULES_VERSION } from "./rules-version";
+import type { PlayerStatSummary } from "./player-stats";
 
 export interface LobbyHeaderProps {
   guest: boolean;
@@ -10,14 +10,18 @@ export interface LobbyHeaderProps {
   connection: "connecting" | "connected" | "reconnecting";
   progression?: PlayerProgression;
   progressionStatus?: "idle" | "loading" | "ready" | "error";
+  statistics?: PlayerStatSummary;
   profile?: PlayerProfileConfig;
   onProfileChange?: (profile: PlayerProfileConfig) => void;
   onOpenProgress?: () => void;
   onOpenStatistics?: () => void;
+  onOpenStore?: () => void;
+  onCreateAccount?: () => void;
 }
 
 // The first thing a player sees when signed in. It answers "who am I, what can
-// I spend, how far have I progressed, and which rules am I about to play."
+// I spend and how far have I progressed. Rules live in Settings so the header
+// stays compact on narrow screens.
 // The server owns every number; the header never derives a level from XP.
 export function LobbyHeader({
   guest,
@@ -26,14 +30,17 @@ export function LobbyHeader({
   connection,
   progression,
   progressionStatus = "idle",
+  statistics,
   profile = defaultPlayerProfile(guest),
   onProfileChange = () => undefined,
   onOpenProgress = () => undefined,
   onOpenStatistics,
+  onOpenStore = () => undefined,
+  onCreateAccount = () => undefined,
 }: LobbyHeaderProps) {
   const level = progression?.level ?? 1;
   const xpIntoLevel = progression?.xp_into_level ?? 0;
-  const xpForNextLevel = progression?.xp_for_next_level ?? 0;
+  const xpForNextLevel = progression?.xp_for_next_level ?? 500;
   const levelPercent =
     xpForNextLevel > 0
       ? Math.min(100, Math.round((xpIntoLevel / xpForNextLevel) * 100))
@@ -42,28 +49,42 @@ export function LobbyHeader({
   return (
     <header className="lobby-header">
       <div className="lobby-profile-wallet">
-        <PlayerProfileBadge profile={profile} className="lobby-player-profile" />
-        <div className="lobby-wallet" aria-label="Virtual currency balances">
-          <span className="currency-balance currency-jade">
-            <span className="currency-icon" aria-hidden="true">◆</span>
-            <strong>
-              {jadeStatus === "ready" && account
-                ? account.available.toLocaleString()
-                : jadeStatus === "loading"
-                  ? "…"
-                  : "Unavailable"}
-            </strong>
-            <span className="sr-only">Jade</span>
-          </span>
-          <span className="currency-balance currency-tael">
-            <span className="currency-icon" aria-hidden="true">◉</span>
-            <strong>0</strong>
-            <span className="sr-only">Tael</span>
-          </span>
+        <div className="lobby-profile-column">
+          <PlayerProfileBadge profile={profile} className="lobby-player-profile" />
         </div>
+        <div className="lobby-wallet-column">
+          <div className="lobby-wallet" aria-label="Virtual currency balances">
+            <span className="currency-balance currency-jade">
+              <span className="currency-icon" aria-hidden="true">◆</span>
+              <strong>
+                {jadeStatus === "ready" && account
+                  ? account.available.toLocaleString()
+                  : jadeStatus === "loading"
+                    ? "…"
+                    : "Unavailable"}
+              </strong>
+              <span className="sr-only">Jade</span>
+            </span>
+          </div>
+        </div>
+        <button type="button" className="lobby-inline-link" onClick={onOpenStore}>
+          Store
+        </button>
+        <details className="profile-editor-disclosure">
+          <summary>Edit</summary>
+          <PlayerProfileEditor
+            profile={profile}
+            guest={guest}
+            onChange={onProfileChange}
+          />
+        </details>
         {guest && (
           <span className="lobby-identity-note">
-            Progress is tied to this device until you create an account.
+            Progress is tied to this device until you{" "}
+            <button type="button" className="lobby-text-link" onClick={onCreateAccount}>
+              create an account
+            </button>
+            .
           </span>
         )}
         {account && account.reserved > 0 ? (
@@ -71,36 +92,26 @@ export function LobbyHeader({
             {account.reserved.toLocaleString()} Jade reserved for your current table.
           </span>
         ) : null}
-        <details className="profile-editor-disclosure">
-          <summary>Edit profile</summary>
-          <PlayerProfileEditor
-            profile={profile}
-            guest={guest}
-            onChange={onProfileChange}
-          />
-        </details>
       </div>
 
       <dl className="lobby-facts">
-        <div className="lobby-fact">
-          <dt>Rules</dt>
-          <dd>
-            <strong>{RULES_NAME}</strong>
-            <span className="lobby-fact-note">{RULES_VERSION}</span>
-          </dd>
-        </div>
         {onOpenStatistics ? (
           <div className="lobby-fact lobby-statistics-fact">
-            <dt>Statistics</dt>
+            <dt>Match History</dt>
             <dd>
               <button
                 type="button"
                 className="lobby-progress-trigger"
                 onClick={onOpenStatistics}
-                aria-label="Open your Quick Play statistics"
+                aria-label="Open match history"
+                disabled={!statistics?.hasPlayed}
               >
-                <strong>Your record</strong>
-                <span className="lobby-fact-note">Win rate, deal-in, Ting</span>
+                <strong>
+                  {statistics?.hasPlayed
+                    ? `${statistics.wins.toLocaleString()} Wins / ${statistics.handsPlayed.toLocaleString()} Games Played`
+                    : "Play a Game"}{" "}
+                  {statistics?.hasPlayed && <span aria-hidden="true">›</span>}
+                </strong>
               </button>
             </dd>
           </div>
@@ -112,6 +123,7 @@ export function LobbyHeader({
               type="button"
               className="lobby-progress-trigger"
               onClick={onOpenProgress}
+              disabled={(progression?.lifetime_xp ?? 0) <= 0}
               aria-label={
                 progressionStatus === "ready"
                   ? `Open progression, level ${level}`
@@ -120,19 +132,24 @@ export function LobbyHeader({
             >
               <strong>
                 {progressionStatus === "ready"
-                  ? `Level ${level}`
+                  ? (progression?.lifetime_xp ?? 0) > 0
+                    ? `Level ${level}`
+                    : "No progress yet"
                   : progressionStatus === "loading"
                     ? "Loading…"
-                    : "Unavailable"}
+                    : "View Progress"}{" "}
+                {progressionStatus !== "loading" &&
+                  (progression?.lifetime_xp ?? 0) > 0 &&
+                  <span aria-hidden="true">›</span>}
               </strong>
-              {progressionStatus === "ready" && (
+              {progressionStatus !== "loading" && (
                 <span className="lobby-fact-note">
-                  {progression?.at_cap
+                  {progressionStatus === "ready" && progression?.at_cap
                     ? "Maximum level"
                     : `${xpIntoLevel.toLocaleString()} / ${xpForNextLevel.toLocaleString()} XP`}
                 </span>
               )}
-              {progressionStatus === "ready" && !progression?.at_cap && (
+              {progressionStatus !== "loading" && !progression?.at_cap && (
                 <span
                   className="lobby-progress-bar"
                   role="progressbar"

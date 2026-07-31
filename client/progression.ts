@@ -119,6 +119,10 @@ function readRewards(value: unknown): LevelReward[] {
   });
 }
 
+function field(raw: Record<string, unknown>, protoName: string, jsonName: string): unknown {
+  return raw[protoName] !== undefined ? raw[protoName] : raw[jsonName];
+}
+
 export function normalizePlayerProgression(value: unknown): PlayerProgression {
   if (!value || typeof value !== "object") {
     // protojson omits zero values, so an entirely absent progression object is
@@ -140,10 +144,10 @@ export function normalizePlayerProgression(value: unknown): PlayerProgression {
       : null;
   return {
     level: numericValue(raw.level, 1),
-    lifetime_xp: numericValue(raw.lifetime_xp),
-    xp_into_level: numericValue(raw.xp_into_level),
-    xp_for_next_level: numericValue(raw.xp_for_next_level),
-    at_cap: raw.at_cap === true,
+    lifetime_xp: numericValue(field(raw, "lifetime_xp", "lifetimeXp")),
+    xp_into_level: numericValue(field(raw, "xp_into_level", "xpIntoLevel")),
+    xp_for_next_level: numericValue(field(raw, "xp_for_next_level", "xpForNextLevel")),
+    at_cap: field(raw, "at_cap", "atCap") === true,
     earned: readRewards(raw.earned),
     next: next ?? undefined,
     onboarding:
@@ -151,8 +155,8 @@ export function normalizePlayerProgression(value: unknown): PlayerProgression {
         ? {
             outcome: onboarding.outcome,
             recorded_at:
-              typeof onboarding.recorded_at === "string"
-                ? onboarding.recorded_at
+              typeof field(onboarding, "recorded_at", "recordedAt") === "string"
+                ? field(onboarding, "recorded_at", "recordedAt") as string
                 : undefined,
           }
         : undefined,
@@ -174,8 +178,8 @@ function readCurve(value: unknown): LevelStep[] {
     }
     return [{
       level,
-      total_xp_required: numericValue(step.total_xp_required),
-      xp_for_next_level: numericValue(step.xp_for_next_level),
+      total_xp_required: numericValue(field(step, "total_xp_required", "totalXpRequired")),
+      xp_for_next_level: numericValue(field(step, "xp_for_next_level", "xpForNextLevel")),
       rewards: readRewards(step.rewards),
     }];
   });
@@ -203,11 +207,14 @@ export function normalizeHandXPAward(value: unknown): HandXPAward | undefined {
       })
     : [];
   return {
-    award_id: typeof raw.award_id === "string" ? raw.award_id : undefined,
+    award_id:
+      typeof field(raw, "award_id", "awardId") === "string"
+        ? field(raw, "award_id", "awardId") as string
+        : undefined,
     source: typeof raw.source === "string" ? raw.source : undefined,
     total: numericValue(raw.total),
     components,
-    capped_by_daily: raw.capped_by_daily === true,
+    capped_by_daily: field(raw, "capped_by_daily", "cappedByDaily") === true,
   };
 }
 
@@ -233,17 +240,19 @@ export function normalizePlayerAchievements(value: unknown): PlayerAchievement[]
       description: raw.description,
       current: numericValue(raw.current),
       goal: numericValue(raw.goal),
-      xp_reward: numericValue(raw.xp_reward),
+      xp_reward: numericValue(field(raw, "xp_reward", "xpReward")),
       bonus_reward:
-        typeof raw.bonus_reward === "string" && raw.bonus_reward
-          ? raw.bonus_reward
+        typeof field(raw, "bonus_reward", "bonusReward") === "string" &&
+        field(raw, "bonus_reward", "bonusReward")
+          ? field(raw, "bonus_reward", "bonusReward") as string
           : undefined,
       // protojson omits false booleans, so strict true checks are deliberate.
       eligible: raw.eligible === true,
       unlocked: raw.unlocked === true,
       unavailable_reason:
-        typeof raw.unavailable_reason === "string" && raw.unavailable_reason
-          ? raw.unavailable_reason
+        typeof field(raw, "unavailable_reason", "unavailableReason") === "string" &&
+        field(raw, "unavailable_reason", "unavailableReason")
+          ? field(raw, "unavailable_reason", "unavailableReason") as string
           : undefined,
     }];
   });
@@ -258,7 +267,8 @@ export function createProgressionClient(
   }
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const path = `${options.url}/v1/namespaces/${encodeURIComponent(options.namespace)}`;
+  const serviceURL = options.url.replace(/\/+$/, "");
+  const path = `${serviceURL}/v1/namespaces/${encodeURIComponent(options.namespace)}`;
 
   async function request(
     method: "GET" | "POST",
@@ -274,8 +284,11 @@ export function createProgressionClient(
         method,
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "Cache-Control": "no-cache",
           ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
         },
+        cache: "no-store",
         body: method === "POST" ? JSON.stringify(payload) : undefined,
         signal: controller.signal,
       });
@@ -295,12 +308,29 @@ export function createProgressionClient(
         `Progression request failed with HTTP ${response.status}.`,
       );
     }
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    let text: string;
     try {
-      return await response.json();
+      text = await response.text();
     } catch (error) {
-      throw new ProgressionError("protocol", "Progression returned invalid JSON.", {
+      throw new ProgressionError("network", "Progression response could not be read.", {
         cause: error,
       });
+    }
+    if (!text.trim() || contentType.includes("text/html")) {
+      throw new ProgressionError(
+        "network",
+        "Progression is temporarily unavailable. Please retry.",
+      );
+    }
+    try {
+      return JSON.parse(text) as unknown;
+    } catch (error) {
+      throw new ProgressionError(
+        "network",
+        "Progression is temporarily unavailable. Please retry.",
+        { cause: error },
+      );
     }
   }
 

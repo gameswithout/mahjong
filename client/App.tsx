@@ -83,9 +83,18 @@ import { createBrowserTelemetry, type GameTelemetry } from "./telemetry";
 import {
   defaultPlayerProfile,
   loadPlayerProfile,
+  MAX_PROFILE_NICKNAME_LENGTH,
   savePlayerProfile,
   type PlayerProfileConfig,
 } from "./player-profile";
+import { SettingsScreen } from "./SettingsScreen";
+import {
+  DEFAULT_PLAYER_SETTINGS,
+  createPlayerSettingsClient,
+  type PlayerSettings,
+} from "./settings";
+import { FeedbackScreen } from "./FeedbackScreen";
+import { createFeedbackClient, type PlayerFeedback } from "./feedback";
 import "./styles.css";
 import "./match-table.css";
 
@@ -213,6 +222,8 @@ type AchievementState =
   | { status: "loading" }
   | { status: "ready"; achievements: PlayerAchievement[] }
   | { status: "error"; code: string; message: string };
+
+type SettingsSyncStatus = "idle" | "loading" | "ready" | "saving" | "error";
 
 type OnlineSessionEntryMode = "manual" | "matchmaking";
 
@@ -430,6 +441,16 @@ export function App(
     defaultPlayerProfile(true),
   );
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
+  const [accountUpgradeOpen, setAccountUpgradeOpen] = useState(false);
+  // undefined = closed, null = general lobby feedback, string = result report.
+  const [feedbackSessionId, setFeedbackSessionId] =
+    useState<string | null | undefined>(undefined);
+  const [playerSettings, setPlayerSettings] =
+    useState<PlayerSettings>(DEFAULT_PLAYER_SETTINGS);
+  const [settingsSyncStatus, setSettingsSyncStatus] =
+    useState<SettingsSyncStatus>("idle");
   const [friendsState, setFriendsState] = useState<FriendsState>({ status: "idle" });
   const [partyState, setPartyState] = useState<PartyState>({ status: "idle" });
   const [partyBusy, setPartyBusy] = useState(false);
@@ -503,10 +524,75 @@ export function App(
     setPlayerProfile(loadPlayerProfile(state.userId, isGuestAccount));
   }, [state.status, state.status === "signed_in" ? state.userId : null, isGuestAccount]);
 
+  const settingsRequestRef = useRef(0);
+
+  async function loadPlayerSettings() {
+    if (state.status !== "signed_in") return;
+    const requestId = ++settingsRequestRef.current;
+    setSettingsSyncStatus("loading");
+    try {
+      const settings = await createPlayerSettingsClient(
+        stableIam.getAuthenticatedSdk(),
+        accelByteConfig.namespace,
+        state.userId,
+      ).get();
+      if (requestId !== settingsRequestRef.current) return;
+      setPlayerSettings(settings);
+      updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent);
+      setSettingsSyncStatus("ready");
+    } catch {
+      if (requestId !== settingsRequestRef.current) return;
+      setSettingsSyncStatus("error");
+    }
+  }
+
+  async function updatePlayerSettings(settings: PlayerSettings) {
+    if (state.status !== "signed_in") return;
+    const requestId = ++settingsRequestRef.current;
+    setPlayerSettings(settings);
+    updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent);
+    setSettingsSyncStatus("saving");
+    try {
+      const saved = await createPlayerSettingsClient(
+        stableIam.getAuthenticatedSdk(),
+        accelByteConfig.namespace,
+        state.userId,
+      ).save(settings);
+      if (requestId !== settingsRequestRef.current) return;
+      setPlayerSettings(saved);
+      setSettingsSyncStatus("ready");
+    } catch {
+      if (requestId !== settingsRequestRef.current) return;
+      setSettingsSyncStatus("error");
+    }
+  }
+
+  async function submitFeedback(feedback: PlayerFeedback) {
+    if (state.status !== "signed_in") {
+      throw new Error("Sign in is required to submit feedback.");
+    }
+    await createFeedbackClient(
+      stableIam.getAuthenticatedSdk(),
+      accelByteConfig.namespace,
+      state.userId,
+    ).submit(feedback);
+  }
+
+  useEffect(() => {
+    if (state.status === "signed_in") {
+      void loadPlayerSettings();
+      void loadStatistics();
+    } else {
+      settingsRequestRef.current += 1;
+      setPlayerSettings(DEFAULT_PLAYER_SETTINGS);
+      setSettingsSyncStatus("idle");
+    }
+  }, [state.status, state.status === "signed_in" ? state.userId : null]);
+
   function updatePlayerProfile(profile: PlayerProfileConfig) {
     const normalized = {
       ...profile,
-      nickname: profile.nickname.slice(0, 24),
+      nickname: profile.nickname.slice(0, MAX_PROFILE_NICKNAME_LENGTH),
     };
     setPlayerProfile(normalized);
     if (state.status === "signed_in") {
@@ -1943,9 +2029,8 @@ export function App(
   }
 
   // §8.4 Full Rotation queue. Deliberately not findTable with a different
-  // pool: Quick Play reserves Jade before queueing, and Full Rotation "is
-  // ranked and uses no Jade" — reserving for it would lock a balance the match
-  // can never spend and block the player out of tables they are eligible for.
+  // pool: the mode has its own session template, but shares the selected
+  // table tier and its Jade reservation with Quick Play.
   async function findRotationTable() {
     const pool = accelByteConfig.rotationMatchPool;
     if (!pool) return;
@@ -1974,7 +2059,12 @@ export function App(
     }
 
     try {
-      const ticket = await createAuthenticatedMatchmakingClient(partySessionId, pool).createTicket();
+      const ticket = await createStakedMatchmakingTicket(
+        createAuthenticatedJadeClient(),
+        createAuthenticatedMatchmakingClient(partySessionId, pool),
+        (account) => setJadeState({ status: "ready", account }),
+        (account) => setJadeState({ status: "ready", account }),
+      );
       if (requestId !== matchmakingRequestRef.current) {
         return;
       }
@@ -2816,6 +2906,47 @@ export function App(
     );
   }
 
+  if (settingsOpen) {
+    return (
+      <div className="game-screen">
+        <SettingsScreen
+          settings={playerSettings}
+          syncStatus={settingsSyncStatus === "idle" ? "loading" : settingsSyncStatus}
+          onSettingsChange={(settings) => void updatePlayerSettings(settings)}
+          onClose={() => setSettingsOpen(false)}
+          onRetry={() => void loadPlayerSettings()}
+        />
+      </div>
+    );
+  }
+
+  if (storeOpen) {
+    return (
+      <div className="game-screen">
+        <section className="placeholder-screen" aria-labelledby="store-title">
+          <p className="status-label">Store</p>
+          <h1 id="store-title">TBD</h1>
+          <p>Cosmetics and Tael purchases will be added later.</p>
+          <button type="button" className="secondary-action" onClick={() => setStoreOpen(false)}>
+            Back to lobby
+          </button>
+        </section>
+      </div>
+    );
+  }
+
+  if (feedbackSessionId !== undefined) {
+    return (
+      <div className="game-screen">
+        <FeedbackScreen
+          sessionId={feedbackSessionId ?? undefined}
+          onSubmit={submitFeedback}
+          onClose={() => setFeedbackSessionId(undefined)}
+        />
+      </div>
+    );
+  }
+
   if (tutorialOpen) {
     return (
       <div className="game-screen">
@@ -2926,6 +3057,7 @@ export function App(
                 onRetryResultFriends={
                   resultFriendsForCurrentMatch ? () => void loadFriends() : undefined
                 }
+                onReportIssue={() => setFeedbackSessionId(matchRuntimeState.matchId)}
                 viewerUserId={rotationViewerUserId}
                 nameOf={rotationNameOf}
               />
@@ -3054,13 +3186,9 @@ export function App(
   return (
     <main className="bootstrap-shell">
       <section className="bootstrap-card" aria-labelledby="bootstrap-title">
-        <p className="eyebrow">Mahjong Online</p>
-        <h1 id="bootstrap-title">Play a hand with friends.</h1>
-        <p className="intro">
-          Start with a guest identity — you can add an email and password to it after any match,
-          keeping the Jade and progression you already earned.
-        </p>
-
+        <h1 id="bootstrap-title" className="mahjong-online-title">
+          Mahjong Online <small>Alpha</small>
+        </h1>
         {state.status === "idle" && (
           <>
             <button className="primary-action" type="button" onClick={signInAsGuest}>
@@ -3331,6 +3459,9 @@ export function App(
                   : undefined
               }
               progressionStatus={progressionState.status}
+              statistics={
+                statisticsState.status === "ready" ? statisticsState.summary : undefined
+              }
               onOpenProgress={() => {
                 setAchievementsOpen(false);
                 setProgressionOpen(true);
@@ -3349,7 +3480,22 @@ export function App(
               }}
               profile={playerProfile}
               onProfileChange={updatePlayerProfile}
+              onOpenStore={() => setStoreOpen(true)}
+              onCreateAccount={() => setAccountUpgradeOpen(true)}
             />
+
+            {isGuestAccount && accountUpgradeOpen ? (
+              <div className="lobby-account-upgrade">
+                <AccountUpgradeCard
+                  onRequestCode={(email) => stableIam.requestGuestUpgradeCode(email)}
+                  onUpgrade={(input) => stableIam.upgradeGuestAccount(input)}
+                  onUpgraded={() => {
+                    setIsGuestAccount(false);
+                    setAccountUpgradeOpen(false);
+                  }}
+                />
+              </div>
+            ) : null}
 
             {progressionOpen && progressionState.status === "error" && (
               <div className="session-error progression-load-error" role="alert">
@@ -3375,15 +3521,9 @@ export function App(
 
             {state.lobbyStatus === "connected" && (
               <div className="session-panel">
+                {playerSettings.showTutorial && (
                 <section className="tutorial-card" aria-labelledby="tutorial-title">
-                  <p className="status-label">
-                    {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
-                      ? "Completed"
-                      : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
-                        ? "Ready to continue"
-                        : "Learn"}
-                  </p>
-                  <h2 id="tutorial-title">How to play</h2>
+                  <h2 id="tutorial-title" className="tutorial-heading">Learn to Play</h2>
                   <p className="practice-description">
                     {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
                       ? "Replay the beginner lessons any time. Untimed, skippable, and safe."
@@ -3410,7 +3550,21 @@ export function App(
                         ? "Continue the tutorial"
                         : "Start the tutorial"}
                   </button>
+                  <button
+                    className="text-action tutorial-hide-action"
+                    type="button"
+                    aria-label="Hide"
+                    onClick={() =>
+                      void updatePlayerSettings({
+                        ...playerSettings,
+                        showTutorial: false,
+                      })
+                    }
+                  >
+                    Hide
+                  </button>
                 </section>
+                )}
 
                 <PracticeLaunchCard
                   busy={
@@ -3426,44 +3580,9 @@ export function App(
                   onLeaveSelectedSession={() => void leaveTable()}
                 />
 
-                <section
-                  className="matchmaking-panel online-card"
-                  aria-labelledby="full-rotation-title"
-                >
-                  <p className="status-label">Full Rotation</p>
-                  <h2 id="full-rotation-title">Ranked East round</h2>
-                  <p className="practice-description">
-                    Every player deals once · up to 60 minutes.
-                  </p>
-                  {/* Said plainly, because it is the difference players will
-                      most easily get wrong: this mode settles in table points,
-                      not Jade, so nothing is at stake and nothing is won. */}
-                  <p className="practice-description">
-                    Scored in table points. No Jade is staked or won.
-                  </p>
-
-                  {!accelByteConfig.rotationMatchPool && (
-                    <p className="matchmaking-result" role="status" aria-live="polite">
-                      Full Rotation matchmaking is not configured yet. It needs its own pool,
-                      because Quick Play&rsquo;s stakes Jade and plays a single hand.
-                    </p>
-                  )}
-
-                  {accelByteConfig.rotationMatchPool && matchmakingState.status === "idle" && (
-                    <button
-                      className="primary-action session-action"
-                      type="button"
-                      onClick={() => void findRotationTable()}
-                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
-                    >
-                      Find a rotation
-                    </button>
-                  )}
-                </section>
-
-                <section className="matchmaking-panel online-card" aria-labelledby="online-title">
-                  <p className="status-label">Quick Play</p>
-                  <h2 id="online-title">{playableTier().name}</h2>
+                <section className="practice-card online-play-card" aria-labelledby="online-title">
+                  <p className="status-label">Play Online</p>
+                  <h2 id="online-title">Play one hand at {playableTier().name}</h2>
                   <p className="practice-description">
                     One live hand against three humans · about 8 to 15 minutes.
                   </p>
@@ -3705,6 +3824,24 @@ export function App(
                     />
                   </>
                 )}
+
+                <button
+                  type="button"
+                  className="settings-link"
+                  onClick={() => setFeedbackSessionId(null)}
+                >
+                  Submit Feedback
+                  <span>Share gameplay, connection, or UI feedback</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="settings-link"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  Settings
+                  <span>Rules, tutorial visibility, and privacy</span>
+                </button>
 
                 <details className="developer-tools">
                   <summary>Developer session tools</summary>

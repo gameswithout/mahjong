@@ -18,6 +18,45 @@ const account = {
 };
 
 describe("Jade client", () => {
+  it("normalizes a trailing slash in the deployed service URL", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ account }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = createJadeClient("player-token", {
+      url: "https://match.example.test/mahjong/",
+      namespace: "mahjong-test",
+      fetchImpl,
+    });
+
+    await client.getAccount();
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://match.example.test/mahjong/v1/namespaces/mahjong-test/jade",
+      expect.any(Object),
+    );
+  });
+
+  it("treats an HTML hosting fallback as a retryable service outage", async () => {
+    const client = createJadeClient("player-token", {
+      url: "https://match.example.test",
+      namespace: "mahjong-test",
+      fetchImpl: vi.fn().mockResolvedValue(
+        new Response("<!doctype html><title>Mahjong</title>", {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        }),
+      ),
+    });
+
+    await expect(client.getAccount()).rejects.toMatchObject({
+      code: "network",
+      message: "Jade service is temporarily unavailable. Please retry your balance.",
+    });
+  });
+
   it("loads and normalizes a proto JSON account", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ account }), {
@@ -46,9 +85,45 @@ describe("Jade client", () => {
       "https://match.example.test/mahjong/v1/namespaces/mahjong-test/jade",
       expect.objectContaining({
         method: "GET",
-        headers: expect.objectContaining({ Authorization: "Bearer player-token" }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer player-token",
+          Accept: "application/json",
+        }),
       }),
     );
+  });
+
+  it("accepts the gateway's lower-camel JSON field names", async () => {
+    const camelAccount = {
+      currencyCode: "JADE",
+      balance: "5000",
+      reserved: "300",
+      available: "4700",
+      eligible: true,
+      minimumBalance: "1000",
+      stakePerTai: "10",
+      debitCap: "300",
+      welfareEligible: true,
+      welfareAmount: "600",
+      welfareReason: "available",
+    };
+    const client = createJadeClient("player-token", {
+      url: "https://match.example.test",
+      namespace: "mahjong-test",
+      fetchImpl: vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ account: camelAccount }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    });
+
+    await expect(client.getAccount()).resolves.toMatchObject({
+      currency_code: "JADE",
+      available: 4700,
+      minimum_balance: 1000,
+      welfare_eligible: true,
+    });
   });
 
   it("claims the server-calculated welfare top-up", async () => {

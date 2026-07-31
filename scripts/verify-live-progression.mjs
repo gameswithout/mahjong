@@ -13,9 +13,8 @@
 //   - A real AI Practice hand, played turn-by-turn through actual match
 //     commands (not a test harness bypass), reaches hand_complete or
 //     exhaustive_draw and pays exactly the §12.1 Practice XP.
-//   - The §12.1 200/day Practice cap is enforced by playing enough hands to
-//     cross it, and the capped hand is reported as capped rather than as an
-//     error.
+//   - Multiple Practice hands continue to pay the flat Practice award; Alpha
+//     has no daily XP cap.
 //   - Practice truly never touches Jade (a live invariant check, not just a
 //     unit test), which is what makes the welfare status stay
 //     "balance_sufficient" throughout even after several hands.
@@ -37,7 +36,6 @@ const sessionClientVersion = process.env.ACCELBYTE_SESSION_CLIENT_VERSION ?? "we
 
 const HAND_TIMEOUT_MS = 5 * 60_000;
 const PRACTICE_HAND_XP = 25;
-const PRACTICE_DAILY_CAP_XP = 200;
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -418,7 +416,7 @@ async function main() {
   // --- Real Practice hands, played through actual match commands ---------
   const handsToPlay = process.env.MAHJONG_VERIFY_HAND_COUNT
     ? Number(process.env.MAHJONG_VERIFY_HAND_COUNT)
-    : Math.ceil(PRACTICE_DAILY_CAP_XP / PRACTICE_HAND_XP) + 1; // one past the cap
+    : 2;
   let lastXpAward = null;
   let lastProgression = null;
 
@@ -437,9 +435,10 @@ async function main() {
   }
 
   assert(
-    lastXpAward?.capped_by_daily === true && (lastXpAward?.total ?? 0) === 0,
-    "practice_daily_cap_enforced",
-    `the ${handsToPlay}th Practice hand of the day is reported as capped, paying nothing`,
+    lastXpAward?.capped_by_daily !== true &&
+      (lastXpAward?.total ?? 0) === PRACTICE_HAND_XP,
+    "practice_xp_has_no_daily_cap",
+    `the ${handsToPlay}th Practice hand still pays ${PRACTICE_HAND_XP} XP`,
     { xp_award: lastXpAward },
   );
 
@@ -460,7 +459,7 @@ async function main() {
   report("summary", {
     ok: true,
     note:
-      "XP awarding, onboarding idempotency/monotonicity, the Practice daily cap, and the " +
+      "XP awarding, onboarding idempotency/monotonicity, uncapped Practice XP, and the " +
       "Practice-never-touches-Jade invariant are now verified live. A real below-minimum " +
       "welfare claim was NOT attempted: it requires an actual staked loss, which requires a " +
       "legal Taiwanese Mahjong win against this account and is not obtainable by scripted " +
