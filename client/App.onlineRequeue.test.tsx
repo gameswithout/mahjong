@@ -47,6 +47,7 @@ vi.mock("./config", async () => {
       clientId: "browser-client",
       matchServiceURL: "https://match.example.test",
       matchPool: "bamboo",
+      rotationMatchPool: "rotation",
       sessionTemplate: "mahjong",
       sessionClientVersion: "test",
     },
@@ -119,6 +120,48 @@ function completedOnlineView(matchId: string, account: JadeAccount): SeatView {
   };
 }
 
+function completedRotationView(matchId: string): SeatView {
+  return {
+    ...completedOnlineView(matchId, ELIGIBLE_ACCOUNT),
+    jade_account: undefined,
+    rotation: {
+      hand_number: 4,
+      hands_played: 4,
+      continuations: 0,
+      dealer_user_id: "guest-4",
+      seats_dealt: 4,
+      time_limit_at: "2026-07-25T01:00:00Z",
+      complete: true,
+      reason: "rotation_complete",
+      standings: [
+        { user_id: "guest-1", position: "E", wind: "S", table_points: 12, has_dealt: true },
+        { user_id: "guest-2", position: "S", wind: "W", table_points: 4, has_dealt: true },
+        { user_id: "guest-3", position: "W", wind: "N", table_points: -5, has_dealt: true },
+        {
+          user_id: "guest-4",
+          position: "N",
+          wind: "E",
+          table_points: -11,
+          dealing: true,
+          has_dealt: true,
+        },
+      ],
+      placements: [
+        { user_id: "guest-1", position: 1, table_points: 12 },
+        { user_id: "guest-2", position: 2, table_points: 4 },
+        { user_id: "guest-3", position: 3, table_points: -5 },
+        { user_id: "guest-4", position: 4, table_points: -11 },
+      ],
+      placement_xp_award: {
+        award_id: "rotation-placement-1",
+        source: "full_rotation_placement",
+        total: 400,
+        components: [{ code: "placement_1", label: "1st place", amount: 400 }],
+      },
+    },
+  };
+}
+
 function button(container: HTMLElement, label: string): HTMLButtonElement {
   const match = Array.from(container.querySelectorAll("button")).find(
     (candidate) => candidate.textContent === label,
@@ -138,15 +181,18 @@ async function clickAndFlush(container: HTMLElement, label: string): Promise<voi
   });
 }
 
-describe("App staked requeue (P1.3 session closure)", () => {
+describe("App online matchmaking and requeue", () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
   let calls: string[];
   let sessionClient: SessionClient;
   let getAccount: ReturnType<typeof vi.fn>;
   let createTicket: ReturnType<typeof vi.fn>;
+  let reserveJade: ReturnType<typeof vi.fn>;
+  let releaseJade: ReturnType<typeof vi.fn>;
   let sendFriendRequest: ReturnType<typeof vi.fn>;
   let tableNumber: number;
+  let completedView: (matchId: string) => SeatView;
 
   const iam = {
     loginAsGuest: vi.fn().mockResolvedValue({
@@ -168,8 +214,14 @@ describe("App staked requeue (P1.3 session closure)", () => {
     root = createRoot(container);
     calls = [];
     tableNumber = 0;
+    completedView = (matchId) => completedOnlineView(matchId, ELIGIBLE_ACCOUNT);
 
     getAccount = vi.fn().mockResolvedValue(ELIGIBLE_ACCOUNT);
+    reserveJade = vi.fn().mockResolvedValue({
+      account: { ...ELIGIBLE_ACCOUNT, reserved: 300, available: 4_700 },
+      reservation: { reservation_id: "reserve-1", amount: 300, status: "active" },
+    });
+    releaseJade = vi.fn().mockResolvedValue(ELIGIBLE_ACCOUNT);
     sendFriendRequest = vi.fn().mockResolvedValue(undefined);
     dependencies.createFriendsClient.mockReturnValue({
       list: vi.fn().mockResolvedValue([]),
@@ -186,11 +238,8 @@ describe("App staked requeue (P1.3 session closure)", () => {
     });
     dependencies.createJadeClient.mockReturnValue({
       getAccount,
-      reserve: vi.fn().mockResolvedValue({
-        account: { ...ELIGIBLE_ACCOUNT, reserved: 300, available: 4_700 },
-        reservation: { reservation_id: "reserve-1", amount: 300, status: "active" },
-      }),
-      release: vi.fn().mockResolvedValue(ELIGIBLE_ACCOUNT),
+      reserve: reserveJade,
+      release: releaseJade,
     });
     dependencies.createProgressionClient.mockReturnValue({
       get: vi.fn().mockResolvedValue({
@@ -258,7 +307,7 @@ describe("App staked requeue (P1.3 session closure)", () => {
                 options.onJoined?.({
                   match_id: matchId,
                   seat: "E",
-                  view: completedOnlineView(matchId, ELIGIBLE_ACCOUNT),
+                  view: completedView(matchId),
                 });
               }
             });
@@ -288,6 +337,99 @@ describe("App staked requeue (P1.3 session closure)", () => {
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull());
   }
+
+  async function reachCompletedRotation(): Promise<void> {
+    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({
+      userId: "guest-1",
+      deviceId: "device-1",
+      isGuest: false,
+    });
+    completedView = completedRotationView;
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Find a rotation"));
+    await clickAndFlush(container, "Find a rotation");
+    await vi.waitFor(() => expect(container.textContent).toContain("Final standings"));
+  }
+
+  it("locks ranked Full Rotation for guest accounts", async () => {
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain(
+        "Create or sign in to a full account to enter ranked Full Rotation.",
+      ),
+    );
+
+    expect(
+      Array.from(container.querySelectorAll("button")).some(
+        (candidate) => candidate.textContent === "Find a rotation",
+      ),
+    ).toBe(false);
+  });
+
+  it("queues and requeues completed Full Rotations without touching Jade", async () => {
+    await reachCompletedRotation();
+
+    expect(container.textContent).toContain("Final standings");
+    expect(container.querySelector(".hand-result-play-again-note")).toBeNull();
+    expect(button(container, "Play Again")).toBeInstanceOf(HTMLButtonElement);
+    expect(reserveJade).not.toHaveBeenCalled();
+    expect(releaseJade).not.toHaveBeenCalled();
+    const accountReadsBeforeRequeue = getAccount.mock.calls.length;
+
+    await clickAndFlush(container, "Play Again");
+    await vi.waitFor(() => expect(calls).toContain("ticket:2"));
+
+    expect(calls).toEqual([
+      "ticket:1",
+      "join:table-1",
+      "connect:table-1",
+      "leave:table-1",
+      "ticket:2",
+      "join:table-2",
+      "connect:table-2",
+    ]);
+    expect(reserveJade).not.toHaveBeenCalled();
+    expect(releaseJade).not.toHaveBeenCalled();
+    expect(getAccount).toHaveBeenCalledTimes(accountReadsBeforeRequeue);
+    expect(
+      dependencies.createMatchmakingClient.mock.calls.map(
+        ([, , config]) => config.matchPool,
+      ),
+    ).toEqual(["rotation", "rotation"]);
+  });
+
+  it("cancels a Full Rotation ticket in its own pool without releasing Jade", async () => {
+    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({
+      userId: "guest-1",
+      deviceId: "device-1",
+      isGuest: false,
+    });
+    const cancelTicket = vi.fn().mockResolvedValue(undefined);
+    createTicket = vi.fn().mockResolvedValue({ ticketId: "rotation-ticket", isActive: true });
+    dependencies.createMatchmakingClient.mockReturnValue({
+      createTicket,
+      getTicket: vi.fn(async () => ({ ticketId: "rotation-ticket", isActive: true })),
+      cancelTicket,
+    });
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Find a rotation"));
+    await clickAndFlush(container, "Find a rotation");
+    await vi.waitFor(() => expect(container.textContent).toContain("Full Rotation queue"));
+    await clickAndFlush(container, "Cancel");
+
+    await vi.waitFor(() => expect(container.textContent).not.toContain("Full Rotation queue"));
+    expect(cancelTicket).toHaveBeenCalledWith("rotation-ticket");
+    expect(releaseJade).not.toHaveBeenCalled();
+    expect(
+      dependencies.createMatchmakingClient.mock.calls.map(
+        ([, , config]) => config.matchPool,
+      ),
+    ).toEqual(["rotation", "rotation"]);
+  });
 
   it("offers a way out of a queue that has passed 90 seconds, releasing the reservation", async () => {
     // A ticket that never matches: four humans are required and none arrive.

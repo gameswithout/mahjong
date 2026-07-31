@@ -215,6 +215,7 @@ type AchievementState =
   | { status: "error"; code: string; message: string };
 
 type OnlineSessionEntryMode = "manual" | "matchmaking";
+type OnlineMatchmakingMode = "bamboo_quick_play" | "full_rotation";
 
 export function shouldAutomaticallyEnterHumanMatch(
   mode: OnlineSessionEntryMode,
@@ -468,7 +469,12 @@ export function App(
   const resumeStartedRef = useRef(false);
   const lobbyRef = useRef<LobbyConnection | null>(null);
   const queueTelemetryRef = useRef(new Set<string>());
+  // MatchmakingState deliberately stays about lifecycle only. This ref keeps
+  // the product mode beside that lifecycle so polling, cancellation, joining,
+  // and requeueing all use the same pool and only Quick Play touches Jade.
+  const matchmakingModeRef = useRef<OnlineMatchmakingMode>("bamboo_quick_play");
   const handTelemetryKeyRef = useRef<string | null>(null);
+  const rotationTelemetryKeyRef = useRef<string | null>(null);
   const resultFriendsTelemetryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -713,13 +719,17 @@ export function App(
 
     const ticketId = activeTicketId;
     const requestId = matchmakingRequestRef.current;
+    const matchmakingMode = matchmakingModeRef.current;
     let cancelled = false;
     let failures = 0;
     let timer = 0;
 
     async function refreshTicketInBackground() {
       try {
-        const ticket = createAuthenticatedMatchmakingClient().getTicket(ticketId);
+        const ticket = createAuthenticatedMatchmakingClient(
+          undefined,
+          matchPoolForMode(matchmakingMode),
+        ).getTicket(ticketId);
         const nextTicket = await ticket;
         if (cancelled || requestId !== matchmakingRequestRef.current) {
           return;
@@ -731,7 +741,10 @@ export function App(
         }
 
         if (nextTicket.isActive === false) {
-          const release = await releaseJadeReservation();
+          const release =
+            matchmakingMode === "bamboo_quick_play"
+              ? await releaseJadeReservation()
+              : ({ released: true } as const);
           if (cancelled || requestId !== matchmakingRequestRef.current) {
             return;
           }
@@ -1138,7 +1151,11 @@ export function App(
       view.hand_result?.kind === "discard" && view.hand_result?.payer === view.seat;
     gameTelemetry.track("hand_completed", {
       dimensions: {
-        mode: isPracticeMatch(view) ? "practice" : "quick_play",
+        mode: isPracticeMatch(view)
+          ? "practice"
+          : view.rotation
+            ? "full_rotation"
+            : "quick_play",
         outcome: winner ? "won" : view.phase === "exhaustive_draw" ? "draw" : "lost",
         win_kind: view.hand_result?.kind ?? "none",
         dealt_in: String(Boolean(dealtIn)),
@@ -1150,6 +1167,31 @@ export function App(
       },
     });
   }, [matchRuntimeState]);
+
+  // One completion event per rotation, separate from the final hand event.
+  // Counts and ending reason are enough to measure time-limit asymmetry while
+  // keeping player/opponent identities out of analytics.
+  useEffect(() => {
+    const rotation =
+      matchRuntimeState.status === "joined" ? matchRuntimeState.view.rotation : undefined;
+    if (matchRuntimeState.status !== "joined" || !rotation?.complete) {
+      return;
+    }
+    const key = matchRuntimeState.matchId;
+    if (rotationTelemetryKeyRef.current === key) {
+      return;
+    }
+    rotationTelemetryKeyRef.current = key;
+    gameTelemetry.track("rotation_completed", {
+      dimensions: {
+        completion_reason: rotation.reason ?? "unknown",
+      },
+      measurements: {
+        hands_played: rotation.hands_played ?? 0,
+        seats_dealt: rotation.seats_dealt ?? 0,
+      },
+    });
+  }, [gameTelemetry, matchRuntimeState]);
 
   // P4.3 view telemetry contains counts only. Opponent IDs and display names
   // are intentionally excluded from product analytics.
@@ -1207,6 +1249,7 @@ export function App(
     partyRequestRef.current += 1;
     friendsMutationRef.current += 1;
     partyMutationRef.current += 1;
+    matchmakingModeRef.current = "bamboo_quick_play";
     setSessionState({ status: "idle" });
     setMatchmakingState({ status: "idle" });
     setMatchRuntimeState({ status: "idle" });
@@ -1489,6 +1532,12 @@ export function App(
       accelByteConfig.namespace,
       sessionCreateConfig(),
     );
+  }
+
+  function matchPoolForMode(mode: OnlineMatchmakingMode): string | undefined {
+    return mode === "full_rotation"
+      ? accelByteConfig.rotationMatchPool
+      : accelByteConfig.matchPool;
   }
 
   // partySessionId turns a solo ticket into a party ticket: AGS seats every
@@ -1864,6 +1913,7 @@ export function App(
   }
 
   async function findTable() {
+    matchmakingModeRef.current = "bamboo_quick_play";
     const requestId = ++matchmakingRequestRef.current;
     const startedAt = Date.now();
     setOnlineSessionEntryMode("matchmaking");
@@ -1947,8 +1997,19 @@ export function App(
   // ranked and uses no Jade" — reserving for it would lock a balance the match
   // can never spend and block the player out of tables they are eligible for.
   async function findRotationTable() {
+    matchmakingModeRef.current = "full_rotation";
     const pool = accelByteConfig.rotationMatchPool;
     if (!pool) return;
+    // Ranked play belongs to a durable account. The lobby hides this action
+    // for guests, but the guard also protects programmatic/replayed clicks.
+    if (isGuestAccount) {
+      setMatchmakingState({
+        status: "error",
+        code: "linked_account_required",
+        message: "Create or sign in to a full account before entering Full Rotation.",
+      });
+      return;
+    }
     const requestId = ++matchmakingRequestRef.current;
     const startedAt = Date.now();
     setOnlineSessionEntryMode("matchmaking");
@@ -1974,7 +2035,10 @@ export function App(
     }
 
     try {
-      const ticket = await createAuthenticatedMatchmakingClient(partySessionId, pool).createTicket();
+      const ticket = await createAuthenticatedMatchmakingClient(
+        partySessionId,
+        pool,
+      ).createTicket();
       if (requestId !== matchmakingRequestRef.current) {
         return;
       }
@@ -2016,12 +2080,19 @@ export function App(
     }
 
     const elapsedMs = Math.max(0, Date.now() - (queueStartedAt ?? Date.now()));
+    const matchmakingMode = matchmakingModeRef.current;
     const requestId = ++matchmakingRequestRef.current;
     setMatchmakingState({ status: "canceling", ticket });
 
     try {
-      await createAuthenticatedMatchmakingClient().cancelTicket(ticket.ticketId);
-      const release = await releaseJadeReservation();
+      await createAuthenticatedMatchmakingClient(
+        undefined,
+        matchPoolForMode(matchmakingMode),
+      ).cancelTicket(ticket.ticketId);
+      const release =
+        matchmakingMode === "bamboo_quick_play"
+          ? await releaseJadeReservation()
+          : ({ released: true } as const);
       if (requestId !== matchmakingRequestRef.current) {
         return false;
       }
@@ -2030,6 +2101,7 @@ export function App(
         setMatchmakingState(reservationReleaseError(release));
         gameTelemetry.track("queue_cancel_result", {
           dimensions: {
+            mode: matchmakingMode,
             outcome: "failed",
             reason_code: `jade_release_${release.code}`,
           },
@@ -2040,7 +2112,7 @@ export function App(
 
       setMatchmakingState({ status: "idle" });
       gameTelemetry.track("queue_cancel_result", {
-        dimensions: { outcome: "canceled" },
+        dimensions: { mode: matchmakingMode, outcome: "canceled" },
         measurements: { elapsed_ms: elapsedMs },
       });
       return true;
@@ -2061,6 +2133,7 @@ export function App(
       });
       gameTelemetry.track("queue_cancel_result", {
         dimensions: {
+          mode: matchmakingMode,
           outcome: "failed",
           reason_code: `cancel_${safeError.code}`,
         },
@@ -2081,10 +2154,9 @@ export function App(
     await cancelMatchmaking(matchmakingState.ticket);
   }
 
-  // §8.7's alternative to an open-ended wait. The ticket is canceled first so
-  // the Jade reservation is released before a free Practice hand starts:
-  // leaving it held behind a hand that costs nothing would quietly block the
-  // player's next staked entry.
+  // §8.7's alternative to an open-ended wait. The ticket is canceled before a
+  // free Practice hand starts. Quick Play also releases its Jade reservation;
+  // Full Rotation has no reservation to release.
   async function leaveQueueForPractice() {
     gameTelemetry.track("queue_alternative_selected", {
       dimensions: { alternative: "practice" },
@@ -2105,6 +2177,7 @@ export function App(
     }
 
     const sessionId = matchmakingState.ticket.sessionId;
+    const matchmakingMode = matchmakingModeRef.current;
     if (autoJoiningSessionIdRef.current === sessionId) {
       return;
     }
@@ -2136,6 +2209,7 @@ export function App(
       gameTelemetry.track("session_join_result", {
         dimensions: {
           entry_point: "matchmaking",
+          mode: matchmakingMode,
           outcome: "joined",
         },
         measurements: {
@@ -2157,10 +2231,13 @@ export function App(
       autoJoiningSessionIdRef.current = null;
       const safeError = sessionErrorView(error);
       setSessionState({ status: "error", ...safeError });
-      await releaseJadeReservation();
+      if (matchmakingMode === "bamboo_quick_play") {
+        await releaseJadeReservation();
+      }
       gameTelemetry.track("session_join_result", {
         dimensions: {
           entry_point: "matchmaking",
+          mode: matchmakingMode,
           outcome: "failed",
           reason_code: safeError.code,
         },
@@ -2263,9 +2340,12 @@ export function App(
   }
 
   // Resolves true when the seat was released cleanly. Play Again reads that:
-  // queueing for a new table while the previous seat is still held would take
-  // a second reservation against Jade the old table has not let go of yet.
-  async function leaveTable(sessionIdOverride?: string): Promise<boolean> {
+  // queueing for a new table while the previous seat is still held would
+  // strand the old Session (and, for Quick Play, its Jade reservation).
+  async function leaveTable(
+    sessionIdOverride?: string,
+    refreshJade = true,
+  ): Promise<boolean> {
     // Leaving the table ends the match for this player: drop the resume pointer
     // so a later reload does not try to rejoin a match they left.
     browserMatchResumeStore.clear();
@@ -2301,7 +2381,9 @@ export function App(
 
       setSessionState({ status: "empty" });
       setJoinSessionId("");
-      await loadJadeAccount();
+      if (refreshJade) {
+        await loadJadeAccount();
+      }
       void loadProgression();
       return true;
     } catch (error) {
@@ -2546,6 +2628,32 @@ export function App(
     }
 
     await findTable();
+  }
+
+  // A completed Full Rotation queues another Full Rotation. It shares the
+  // finished-seat cleanup with Quick Play, but deliberately skips every Jade
+  // read/reservation/release path because table points are not a currency.
+  async function playRotationAgain() {
+    if (
+      isGuestAccount ||
+      matchmakingState.status === "loading" ||
+      matchmakingState.status === "searching"
+    ) {
+      return;
+    }
+
+    const previousSessionId =
+      sessionState.status === "loaded" ? sessionState.session.sessionId : undefined;
+
+    matchmakingModeRef.current = "full_rotation";
+    setMatchmakingState({ status: "loading" });
+    const released = await leaveTable(previousSessionId, false);
+    if (!released) {
+      setMatchmakingState({ status: "idle" });
+      return;
+    }
+
+    await findRotationTable();
   }
 
   function sendMatchCommand(command: Omit<MatchCommandRequest, "match_id">) {
@@ -2897,6 +3005,13 @@ export function App(
                 onPlayAgain={
                   isPracticeMatch(matchRuntimeState.view)
                     ? playPracticeAgain
+                    : matchRuntimeState.view.rotation
+                      ? matchRuntimeState.view.rotation.complete &&
+                        onlineSessionEntryMode === "matchmaking" &&
+                        accelByteConfig.rotationMatchPool &&
+                        !isGuestAccount
+                        ? () => void playRotationAgain()
+                        : undefined
                     : // Online Play Again requeues through matchmaking, so it
                       // is only honest to offer it where a pool exists to queue
                       // into. Manually joined dev tables fall through to Return.
@@ -2905,7 +3020,7 @@ export function App(
                       : undefined
                 }
                 playAgainNote={
-                  isPracticeMatch(matchRuntimeState.view)
+                  isPracticeMatch(matchRuntimeState.view) || matchRuntimeState.view.rotation
                     ? undefined
                     : stakeSummary(matchRuntimeState.view.jade_account)
                 }
@@ -3449,16 +3564,24 @@ export function App(
                     </p>
                   )}
 
-                  {accelByteConfig.rotationMatchPool && matchmakingState.status === "idle" && (
-                    <button
-                      className="primary-action session-action"
-                      type="button"
-                      onClick={() => void findRotationTable()}
-                      disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
-                    >
-                      Find a rotation
-                    </button>
+                  {accelByteConfig.rotationMatchPool && isGuestAccount && (
+                    <p className="matchmaking-result" role="status">
+                      Create or sign in to a full account to enter ranked Full Rotation.
+                    </p>
                   )}
+
+                  {accelByteConfig.rotationMatchPool &&
+                    !isGuestAccount &&
+                    matchmakingState.status === "idle" && (
+                      <button
+                        className="primary-action session-action"
+                        type="button"
+                        onClick={() => void findRotationTable()}
+                        disabled={sessionState.status === "loading" || hasActiveOrStrandedSession}
+                      >
+                        Find a rotation
+                      </button>
+                    )}
                 </section>
 
                 <section className="matchmaking-panel online-card" aria-labelledby="online-title">
@@ -3535,114 +3658,140 @@ export function App(
                       Find a table
                     </button>
                   )}
+                </section>
 
-                  {matchmakingState.status === "loading" && (
-                    <p className="matchmaking-result" role="status" aria-live="polite">
-                      Joining queue…
+                {matchmakingState.status !== "idle" && (
+                  <section
+                    className="matchmaking-panel online-card"
+                    aria-label={`${matchmakingModeRef.current === "full_rotation" ? "Full Rotation" : "Quick Play"} matchmaking status`}
+                  >
+                    <p className="status-label">
+                      {matchmakingModeRef.current === "full_rotation"
+                        ? "Full Rotation queue"
+                        : "Quick Play queue"}
                     </p>
-                  )}
 
-                  {matchmakingState.status === "releasing" && (
-                    <p className="matchmaking-result" role="status" aria-live="polite">
-                      Releasing Jade reservation…
-                    </p>
-                  )}
+                    {matchmakingState.status === "loading" && (
+                      <p className="matchmaking-result" role="status" aria-live="polite">
+                        Joining queue…
+                      </p>
+                    )}
 
-                  {(matchmakingState.status === "searching" ||
-                    matchmakingState.status === "canceling") && (
-                    <div
-                      className={`matchmaking-result queue-panel queue-${currentQueueHealth}`}
-                      role="status"
-                      aria-live="polite"
-                    >
-                      <p className="queue-message">{queueHealthMessage(currentQueueHealth)}</p>
-                      <p className="queue-elapsed">{queueElapsedLabel(queueElapsedMs)}</p>
+                    {matchmakingState.status === "releasing" && (
+                      <p className="matchmaking-result" role="status" aria-live="polite">
+                        Releasing Jade reservation…
+                      </p>
+                    )}
 
-                      {/* §8.7: at 90 seconds the player gets a way out of an
-                          open-ended wait rather than a spinner and a guess. */}
-                      {currentQueueHealth === "slow" && matchmakingState.status === "searching" && (
-                        <div className="queue-alternatives">
-                          <p className="session-detail">
-                            You can keep waiting, or play a Practice hand now instead.
-                          </p>
+                    {(matchmakingState.status === "searching" ||
+                      matchmakingState.status === "canceling") && (
+                      <div
+                        className={`matchmaking-result queue-panel queue-${currentQueueHealth}`}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <p className="queue-message">{queueHealthMessage(currentQueueHealth)}</p>
+                        <p className="queue-elapsed">{queueElapsedLabel(queueElapsedMs)}</p>
+
+                        {/* §8.7: at 90 seconds the player gets a way out of an
+                            open-ended wait rather than a spinner and a guess. */}
+                        {currentQueueHealth === "slow" &&
+                          matchmakingState.status === "searching" && (
+                            <div className="queue-alternatives">
+                              <p className="session-detail">
+                                You can keep waiting, or play a Practice hand now instead.
+                              </p>
+                              <button
+                                className="secondary-action session-action"
+                                type="button"
+                                onClick={() => void leaveQueueForPractice()}
+                              >
+                                Practice instead
+                              </button>
+                            </div>
+                          )}
+
+                        <button
+                          className="secondary-action session-action"
+                          type="button"
+                          onClick={() => void cancelMatchmaking()}
+                          disabled={matchmakingState.status === "canceling"}
+                        >
+                          {matchmakingState.status === "canceling" ? "Leaving queue…" : "Cancel"}
+                        </button>
+
+                        <p className="session-detail queue-ticket">
+                          Ticket: {sessionIdFragment(matchmakingState.ticket.ticketId)}
+                        </p>
+                      </div>
+                    )}
+
+                    {matchmakingState.status === "matched" && (
+                      <div className="matchmaking-result" role="status" aria-live="polite">
+                        <p className="status-label">Match found</p>
+                        {matchmakingState.ticket.sessionId ? (
+                          <>
+                            <p className="session-detail">
+                              Joining the shared table automatically…
+                            </p>
+                            {sessionState.status === "error" && (
+                              <button
+                                className="secondary-action session-action"
+                                type="button"
+                                onClick={joinMatchedTable}
+                              >
+                                Retry joining table
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <p>AGS returned a match without a Session yet.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {matchmakingState.status === "error" && (
+                      <div className="session-error" role="alert">
+                        <p>{matchmakingState.message}</p>
+                        <p className="error-code">
+                          Error code: matchmaking_{matchmakingState.code}
+                        </p>
+                        {/* Ineligible Jade and a guest identity are durable
+                            eligibility failures; retrying cannot change them. */}
+                        {matchmakingState.recovery === "cancel_ticket" ? (
                           <button
                             className="secondary-action session-action"
                             type="button"
-                            onClick={() => void leaveQueueForPractice()}
+                            onClick={() => void retryMatchmakingCancellation()}
                           >
-                            Practice instead
+                            Retry leaving queue
                           </button>
-                        </div>
-                      )}
-
-                      <button
-                        className="secondary-action session-action"
-                        type="button"
-                        onClick={() => void cancelMatchmaking()}
-                        disabled={matchmakingState.status === "canceling"}
-                      >
-                        {matchmakingState.status === "canceling" ? "Leaving queue…" : "Cancel"}
-                      </button>
-
-                      <p className="session-detail queue-ticket">
-                        Ticket: {sessionIdFragment(matchmakingState.ticket.ticketId)}
-                      </p>
-                    </div>
-                  )}
-
-                  {matchmakingState.status === "matched" && (
-                    <div className="matchmaking-result" role="status" aria-live="polite">
-                      <p className="status-label">Match found</p>
-                      {matchmakingState.ticket.sessionId ? (
-                        <>
-                          <p className="session-detail">Joining the shared table automatically…</p>
-                          {sessionState.status === "error" && (
-                            <button
-                              className="secondary-action session-action"
-                              type="button"
-                              onClick={joinMatchedTable}
-                            >
-                              Retry joining table
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <p>AGS returned a match without a Session yet.</p>
-                      )}
-                    </div>
-                  )}
-
-                  {matchmakingState.status === "error" && (
-                    <div className="session-error" role="alert">
-                      <p>{matchmakingState.message}</p>
-                      <p className="error-code">Error code: matchmaking_{matchmakingState.code}</p>
-                      {/* An ineligible balance is not a transient failure:
-                          retrying queues the same rejection. Offer the retry
-                          only where retrying can actually succeed. */}
-                      {matchmakingState.recovery === "cancel_ticket" ? (
-                        <button
-                          className="secondary-action session-action"
-                          type="button"
-                          onClick={() => void retryMatchmakingCancellation()}
-                        >
-                          Retry leaving queue
-                        </button>
-                      ) : matchmakingState.recovery === "release_reservation" ? (
-                        <button
-                          className="secondary-action session-action"
-                          type="button"
-                          onClick={() => void retryJadeReservationRelease()}
-                        >
-                          Retry releasing Jade
-                        </button>
-                      ) : matchmakingState.code !== "jade_ineligible" ? (
-                        <button className="secondary-action session-action" type="button" onClick={findTable}>
-                          Retry matchmaking
-                        </button>
-                      ) : null}
-                    </div>
-                  )}
-                </section>
+                        ) : matchmakingState.recovery === "release_reservation" ? (
+                          <button
+                            className="secondary-action session-action"
+                            type="button"
+                            onClick={() => void retryJadeReservationRelease()}
+                          >
+                            Retry releasing Jade
+                          </button>
+                        ) : matchmakingState.code !== "jade_ineligible" &&
+                          matchmakingState.code !== "linked_account_required" ? (
+                          <button
+                            className="secondary-action session-action"
+                            type="button"
+                            onClick={() =>
+                              void (matchmakingModeRef.current === "full_rotation"
+                                ? findRotationTable()
+                                : findTable())
+                            }
+                          >
+                            Retry matchmaking
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                  </section>
+                )}
 
                 <LockedTiers />
 

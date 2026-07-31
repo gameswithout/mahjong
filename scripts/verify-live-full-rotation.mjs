@@ -284,12 +284,19 @@ async function playOneHand(players, matchId, handNumber) {
           });
         }
       } else if (view.claim?.eligible?.includes(view.seat) && !view.claim.own_response) {
+        // Take a win when one is offered, rather than passing on everything.
+        // A rotation of nothing but exhaustive draws transfers no table points
+        // at all, so the balance invariant would hold trivially and the
+        // settlement path — including the wind-to-position conversion — would
+        // never run with a non-zero number in it. Winning is also simply legal
+        // play: no seat is required to decline a winning tile.
+        const canWin = view.claim.options?.can_win === true;
         next = await command(player, matchId, {
           type: "submit_claim",
           expected_version: view.state_version,
           claim: {
             action_id: view.claim.action_id,
-            type: "pass",
+            type: canWin ? "win" : "pass",
             tile_ids: [],
             response_revision: 0,
             deliberate: true,

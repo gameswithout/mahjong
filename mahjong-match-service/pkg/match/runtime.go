@@ -20,17 +20,35 @@ import (
 // depends on it (each drive pass re-evaluates from scratch).
 var takeoverSeatOrder = []rulesengine.Seat{rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North}
 
-// The match runtime does not yet track dealer/prevailing-wind/continuation
-// or lobby tier (E2.F6/E2.F7 multi-hand rotation and tier selection are
-// unbuilt) — every current match is a single freshly-dealt hand with East
-// as dealer at Bamboo Courtyard stakes, matching the same hardcoded
-// assumption driveLocked already uses for takeover-bot purposes. Revisit
-// once real rotation and tier selection exist.
+// Each individual hand is dealt with East as the engine's dealer. Full
+// Rotation turns the players' winds between hands and keeps the real dealer
+// and continuation state in its container; Quick Play remains one Bamboo
+// Courtyard hand.
 const matchDealer = rulesengine.East
 const matchContinuations = 0
 const openingBotTurnDelay = 2 * time.Second
 
 var matchTier = rulesengine.TierBambooCourtyard
+
+type handMode uint8
+
+const (
+	handModeQuickPlay handMode = iota
+	handModeFullRotation
+)
+
+func deadlineConfigForHand(mode handMode) (rulesengine.DeadlineConfig, error) {
+	switch mode {
+	case handModeQuickPlay:
+		// The only public Quick Play tier currently open is Bamboo Courtyard,
+		// whose beginner interception window is 10 seconds rather than 7.
+		return rulesengine.NewDeadlineConfig(rulesengine.ContextPublicQuickPlay, true, 0)
+	case handModeFullRotation:
+		return rulesengine.NewDeadlineConfig(rulesengine.ContextRankedFullRotation, false, 0)
+	default:
+		return rulesengine.DeadlineConfig{}, fmt.Errorf("unknown hand mode %d", mode)
+	}
+}
 
 // applyBotSeats marks every seat whose roster userID is a synthetic AI
 // Practice bot ID (session.IsBotUserID — see AGSResolver.Roster's
@@ -299,7 +317,7 @@ func (r *Runtime) joinLocked(
 	if err != nil {
 		return nil, err
 	}
-	loaded, err := r.loadLocked(ctx, record)
+	loaded, err := r.loadLocked(ctx, record, handModeQuickPlay)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +335,7 @@ func (r *Runtime) seatInRotation(
 	rotation *rotationTable,
 	userID string,
 ) (*table, error) {
-	loaded, err := r.loadLocked(ctx, rotation.hand.Match)
+	loaded, err := r.loadLocked(ctx, rotation.hand.Match, handModeFullRotation)
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +556,7 @@ func (r *Runtime) loadPersisted(
 		if err != nil {
 			return nil, "", err
 		}
-		current, err = r.loadLocked(ctx, record)
+		current, err = r.loadLocked(ctx, record, handModeQuickPlay)
 		if err != nil {
 			return nil, "", err
 		}
@@ -818,7 +836,11 @@ func (r *Runtime) refreshLocked(ctx context.Context, current *loadedMatch) error
 	return nil
 }
 
-func (r *Runtime) loadLocked(ctx context.Context, record storage.MatchRecord) (*loadedMatch, error) {
+func (r *Runtime) loadLocked(
+	ctx context.Context,
+	record storage.MatchRecord,
+	mode handMode,
+) (*loadedMatch, error) {
 	if current := r.actor(record.RuntimeID); current != nil {
 		return current, nil
 	}
@@ -839,6 +861,13 @@ func (r *Runtime) loadLocked(ctx context.Context, record storage.MatchRecord) (*
 			if err == nil {
 				var engine *rulesengine.TurnEngine
 				engine, err = rulesengine.NewTurnEngine(deal, r.now)
+				if err == nil {
+					var deadlines rulesengine.DeadlineConfig
+					deadlines, err = deadlineConfigForHand(mode)
+					if err == nil {
+						engine.SetDeadlineConfig(deadlines)
+					}
+				}
 				if err == nil {
 					err = applyBotSeats(engine, record.Seats)
 				}

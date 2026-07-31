@@ -1,8 +1,10 @@
-# Full Rotation (§8.4) — domain core landed, runtime wiring next
+# Full Rotation (§8.4) — playable mode complete
 
 - Date: 2026-07-30
-- Status: **the rotation domain is built and tested; Full Rotation is not yet
-  playable.** No runtime, no client, no mode selection.
+- Status: **implemented, configured, tested, and released as a playable public
+  mode.** The remaining Elo, seasonal leaderboard, placement statistics, and
+  rotation-achievement counters are the P2.4 competitive-progression slice,
+  not prerequisites for playing a rotation.
 
 ## What §8.4 actually asks for
 
@@ -58,29 +60,37 @@ Play's win, Zimo, or Tai bonuses, and a test pins that.
 rating tie even though the podium displays an order, so whatever computes Elo
 must not read `Position` as a clean result.
 
-## What is not built
+## Playable implementation
 
-**The runtime is one match, one hand.** A `MatchRecord` owns a single
-`TurnEngine`; there is no notion of a next hand. Full Rotation needs a
-container above it:
+- **Schema and sequencing** — migration 007 stores the rotation and its hand
+  history. The runtime opens each next hand above the existing per-hand actor,
+  turns player winds with the dealership, preserves continuations, and ends
+  after all four players have dealt or after the hand in progress at the
+  60-minute limit.
+- **Server-owned mode selection** — the AGS Session template carries
+  `full_rotation: true`; clients select only the dedicated match pool. A client
+  cannot turn a Quick Play session into a rotation by changing a request body.
+- **Scoring and progression** — hands settle only in table points, never Jade.
+  Per-hand and final-placement XP are awarded idempotently.
+- **Player experience** — the linked-account-only lobby entry, mode-specific
+  queue/cancel/retry flow, running standings, inter-hand countdown, final
+  podium, and Full-Rotation Play Again flow are wired. Guest accounts never
+  receive the queue action.
+- **Timing** — new Full Rotation hands use the ranked 12-second turn and
+  5-second interception preset. Bamboo Quick Play is separately pinned to its
+  intended 15-second/10-second beginner preset; Practice remains untimed.
+- **Operations** — `mahjong-full-rotation-pool` points at
+  `mahjong-full-rotation`, which mirrors the proven Quick Play template except
+  for its name and server-consumed mode attribute. The production Pages bundle
+  receives this pool through `ACCELBYTE_ROTATION_MATCH_POOL`.
+- **Observability** — completed hands identify `full_rotation`; one
+  `rotation_completed` event records the completion reason, hands played, and
+  seats dealt without player identifiers.
 
-1. **Schema** — a rotation match holding its seats, `RotationState`, and the
-   hands played. The per-hand event log stays as it is.
-2. **Hand sequencing** — when a hand completes, open the next with the dealer
-   and continuation count `ApplyHand` returned, reusing the same seats. This
-   is the substantial piece and touches the most delicate code in the project:
-   the match actor, the event log, and seat assignment.
-3. **Mode selection** — a session attribute, as `ai_practice` already does, so
-   matchmaking and the runtime know which mode a session is.
-4. **XP wiring** — award `RotationHandAward` per hand and
-   `RotationPlacementAward` at the end, through the existing idempotent
-   `AwardXP`.
-5. **Client** — an inter-hand surface (standings, whose deal is next), the
-   final podium, and mode selection in the lobby.
-6. **Matchmaking** — a Full Rotation pool and ruleset; the existing pool is
-   Quick Play's and points at a Jade-staked session template.
+Release verification and authorization evidence are recorded in
+[`ags-plans/2026-07-30-full-rotation-player-flow-evidence.md`](ags-plans/2026-07-30-full-rotation-player-flow-evidence.md).
 
-## What this unblocks once wired
+## What this unblocks
 
 - **P2.4 competitive progression** — Elo is Full-Rotation-only (§12.4) and has
   no mode to attach to today.

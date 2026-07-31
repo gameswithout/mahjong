@@ -181,11 +181,12 @@ tests, rendered responsive evidence, and deferred counters are recorded in
 **Implemented 2026-07-29.** Deal-in and Ting are recorded from the completed-hand
 projection; the dashboard reads the player's AGS Statistics through the match
 service and is reachable from the lobby. Ting is measured at hand end rather
-than "reached at any point", and is labelled that way. Placement distribution
-and the Full Rotation half wait on Full Rotation being playable at all — the
-screen says so rather than rendering an empty panel. AI Analytics reads game
-telemetry rather than Statistics, so hand outcomes are also emitted as a
-`hand_completed` event, with the context file it needs in
+than "reached at any point", and is labelled that way. Full Rotation became
+playable on 2026-07-30; persisting its placement distribution is now an
+unblocked P2.4 integration rather than a missing-mode dependency. AI Analytics
+reads game telemetry rather than Statistics, so hand outcomes are also emitted
+as a `hand_completed` event and completed rotations emit
+`rotation_completed`, with the context file it needs in
 [`ags-plans/ai-analytics-context.md`](ags-plans/ai-analytics-context.md).
 
 - Separate Quick Play and Full Rotation.
@@ -195,12 +196,12 @@ telemetry rather than Statistics, so hand outcomes are also emitted as a
 
 ### P2.4 Competitive progression
 
-**Blocked on Full Rotation, which does not exist as a playable mode.** The
-§8.4 rotation domain — table points, dealer sequencing, the 60-minute ending,
-and placement — landed 2026-07-30 with §12.1 scoring
-([`full-rotation-plan.md`](full-rotation-plan.md)); the runtime is still one
-match, one hand, so there is no mode for Elo to attach to.
-
+**Ready next.** Full Rotation is now a playable, separately matched public
+mode: multi-hand runtime, table-point settlement, final placement, player UI,
+AGS pool/template, linked-account gate, timing preset, and placement XP are
+released. P2.4 can attach Elo to the authoritative final placement (respecting
+`rating_tie`) without first inventing or simulating a mode. See
+[`full-rotation-plan.md`](full-rotation-plan.md).
 
 - Keep Elo exclusive to public Full Rotation.
 - Use Quick Play seasonal ladder points for short-session progression without
@@ -303,15 +304,14 @@ never opponent identity.
 
 ## Current implementation sequence
 
-P0, P1, P2.1, and P2.3 are implemented. The Full Rotation domain foundation
-landed on 2026-07-30, while its playable runtime remains separate work. The
-P2.2 achievement experience is developed on its own branch but is not yet
-merged, so a new feature slice should not compete for its client, protocol, or
-progression files.
+P0, P1, P2.1, P2.2, and P2.3 are implemented. Full Rotation's playable mode
+landed and was production-configured on 2026-07-30, making P2.4 competitive
+progression the next coherent product slice.
 
 The cross-cutting rendered UI gate now runs the match-table, result, onboarding,
 responsive, accessibility, runtime-error, and bundle-budget checks in Chromium
 for every pull request and `main` push. Its screenshots, measurements, and logs
 are retained as a workflow artifact; see [`ui-evidence-ci.md`](ui-evidence-ci.md).
-Select the next product slice after the two active branches land and their
-combined state can be reviewed without planning against stale code.
+The next slice should implement P2.4 Elo, seasonal leaderboard publication,
+placement statistics, and the four Full-Rotation achievement counters against
+the now-authoritative final-placement event.
