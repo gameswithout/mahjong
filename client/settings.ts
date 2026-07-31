@@ -83,11 +83,16 @@ export function createPlayerSettingsClient(
     },
     async save(settings) {
       const normalized = normalizePlayerSettings(settings);
-      const response = await axios.put(endpoint, {
+      await axios.put(endpoint, {
         value: normalized,
         isPublic: false,
       });
-      return normalizePlayerSettings(response.data ?? normalized);
+      // Cloud Save's PUT response is an acknowledgement envelope rather than
+      // the stored record on some AGS deployments. Re-normalizing that empty
+      // envelope restores the defaults and makes the tutorial flash back into
+      // view immediately after Hide. The accepted payload is authoritative;
+      // the next account load will independently read it back from Cloud Save.
+      return normalized;
     },
   };
 }

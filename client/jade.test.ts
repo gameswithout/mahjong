@@ -91,6 +91,9 @@ describe("Jade client", () => {
         }),
       }),
     );
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    expect(new Headers(request.headers).has("Cache-Control")).toBe(false);
+    expect(request.cache).toBeUndefined();
   });
 
   it("accepts the gateway's lower-camel JSON field names", async () => {

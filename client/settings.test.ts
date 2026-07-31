@@ -62,4 +62,18 @@ describe("player settings", () => {
       },
     );
   });
+
+  it("keeps the submitted settings when Cloud Save returns an acknowledgement envelope", async () => {
+    const put = vi.fn().mockResolvedValue({
+      data: { key: "mahjong-player-settings", namespace: "mahjong", user_id: "player" },
+    });
+    const client = createPlayerSettingsClient(sdkWith(vi.fn(), put), "mahjong", "player");
+
+    await expect(
+      client.save({ showTutorial: false, optionalAnalyticsConsent: false }),
+    ).resolves.toEqual({
+      showTutorial: false,
+      optionalAnalyticsConsent: false,
+    });
+  });
 });

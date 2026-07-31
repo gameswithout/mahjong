@@ -151,10 +151,8 @@ export function createJadeClient(
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
-          "Cache-Control": "no-cache",
           ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
         },
-        cache: "no-store",
         body: method === "POST" ? "{}" : undefined,
         signal: controller.signal,
       });
