@@ -3,7 +3,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import { StatisticsScreen } from "./StatisticsScreen";
-import { summarisePlayerStats, MINIMUM_RATE_SAMPLE, STAT_HANDS, STAT_WINS, STAT_ZIMO } from "./player-stats";
+import { summarisePlayerStats, STAT_HANDS, STAT_WINS } from "./player-stats";
+import type { MatchHistoryEntry } from "./match-history";
 
 describe("StatisticsScreen", () => {
   let container: HTMLDivElement;
@@ -20,38 +21,40 @@ describe("StatisticsScreen", () => {
     container.remove();
   });
 
-  const render = (values: Record<string, number>, onPlay?: () => void) =>
+  const render = (
+    values: Record<string, number>,
+    onPlay?: () => void,
+    history: MatchHistoryEntry[] = [],
+  ) =>
     act(() =>
       root.render(
-        <StatisticsScreen summary={summarisePlayerStats(values)} onClose={() => {}} onPlay={onPlay} />,
+        <StatisticsScreen summary={summarisePlayerStats(values)} history={history} onClose={() => {}} onPlay={onPlay} />,
       ),
     );
 
-  it("states the denominator alongside every rate", () => {
-    render({ [STAT_HANDS]: 100, [STAT_WINS]: 25, [STAT_ZIMO]: 10 });
+  it("shows completed sessions newest-first with result summaries", () => {
+    render({ [STAT_HANDS]: 2, [STAT_WINS]: 1 }, undefined, [{
+      matchId: "match-1",
+      completedAt: "2026-07-30T20:00:00Z",
+      mode: "Practice",
+      result: "Win",
+      winKind: "zimo",
+      winningTileId: "dots-8",
+      rawTai: 3,
+      xpAwarded: 50,
+    }]);
 
-    // A percentage with no denominator is not interpretable, so both appear.
-    expect(container.textContent).toContain("25%");
-    expect(container.textContent).toContain("25 of 100 hands played");
-    // Zimo share is explicitly a share of wins, not of hands.
-    expect(container.textContent).toContain("10 of 25 wins");
-  });
-
-  it("shows counts instead of a percentage until the sample is large enough", () => {
-    render({ [STAT_HANDS]: 5, [STAT_WINS]: 3 });
-
-    expect(container.textContent).toContain("3 of 5");
-    expect(container.textContent).toContain(`${MINIMUM_RATE_SAMPLE - 5} more hands`);
-    // 60% off five hands would be a claim about the shuffle.
-    expect(container.textContent).not.toContain("60%");
+    expect(container.textContent).toContain("Practice");
+    expect(container.textContent).toContain("Zimo · 3 Tai");
+    expect(container.textContent).toContain("50 XP");
+    expect(container.textContent).toContain("match-1");
   });
 
   it("invites a first hand rather than showing a wall of zeroes", () => {
     const onPlay = vi.fn();
     render({}, onPlay);
 
-    expect(container.querySelector('[data-testid="statistics-empty"]')).not.toBeNull();
-    expect(container.textContent).toContain("Practice hands are not counted");
+    expect(container.textContent).toContain("No completed session records are available yet");
 
     const play = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent === "Play a Game",

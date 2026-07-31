@@ -20,7 +20,7 @@
     "/v1/namespaces/{namespace}/achievements": {
       "get": {
         "summary": "Get the caller's achievement catalog and exact progress",
-        "description": "Merges the caller's AGS Achievement progress with all 32 visible launch achievements. Entries whose tracking or game mode is unavailable remain visible with an eligibility reason.",
+        "description": "Merges the caller's AGS Achievement progress with the complete visible Alpha achievement catalog. Entries whose tracking or game mode is unavailable remain visible with an eligibility reason.",
         "operationId": "Service_GetPlayerAchievements",
         "responses": {
           "200": {
@@ -204,6 +204,50 @@
             "schema": {
               "$ref": "#/definitions/ServiceClaimJadeWelfareBody"
             }
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v1/namespaces/{namespace}/match-history": {
+      "get": {
+        "summary": "Get the caller's completed Mahjong sessions",
+        "description": "Returns newest-first completed session summaries derived from the authoritative match event and XP ledgers.",
+        "operationId": "Service_GetMatchHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceGetMatchHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -765,6 +809,18 @@
         }
       }
     },
+    "serviceGetMatchHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceMatchHistoryEntry"
+          }
+        }
+      }
+    },
     "serviceGetMatchStateResponse": {
       "type": "object",
       "properties": {
@@ -809,7 +865,7 @@
             "type": "object",
             "$ref": "#/definitions/serviceLevelStep"
           },
-          "description": "All 50 §12.2 thresholds, including levels without a reward."
+          "description": "All Alpha §12.2 thresholds through the level-10 cap."
         }
       }
     },
@@ -886,7 +942,7 @@
         },
         "cappedByDaily": {
           "type": "boolean",
-          "description": "True when the §12.1 Practice daily cap reduced this award, including to\nzero. \"You hit today's ceiling\" is a different message from \"you earned\nnothing\"."
+          "description": "Retained so older clients can decode historical capped awards. Alpha does\nnot impose a daily XP cap, so new awards leave this false."
         },
         "awardId": {
           "type": "string"
@@ -1047,6 +1103,37 @@
         "MATCH_COMMAND_TYPE_DECLARE_ADDED_KONG"
       ],
       "default": "MATCH_COMMAND_TYPE_UNSPECIFIED"
+    },
+    "serviceMatchHistoryEntry": {
+      "type": "object",
+      "properties": {
+        "matchId": {
+          "type": "string"
+        },
+        "completedAt": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string"
+        },
+        "winKind": {
+          "type": "string"
+        },
+        "winningTileId": {
+          "type": "string"
+        },
+        "rawTai": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "xpAwarded": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
     },
     "serviceMatchState": {
       "type": "object",

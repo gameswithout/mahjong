@@ -510,6 +510,42 @@ func (s *MatchService) GetPlayerStatistics(
 	return &pb.GetPlayerStatisticsResponse{Statistics: statistics}, nil
 }
 
+func (s *MatchService) GetMatchHistory(
+	ctx context.Context,
+	req *pb.GetMatchHistoryRequest,
+) (*pb.GetMatchHistoryResponse, error) {
+	namespace := ""
+	limit := 20
+	if req != nil {
+		namespace = req.GetNamespace()
+		if req.GetLimit() > 0 {
+			limit = int(req.GetLimit())
+		}
+	}
+	principal, err := s.progressionPrincipal(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+	history, err := s.progression.PlayerMatchHistory(ctx, principal.UserID, limit)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	matches := make([]*pb.MatchHistoryEntry, 0, len(history))
+	for _, entry := range history {
+		matches = append(matches, &pb.MatchHistoryEntry{
+			MatchId:       entry.MatchID,
+			CompletedAt:   entry.CompletedAt,
+			Mode:          entry.Mode,
+			Result:        entry.Result,
+			WinKind:       entry.WinKind,
+			WinningTileId: entry.WinningTileID,
+			RawTai:        int32(entry.RawTai),
+			XpAwarded:     int32(entry.XPAwarded),
+		})
+	}
+	return &pb.GetMatchHistoryResponse{Matches: matches}, nil
+}
+
 func namespaceFromGetPlayerAchievements(req *pb.GetPlayerAchievementsRequest) string {
 	if req == nil {
 		return ""

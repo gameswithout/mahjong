@@ -56,6 +56,97 @@ func (p *PostgreSQLStorage) PlayerDashboardStatistics(
 	}, nil
 }
 
+func (p *PostgreSQLStorage) PlayerMatchHistory(
+	ctx context.Context,
+	userID string,
+	limit int,
+) ([]progression.MatchHistoryEntry, error) {
+	userID = strings.TrimSpace(userID)
+	if p == nil || p.pool == nil || userID == "" {
+		return nil, fmt.Errorf("%w: match history repository is not initialized", progression.ErrNotInitialized)
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	rows, err := p.pool.Query(ctx, `
+		SELECT m.match_id, a.created_at, a.source, a.amount, s.seat,
+		       COALESCE(e.result, '{}'::jsonb)
+		FROM xp_awards a
+		JOIN matches m ON m.runtime_id = a.runtime_id
+		JOIN match_seats s ON s.runtime_id = m.runtime_id AND s.user_id = a.user_id
+		LEFT JOIN LATERAL (
+			SELECT result
+			FROM match_events
+			WHERE runtime_id = m.runtime_id AND result IS NOT NULL
+			ORDER BY sequence DESC
+			LIMIT 1
+		) e ON TRUE
+		WHERE a.user_id = $1
+		  AND a.source IN ($2, $3, $4)
+		ORDER BY a.created_at DESC
+		LIMIT $5`,
+		userID,
+		progression.SourcePublicHand,
+		progression.SourcePractice,
+		progression.SourceRotationHand,
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query player match history: %w", err)
+	}
+	defer rows.Close()
+
+	entries := make([]progression.MatchHistoryEntry, 0)
+	for rows.Next() {
+		var entry progression.MatchHistoryEntry
+		var completed time.Time
+		var source, seat string
+		var raw []byte
+		if err := rows.Scan(
+			&entry.MatchID, &completed, &source, &entry.XPAwarded, &seat, &raw,
+		); err != nil {
+			return nil, fmt.Errorf("scan player match history: %w", err)
+		}
+		entry.CompletedAt = completed.UTC().Format(time.RFC3339)
+		switch source {
+		case progression.SourcePractice:
+			entry.Mode = "Practice"
+		case progression.SourceRotationHand:
+			entry.Mode = "Full Round"
+		default:
+			entry.Mode = "Play Online"
+		}
+		entry.Result = "Draw"
+		var commandResult rulesengine.CommandResult
+		if len(raw) > 0 && json.Unmarshal(raw, &commandResult) == nil {
+			result := commandResult.HandResult
+			if result == nil {
+				result = commandResult.Snapshot.Result
+			}
+			if result != nil {
+				entry.WinKind = string(result.Kind)
+				entry.WinningTileID = result.WinningTileID
+				entry.Result = "Loss"
+				if result.Kind == rulesengine.KindExhaustiveDraw {
+					entry.Result = "Draw"
+				}
+				for _, winner := range result.Winners {
+					if string(winner.Seat) == seat {
+						entry.Result = "Win"
+						entry.RawTai = winner.Score.RawTai
+						break
+					}
+				}
+			}
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate player match history: %w", err)
+	}
+	return entries, nil
+}
+
 func validateAward(award progression.HandAward) error {
 	if strings.TrimSpace(award.AwardID) == "" ||
 		strings.TrimSpace(award.Source) == "" ||

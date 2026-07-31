@@ -129,6 +129,25 @@ describe("Jade client", () => {
     });
   });
 
+  it("accepts an omitted proto3 false eligible field", async () => {
+    const { eligible: _eligible, ...ineligibleAccount } = account;
+    const client = createJadeClient("player-token", {
+      url: "https://match.example.test",
+      namespace: "mahjong-test",
+      fetchImpl: vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ account: ineligibleAccount }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    });
+
+    await expect(client.getAccount()).resolves.toMatchObject({
+      currency_code: "JADE",
+      eligible: false,
+    });
+  });
+
   it("claims the server-calculated welfare top-up", async () => {
     const recovered = {
       ...account,

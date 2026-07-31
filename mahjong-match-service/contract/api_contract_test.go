@@ -52,6 +52,11 @@ func TestMahjongServiceHTTPContract(t *testing.T) {
 			path:   "/v1/namespaces/{namespace}/statistics",
 		},
 		{
+			method: "GetMatchHistory",
+			verb:   http.MethodGet,
+			path:   "/v1/namespaces/{namespace}/match-history",
+		},
+		{
 			method: "GetPlayerAchievements",
 			verb:   http.MethodGet,
 			path:   "/v1/namespaces/{namespace}/achievements",

@@ -45,6 +45,7 @@ import {
 } from "./progression";
 import { AchievementScreen, ProgressionScreen } from "./ProgressionScreen";
 import { createPlayerStatsClient, PlayerStatsError, type PlayerStatSummary } from "./player-stats";
+import { getMatchHistory, type MatchHistoryEntry } from "./match-history";
 import { StatisticsScreen } from "./StatisticsScreen";
 import {
   createFreshPracticeSession,
@@ -208,7 +209,7 @@ type JadeState =
 type StatisticsState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; summary: PlayerStatSummary }
+  | { status: "ready"; summary: PlayerStatSummary; history: MatchHistoryEntry[] }
   | { status: "error"; message: string };
 
 type ProgressionState =
@@ -1680,11 +1681,15 @@ export function App(
       if (!accelByteConfig.matchServiceURL) {
         throw new PlayerStatsError("configuration", "Match service URL is not configured.");
       }
-      const summary = await createPlayerStatsClient(stableIam.getAccessToken(), {
+      const options = {
         url: accelByteConfig.matchServiceURL,
         namespace: accelByteConfig.namespace,
-      }).get();
-      setStatisticsState({ status: "ready", summary });
+      };
+      const [summary, history] = await Promise.all([
+        createPlayerStatsClient(stableIam.getAccessToken(), options).get(),
+        getMatchHistory(stableIam.getAccessToken(), options),
+      ]);
+      setStatisticsState({ status: "ready", summary, history });
     } catch (error) {
       setStatisticsState({
         status: "error",
@@ -2975,6 +2980,7 @@ export function App(
         {statisticsState.status === "ready" ? (
           <StatisticsScreen
             summary={statisticsState.summary}
+            history={statisticsState.history}
             onClose={() => setStatisticsOpen(false)}
             onPlay={() => {
               setStatisticsOpen(false);

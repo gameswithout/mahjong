@@ -133,6 +133,22 @@ service Service {
     };
   }
 
+  rpc GetMatchHistory(GetMatchHistoryRequest) returns (GetMatchHistoryResponse) {
+    option (google.api.http) = {
+      get: "/v1/namespaces/{namespace}/match-history"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Get the caller's completed Mahjong sessions"
+      description: "Returns newest-first completed session summaries derived from the authoritative match event and XP ledgers."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   rpc GetPlayerAchievements(GetPlayerAchievementsRequest) returns (GetPlayerAchievementsResponse) {
     option (google.api.http) = {
       get: "/v1/namespaces/{namespace}/achievements"
@@ -221,6 +237,26 @@ message PlayerStatistic {
 
 message GetPlayerStatisticsResponse {
   repeated PlayerStatistic statistics = 1;
+}
+
+message GetMatchHistoryRequest {
+  string namespace = 1;
+  int32 limit = 2;
+}
+
+message MatchHistoryEntry {
+  string match_id = 1;
+  string completed_at = 2;
+  string mode = 3;
+  string result = 4;
+  string win_kind = 5;
+  string winning_tile_id = 6;
+  int32 raw_tai = 7;
+  int32 xp_awarded = 8;
+}
+
+message GetMatchHistoryResponse {
+  repeated MatchHistoryEntry matches = 1;
 }
 
 // GetPlayerAchievementsRequest asks for the authenticated caller's own

@@ -64,6 +64,21 @@ type DashboardStatsRepository interface {
 	PlayerDashboardStatistics(ctx context.Context, userID string) (map[string]float64, error)
 }
 
+type MatchHistoryEntry struct {
+	MatchID       string
+	CompletedAt   string
+	Mode          string
+	Result        string
+	WinKind       string
+	WinningTileID string
+	RawTai        int
+	XPAwarded     int
+}
+
+type MatchHistoryRepository interface {
+	PlayerMatchHistory(ctx context.Context, userID string, limit int) ([]MatchHistoryEntry, error)
+}
+
 // StatsMirror projects §12.3 achievement statistics into AGS. Optional: the
 // service runs without it, awarding XP as usual and simply not feeding
 // achievements.
@@ -116,6 +131,21 @@ type Coordinator struct {
 
 func NewCoordinator(repository Repository) *Coordinator {
 	return &Coordinator{repository: repository}
+}
+
+func (c *Coordinator) PlayerMatchHistory(
+	ctx context.Context,
+	userID string,
+	limit int,
+) ([]MatchHistoryEntry, error) {
+	if c == nil || c.repository == nil {
+		return nil, ErrNotInitialized
+	}
+	repository, ok := c.repository.(MatchHistoryRepository)
+	if !ok {
+		return nil, ErrNotInitialized
+	}
+	return repository.PlayerMatchHistory(ctx, strings.TrimSpace(userID), limit)
 }
 
 // SetStatsMirror enables the §12.3 achievement statistics projection.

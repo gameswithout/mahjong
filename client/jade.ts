@@ -72,7 +72,15 @@ function readAccount(value: unknown): JadeAccount {
   const field = (protoName: string, jsonName: string) =>
     raw[protoName] !== undefined ? raw[protoName] : raw[jsonName];
   const currencyCode = field("currency_code", "currencyCode");
-  if (typeof currencyCode !== "string" || typeof raw.eligible !== "boolean") {
+  const eligible = field("eligible", "eligible");
+  // grpc-gateway's proto3 JSON encoder omits scalar fields at their default
+  // value. An ineligible account therefore legitimately has no `eligible`
+  // property; treating that omission as a malformed response made the entire
+  // Jade service appear unavailable.
+  if (
+    typeof currencyCode !== "string" ||
+    (eligible !== undefined && typeof eligible !== "boolean")
+  ) {
     throw new JadeError("protocol", "Jade service returned an invalid account.");
   }
   return {
@@ -80,7 +88,7 @@ function readAccount(value: unknown): JadeAccount {
     balance: toNumber(raw.balance),
     reserved: toNumber(raw.reserved),
     available: toNumber(raw.available),
-    eligible: raw.eligible,
+    eligible: eligible === true,
     minimum_balance: toNumber(field("minimum_balance", "minimumBalance")),
     stake_per_tai: toNumber(field("stake_per_tai", "stakePerTai")),
     debit_cap: toNumber(field("debit_cap", "debitCap")),
