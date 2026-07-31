@@ -49,33 +49,6 @@ func cloneAward(award progression.HandAward) progression.HandAward {
 	return award
 }
 
-func capPracticeAward(
-	award progression.HandAward,
-	practiceXPToday int,
-) progression.HandAward {
-	if award.Source != progression.SourcePractice {
-		return award
-	}
-	remaining := progression.PracticeDailyCapXP - practiceXPToday
-	if remaining < 0 {
-		remaining = 0
-	}
-	actual := min(award.Total, remaining)
-	award.CappedByDaily = actual < award.Total || remaining == 0
-	award.Total = actual
-	if len(award.Components) == 0 {
-		award.Components = []progression.XPComponent{{
-			Code: progression.ComponentPracticeHand, Label: "Practice hand",
-		}}
-	}
-	award.Components = append([]progression.XPComponent(nil), award.Components...)
-	award.Components[0].Amount = actual
-	for index := 1; index < len(award.Components); index++ {
-		award.Components[index].Amount = 0
-	}
-	return award
-}
-
 func ensureAndLockPlayerXP(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -156,19 +129,6 @@ func applyXPAwardTx(
 	}
 
 	award := cloneAward(requested)
-	if award.Source == progression.SourcePractice {
-		var today int
-		if err := tx.QueryRow(ctx, `
-			SELECT COALESCE(SUM(amount), 0)
-			FROM xp_awards
-			WHERE user_id = $1 AND utc_day = $2 AND source = $3`,
-			userID, day, progression.SourcePractice,
-		).Scan(&today); err != nil {
-			return progression.HandAward{}, lifetime, false, fmt.Errorf(
-				"read today's Practice XP: %w", err)
-		}
-		award = capPracticeAward(award, today)
-	}
 
 	encoded, err := json.Marshal(award.Components)
 	if err != nil {

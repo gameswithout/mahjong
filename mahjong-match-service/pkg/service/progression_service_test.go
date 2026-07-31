@@ -126,11 +126,11 @@ func TestMatchServiceGetProgressionProjectsFullCurve(t *testing.T) {
 	}
 	if response.GetCurve()[0].GetLevel() != 1 ||
 		response.GetCurve()[0].GetTotalXpRequired() != 0 ||
-		response.GetCurve()[49].GetLevel() != progression.MaxLevel {
+		response.GetCurve()[progression.MaxLevel-1].GetLevel() != progression.MaxLevel {
 		t.Fatalf(
 			"curve endpoints = %#v / %#v",
 			response.GetCurve()[0],
-			response.GetCurve()[49],
+			response.GetCurve()[progression.MaxLevel-1],
 		)
 	}
 }
@@ -159,8 +159,8 @@ func TestMatchServiceGetPlayerAchievementsUsesBearerIdentityAndProjectsCatalog(t
 	if reader.userID != "player-from-token" {
 		t.Fatalf("reader user ID = %q", reader.userID)
 	}
-	if len(response.GetAchievements()) != 32 {
-		t.Fatalf("achievement count = %d, want 32", len(response.GetAchievements()))
+	if len(response.GetAchievements()) != 34 {
+		t.Fatalf("achievement count = %d, want 34", len(response.GetAchievements()))
 	}
 	eligible := 0
 	byCode := map[string]*pb.PlayerAchievement{}
@@ -170,8 +170,8 @@ func TestMatchServiceGetPlayerAchievementsUsesBearerIdentityAndProjectsCatalog(t
 			eligible++
 		}
 	}
-	if eligible != 23 {
-		t.Fatalf("eligible count = %d, want 23", eligible)
+	if eligible != 25 {
+		t.Fatalf("eligible count = %d, want 25", eligible)
 	}
 	if got := byCode["first-hand"]; got == nil || !got.GetUnlocked() ||
 		got.GetCurrent() != 1 || got.GetGoal() != 1 || got.GetXpReward() != 100 {

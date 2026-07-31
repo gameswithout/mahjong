@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  MAX_PROFILE_NICKNAME_LENGTH,
   PROFILE_TILE_OPTIONS,
   loadPlayerProfile,
   savePlayerProfile,
@@ -35,6 +36,17 @@ describe("player profile", () => {
       tileSlotIds: ["bamboo-8-1", "flower-plum", "dragon-white-1"],
     });
     expect(loadPlayerProfile("player-2", true).nickname).toBe("Guest player");
+  });
+
+  it("caps nicknames to the profile badge width", () => {
+    savePlayerProfile("player-long-name", {
+      nickname: "A nickname that cannot fit in the badge",
+      tileSlotIds: ["bamboo-8-1", "flower-plum", "dragon-white-1"],
+    });
+
+    const nickname = loadPlayerProfile("player-long-name", false).nickname;
+    expect(nickname.length).toBeLessThanOrEqual(MAX_PROFILE_NICKNAME_LENGTH);
+    expect(nickname).toBe("A nickname that");
   });
 
   it("migrates the original avatar and achievement fields into equal slots", () => {

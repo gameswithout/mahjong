@@ -459,8 +459,8 @@ func TestAchievementRewardTableMatchesConfiguredSet(t *testing.T) {
 	// Every reward here must correspond to an achievement actually configured
 	// in the namespace; an entry with no config can never pay, and a config
 	// with no entry pays nothing while looking like it should.
-	if got := len(LaunchAchievements()); got != 23 {
-		t.Fatalf("reward table has %d achievements, want the 23 configured", got)
+	if got := len(LaunchAchievements()); got != 25 {
+		t.Fatalf("reward table has %d achievements, want the 25 configured", got)
 	}
 	seen := map[string]bool{}
 	for _, achievement := range LaunchAchievements() {
@@ -477,8 +477,8 @@ func TestAchievementRewardTableMatchesConfiguredSet(t *testing.T) {
 	}
 
 	catalog := AchievementCatalog()
-	if got := len(catalog); got != 32 {
-		t.Fatalf("catalog has %d achievements, want 32", got)
+	if got := len(catalog); got != 34 {
+		t.Fatalf("catalog has %d achievements, want 34", got)
 	}
 	unavailable := 0
 	for _, achievement := range catalog {
@@ -522,8 +522,8 @@ func TestCoordinator_PlayerAchievementsMergesAGSProgressWithCompleteCatalog(t *t
 	if reader.userID != "player-1" {
 		t.Fatalf("reader user ID = %q, want player-1", reader.userID)
 	}
-	if len(achievements) != 32 {
-		t.Fatalf("catalog length = %d, want 32", len(achievements))
+	if len(achievements) != 34 {
+		t.Fatalf("catalog length = %d, want 34", len(achievements))
 	}
 	byCode := map[string]PlayerAchievement{}
 	for _, achievement := range achievements {

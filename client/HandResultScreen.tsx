@@ -530,6 +530,7 @@ export interface HandResultScreenProps {
   resultFriends?: ResultFriendsState;
   onAddResultFriend?: (userId: string) => Promise<FriendRequestOutcome>;
   onRetryResultFriends?: () => void;
+  onReportIssue?: () => void;
 }
 
 export function HandResultScreen({
@@ -542,6 +543,7 @@ export function HandResultScreen({
   resultFriends,
   onAddResultFriend,
   onRetryResultFriends,
+  onReportIssue,
 }: HandResultScreenProps) {
   const result = view.hand_result;
   if (!result) {
@@ -675,7 +677,7 @@ export function HandResultScreen({
 
       {accountUpgrade}
 
-      {(onPlayAgain || onReturn) && (
+      {(onPlayAgain || onReturn || onReportIssue) && (
         <div className="hand-result-actions">
           {onPlayAgain && (
             <div className="hand-result-play-again">
@@ -697,6 +699,11 @@ export function HandResultScreen({
           {onReturn && (
             <button type="button" className="secondary-action hand-result-return" onClick={onReturn}>
               Return to Lobby
+            </button>
+          )}
+          {onReportIssue && (
+            <button type="button" className="text-action hand-result-report" onClick={onReportIssue}>
+              Report Issues
             </button>
           )}
         </div>

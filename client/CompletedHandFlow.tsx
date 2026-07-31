@@ -21,6 +21,7 @@ export function CompletedHandFlow({
   resultFriends,
   onAddResultFriend,
   onRetryResultFriends,
+  onReportIssue,
   viewerUserId,
   nameOf,
 }: {
@@ -37,6 +38,7 @@ export function CompletedHandFlow({
   resultFriends?: ResultFriendsState;
   onAddResultFriend?: (userId: string) => Promise<FriendRequestOutcome>;
   onRetryResultFriends?: () => void;
+  onReportIssue?: () => void;
   // §8.4 Full Rotation. The viewer and a name resolver come from the caller,
   // which is the only place that knows who is at the table.
   viewerUserId?: string;
@@ -83,6 +85,7 @@ export function CompletedHandFlow({
         resultFriends={resultFriends}
         onAddResultFriend={onAddResultFriend}
         onRetryResultFriends={onRetryResultFriends}
+        onReportIssue={onReportIssue}
       />
       {rotation ? (
         <div className="rotation-result">

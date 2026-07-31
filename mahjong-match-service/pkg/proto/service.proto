@@ -139,7 +139,7 @@ service Service {
     };
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       summary: "Get the caller's achievement catalog and exact progress"
-      description: "Merges the caller's AGS Achievement progress with all 32 visible launch achievements. Entries whose tracking or game mode is unavailable remain visible with an eligibility reason."
+      description: "Merges the caller's AGS Achievement progress with the complete visible Alpha achievement catalog. Entries whose tracking or game mode is unavailable remain visible with an eligibility reason."
       security: {
         security_requirement: {
           key: "Bearer"
@@ -287,7 +287,7 @@ message GetProgressionRequest {
 
 message GetProgressionResponse {
   PlayerProgression progression = 1;
-  // All 50 §12.2 thresholds, including levels without a reward.
+  // All Alpha §12.2 thresholds through the level-10 cap.
   repeated LevelStep curve = 2;
 }
 
@@ -475,9 +475,8 @@ message HandXPAward {
   string source = 1;
   int32 total = 2;
   repeated XPComponent components = 3;
-  // True when the §12.1 Practice daily cap reduced this award, including to
-  // zero. "You hit today's ceiling" is a different message from "you earned
-  // nothing".
+  // Retained so older clients can decode historical capped awards. Alpha does
+  // not impose a daily XP cap, so new awards leave this false.
   bool capped_by_daily = 4;
   string award_id = 5;
 }

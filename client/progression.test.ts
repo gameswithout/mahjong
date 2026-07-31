@@ -55,7 +55,7 @@ describe("Progression client", () => {
       }),
     );
     const client = createProgressionClient("player-token", {
-      url: "https://match.example.test/mahjong",
+      url: "https://match.example.test/mahjong/",
       namespace: "mahjong-test",
       fetchImpl,
     });
@@ -81,9 +81,37 @@ describe("Progression client", () => {
       "https://match.example.test/mahjong/v1/namespaces/mahjong-test/progression",
       expect.objectContaining({
         method: "GET",
-        headers: expect.objectContaining({ Authorization: "Bearer player-token" }),
+        cache: "no-store",
+        headers: expect.objectContaining({
+          Authorization: "Bearer player-token",
+          Accept: "application/json",
+          "Cache-Control": "no-cache",
+        }),
       }),
     );
+  });
+
+  it("normalizes lower-camel protojson fields used by the hosted service", () => {
+    expect(normalizePlayerProgression({
+      level: 2,
+      lifetimeXp: "725",
+      xpIntoLevel: "225",
+      xpForNextLevel: "600",
+      atCap: false,
+      onboarding: {
+        outcome: "ONBOARDING_OUTCOME_COMPLETED",
+        recordedAt: "2026-07-27T12:00:00Z",
+      },
+    })).toMatchObject({
+      level: 2,
+      lifetime_xp: 725,
+      xp_into_level: 225,
+      xp_for_next_level: 600,
+      at_cap: false,
+      onboarding: {
+        recorded_at: "2026-07-27T12:00:00Z",
+      },
+    });
   });
 
   it("records completion and skip as explicit, distinct outcomes", async () => {

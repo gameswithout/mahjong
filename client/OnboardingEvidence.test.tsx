@@ -83,7 +83,7 @@ describe("P1 onboarding evidence surfaces", () => {
     expect(container.textContent).toContain("Start the tutorial");
     expect(container.textContent).toContain("Practice vs Bots");
     expect(container.textContent).toContain("Find a table");
-    expect(container.textContent).toContain("Higher tables");
+    expect(container.textContent).toContain("Coming soon");
   });
 
   it("renders the p50 queue state without inventing an estimate", () => {

@@ -338,97 +338,17 @@ describe("App online matchmaking and requeue", () => {
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull());
   }
 
-  async function reachCompletedRotation(): Promise<void> {
-    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({
-      userId: "guest-1",
-      deviceId: "device-1",
-      isGuest: false,
-    });
-    completedView = completedRotationView;
+  it("keeps Full Rotation out of the Alpha matchmaking lobby", async () => {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Find a rotation"));
-    await clickAndFlush(container, "Find a rotation");
-    await vi.waitFor(() => expect(container.textContent).toContain("Final standings"));
-  }
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Online"));
 
-  it("locks ranked Full Rotation for guest accounts", async () => {
-    act(() => root.render(<App iam={iam} />));
-    await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() =>
-      expect(container.textContent).toContain(
-        "Create or sign in to a full account to enter ranked Full Rotation.",
-      ),
-    );
-
+    expect(container.textContent).not.toContain("Full Rotation");
     expect(
       Array.from(container.querySelectorAll("button")).some(
         (candidate) => candidate.textContent === "Find a rotation",
       ),
     ).toBe(false);
-  });
-
-  it("queues and requeues completed Full Rotations without touching Jade", async () => {
-    await reachCompletedRotation();
-
-    expect(container.textContent).toContain("Final standings");
-    expect(container.querySelector(".hand-result-play-again-note")).toBeNull();
-    expect(button(container, "Play Again")).toBeInstanceOf(HTMLButtonElement);
-    expect(reserveJade).not.toHaveBeenCalled();
-    expect(releaseJade).not.toHaveBeenCalled();
-    const accountReadsBeforeRequeue = getAccount.mock.calls.length;
-
-    await clickAndFlush(container, "Play Again");
-    await vi.waitFor(() => expect(calls).toContain("ticket:2"));
-
-    expect(calls).toEqual([
-      "ticket:1",
-      "join:table-1",
-      "connect:table-1",
-      "leave:table-1",
-      "ticket:2",
-      "join:table-2",
-      "connect:table-2",
-    ]);
-    expect(reserveJade).not.toHaveBeenCalled();
-    expect(releaseJade).not.toHaveBeenCalled();
-    expect(getAccount).toHaveBeenCalledTimes(accountReadsBeforeRequeue);
-    expect(
-      dependencies.createMatchmakingClient.mock.calls.map(
-        ([, , config]) => config.matchPool,
-      ),
-    ).toEqual(["rotation", "rotation"]);
-  });
-
-  it("cancels a Full Rotation ticket in its own pool without releasing Jade", async () => {
-    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({
-      userId: "guest-1",
-      deviceId: "device-1",
-      isGuest: false,
-    });
-    const cancelTicket = vi.fn().mockResolvedValue(undefined);
-    createTicket = vi.fn().mockResolvedValue({ ticketId: "rotation-ticket", isActive: true });
-    dependencies.createMatchmakingClient.mockReturnValue({
-      createTicket,
-      getTicket: vi.fn(async () => ({ ticketId: "rotation-ticket", isActive: true })),
-      cancelTicket,
-    });
-
-    act(() => root.render(<App iam={iam} />));
-    await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Find a rotation"));
-    await clickAndFlush(container, "Find a rotation");
-    await vi.waitFor(() => expect(container.textContent).toContain("Full Rotation queue"));
-    await clickAndFlush(container, "Cancel");
-
-    await vi.waitFor(() => expect(container.textContent).not.toContain("Full Rotation queue"));
-    expect(cancelTicket).toHaveBeenCalledWith("rotation-ticket");
-    expect(releaseJade).not.toHaveBeenCalled();
-    expect(
-      dependencies.createMatchmakingClient.mock.calls.map(
-        ([, , config]) => config.matchPool,
-      ),
-    ).toEqual(["rotation", "rotation"]);
   });
 
   it("offers a way out of a queue that has passed 90 seconds, releasing the reservation", async () => {

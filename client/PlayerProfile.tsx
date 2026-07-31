@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { TileFace } from "./TileFace";
 import {
+  MAX_PROFILE_NICKNAME_LENGTH,
   PROFILE_TILE_OPTIONS,
   type PlayerProfileConfig,
 } from "./player-profile";
@@ -68,26 +69,20 @@ export function PlayerProfileEditor({
       <div className="profile-editor-heading">
         <div>
           <p className="status-label">Player profile</p>
-          <h2 id="profile-editor-title">Customize your table identity</h2>
+          <h2 id="profile-editor-title">Personalize your player profile</h2>
         </div>
-        <PlayerProfileBadge profile={profile} />
       </div>
 
       <label className="profile-nickname-field">
         Nickname
         <input
           type="text"
-          maxLength={24}
+          maxLength={MAX_PROFILE_NICKNAME_LENGTH}
           value={profile.nickname}
           disabled={guest}
           onChange={(event) => onChange({ ...profile, nickname: event.target.value })}
         />
       </label>
-      {guest ? (
-        <p className="profile-upgrade-note">
-          Create a full account to edit your nickname. Tile icons can still be customized.
-        </p>
-      ) : null}
 
       <div className="profile-slot-picker" role="tablist" aria-label="Profile icon slot">
         {slots.map((slot) => (

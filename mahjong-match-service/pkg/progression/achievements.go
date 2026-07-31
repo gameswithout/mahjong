@@ -44,6 +44,16 @@ const (
 // silently disappearing.
 var launchAchievementCatalog = []Achievement{
 	{
+		Code: "alpha-player", Name: "Alpha Player",
+		Description: "Complete a public hand during Alpha.", Goal: 1, XP: 100,
+		BonusReward: "Alpha tile design (placeholder)", Available: true,
+	},
+	{
+		Code: "max-alpha-player", Name: "Max Alpha Player",
+		Description: "Reach Alpha level 10.", Goal: 10, XP: 500,
+		BonusReward: "Alpha Max tile design (placeholder)", Available: true,
+	},
+	{
 		Code: "first-hand", Name: "First Hand",
 		Description: "Complete your first public hand.", Goal: 1, XP: 100, Available: true,
 	},
@@ -213,7 +223,7 @@ func LaunchAchievements() []Achievement {
 	return achievements
 }
 
-// AchievementCatalog returns all 32 visible launch achievements, including
+// AchievementCatalog returns all visible Alpha achievements, including
 // entries whose required tracking or game mode is not available yet.
 func AchievementCatalog() []Achievement {
 	return append([]Achievement(nil), launchAchievementCatalog...)

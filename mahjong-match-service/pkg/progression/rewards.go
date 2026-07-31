@@ -26,15 +26,7 @@ var levelRewards = []LevelReward{
 	{Code: "level-2-student-title", Level: 2, Kind: RewardTitle, Name: "Student"},
 	{Code: "level-5-tea-house-theme", Level: 5, Kind: RewardTableTheme, Name: "Tea House"},
 	{Code: "level-10-jade-tile-skin", Level: 10, Kind: RewardTileSkin, Name: "Jade"},
-	{Code: "level-15-bamboo-frame", Level: 15, Kind: RewardAvatarFrame, Name: "Bamboo"},
-	{Code: "level-20-night-market-theme", Level: 20, Kind: RewardTableTheme, Name: "Night Market"},
-	{Code: "level-25-steady-hand-title", Level: 25, Kind: RewardTitle, Name: "Steady Hand"},
-	{Code: "level-30-jade-ring-frame", Level: 30, Kind: RewardAvatarFrame, Name: "Jade Ring"},
-	{Code: "level-35-wall-reader-title", Level: 35, Kind: RewardTitle, Name: "Wall Reader"},
-	{Code: "level-40-tea-blossom-frame", Level: 40, Kind: RewardAvatarFrame, Name: "Tea Blossom"},
-	{Code: "level-45-table-veteran-title", Level: 45, Kind: RewardTitle, Name: "Table Veteran"},
-	{Code: "level-50-mahjong-master-title", Level: 50, Kind: RewardTitle, Name: "Mahjong Master"},
-	{Code: "level-50-master-frame", Level: 50, Kind: RewardAvatarFrame, Name: "Master"},
+	{Code: "level-10-alpha-max-tile", Level: 10, Kind: RewardTileSkin, Name: "Alpha Max (placeholder)"},
 }
 
 type LevelStep struct {
@@ -50,7 +42,7 @@ func LevelRewards() []LevelReward {
 	return append([]LevelReward(nil), levelRewards...)
 }
 
-// LevelCurve returns all 50 Version 1 thresholds, including levels without a
+// LevelCurve returns all 10 Alpha thresholds, including levels without a
 // reward. The client can therefore explain the actual curve instead of
 // presenting only the sparse cosmetic milestones.
 func LevelCurve() []LevelStep {

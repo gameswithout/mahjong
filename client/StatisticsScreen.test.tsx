@@ -54,20 +54,17 @@ describe("StatisticsScreen", () => {
     expect(container.textContent).toContain("Practice hands are not counted");
 
     const play = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent === "Find a table",
+      (b) => b.textContent === "Play a Game",
     );
     act(() => play?.click());
     expect(onPlay).toHaveBeenCalledOnce();
   });
 
-  // P2.3 asks for the two modes to be separated. Full Rotation is not playable
-  // yet, and saying so beats an empty panel that reads as a broken screen.
-  it("keeps Full Rotation separate and says why it is empty", () => {
+  it("shows one combined match history without unreleased modes", () => {
     render({ [STAT_HANDS]: 100, [STAT_WINS]: 25 });
 
-    const rotation = container.querySelector('[data-testid="statistics-full-rotation"]');
-    expect(rotation).not.toBeNull();
-    expect(rotation?.textContent).toContain("Not playable yet");
+    expect(container.textContent).toContain("25 Wins / 100 Games Played");
+    expect(container.textContent).not.toContain("Full Rotation");
   });
 
   it("closes when asked", () => {

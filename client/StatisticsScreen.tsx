@@ -67,12 +67,12 @@ export function StatisticsScreen({
     <section className="statistics-screen" aria-labelledby="statistics-title">
       <header className="statistics-header">
         <div>
-          <p className="status-label">Statistics</p>
-          <h2 id="statistics-title">Quick Play</h2>
+          <p className="status-label">Player record</p>
+          <h2 id="statistics-title">Match History</h2>
           <p className="statistics-subtitle">
             {summary.hasPlayed
-              ? `${summary.handsPlayed.toLocaleString()} ${summary.handsPlayed === 1 ? "hand" : "hands"} played`
-              : "No hands played yet"}
+              ? `${summary.wins.toLocaleString()} Wins / ${summary.handsPlayed.toLocaleString()} Games Played`
+              : "Play a Game"}
           </p>
         </div>
         <button type="button" className="statistics-close" onClick={onClose}>
@@ -88,7 +88,7 @@ export function StatisticsScreen({
           </p>
           {onPlay ? (
             <button type="button" className="statistics-play" onClick={onPlay}>
-              Find a table
+              Play a Game
             </button>
           ) : null}
         </div>
@@ -134,16 +134,6 @@ export function StatisticsScreen({
         </>
       )}
 
-      {/* §P2.3 asks for Quick Play and Full Rotation to be kept apart. They are
-          — Full Rotation simply has nothing in it yet, and saying so is better
-          than an empty panel that reads like a loading failure. */}
-      <div className="statistics-rotation" data-testid="statistics-full-rotation">
-        <h3>Full Rotation</h3>
-        <p>
-          Not playable yet. Placement distribution and rating appear here once Full Rotation ships —
-          Quick Play statistics above are unaffected by it.
-        </p>
-      </div>
     </section>
   );
 }
