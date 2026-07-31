@@ -16,6 +16,22 @@ type memoryProgressionRepository struct {
 	takeoverRead int
 }
 
+type dashboardProgressionRepository struct {
+	*memoryProgressionRepository
+	statistics map[string]float64
+	statsErr   error
+}
+
+func (r *dashboardProgressionRepository) PlayerDashboardStatistics(
+	_ context.Context,
+	_ string,
+) (map[string]float64, error) {
+	if r.statsErr != nil {
+		return nil, r.statsErr
+	}
+	return r.statistics, nil
+}
+
 func newMemoryProgressionRepository() *memoryProgressionRepository {
 	return &memoryProgressionRepository{awards: map[string]HandAward{}}
 }
@@ -594,6 +610,59 @@ func TestPlayerStatistics_ReadsTheDashboardCodes(t *testing.T) {
 func TestPlayerStatistics_WithoutAMirrorIsAnError(t *testing.T) {
 	if _, err := NewCoordinator(nil).PlayerStatistics(context.Background(), "player-1"); err == nil {
 		t.Fatal("a coordinator with no stats mirror returned statistics")
+	}
+}
+
+func TestPlayerStatistics_UsesLedgerForCoreTotalsWhenProjectionFails(t *testing.T) {
+	repository := &dashboardProgressionRepository{
+		memoryProgressionRepository: newMemoryProgressionRepository(),
+		statistics: map[string]float64{
+			StatPublicHandsCompleted: 3,
+			StatPublicHandsWon:       1,
+		},
+	}
+	stats := &fakeStatsMirror{readErr: errors.New("AGS unavailable")}
+	var reported error
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(stats, func(err error) { reported = err })
+
+	values, err := coordinator.PlayerStatistics(context.Background(), "player-1")
+	if err != nil {
+		t.Fatalf("PlayerStatistics: %v", err)
+	}
+	if values[StatPublicHandsCompleted] != 3 || values[StatPublicHandsWon] != 1 {
+		t.Fatalf("ledger totals = %+v, want 3 played / 1 won", values)
+	}
+	if reported == nil {
+		t.Fatal("projection read failure was not reported")
+	}
+}
+
+func TestPlayerStatistics_LedgerCoreTotalsOverrideStaleProjection(t *testing.T) {
+	repository := &dashboardProgressionRepository{
+		memoryProgressionRepository: newMemoryProgressionRepository(),
+		statistics: map[string]float64{
+			StatPublicHandsCompleted: 4,
+			StatPublicHandsWon:       2,
+		},
+	}
+	stats := &fakeStatsMirror{values: map[string]float64{
+		StatPublicHandsCompleted: 3,
+		StatPublicHandsWon:       1,
+		StatPublicHandsTing:      2,
+	}}
+	coordinator := NewCoordinator(repository)
+	coordinator.SetStatsMirror(stats, nil)
+
+	values, err := coordinator.PlayerStatistics(context.Background(), "player-1")
+	if err != nil {
+		t.Fatalf("PlayerStatistics: %v", err)
+	}
+	if values[StatPublicHandsCompleted] != 4 || values[StatPublicHandsWon] != 2 {
+		t.Fatalf("stale projection replaced ledger totals: %+v", values)
+	}
+	if values[StatPublicHandsTing] != 2 {
+		t.Fatalf("supplemental projected statistic missing: %+v", values)
 	}
 }
 

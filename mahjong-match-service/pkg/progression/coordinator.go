@@ -56,6 +56,14 @@ type Repository interface {
 	TakenOverMajority(ctx context.Context, userID, runtimeID string) (bool, error)
 }
 
+// DashboardStatsRepository is the authoritative read side for statistics that
+// can be derived from the XP ledger. It is intentionally optional so small
+// repository implementations used by rules tests do not need a database-like
+// statistics surface.
+type DashboardStatsRepository interface {
+	PlayerDashboardStatistics(ctx context.Context, userID string) (map[string]float64, error)
+}
+
 // StatsMirror projects §12.3 achievement statistics into AGS. Optional: the
 // service runs without it, awarding XP as usual and simply not feeding
 // achievements.
@@ -536,8 +544,50 @@ func (c *Coordinator) PlayerStatistics(
 	ctx context.Context,
 	userID string,
 ) (map[string]float64, error) {
-	if c == nil || c.stats == nil {
+	if c == nil {
 		return nil, ErrNotInitialized
 	}
-	return c.stats.ReadStats(ctx, userID, DashboardStatCodes())
+
+	values := map[string]float64{}
+	ledgerAvailable := false
+	var ledgerValues map[string]float64
+	if repository, ok := c.repository.(DashboardStatsRepository); ok {
+		var err error
+		ledgerValues, err = repository.PlayerDashboardStatistics(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		for code, value := range ledgerValues {
+			values[code] = value
+		}
+		ledgerAvailable = true
+	}
+
+	if c.stats != nil {
+		projected, err := c.stats.ReadStats(ctx, userID, DashboardStatCodes())
+		if err != nil {
+			if !ledgerAvailable {
+				return nil, err
+			}
+			if c.onStatsError != nil {
+				c.onStatsError(err)
+			}
+		} else {
+			for code, value := range projected {
+				values[code] = value
+			}
+		}
+	}
+
+	if !ledgerAvailable && c.stats == nil {
+		return nil, ErrNotInitialized
+	}
+
+	// These two counters are facts already committed in xp_awards. Never let a
+	// delayed or failed AGS projection overwrite the authoritative totals.
+	if ledgerAvailable {
+		values[StatPublicHandsCompleted] = ledgerValues[StatPublicHandsCompleted]
+		values[StatPublicHandsWon] = ledgerValues[StatPublicHandsWon]
+	}
+	return values, nil
 }

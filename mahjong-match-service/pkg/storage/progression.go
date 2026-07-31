@@ -20,6 +20,40 @@ func (p *PostgreSQLStorage) progressionNow() time.Time {
 	return time.Now()
 }
 
+// PlayerDashboardStatistics derives the core Match History totals from the
+// append-only XP ledger. A public hand and its win component are recorded in
+// the same transaction as its XP, so these values remain correct even when
+// the downstream AGS statistics projection is delayed or unavailable.
+func (p *PostgreSQLStorage) PlayerDashboardStatistics(
+	ctx context.Context,
+	userID string,
+) (map[string]float64, error) {
+	userID = strings.TrimSpace(userID)
+	if p == nil || p.pool == nil || userID == "" {
+		return nil, fmt.Errorf("%w: statistics repository is not initialized", progression.ErrNotInitialized)
+	}
+
+	var completed, won int64
+	if err := p.pool.QueryRow(ctx, `
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (
+				WHERE components @> '[{"code":"hand_won"}]'::jsonb
+			)
+		FROM xp_awards
+		WHERE user_id = $1 AND source = $2`,
+		userID,
+		progression.SourcePublicHand,
+	).Scan(&completed, &won); err != nil {
+		return nil, fmt.Errorf("read dashboard statistics: %w", err)
+	}
+
+	return map[string]float64{
+		progression.StatPublicHandsCompleted: float64(completed),
+		progression.StatPublicHandsWon:       float64(won),
+	}, nil
+}
+
 func validateAward(award progression.HandAward) error {
 	if strings.TrimSpace(award.AwardID) == "" ||
 		strings.TrimSpace(award.Source) == "" ||
