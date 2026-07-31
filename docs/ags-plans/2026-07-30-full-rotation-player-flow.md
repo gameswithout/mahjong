@@ -74,3 +74,10 @@ Private Full Rotation is also out of scope.
   linked/Guest distinction is verified locally; live service verification may
   use isolated disposable Guest identities only to exercise infrastructure,
   explicitly bypassing (and not claiming to verify) the UI eligibility gate.
+
+## Completion
+
+Implemented, production-configured, deployed, and verified. See
+[the release evidence](./2026-07-30-full-rotation-player-flow-evidence.md) for
+the exact client workflow, Extend image and deployment, live four-seat
+rotation, authorization boundary, and automated test results.

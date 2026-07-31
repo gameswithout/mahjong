@@ -93,7 +93,7 @@ Release verification and authorization evidence are recorded in
 ## What this unblocks
 
 - **P2.4 competitive progression** — Elo is Full-Rotation-only (§12.4) and has
-  no mode to attach to today.
+  an authoritative final placement and rating-tie signal to attach to now.
 - **Four §12.3 achievements** — Full Rotation Regular, Clean Defense, Rotation
   Master, Podium Regular.
 - **The statistics dashboard's placement half**, which currently renders a
