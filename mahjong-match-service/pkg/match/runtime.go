@@ -20,17 +20,35 @@ import (
 // depends on it (each drive pass re-evaluates from scratch).
 var takeoverSeatOrder = []rulesengine.Seat{rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North}
 
-// The match runtime does not yet track dealer/prevailing-wind/continuation
-// or lobby tier (E2.F6/E2.F7 multi-hand rotation and tier selection are
-// unbuilt) — every current match is a single freshly-dealt hand with East
-// as dealer at Bamboo Courtyard stakes, matching the same hardcoded
-// assumption driveLocked already uses for takeover-bot purposes. Revisit
-// once real rotation and tier selection exist.
+// Each individual hand is dealt with East as the engine's dealer. Full
+// Rotation turns the players' winds between hands and keeps the real dealer
+// and continuation state in its container; Quick Play remains one Bamboo
+// Courtyard hand.
 const matchDealer = rulesengine.East
 const matchContinuations = 0
 const openingBotTurnDelay = 2 * time.Second
 
 var matchTier = rulesengine.TierBambooCourtyard
+
+type handMode uint8
+
+const (
+	handModeQuickPlay handMode = iota
+	handModeFullRotation
+)
+
+func deadlineConfigForHand(mode handMode) (rulesengine.DeadlineConfig, error) {
+	switch mode {
+	case handModeQuickPlay:
+		// The only public Quick Play tier currently open is Bamboo Courtyard,
+		// whose beginner interception window is 10 seconds rather than 7.
+		return rulesengine.NewDeadlineConfig(rulesengine.ContextPublicQuickPlay, true, 0)
+	case handModeFullRotation:
+		return rulesengine.NewDeadlineConfig(rulesengine.ContextRankedFullRotation, false, 0)
+	default:
+		return rulesengine.DeadlineConfig{}, fmt.Errorf("unknown hand mode %d", mode)
+	}
+}
 
 // applyBotSeats marks every seat whose roster userID is a synthetic AI
 // Practice bot ID (session.IsBotUserID — see AGSResolver.Roster's
@@ -119,9 +137,10 @@ type MatchRepository interface {
 
 type Runtime struct {
 	mu        sync.Mutex
-	rosters   session.Resolver
-	matches   MatchRepository
-	rotations RotationRepository
+	rosters    session.Resolver
+	matches    MatchRepository
+	rotations  RotationRepository
+	identities session.IdentityResolver
 	events    rulesengine.EventStore
 	now       func() time.Time
 	actors    map[string]*loadedMatch
@@ -135,6 +154,41 @@ func (r *Runtime) SetRotations(repository RotationRepository) {
 	if r != nil {
 		r.rotations = repository
 	}
+}
+
+// SetIdentities supplies the §10.1 account check that gates ranked play.
+//
+// Without it, seating a guest in a Full Rotation is refused rather than
+// allowed: the client-side gate is not an enforcement point, and a ranked
+// result that feeds §12.4 rating must not depend on the client having chosen
+// to hide a button.
+func (r *Runtime) SetIdentities(resolver session.IdentityResolver) {
+	if r != nil {
+		r.identities = resolver
+	}
+}
+
+// requireLinkedAccount enforces §10.1 for ranked play.
+//
+// It refuses when it cannot tell. Admitting everyone whenever AGS IAM is
+// unreachable would make the gate absent exactly when something is wrong,
+// which is the opposite of what a gate is for; a player briefly unable to
+// enter a ranked match is the lesser failure.
+func (r *Runtime) requireLinkedAccount(ctx context.Context) error {
+	if r.identities == nil {
+		return fmt.Errorf(
+			"%w: the account check is not configured, so ranked entry cannot be authorized",
+			session.ErrLinkedAccountRequired,
+		)
+	}
+	guest, err := r.identities.IsGuest(ctx)
+	if err != nil {
+		return err
+	}
+	if guest {
+		return session.ErrLinkedAccountRequired
+	}
+	return nil
 }
 
 // table is the hand a player is acting on, plus the rotation around it when
@@ -268,6 +322,12 @@ func (r *Runtime) joinLocked(
 ) (*table, error) {
 	rotation, err := r.loadRotation(ctx, key)
 	if err == nil {
+		// §10.1: ranked play belongs to a durable account. Checked on the way
+		// in, before a seat is bound, so a guest is refused rather than seated
+		// and then removed.
+		if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+			return nil, gateErr
+		}
 		return r.seatInRotation(ctx, rotation, userID)
 	}
 	if !errors.Is(err, storage.ErrRotationNotFound) {
@@ -288,6 +348,9 @@ func (r *Runtime) joinLocked(
 			return nil, modeErr
 		}
 		if mode == session.ModeFullRotation {
+			if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+				return nil, gateErr
+			}
 			opened, openErr := r.openRotation(ctx, key, roster)
 			if openErr != nil {
 				return nil, openErr
@@ -299,7 +362,7 @@ func (r *Runtime) joinLocked(
 	if err != nil {
 		return nil, err
 	}
-	loaded, err := r.loadLocked(ctx, record)
+	loaded, err := r.loadLocked(ctx, record, handModeQuickPlay)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +380,7 @@ func (r *Runtime) seatInRotation(
 	rotation *rotationTable,
 	userID string,
 ) (*table, error) {
-	loaded, err := r.loadLocked(ctx, rotation.hand.Match)
+	loaded, err := r.loadLocked(ctx, rotation.hand.Match, handModeFullRotation)
 	if err != nil {
 		return nil, err
 	}
@@ -336,6 +399,12 @@ func (r *Runtime) loadTable(
 ) (*table, error) {
 	rotation, err := r.loadRotation(ctx, key)
 	if err == nil {
+		// §10.1: ranked play belongs to a durable account. Checked on the way
+		// in, before a seat is bound, so a guest is refused rather than seated
+		// and then removed.
+		if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+			return nil, gateErr
+		}
 		return r.seatInRotation(ctx, rotation, userID)
 	}
 	if !errors.Is(err, storage.ErrRotationNotFound) {
@@ -538,7 +607,7 @@ func (r *Runtime) loadPersisted(
 		if err != nil {
 			return nil, "", err
 		}
-		current, err = r.loadLocked(ctx, record)
+		current, err = r.loadLocked(ctx, record, handModeQuickPlay)
 		if err != nil {
 			return nil, "", err
 		}
@@ -818,7 +887,11 @@ func (r *Runtime) refreshLocked(ctx context.Context, current *loadedMatch) error
 	return nil
 }
 
-func (r *Runtime) loadLocked(ctx context.Context, record storage.MatchRecord) (*loadedMatch, error) {
+func (r *Runtime) loadLocked(
+	ctx context.Context,
+	record storage.MatchRecord,
+	mode handMode,
+) (*loadedMatch, error) {
 	if current := r.actor(record.RuntimeID); current != nil {
 		return current, nil
 	}
@@ -839,6 +912,13 @@ func (r *Runtime) loadLocked(ctx context.Context, record storage.MatchRecord) (*
 			if err == nil {
 				var engine *rulesengine.TurnEngine
 				engine, err = rulesengine.NewTurnEngine(deal, r.now)
+				if err == nil {
+					var deadlines rulesengine.DeadlineConfig
+					deadlines, err = deadlineConfigForHand(mode)
+					if err == nil {
+						engine.SetDeadlineConfig(deadlines)
+					}
+				}
 				if err == nil {
 					err = applyBotSeats(engine, record.Seats)
 				}

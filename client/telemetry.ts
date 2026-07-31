@@ -33,7 +33,8 @@ export type TelemetryEventName =
   // counts also have to be emitted as events for anyone to ask about them
   // across players. The statistics remain authoritative for a player's own
   // record; these are the analysable stream.
-  | "hand_completed";
+  | "hand_completed"
+  | "rotation_completed";
 
 export interface TelemetryFields {
   dimensions?: Record<string, string | undefined>;
@@ -112,10 +113,10 @@ const eventSpecs: Record<TelemetryEventName, EventSpec> = {
   queue_threshold_reached: spec("optional", ["queue_health", "threshold"], ["elapsed_ms"]),
   queue_alternative_offered: spec("optional", ["alternative", "queue_health"], ["elapsed_ms"]),
   queue_alternative_selected: spec("optional", ["alternative"], ["elapsed_ms"]),
-  queue_cancel_result: spec("optional", ["outcome", "reason_code"], ["elapsed_ms"]),
+  queue_cancel_result: spec("optional", ["mode", "outcome", "reason_code"], ["elapsed_ms"]),
   session_join_result: spec(
     "optional",
-    ["entry_point", "outcome", "reason_code"],
+    ["entry_point", "mode", "outcome", "reason_code"],
     ["elapsed_ms", "member_count"],
   ),
   result_friend_options_shown: spec(
@@ -138,6 +139,11 @@ const eventSpecs: Record<TelemetryEventName, EventSpec> = {
     "optional",
     ["mode", "outcome", "win_kind", "dealt_in", "ting"],
     ["raw_tai", "wall_remaining"],
+  ),
+  rotation_completed: spec(
+    "optional",
+    ["completion_reason"],
+    ["hands_played", "seats_dealt"],
   ),
   tutorial_skipped: spec("optional", [
     "chapter_id",

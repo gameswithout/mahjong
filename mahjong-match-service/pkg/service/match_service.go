@@ -741,6 +741,22 @@ func rpcError(err error) error {
 		return status.Error(codes.Aborted, err.Error())
 	case errors.Is(err, economy.ErrSettlementPending):
 		return status.Error(codes.Unavailable, err.Error())
+	// §10.1: a guest reaching a ranked table is refused, not failed. The code
+	// is distinct from a generic precondition so the client can say what to do
+	// about it rather than showing an error it cannot act on.
+	case errors.Is(err, session.ErrLinkedAccountRequired):
+		return status.Error(
+			codes.PermissionDenied,
+			"Full Rotation is ranked and needs a linked account. Create or sign in to a full account to play it.",
+		)
+	// Unavailable rather than PermissionDenied: the caller may well be
+	// entitled to play, and telling them to go make an account they already
+	// have would be wrong. This is retryable and says so.
+	case errors.Is(err, session.ErrIdentityUnavailable):
+		return status.Error(
+			codes.Unavailable,
+			"Could not confirm your account just now. Try entering the rotation again in a moment.",
+		)
 	case errors.Is(err, session.ErrSessionNotFound):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, session.ErrSessionRoster):
