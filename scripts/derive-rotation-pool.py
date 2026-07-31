@@ -91,7 +91,10 @@ def main() -> int:
         ("best_latency_calculation_method", "bestLatencyCalculationMethod"),
     ):
         value = field(source, optional, camel)
-        if value is not None:
+        # Skip empty strings as well as absent fields: the read returns "" for
+        # an unset optional, and sending that back is not the same as omitting
+        # it — some of these are enums where "" is not a member.
+        if value is not None and value != "":
             pool[optional] = value
 
     with open(out_path, "w") as handle:

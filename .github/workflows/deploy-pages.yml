@@ -53,6 +53,7 @@ jobs:
             echo "ACCELBYTE_MATCH_SERVICE_URL=https://gameswithout-mahjong.prod.gamingservices.accelbyte.io/ext-gameswithout-mahjong-mahjong-match-service"
             echo "ACCELBYTE_MATCH_POOL=mahjong-test-pool"
             echo "ACCELBYTE_SESSION_TEMPLATE=mahjong-test-none"
+            echo "ACCELBYTE_ROTATION_MATCH_POOL=mahjong-full-rotation-pool"
             echo "ACCELBYTE_SESSION_CLIENT_VERSION=web-0.0.0"
             echo "ACCELBYTE_PARTY_TEMPLATE=mahjong-party"
           } >> .env.production

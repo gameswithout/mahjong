@@ -76,6 +76,11 @@ export default defineConfig(({ mode, command }) => {
       "import.meta.env.ACCELBYTE_MATCH_SERVICE_URL": JSON.stringify(env.ACCELBYTE_MATCH_SERVICE_URL),
       "import.meta.env.ACCELBYTE_ICE_CONFIG_URL": JSON.stringify(env.ACCELBYTE_ICE_CONFIG_URL),
       "import.meta.env.ACCELBYTE_MATCH_POOL": JSON.stringify(env.ACCELBYTE_MATCH_POOL),
+      // §8.4 Full Rotation queues into its own pool; sharing Quick Play's is
+      // not possible because that pool stakes Jade and plays a single hand.
+      "import.meta.env.ACCELBYTE_ROTATION_MATCH_POOL": JSON.stringify(
+        env.ACCELBYTE_ROTATION_MATCH_POOL,
+      ),
       "import.meta.env.ACCELBYTE_SESSION_TEMPLATE": JSON.stringify(env.ACCELBYTE_SESSION_TEMPLATE),
       "import.meta.env.ACCELBYTE_SESSION_CLIENT_VERSION": JSON.stringify(
         env.ACCELBYTE_SESSION_CLIENT_VERSION,

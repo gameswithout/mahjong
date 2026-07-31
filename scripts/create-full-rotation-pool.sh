@@ -46,34 +46,18 @@ if [ -n "$ACTUAL_NS" ] && [ "$ACTUAL_NS" != "$NAMESPACE" ]; then
 fi
 
 say "Reading Quick Play template ($QUICK_PLAY_TEMPLATE)"
-ags session templates get --namespace "$NAMESPACE" --name "$QUICK_PLAY_TEMPLATE" | tee /tmp/qp-template.json
+ags session templates get --namespace "$NAMESPACE" --name "$QUICK_PLAY_TEMPLATE" --format json | tee /tmp/qp-template.json
 
 say "Reading Quick Play pool ($QUICK_PLAY_POOL)"
-ags matchmaking match-pools get --namespace "$NAMESPACE" --pool "$QUICK_PLAY_POOL" | tee /tmp/qp-pool.json
+ags matchmaking match-pools get --namespace "$NAMESPACE" --pool "$QUICK_PLAY_POOL" --format json | tee /tmp/qp-pool.json
 
 say "Deriving the rotation pool from it"
 python3 scripts/derive-rotation-pool.py \
   /tmp/qp-pool.json "$ROTATION_POOL" "$ROTATION_TEMPLATE" /tmp/rotation-pool.json
 
-# NONE-type: this game has no dedicated server. The match runtime is the Extend
-# service, not anything AGS allocates.
-cat >/tmp/rotation-template.json <<JSON
-{
-  "name": "$ROTATION_TEMPLATE",
-  "joinability": "CLOSED",
-  "type": "NONE",
-  "minPlayers": 4,
-  "maxPlayers": 4,
-  "inviteTimeout": 60,
-  "inactiveTimeout": 60,
-  "persistent": false,
-  "textChat": false,
-  "clientVersion": "",
-  "deployment": "",
-  "requestedRegions": [],
-  "attributes": { "full_rotation": true }
-}
-JSON
+say "Deriving the session template from Quick Play's"
+python3 scripts/derive-rotation-template.py \
+  /tmp/qp-template.json "$ROTATION_TEMPLATE" /tmp/rotation-template.json
 
 say "Session template to create ($ROTATION_TEMPLATE)"
 cat /tmp/rotation-template.json
@@ -96,8 +80,8 @@ say "Creating match pool"
 ags matchmaking match-pools create --namespace "$NAMESPACE" --json @/tmp/rotation-pool.json
 
 say "Verifying"
-ags session templates get --namespace "$NAMESPACE" --name "$ROTATION_TEMPLATE"
-ags matchmaking match-pools get --namespace "$NAMESPACE" --pool "$ROTATION_POOL"
+ags session templates get --namespace "$NAMESPACE" --name "$ROTATION_TEMPLATE" --format json
+ags matchmaking match-pools get --namespace "$NAMESPACE" --pool "$ROTATION_POOL" --format json
 
 cat <<NOTE
 
