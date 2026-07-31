@@ -66,6 +66,57 @@ const H = (token, json = true) => ({
 // every numeric read here goes through this rather than being compared raw.
 const num = (value) => Number(value ?? 0);
 
+// Full Rotation is ranked, and §10.1 reserves ranked play for linked accounts.
+// The service enforces that itself, so this creates real accounts with an
+// email rather than the headless guests the Quick Play verification uses.
+//
+// The email is never verified. That is deliberate and matches the rule both
+// halves of the gate apply: an account stops being a guest when it *has* an
+// identity, not when a verification mail arrives — which this namespace is
+// known not to deliver.
+async function fullAccount(label) {
+  const suffix = crypto.randomUUID().slice(0, 12).replace(/-/g, "");
+  const email = `rotation-${label}-${suffix}@example.com`;
+  const password = `R0tation!${suffix}`;
+
+  const created = await fetch(`${baseURL}/iam/v3/public/namespaces/${ns}/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      authType: "EMAILPASSWD",
+      emailAddress: email,
+      password,
+      displayName: `Rotation ${label}`,
+      uniqueDisplayName: `rot${label}${suffix}`.slice(0, 30),
+      username: `rot${label}${suffix}`.slice(0, 30),
+      country: "US",
+      dateOfBirth: "1990-01-01",
+    }),
+  });
+  if (!created.ok) {
+    fail("account_create", `HTTP ${created.status}`, { label, detail: JSON.stringify(await body(created)).slice(0, 200) });
+  }
+
+  const response = await fetch(`${baseURL}/iam/v3/oauth/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${clientId}:`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "password",
+      username: email,
+      password,
+    }),
+  });
+  const payload = await body(response);
+  if (!response.ok || !payload?.access_token) {
+    fail("account_login", `HTTP ${response.status}`, { label });
+  }
+  return { label, token: payload.access_token, id: payload.user_id, email };
+}
+
+// A headless account, used only to prove the §10.1 gate refuses one.
 async function guest(label) {
   const deviceId = `rotation-${label}-${crypto.randomUUID()}`;
   const response = await fetch(`${baseURL}/iam/v4/oauth/platforms/device/token`, {
@@ -351,9 +402,13 @@ async function progression(player) {
 async function main() {
   const players = [];
   for (const label of ["east", "south", "west", "north"]) {
-    players.push(await guest(label));
+    players.push(await fullAccount(label));
   }
-  report("guests", { ok: true, ids: players.map((p) => p.id.slice(0, 8)) });
+  report("accounts", {
+    ok: true,
+    kind: "linked (email, unverified)",
+    ids: players.map((p) => p.id.slice(0, 8)),
+  });
 
   const jadeBefore = new Map();
   for (const player of players) {
@@ -396,6 +451,25 @@ async function main() {
       { note: "the pool's session template must carry full_rotation=true" },
     );
   }
+  // §10.1, proven rather than assumed: a guest holding a valid token is
+  // refused a seat at this same ranked table by the service, not by the client.
+  const intruder = await guest("guest-intruder");
+  const refused = await fetch(matchPath(sessionId, "/join"), {
+    method: "POST",
+    headers: H(intruder.token),
+    body: "{}",
+  });
+  if (refused.ok) {
+    fail("guest_gate", "a guest was admitted to a ranked Full Rotation", {
+      status: refused.status,
+    });
+  }
+  report("guest_refused", {
+    ok: true,
+    status: refused.status,
+    detail: JSON.stringify(await body(refused)).slice(0, 160),
+  });
+
   report("all_seats_joined", {
     ok: true,
     note: "four seats joined with no Jade reservation",

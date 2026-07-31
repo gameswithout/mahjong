@@ -137,9 +137,10 @@ type MatchRepository interface {
 
 type Runtime struct {
 	mu        sync.Mutex
-	rosters   session.Resolver
-	matches   MatchRepository
-	rotations RotationRepository
+	rosters    session.Resolver
+	matches    MatchRepository
+	rotations  RotationRepository
+	identities session.IdentityResolver
 	events    rulesengine.EventStore
 	now       func() time.Time
 	actors    map[string]*loadedMatch
@@ -153,6 +154,41 @@ func (r *Runtime) SetRotations(repository RotationRepository) {
 	if r != nil {
 		r.rotations = repository
 	}
+}
+
+// SetIdentities supplies the §10.1 account check that gates ranked play.
+//
+// Without it, seating a guest in a Full Rotation is refused rather than
+// allowed: the client-side gate is not an enforcement point, and a ranked
+// result that feeds §12.4 rating must not depend on the client having chosen
+// to hide a button.
+func (r *Runtime) SetIdentities(resolver session.IdentityResolver) {
+	if r != nil {
+		r.identities = resolver
+	}
+}
+
+// requireLinkedAccount enforces §10.1 for ranked play.
+//
+// It refuses when it cannot tell. Admitting everyone whenever AGS IAM is
+// unreachable would make the gate absent exactly when something is wrong,
+// which is the opposite of what a gate is for; a player briefly unable to
+// enter a ranked match is the lesser failure.
+func (r *Runtime) requireLinkedAccount(ctx context.Context) error {
+	if r.identities == nil {
+		return fmt.Errorf(
+			"%w: the account check is not configured, so ranked entry cannot be authorized",
+			session.ErrLinkedAccountRequired,
+		)
+	}
+	guest, err := r.identities.IsGuest(ctx)
+	if err != nil {
+		return err
+	}
+	if guest {
+		return session.ErrLinkedAccountRequired
+	}
+	return nil
 }
 
 // table is the hand a player is acting on, plus the rotation around it when
@@ -286,6 +322,12 @@ func (r *Runtime) joinLocked(
 ) (*table, error) {
 	rotation, err := r.loadRotation(ctx, key)
 	if err == nil {
+		// §10.1: ranked play belongs to a durable account. Checked on the way
+		// in, before a seat is bound, so a guest is refused rather than seated
+		// and then removed.
+		if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+			return nil, gateErr
+		}
 		return r.seatInRotation(ctx, rotation, userID)
 	}
 	if !errors.Is(err, storage.ErrRotationNotFound) {
@@ -306,6 +348,9 @@ func (r *Runtime) joinLocked(
 			return nil, modeErr
 		}
 		if mode == session.ModeFullRotation {
+			if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+				return nil, gateErr
+			}
 			opened, openErr := r.openRotation(ctx, key, roster)
 			if openErr != nil {
 				return nil, openErr
@@ -354,6 +399,12 @@ func (r *Runtime) loadTable(
 ) (*table, error) {
 	rotation, err := r.loadRotation(ctx, key)
 	if err == nil {
+		// §10.1: ranked play belongs to a durable account. Checked on the way
+		// in, before a seat is bound, so a guest is refused rather than seated
+		// and then removed.
+		if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+			return nil, gateErr
+		}
 		return r.seatInRotation(ctx, rotation, userID)
 	}
 	if !errors.Is(err, storage.ErrRotationNotFound) {

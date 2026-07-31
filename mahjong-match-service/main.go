@@ -253,6 +253,11 @@ func main() {
 	// refuses a session that asks for Full Rotation rather than silently
 	// playing it as a single Quick Play hand.
 	matchRuntime.SetRotations(postgresStorage)
+	// §10.1 ranked gating. The client hides Full Rotation from guests; this is
+	// the half that a client cannot bypass.
+	matchRuntime.SetIdentities(&matchsession.AGSIdentityResolver{
+		BaseURL: common.GetEnv("AB_BASE_URL", ""),
+	})
 	testUserID := strings.TrimSpace(common.GetEnv("MATCH_TEST_USER_ID", ""))
 	if testUserID != "" {
 		if authEnabled {

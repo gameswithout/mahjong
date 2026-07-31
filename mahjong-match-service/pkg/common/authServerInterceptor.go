@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -205,6 +206,11 @@ func checkAuthorizationMetadata(ctx context.Context, permission *iam.Permission)
 	if err != nil {
 		return ctx, status.Error(codes.Unauthenticated, "validated token has no subject")
 	}
+	// The caller's own token travels with the request so the service can ask
+	// AGS who they are — §10.1 gates ranked play on holding a linked account,
+	// and the answer belongs to AGS rather than to anything the client sends.
+	// It is never logged.
+	ctx = session.ContextWithAccessToken(ctx, token)
 	return context.WithValue(ctx, principalContextKey{}, Principal{UserID: userID}), nil
 }
 
