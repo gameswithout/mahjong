@@ -81,14 +81,15 @@ describe("Progression client", () => {
       "https://match.example.test/mahjong/v1/namespaces/mahjong-test/progression",
       expect.objectContaining({
         method: "GET",
-        cache: "no-store",
         headers: expect.objectContaining({
           Authorization: "Bearer player-token",
           Accept: "application/json",
-          "Cache-Control": "no-cache",
         }),
       }),
     );
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    expect(new Headers(request.headers).has("Cache-Control")).toBe(false);
+    expect(request.cache).toBeUndefined();
   });
 
   it("normalizes lower-camel protojson fields used by the hosted service", () => {

@@ -21,7 +21,7 @@ export function PracticeLaunchCard({
       <h2 id="practice-title">Play a full hand against three bots</h2>
       <p className="practice-description">
         Untimed, no queue, and no pressure. Practice never changes Jade or rating; each
-        completed hand earns XP, up to 200 per UTC day.
+        completed hand earns XP.
       </p>
       <button
         className="primary-action practice-action"

@@ -2470,6 +2470,7 @@ export function App(
         await loadJadeAccount();
       }
       void loadProgression();
+      void loadStatistics();
       return true;
     } catch (error) {
       if (requestId !== sessionRequestRef.current) {

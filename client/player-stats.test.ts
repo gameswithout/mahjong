@@ -83,6 +83,12 @@ describe("readStatValues", () => {
     ).toEqual({ "public-hands-won": 12 });
   });
 
+  it("accepts the gateway's lower-camel statCode field", () => {
+    expect(
+      readStatValues({ statistics: [{ statCode: "public-hands-completed", value: 3 }] }),
+    ).toEqual({ "public-hands-completed": 3 });
+  });
+
   // protojson drops a zero double, so an untouched counter arrives as a bare
   // stat code. Verified against the live service, which returns exactly this
   // for a player who has not played.
