@@ -44,6 +44,11 @@ func TestHandXP_PracticeIgnoresPlayOutcome(t *testing.T) {
 	if award.Total != PracticeHandXP {
 		t.Fatalf("Total = %d, want the flat %d", award.Total, PracticeHandXP)
 	}
+	if len(award.Components) != 2 ||
+		award.Components[1].Code != ComponentHandWon ||
+		award.Components[1].Amount != 0 {
+		t.Fatalf("practice win marker = %+v", award.Components)
+	}
 }
 
 func TestHandXP_Public(t *testing.T) {

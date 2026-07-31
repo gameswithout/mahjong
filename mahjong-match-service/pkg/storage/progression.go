@@ -41,9 +41,11 @@ func (p *PostgreSQLStorage) PlayerDashboardStatistics(
 				WHERE components @> '[{"code":"hand_won"}]'::jsonb
 			)
 		FROM xp_awards
-		WHERE user_id = $1 AND source = $2`,
+		WHERE user_id = $1 AND source IN ($2, $3, $4)`,
 		userID,
 		progression.SourcePublicHand,
+		progression.SourcePractice,
+		progression.SourceRotationHand,
 	).Scan(&completed, &won); err != nil {
 		return nil, fmt.Errorf("read dashboard statistics: %w", err)
 	}

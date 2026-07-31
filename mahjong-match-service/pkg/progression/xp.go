@@ -103,19 +103,28 @@ type HandAward struct {
 // Alpha progression has no daily XP cap.
 func HandXP(outcome HandOutcome, practiceXPToday int) HandAward {
 	if outcome.Practice {
-		return practiceAward()
+		return practiceAward(outcome)
 	}
 	return publicAward(outcome)
 }
 
-func practiceAward() HandAward {
-	return HandAward{
+func practiceAward(outcome HandOutcome) HandAward {
+	award := HandAward{
 		Source: SourcePractice,
 		Total:  PracticeHandXP,
 		Components: []XPComponent{{
 			Code: ComponentPracticeHand, Label: "Practice hand", Amount: PracticeHandXP,
 		}},
 	}
+	// Match History includes every completed game, including Practice. Keep a
+	// zero-value outcome marker in the same immutable ledger row without
+	// changing Practice XP or feeding the public achievement projection.
+	if outcome.Won {
+		award.Components = append(award.Components, XPComponent{
+			Code: ComponentHandWon, Label: "Won the hand", Amount: 0,
+		})
+	}
+	return award
 }
 
 func publicAward(outcome HandOutcome) HandAward {
