@@ -237,7 +237,41 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      full-rotation-1b717ff (deployment created
+Image tag:      full-rotation-gate-cd6179e (deployment created
+                2026-07-31T03:11Z, healthy within ~30s; deployment
+                48a106e6-835e-4d94-83a5-118f44d2f484). Adds the §10.1
+                server-side ranked-account gate: Full Rotation entry now
+                requires a linked account, decided by the match service
+                rather than by the client hiding a button. A guest is a
+                headless account (no email address), the same definition
+                client/iam.ts uses; emailVerified is deliberately not
+                required, since §10.2's upgrade attaches an email and this
+                namespace does not deliver verification mail. The gate
+                refuses when it cannot tell — unreachable IAM, a 401, a
+                malformed profile, or an unconfigured resolver all refuse
+                ranked entry rather than defaulting open.
+                Verified live after rollout: a guest holding a valid token
+                was refused a seat at a real ranked table with HTTP 403 and
+                the linked-account message, while four linked accounts
+                seated at that same table and played a rotation through to
+                rotation_complete (4 hands, 4 dealers, winds turned, no Jade
+                moved). Quick Play remains ungated. Evidence:
+                docs/ags-plans/2026-07-31-ranked-account-gate-evidence.md.
+                Still unproven in production: settlement with a non-zero
+                table-point transfer — all three live rotations ran entirely
+                to exhaustive draws.
+
+                Deploying needs the publisher subdomain and a publisher
+                *user* token. Neither stored client secret works
+                ("unknown client"), and the ambient AB_CLIENT_ID /
+                AB_CLIENT_SECRET in the shell profile silently override a
+                browser login — extend-helper-cli reports the wrong studio
+                until they are unset. `ags csm` reaches Extend with
+                ordinary game-namespace auth and covers everything except
+                the image push (apps get, images list, deployments create),
+                so prefer it for reads and deployment status.
+                Preceding images, newest first:
+                full-rotation-1b717ff (deployment created
                 2026-07-31T01:37:35.243Z, healthy at
                 2026-07-31T01:38:07.848Z; deployment
                 dd7d3d3d-45b4-48a2-9754-a68236132837). Completes the §8.4
