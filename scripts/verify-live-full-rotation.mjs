@@ -428,9 +428,23 @@ function chooseClaim(options) {
   if (options.can_win) return { type: "win", tile_ids: [] };
   if (options.can_kong) return { type: "kong", tile_ids: [] };
   if (options.can_pong) return { type: "pong", tile_ids: [] };
-  const chow = options.chow_sets?.[0];
-  if (chow) return { type: "chow", tile_ids: [...chow] };
+  const chow = chowTiles(options.chow_sets?.[0]);
+  if (chow.length === 2) return { type: "chow", tile_ids: chow };
   return { type: "pass", tile_ids: [] };
+}
+
+// The wire form of a chow set is { tile_ids: [a, b] }, not a bare pair. The
+// browser client reshapes it into a tuple on the way in (match-runtime.ts,
+// normalizeChowSets), and protocol/envelope.ts types that *normalized* shape —
+// so reading the TypeScript type and assuming it describes the wire is wrong.
+// This script talks to the API directly and never runs that normalization.
+// Both shapes are accepted so the policy does not depend on which side of the
+// normalization its input came from.
+function chowTiles(entry) {
+  if (!entry) return [];
+  if (Array.isArray(entry)) return entry.slice(0, 2);
+  if (Array.isArray(entry.tile_ids)) return entry.tile_ids.slice(0, 2);
+  return [];
 }
 
 // --- Rotation assertions ----------------------------------------------------
