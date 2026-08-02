@@ -71,19 +71,57 @@ already has an account is never told to go and make one.
 Quick Play is untouched; a guest can still take a Quick Play seat, which is the
 mode the guest experience exists for.
 
+## Settlement, finally exercised (run of 2026-08-01)
+
+The first three live rotations ran entirely to exhaustive draws, so table points
+stayed at zero and the settlement path never executed in production. A
+win-seeking play policy in the verification script (meld whenever the server
+offers a meld, discard whatever is furthest from a set) fixed that. Session
+`9506df51a184401d9bdde4c8f11935b0`:
+
+```
+hand 1  dealer 1efd5718  discard        baac6a08 +2   1efd5718 -2
+hand 2  dealer fd27646f  discard        44de1263 +2   baac6a08 -2
+hand 3  dealer 44de1263  zimo           44de1263 +18  three opponents -6 each
+hand 4  dealer 44de1263  exhaustive     seats_dealt stays 3 — continuation
+hand 5  dealer baac6a08  exhaustive     seats_dealt 4
+rotation_completed  reason rotation_complete · 5 hands · 4 distinct dealers
+podium  44de1263 #1 +20 · fd27646f #2 -6 tie · baac6a08 #3 -6 tie · 1efd5718 #4 -8
+```
+
+What each line establishes that no earlier run could:
+
+- **`RebaseHandResult` executed for real.** The engine reports a result in wind
+  space; the rotation converts it to table positions before tallying. Hands 1
+  and 2 moved exactly two seats in opposite directions, and the cumulative
+  totals are the sum of both hands rather than either alone.
+- **Both settlement shapes ran.** A discard win charges one payer; a Zimo
+  charges all three opponents (§7.3), which hand 3 shows as +18 against three
+  −6s. The dealer won that hand, so Dealer Tai is in the numbers too.
+- **The balance invariant now means something.** It had been passing on four
+  zeroes; here it holds across +20 / −6 / −6 / −8.
+- **A continuation is not progress.** The dealer won hand 3 and retained the
+  deal, so hand 4 played with `hands_played: 4` and `seats_dealt: 3`. A progress
+  bar counting hands would have called this rotation finished while a whole
+  player had not yet dealt — which is why `seats_dealt` is what the UI reports.
+- **The tie-break is selective.** §8.4 breaks equal table points for display but
+  keeps them a genuine rating tie. Here only the two players actually level at
+  −6 carry `rating_tie`; first and fourth do not. Earlier runs finished with all
+  four tied at zero, where a flag set for everyone would have looked identical
+  to a correct one.
+
+Anything computing §12.4 Elo must read that flag rather than the displayed
+position.
+
 ## Not proven
 
-**Every hand was an exhaustive draw, for the third live run running.** Table
-points therefore stayed at zero, all four placements are ties, and the
-balance-to-zero invariant passed on four zeroes.
 
-**The settlement path has still never executed in production with a non-zero
-number** — including `RebaseHandResult`, the wind-to-position conversion the
-rotation architecture rests on. It is covered by unit and integration tests, not
-by any live run. The script takes a win when one is offered, but the simple
-policy it plays (discard the last tile, pass every claim) never reaches a
-winning shape, so no win is ever offered. Closing this needs rules-aware play in
-the verification script.
+The 60-minute `time_limit` ending has not occurred live: all four rotations so
+far completed their round. §8.4 makes the share of matches ending on the limit a
+required telemetry metric, so that path is worth exercising deliberately rather
+than waiting for a slow table to produce it.
 
-The 60-minute `time_limit` ending has also not occurred live; all three runs
-completed their round.
+No hand has yet ended by rob or by one of the §5.9 special wins (Heavenly,
+Eight Flowers). The runtime declines those windows automatically because no
+player command surface accepts them yet, so they cannot occur in a live run
+until that gap is closed.
