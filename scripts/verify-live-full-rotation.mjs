@@ -326,7 +326,7 @@ async function playOneHand(players, matchId, handNumber) {
           expected_version: view.state_version,
         });
       } else if (mine && view.phase === "awaiting_discard") {
-        const tile = view.own_hand?.[view.own_hand.length - 1]?.id ?? view.own_hand?.[0]?.id;
+        const tile = chooseDiscard(view.own_hand);
         if (tile) {
           next = await command(player, matchId, {
             type: "discard",
@@ -335,20 +335,14 @@ async function playOneHand(players, matchId, handNumber) {
           });
         }
       } else if (view.claim?.eligible?.includes(view.seat) && !view.claim.own_response) {
-        // Take a win when one is offered, rather than passing on everything.
-        // A rotation of nothing but exhaustive draws transfers no table points
-        // at all, so the balance invariant would hold trivially and the
-        // settlement path — including the wind-to-position conversion — would
-        // never run with a non-zero number in it. Winning is also simply legal
-        // play: no seat is required to decline a winning tile.
-        const canWin = view.claim.options?.can_win === true;
+        const choice = chooseClaim(view.claim.options);
         next = await command(player, matchId, {
           type: "submit_claim",
           expected_version: view.state_version,
           claim: {
             action_id: view.claim.action_id,
-            type: canWin ? "win" : "pass",
-            tile_ids: [],
+            type: choice.type,
+            tile_ids: choice.tile_ids,
             response_revision: 0,
             deliberate: true,
           },
@@ -365,6 +359,78 @@ async function playOneHand(players, matchId, handNumber) {
     if (!acted) await wait(400);
   }
   fail("play_hand", `hand ${handNumber} did not complete within ${HAND_TIMEOUT_MS}ms`);
+}
+
+
+// --- Play policy ------------------------------------------------------------
+//
+// Three live rotations ran entirely to exhaustive draws, because the policy was
+// "discard the last tile, pass every claim". That left table points at zero
+// every time, so the balance-to-zero invariant passed on four zeroes and the
+// settlement path — including RebaseHandResult, the wind-to-position conversion
+// the rotation architecture rests on — never executed in production at all.
+//
+// This is not an attempt to play well. It is the least play that reliably
+// produces a *win*, so that a real transfer happens: meld whenever offered, and
+// discard whatever is furthest from forming a set. Melding both shortens hands
+// and pushes seats toward a winning shape, which passing never does.
+//
+// Legality is never inferred here. The server states which claims are legal
+// (ClaimOptionsView) and whether a hand can win (self_turn_options.can_win);
+// this only chooses among options the server has already allowed.
+
+const SUITS = new Set(["characters", "bamboo", "dots"]);
+
+const tileKey = (tile) => `${tile.kind}-${tile.rank ?? 0}`;
+
+// Discard value: lower is more disposable. A tile is worth keeping when it has
+// copies of itself (toward a pair or pong) or suited neighbours (toward a run).
+function discardScore(tile, counts) {
+  const copies = counts.get(tileKey(tile)) ?? 1;
+  let score = copies * 10;
+  if (SUITS.has(tile.kind) && typeof tile.rank === "number") {
+    for (const offset of [-2, -1, 1, 2]) {
+      const neighbour = counts.get(`${tile.kind}-${tile.rank + offset}`) ?? 0;
+      // Adjacent tiles are worth more than gap-fillers.
+      score += neighbour * (Math.abs(offset) === 1 ? 3 : 1);
+    }
+    // Terminals form fewer runs than simples, so they go first among equals.
+    if (tile.rank === 1 || tile.rank === 9) score -= 1;
+  } else {
+    // An unpaired honour can never become a run, only a pong. Isolated, it is
+    // the most disposable tile in the hand.
+    if (copies === 1) score -= 4;
+  }
+  return score;
+}
+
+function chooseDiscard(hand) {
+  if (!hand || hand.length === 0) return null;
+  const counts = new Map();
+  for (const tile of hand) counts.set(tileKey(tile), (counts.get(tileKey(tile)) ?? 0) + 1);
+  let worst = hand[0];
+  let worstScore = Infinity;
+  for (const tile of hand) {
+    const score = discardScore(tile, counts);
+    if (score < worstScore) {
+      worstScore = score;
+      worst = tile;
+    }
+  }
+  return worst.id;
+}
+
+// Choose a claim response from the options the server says are legal. Winning
+// always comes first; after that, the bigger the set the better, because every
+// meld is one group closer to a win.
+function chooseClaim(options) {
+  if (!options) return { type: "pass", tile_ids: [] };
+  if (options.can_win) return { type: "win", tile_ids: [] };
+  if (options.can_kong) return { type: "kong", tile_ids: [] };
+  if (options.can_pong) return { type: "pong", tile_ids: [] };
+  const chow = options.chow_sets?.[0];
+  if (chow) return { type: "chow", tile_ids: [...chow] };
+  return { type: "pass", tile_ids: [] };
 }
 
 // --- Rotation assertions ----------------------------------------------------
@@ -486,6 +552,12 @@ async function main() {
   const deadline = Date.now() + ROTATION_TIMEOUT_MS;
   let handNumber = num(firstView.rotation.hand_number) || 1;
   let lastRotation = firstView.rotation;
+  // Whether settlement ever moved a table point. A rotation of nothing but
+  // exhaustive draws satisfies every other check while never exercising
+  // SettleHand or RebaseHandResult, so this is tracked and reported rather
+  // than left to be inferred from the standings.
+  let sawTransfer = false;
+  const winKinds = [];
 
   while (Date.now() < deadline) {
     const rotation = lastRotation;
@@ -513,6 +585,12 @@ async function main() {
     const after = view.rotation;
     if (!after) fail("rotation_lost", "a view came back without its rotation block");
     assertPointsBalance(after, `after hand ${handNumber}`);
+    if ((after.standings ?? []).some((s) => num(s.table_points) !== 0)) {
+      sawTransfer = true;
+    }
+    if (view.hand_result?.kind && view.hand_result.kind !== "exhaustive_draw") {
+      winKinds.push(view.hand_result.kind);
+    }
 
     report("hand_finished", {
       ok: true,
@@ -588,6 +666,15 @@ async function main() {
     }
   }
 
+  report("settlement_exercised", {
+    ok: sawTransfer,
+    table_points_moved: sawTransfer,
+    wins: winKinds,
+    note: sawTransfer
+      ? "settlement ran with a non-zero transfer, so RebaseHandResult executed in production"
+      : "every hand was an exhaustive draw — the balance invariant held on zeroes and settlement never ran",
+  });
+
   report("rotation_completed", {
     ok: true,
     reason: final.reason,
@@ -646,6 +733,7 @@ async function main() {
 
   report("summary", {
     ok: true,
+    settlement_exercised: sawTransfer,
     placement_xp_consistent: placementXpSeen,
     note:
       "A Full Rotation completed on the deployed service: multiple hands, a moving " +
