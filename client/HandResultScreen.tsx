@@ -7,11 +7,14 @@
 // Play Again covers both Practice and staked requeue (§P1.3 session closure).
 import { useState, type ReactNode } from "react";
 
+import { patternGuide, taiValue } from "./scoring-guide";
+
 import type {
   HandResult,
   HandWinner,
   HandXPAward,
   MahjongSeat,
+  PatternScore,
   SeatView,
   Transfer,
 } from "../protocol/envelope";
@@ -276,7 +279,101 @@ function WinTypeBanner({
   );
 }
 
-function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat: MahjongSeat }) {
+// One scoring line, expandable into what the pattern rewards.
+//
+// Inline rather than a modal or a separate glossary screen: the player is
+// looking at their own hand and their own score, and that context is most of
+// what makes the explanation land. Sending them elsewhere to read a definition
+// loses it.
+//
+// A pattern with no guide renders as a plain row, exactly as before. Silence is
+// the right failure: a control that opens to nothing is worse than no control.
+function PatternRow({
+  pattern,
+  stakePerTai,
+}: {
+  pattern: PatternScore;
+  stakePerTai?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const guide = patternGuide(pattern.name);
+  const panelId = `pattern-${pattern.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+  const worth = guide ? taiValue(pattern.tai, stakePerTai) : null;
+
+  if (!guide) {
+    return (
+      <li>
+        <span>{pattern.name}</span>
+        <strong>
+          {pattern.tai} <span lang="zh-Hant">台</span>
+        </strong>
+      </li>
+    );
+  }
+
+  return (
+    <li className={open ? "hand-result-pattern is-open" : "hand-result-pattern"}>
+      <button
+        type="button"
+        className="hand-result-pattern-toggle"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls={panelId}
+      >
+        <span className="hand-result-pattern-name">
+          {pattern.name}
+          {/* The affordance has to be visible without hover — this is a touch
+              surface as much as a pointer one. */}
+          <span className="hand-result-pattern-hint" aria-hidden="true">
+            {open ? "Hide" : "What is this?"}
+          </span>
+        </span>
+        <strong>
+          {pattern.tai} <span lang="zh-Hant">台</span>
+          {guide.perInstance && <span className="hand-result-pattern-each"> each</span>}
+        </strong>
+      </button>
+      {open && (
+        <div id={panelId} className="hand-result-pattern-detail">
+          <p className="hand-result-pattern-what">{guide.what}</p>
+          {guide.build && <p className="hand-result-pattern-build">{guide.build}</p>}
+          {/* The upgrade is the part meant to change the next hand, so it is
+              the most prominent thing in the panel rather than a footnote. */}
+          {guide.upgrade && (
+            <p className="hand-result-pattern-upgrade">
+              <span className="hand-result-pattern-upgrade-label">Worth more</span>
+              <span>
+                <strong>
+                  {guide.upgrade.name} · {guide.upgrade.tai} <span lang="zh-Hant">台</span>
+                </strong>{" "}
+                {guide.upgrade.how}
+              </span>
+            </p>
+          )}
+          {/* Never omitted when present. Encouraging a bigger hand without its
+              price is how a player is talked into chasing one they cannot finish. */}
+          {guide.cost && (
+            <p className="hand-result-pattern-cost">
+              <span className="hand-result-pattern-cost-label">The trade-off</span>
+              <span>{guide.cost}</span>
+            </p>
+          )}
+          {worth && <p className="hand-result-pattern-worth">{worth}</p>}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function WinnerBreakdown({
+  winner,
+  localSeat,
+  stakePerTai,
+}: {
+  winner: HandWinner;
+  localSeat: MahjongSeat;
+  stakePerTai?: number;
+}) {
   // The result should explain itself on first scan. Keep the authoritative
   // scoring patterns open by default while still allowing experienced
   // players to collapse the detail.
@@ -327,10 +424,7 @@ function WinnerBreakdown({ winner, localSeat }: { winner: HandWinner; localSeat:
         <div id={`winner-score-${winner.seat}`} className="hand-result-score-details">
           <ul className="hand-result-patterns" aria-label="Scoring patterns">
             {winner.score.patterns.map((pattern) => (
-              <li key={pattern.name}>
-                <span>{pattern.name}</span>
-                <strong>{pattern.tai} <span lang="zh-Hant">台</span></strong>
-              </li>
+              <PatternRow key={pattern.name} pattern={pattern} stakePerTai={stakePerTai} />
             ))}
           </ul>
           <p className="hand-result-tai-total">
@@ -584,7 +678,16 @@ export function HandResultScreen({
           {winners.length === 0 ? (
             <p className="hand-result-no-winner">No winner this hand.</p>
           ) : (
-            winners.map((winner) => <WinnerBreakdown key={winner.seat} winner={winner} localSeat={view.seat} />)
+            winners.map((winner) => (
+              <WinnerBreakdown
+                key={winner.seat}
+                winner={winner}
+                localSeat={view.seat}
+                // Practice stakes nothing, so the guide must not quote a Jade
+                // value — the same guard the settlement rows already use.
+                stakePerTai={practice ? undefined : view.jade_account?.stake_per_tai}
+              />
+            ))
           )}
 
           {dealerTaiBonus > 0 && dealer && (

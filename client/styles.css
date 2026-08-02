@@ -1461,6 +1461,13 @@ h1 {
   padding: 0.25rem 0;
 }
 
+/* An expandable row stacks its trigger and panel, so it opts out of the flex
+   row above; the trigger itself carries that layout instead. */
+.hand-result-patterns li.hand-result-pattern {
+  display: block;
+  padding: 0;
+}
+
 .hand-result-patterns strong {
   color: #f3d889;
   white-space: nowrap;
@@ -4276,4 +4283,139 @@ h1 {
   position: absolute;
   white-space: nowrap;
   width: 1px;
+}
+
+
+/* §6 pattern guide. Each scoring line opens in place, because the player is
+   looking at their own hand and their own score — that context is most of what
+   makes the explanation land, and a modal would take it away. */
+.hand-result-pattern-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 0.4rem;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 0.85rem;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.35rem 0.4rem;
+  text-align: left;
+  width: 100%;
+}
+
+.hand-result-pattern-toggle:hover,
+.hand-result-pattern-toggle:focus-visible {
+  background: rgb(216 220 239 / 8%);
+}
+
+.hand-result-pattern-name {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Visible without hover: this is a touch surface as much as a pointer one, and
+   an affordance that only appears on hover does not exist on a phone. */
+.hand-result-pattern-hint {
+  color: rgb(216 220 239 / 55%);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.hand-result-pattern.is-open .hand-result-pattern-hint {
+  color: rgb(216 220 239 / 75%);
+}
+
+/* Kongs score per occurrence, so the line total can exceed the rate quoted in
+   the guide. Saying "each" is what stops that reading as a wrong number. */
+.hand-result-pattern-each {
+  color: rgb(216 220 239 / 60%);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.hand-result-pattern-detail {
+  border-left: 2px solid rgb(243 216 137 / 35%);
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.1rem 0 0.5rem 0.4rem;
+  padding: 0.5rem 0.6rem;
+}
+
+.hand-result-pattern-detail p {
+  margin: 0;
+}
+
+.hand-result-pattern-what {
+  color: rgb(216 220 239 / 92%);
+  font-size: 0.85rem;
+}
+
+.hand-result-pattern-build {
+  color: rgb(216 220 239 / 72%);
+  font-size: 0.82rem;
+}
+
+/* The upgrade is the line meant to change the next hand, so it carries the
+   accent rather than sitting as a footnote. */
+.hand-result-pattern-upgrade,
+.hand-result-pattern-cost {
+  display: grid;
+  font-size: 0.82rem;
+  gap: 0.15rem;
+}
+
+.hand-result-pattern-upgrade {
+  background: rgb(243 216 137 / 10%);
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.hand-result-pattern-upgrade-label,
+.hand-result-pattern-cost-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.hand-result-pattern-upgrade-label {
+  color: #f3d889;
+}
+
+.hand-result-pattern-upgrade strong {
+  color: #f3d889;
+}
+
+/* The cost is never styled as a warning. It is not an error state — it is the
+   other half of honest advice, and colouring it red would discourage the very
+   play the panel is there to encourage. */
+.hand-result-pattern-cost-label {
+  color: rgb(216 220 239 / 55%);
+}
+
+.hand-result-pattern-cost {
+  color: rgb(216 220 239 / 70%);
+}
+
+.hand-result-pattern-worth {
+  color: rgb(216 220 239 / 62%);
+  font-size: 0.78rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hand-result-pattern-detail {
+    animation: hand-result-pattern-open 140ms ease-out;
+  }
+}
+
+@keyframes hand-result-pattern-open {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
 }

@@ -515,3 +515,134 @@ describe("HandResultScreen", () => {
     act(() => root.unmount());
   });
 });
+
+describe("scoring pattern guide", () => {
+  function viewWithPatterns(
+    patterns: { name: string; tai: number }[],
+    options: { stakePerTai?: number } = {},
+  ): SeatView {
+    const view = completedView();
+    view.hand_result!.winners![0].score.patterns = patterns;
+    if (options.stakePerTai) {
+      view.jade_account = {
+        currency_code: "JADE",
+        balance: 5000,
+        reserved: 0,
+        available: 5000,
+        eligible: true,
+        minimum_balance: 1000,
+        stake_per_tai: options.stakePerTai,
+        debit_cap: 300,
+      };
+    }
+    return view;
+  }
+
+  function mount(view: SeatView, practice = true) {
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <HandResultScreen view={view} practice={practice} onReturn={() => {}} />,
+      );
+    });
+    return {
+      container,
+      cleanup: () => {
+        act(() => root.unmount());
+        container.remove();
+      },
+    };
+  }
+
+  function toggleFor(container: HTMLElement, name: string): HTMLButtonElement | undefined {
+    return [...container.querySelectorAll<HTMLButtonElement>(".hand-result-pattern-toggle")].find(
+      (button) => button.textContent?.includes(name),
+    );
+  }
+
+  it("keeps the explanation closed until asked", () => {
+    // The result screen is read at a glance first. Expanding everything by
+    // default would bury the score under prose.
+    const { container, cleanup } = mount(viewWithPatterns([{ name: "Half Flush", tai: 4 }]));
+    expect(container.textContent).toContain("Half Flush");
+    expect(container.textContent).not.toContain("One numbered suit plus honour tiles");
+    expect(toggleFor(container, "Half Flush")?.getAttribute("aria-expanded")).toBe("false");
+    cleanup();
+  });
+
+  it("explains the pattern and names what it upgrades to", () => {
+    // The upgrade is the whole point: a definition tells a player what
+    // happened, an upgrade path tells them what to do next hand.
+    const { container, cleanup } = mount(viewWithPatterns([{ name: "Half Flush", tai: 4 }]));
+    const toggle = toggleFor(container, "Half Flush")!;
+    act(() => toggle.click());
+    expect(container.textContent).toContain("One numbered suit plus honour tiles");
+    expect(container.textContent).toContain("Full Flush");
+    expect(container.textContent).toContain("Worth more");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    cleanup();
+  });
+
+  it("states the trade-off alongside the encouragement", () => {
+    // Telling someone to commit to one suit without saying opponents will read
+    // it is half the advice, and the half that loses hands.
+    const { container, cleanup } = mount(viewWithPatterns([{ name: "Full Flush", tai: 8 }]));
+    act(() => toggleFor(container, "Full Flush")!.click());
+    expect(container.textContent).toContain("The trade-off");
+    expect(container.textContent).toContain("read a flush quickly");
+    cleanup();
+  });
+
+  it("quotes the table value of a pattern when there is a stake", () => {
+    // Tai is the game's unit; Jade is the one a player feels.
+    const view = viewWithPatterns([{ name: "Half Flush", tai: 4 }], { stakePerTai: 10 });
+    const { container, cleanup } = mount(view, false);
+    act(() => toggleFor(container, "Half Flush")!.click());
+    expect(container.textContent).toContain("40 Jade at this table");
+    cleanup();
+  });
+
+  it("quotes no Jade value in Practice", () => {
+    // Practice stakes nothing. A Jade figure here would claim the hand paid
+    // something it did not.
+    const { container, cleanup } = mount(viewWithPatterns([{ name: "Half Flush", tai: 4 }]), true);
+    act(() => toggleFor(container, "Half Flush")!.click());
+    expect(container.textContent).not.toContain("Jade at this table");
+    cleanup();
+  });
+
+  it("says 'each' for patterns scored per occurrence", () => {
+    // Two concealed Kongs score 4台 on one line. A flat "2台" beside a line
+    // reading 4 looks like the score is wrong.
+    const { container, cleanup } = mount(viewWithPatterns([{ name: "Concealed Kong", tai: 4 }]));
+    expect(toggleFor(container, "Concealed Kong")?.textContent).toContain("each");
+    cleanup();
+  });
+
+  it("leaves an unknown pattern as a plain row rather than an empty expander", () => {
+    // A control that opens to nothing is worse than no control. A pattern with
+    // no guide written for it must not offer one.
+    const { container, cleanup } = mount(viewWithPatterns([{ name: "Some Future Pattern", tai: 9 }]));
+    expect(container.textContent).toContain("Some Future Pattern");
+    expect(toggleFor(container, "Some Future Pattern")).toBeUndefined();
+    cleanup();
+  });
+
+  it("opens each pattern independently", () => {
+    const { container, cleanup } = mount(
+      viewWithPatterns([
+        { name: "Half Flush", tai: 4 },
+        { name: "All Pongs", tai: 4 },
+      ]),
+    );
+    act(() => toggleFor(container, "Half Flush")!.click());
+    expect(toggleFor(container, "Half Flush")?.getAttribute("aria-expanded")).toBe("true");
+    expect(toggleFor(container, "All Pongs")?.getAttribute("aria-expanded")).toBe("false");
+    cleanup();
+  });
+});
