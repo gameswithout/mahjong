@@ -5,6 +5,7 @@ import {
   createPlayerStatsClient,
   PlayerStatsError,
   readStatValues,
+  reconcilePlayerStatsWithHistory,
   summarisePlayerStats,
   STAT_DEALT_IN,
   STAT_HANDS,
@@ -73,6 +74,20 @@ describe("summarisePlayerStats", () => {
       expect(rate.ratio).toBeNull();
       expect(Number.isNaN(rate.numerator / rate.denominator || 0)).toBe(false);
     }
+  });
+});
+
+describe("reconcilePlayerStatsWithHistory", () => {
+  it("uses completed session history when aggregate counters lag", () => {
+    const summary = summarisePlayerStats({});
+    const reconciled = reconcilePlayerStatsWithHistory(summary, [{ result: "Win" }]);
+
+    expect(reconciled).toMatchObject({ handsPlayed: 1, wins: 1, hasPlayed: true });
+  });
+
+  it("keeps newer aggregate counters when history is limited", () => {
+    const summary = summarisePlayerStats({ [STAT_HANDS]: 12, [STAT_WINS]: 4 });
+    expect(reconcilePlayerStatsWithHistory(summary, [{ result: "Win" }])).toBe(summary);
   });
 });
 

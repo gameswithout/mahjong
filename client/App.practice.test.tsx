@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MatchCommandRequest, SeatView } from "../protocol/envelope";
 import type { BrowserIam } from "./iam";
+import { JadeError } from "./jade";
 import { MatchRuntimeError } from "./match-runtime";
 import type { MatchRuntimeConnection, MatchRuntimeConnectionOptions } from "./match-runtime";
 import { SessionLookupError, type SessionClient } from "./session";
@@ -183,6 +184,7 @@ describe("App Practice journey", () => {
   let calls: string[];
   let sessionClient: SessionClient;
   let runtimeOptions: MatchRuntimeConnectionOptions | undefined;
+  let getJadeAccount: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     (
@@ -208,8 +210,9 @@ describe("App Practice journey", () => {
       debit_cap: 300,
       wallet_sync_status: "synced",
     };
+    getJadeAccount = vi.fn().mockResolvedValue(jadeAccount);
     dependencies.createJadeClient.mockReturnValue({
-      getAccount: vi.fn().mockResolvedValue(jadeAccount),
+      getAccount: getJadeAccount,
       reserve: vi.fn().mockResolvedValue({
         account: { ...jadeAccount, reserved: 300, available: 4700 },
         reservation: { reservation_id: "reserve-1", amount: 300, status: "active" },
@@ -342,10 +345,12 @@ describe("App Practice journey", () => {
   });
 
   it("launches, replays with a fresh Session, and returns to the lobby", async () => {
+    const refreshAccessToken = vi.fn().mockResolvedValue(true);
     const iam = {
       loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
       getAuthenticatedSdk: vi.fn().mockReturnValue({}),
       getAccessToken: vi.fn().mockReturnValue("guest-token"),
+      refreshAccessToken,
     } as unknown as BrowserIam;
 
     act(() => root.render(<App iam={iam} />));
@@ -370,9 +375,19 @@ describe("App Practice journey", () => {
       "connect:practice-2",
     ]);
 
+    // A practice hand can outlive its original AGS access token. Returning to
+    // the lobby renews once and retries the Jade read rather than replacing a
+    // valid balance with an "Unavailable" header.
+    getJadeAccount.mockRejectedValueOnce(
+      new JadeError("unauthenticated", "Jade service request failed with HTTP 401."),
+    );
     await clickAndFlush(container, "Return to Lobby");
     await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     expect(calls.at(-1)).toBe("leave:practice-2");
+    expect(refreshAccessToken).toHaveBeenCalledOnce();
+    expect(getJadeAccount).toHaveBeenCalledTimes(3);
+    expect(container.textContent).toContain("5,000");
+    expect(container.textContent).not.toContain("Unavailable");
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
   });
 

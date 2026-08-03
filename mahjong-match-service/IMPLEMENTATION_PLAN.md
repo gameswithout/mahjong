@@ -217,11 +217,9 @@ image, event log, or public payload.
 ## Deployment record
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
-ahead of the append-latency benchmark. The current 2026-07-30 deployment
-completes the §8.4 Full Rotation player flow and applies its ranked runtime
-deadlines, retaining the P2.2 achievement experience and the mobile-network
-work: gzip on every response, conditional GET so an unchanged seat view costs
-headers instead of a body, and HTTP server timeouts.
+ahead of the append-latency benchmark. The current 2026-08-03 deployment adds
+the authoritative match-history endpoint used by the lobby while retaining the
+Full Rotation, achievement-experience, and mobile-network work.
 
 **Keep this block current.** Its staleness caused a 2026-07-25 mis-diagnosis:
 the record said 2026-07-20 while the live service already carried the Jade
@@ -237,9 +235,15 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      full-rotation-gate-cd6179e (deployment created
-                2026-07-31T03:11Z, healthy within ~30s; deployment
-                48a106e6-835e-4d94-83a5-118f44d2f484). Adds the §10.1
+Image tag:      match-history-a38b406 (deployment created
+                2026-08-03T19:27:56.981Z, healthy; deployment
+                a4f75f77-e9df-44c1-9f51-c1df2a11370e). Adds the authoritative
+                /v1/namespaces/{namespace}/match-history endpoint, including
+                completed practice sessions used to reconcile lobby totals.
+
+Previous image: full-rotation-gate-cd6179e (deployment created
+                2026-07-31T03:11Z; deployment
+                48a106e6-835e-4d94-83a5-118f44d2f484). Added the §10.1
                 server-side ranked-account gate: Full Rotation entry now
                 requires a linked account, decided by the match service
                 rather than by the client hiding a button. A guest is a

@@ -53,7 +53,7 @@ describe("Jade client", () => {
 
     await expect(client.getAccount()).rejects.toMatchObject({
       code: "network",
-      message: "Jade service is temporarily unavailable. Please retry your balance.",
+      diagnostic: expect.stringContaining("HTTP 200; text/html"),
     });
   });
 
@@ -93,7 +93,8 @@ describe("Jade client", () => {
     );
     const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     expect(new Headers(request.headers).has("Cache-Control")).toBe(false);
-    expect(request.cache).toBeUndefined();
+    expect(request.cache).toBe("no-store");
+    expect(request.redirect).toBe("error");
   });
 
   it("accepts the gateway's lower-camel JSON field names", async () => {

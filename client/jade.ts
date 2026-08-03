@@ -12,11 +12,14 @@ export class JadeError extends Error {
   constructor(
     readonly code: JadeErrorCode,
     message: string,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; diagnostic?: string },
   ) {
     super(message, options);
     this.name = "JadeError";
+    this.diagnostic = options?.diagnostic;
   }
+
+  readonly diagnostic?: string;
 }
 
 export interface JadeReservation {
@@ -156,6 +159,12 @@ export function createJadeClient(
     try {
       response = await fetchImpl(`${path}${suffix}`, {
         method,
+        // A Jade balance is private, mutable account state. Safari can reuse a
+        // cached gateway response while navigating back to the lobby, which
+        // previously replaced a valid balance with "Unavailable". Always ask
+        // the service for a fresh representation.
+        cache: "no-store",
+        redirect: "error",
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
@@ -183,18 +192,35 @@ export function createJadeClient(
       throw new JadeError("network", "Jade service response could not be read.", { cause: error });
     }
     if (!text.trim() || contentType.includes("text/html")) {
+      const diagnostic =
+        `HTTP ${response.status}; ${contentType || "no content-type"}; ` +
+        `${text.length} bytes; ${response.url || path}`;
+      if (import.meta.env.DEV) {
+        console.warn("[jade] Invalid success response", diagnostic);
+      }
       throw new JadeError(
         "network",
-        "Jade service is temporarily unavailable. Please retry your balance.",
+        import.meta.env.DEV
+          ? `Jade service returned an invalid response (${diagnostic}).`
+          : "Jade service is temporarily unavailable. Please retry your balance.",
+        { diagnostic },
       );
     }
     try {
       return JSON.parse(text) as unknown;
     } catch (error) {
+      const diagnostic =
+        `HTTP ${response.status}; ${contentType || "no content-type"}; ` +
+        `${text.length} bytes; ${response.url || path}`;
+      if (import.meta.env.DEV) {
+        console.warn("[jade] Invalid JSON response", diagnostic);
+      }
       throw new JadeError(
         "network",
-        "Jade service is temporarily unavailable. Please retry your balance.",
-        { cause: error },
+        import.meta.env.DEV
+          ? `Jade service returned invalid JSON (${diagnostic}).`
+          : "Jade service is temporarily unavailable. Please retry your balance.",
+        { cause: error, diagnostic },
       );
     }
   }

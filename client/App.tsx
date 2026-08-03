@@ -44,7 +44,12 @@ import {
   type ProgressionSnapshot,
 } from "./progression";
 import { AchievementScreen, ProgressionScreen } from "./ProgressionScreen";
-import { createPlayerStatsClient, PlayerStatsError, type PlayerStatSummary } from "./player-stats";
+import {
+  createPlayerStatsClient,
+  PlayerStatsError,
+  reconcilePlayerStatsWithHistory,
+  type PlayerStatSummary,
+} from "./player-stats";
 import { getMatchHistory, type MatchHistoryEntry } from "./match-history";
 import { StatisticsScreen } from "./StatisticsScreen";
 import {
@@ -631,6 +636,10 @@ export function App(
   const syncFailuresRef = useRef(0);
   const sessionRequestRef = useRef(0);
   const matchmakingRequestRef = useRef(0);
+  // Jade is refreshed from several lifecycle paths (sign-in, settlement, and
+  // returning to the lobby). Ignore an older response once a newer refresh or
+  // authoritative match projection has won the race.
+  const jadeRequestRef = useRef(0);
   const progressionRequestRef = useRef(0);
   const achievementRequestRef = useRef(0);
   // Social reads can outlive the identity that started them. Keeping their
@@ -1330,6 +1339,7 @@ export function App(
     browserMatchResumeStore.clear();
     sessionRequestRef.current += 1;
     matchmakingRequestRef.current += 1;
+    jadeRequestRef.current += 1;
     progressionRequestRef.current += 1;
     achievementRequestRef.current += 1;
     friendsRequestRef.current += 1;
@@ -1689,7 +1699,11 @@ export function App(
         createPlayerStatsClient(stableIam.getAccessToken(), options).get(),
         getMatchHistory(stableIam.getAccessToken(), options),
       ]);
-      setStatisticsState({ status: "ready", summary, history });
+      setStatisticsState({
+        status: "ready",
+        summary: reconcilePlayerStatsWithHistory(summary, history),
+        history,
+      });
     } catch (error) {
       setStatisticsState({
         status: "error",
@@ -1899,15 +1913,45 @@ export function App(
     await loadParty();
   }
 
-  async function loadJadeAccount(): Promise<JadeAccount | null> {
+  async function loadJadeAccount(
+    { preserveReady = false }: { preserveReady?: boolean } = {},
+  ): Promise<JadeAccount | null> {
+    const requestId = ++jadeRequestRef.current;
     setJadeRecoveryState({ status: "idle" });
-    setJadeState({ status: "loading" });
+    setJadeState((current) =>
+      preserveReady && current.status === "ready" ? current : { status: "loading" },
+    );
     try {
-      const account = await createAuthenticatedJadeClient().getAccount();
+      let account: JadeAccount;
+      try {
+        account = await createAuthenticatedJadeClient().getAccount();
+      } catch (error) {
+        // A hand can outlive the access token used to enter it. Match-runtime
+        // requests already renew once on a 401; the lobby balance must do the
+        // same or a valid Jade account becomes "Unavailable" on return.
+        if (!(error instanceof JadeError) || error.code !== "unauthenticated") {
+          throw error;
+        }
+        const refreshed = await stableIam.refreshAccessToken();
+        if (!refreshed) {
+          throw error;
+        }
+        account = await createAuthenticatedJadeClient().getAccount();
+      }
+      if (requestId !== jadeRequestRef.current) {
+        return null;
+      }
       setJadeState({ status: "ready", account });
       return account;
     } catch (error) {
-      setJadeState({ status: "error", ...jadeErrorView(error) });
+      if (requestId !== jadeRequestRef.current) {
+        return null;
+      }
+      setJadeState((current) =>
+        preserveReady && current.status === "ready"
+          ? current
+          : { status: "error", ...jadeErrorView(error) },
+      );
       return null;
     }
   }
@@ -1919,6 +1963,7 @@ export function App(
     setJadeRecoveryState({ status: "claiming" });
     try {
       const claim = await createAuthenticatedJadeClient().claimWelfare();
+      jadeRequestRef.current += 1;
       setJadeState({ status: "ready", account: claim.account });
       setJadeRecoveryState(
         claim.granted
@@ -1944,6 +1989,7 @@ export function App(
   > {
     try {
       const account = await createAuthenticatedJadeClient().release();
+      jadeRequestRef.current += 1;
       setJadeState({ status: "ready", account });
       return { released: true };
     } catch (error) {
@@ -1983,6 +2029,7 @@ export function App(
 
   function adoptJadeAccount(view: SeatView) {
     if (view.jade_account) {
+      jadeRequestRef.current += 1;
       setJadeState({ status: "ready", account: view.jade_account });
     }
   }
@@ -2452,6 +2499,11 @@ export function App(
       setReconnectAttempt(0);
       setSessionState({ status: "idle" });
       setJoinSessionId("");
+      if (refreshJade) {
+        await loadJadeAccount({ preserveReady: true });
+      }
+      void loadProgression();
+      void loadStatistics();
       return true;
     }
 
@@ -2472,7 +2524,7 @@ export function App(
       setSessionState({ status: "empty" });
       setJoinSessionId("");
       if (refreshJade) {
-        await loadJadeAccount();
+        await loadJadeAccount({ preserveReady: true });
       }
       void loadProgression();
       void loadStatistics();

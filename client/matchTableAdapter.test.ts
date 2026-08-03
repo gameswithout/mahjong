@@ -219,6 +219,37 @@ describe("seatViewToMatchTableState", () => {
     expect(meld.tileCount).toBe(4);
   });
 
+  it("renders the discarded tile in the middle of a Chow meld", () => {
+    const state = seatViewToMatchTableState(
+      seatView({
+        players: [
+          { seat: "E", hand_count: 1 },
+          {
+            seat: "S",
+            hand_count: 13,
+            melds: [{
+              type: "chow",
+              tiles: [
+                { id: "bamboo-7-1", kind: "bamboo", rank: 7, copy: 1 },
+                { id: "bamboo-9-1", kind: "bamboo", rank: 9, copy: 1 },
+                { id: "bamboo-8-4", kind: "bamboo", rank: 8, copy: 4 },
+              ],
+            }],
+          },
+          { seat: "W", hand_count: 16 },
+          { seat: "N", hand_count: 16 },
+        ],
+      }),
+      { now: Date.now(), onClaimAction: vi.fn() },
+    );
+
+    expect(state.seats.S.melds[0].tiles.map((item) => item.id)).toEqual([
+      "bamboo-7-1",
+      "bamboo-8-4",
+      "bamboo-9-1",
+    ]);
+  });
+
   it("renders an exposed meld's real tiles for every seat", () => {
     const state = seatViewToMatchTableState(
       seatView({

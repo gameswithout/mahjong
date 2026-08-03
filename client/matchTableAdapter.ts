@@ -33,11 +33,19 @@ function wireTile(item: MahjongTile) {
 function wireMeld(meld: MeldView, ownerSeat: SeatId, index: number): WireMeld {
   const tiles = meld.tiles ?? [];
   const concealedAndRedacted = Boolean(meld.concealed) && tiles.length === 0;
+  // The rules engine stores a claimed Chow as [two tiles from hand,
+  // discarded tile]. Render that final, claimed tile in the middle so the
+  // table clearly communicates which tile came from the opponent. This is a
+  // presentation-only order; scoring continues to use the authoritative
+  // meld supplied by the server.
+  const displayTiles = meld.type === "chow" && tiles.length === 3
+    ? [tiles[0], tiles[2], tiles[1]]
+    : tiles;
   return {
     id: `${ownerSeat}-meld-${index}`,
     type: meld.type,
     concealed: meld.concealed,
-    tiles: tiles.map(wireTile),
+    tiles: displayTiles.map(wireTile),
     // A concealed Kong is the only meld shape the engine ever marks
     // concealed (§5.7); it is always 4 tiles.
     tileCount: concealedAndRedacted ? 4 : undefined,

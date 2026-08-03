@@ -83,6 +83,30 @@ export interface PlayerStatSummary {
   hasPlayed: boolean;
 }
 
+/** Reconcile lagging aggregate counters with the authoritative session list. */
+export function reconcilePlayerStatsWithHistory(
+  summary: PlayerStatSummary,
+  history: ReadonlyArray<{ result: "Win" | "Loss" | "Draw" }>,
+): PlayerStatSummary {
+  if (history.length <= summary.handsPlayed) {
+    return summary;
+  }
+  const handsPlayed = history.length;
+  const wins = history.reduce(
+    (total, entry) => total + (entry.result === "Win" ? 1 : 0),
+    0,
+  );
+  return {
+    ...summary,
+    handsPlayed,
+    wins,
+    hasPlayed: true,
+    winRate: rate(wins, handsPlayed, "hands played"),
+    dealInRate: rate(summary.dealInRate.numerator, handsPlayed, "hands played"),
+    tingRate: rate(summary.tingRate.numerator, handsPlayed, "hands played"),
+  };
+}
+
 function rate(numerator: number, denominator: number, denominatorLabel: string): StatRate {
   return {
     numerator,
