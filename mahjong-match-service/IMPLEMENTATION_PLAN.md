@@ -235,13 +235,20 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      match-history-a38b406 (deployment created
+Image tag:      online-only-d56af2a (deployment created
+                2026-08-04T03:44:17.568Z, healthy; deployment
+                17e04bb2-e1fb-4bb9-8fac-165f947a7919). Makes Online Play the
+                only source of levels and achievement progress, separates the
+                persistent Alpha milestones from release-reset progression,
+                and retains the authoritative match-history endpoint.
+
+Previous image: match-history-a38b406 (deployment created
                 2026-08-03T19:27:56.981Z, healthy; deployment
                 a4f75f77-e9df-44c1-9f51-c1df2a11370e). Adds the authoritative
                 /v1/namespaces/{namespace}/match-history endpoint, including
                 completed practice sessions used to reconcile lobby totals.
 
-Previous image: full-rotation-gate-cd6179e (deployment created
+Earlier image:  full-rotation-gate-cd6179e (deployment created
                 2026-07-31T03:11Z; deployment
                 48a106e6-835e-4d94-83a5-118f44d2f484). Added the §10.1
                 server-side ranked-account gate: Full Rotation entry now
