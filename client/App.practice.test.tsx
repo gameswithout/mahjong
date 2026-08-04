@@ -5,13 +5,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchCommandRequest, SeatView } from "../protocol/envelope";
 import type { BrowserIam } from "./iam";
 import { JadeError } from "./jade";
+import { MatchHistoryError } from "./match-history";
 import { MatchRuntimeError } from "./match-runtime";
+import { PlayerStatsError, summarisePlayerStats } from "./player-stats";
+import { ProgressionError } from "./progression";
 import type { MatchRuntimeConnection, MatchRuntimeConnectionOptions } from "./match-runtime";
 import { SessionLookupError, type SessionClient } from "./session";
 
 const dependencies = vi.hoisted(() => ({
   createJadeClient: vi.fn(),
   createProgressionClient: vi.fn(),
+  createPlayerStatsClient: vi.fn(),
+  getMatchHistory: vi.fn(),
   createLobbyConnection: vi.fn(),
   createMatchRuntimeConnection: vi.fn(),
   createSessionClient: vi.fn(),
@@ -28,6 +33,16 @@ vi.mock("./progression", async () => {
     ...actual,
     createProgressionClient: dependencies.createProgressionClient,
   };
+});
+
+vi.mock("./player-stats", async () => {
+  const actual = await vi.importActual<typeof import("./player-stats")>("./player-stats");
+  return { ...actual, createPlayerStatsClient: dependencies.createPlayerStatsClient };
+});
+
+vi.mock("./match-history", async () => {
+  const actual = await vi.importActual<typeof import("./match-history")>("./match-history");
+  return { ...actual, getMatchHistory: dependencies.getMatchHistory };
 });
 
 vi.mock("./config", async () => {
@@ -236,6 +251,10 @@ describe("App Practice journey", () => {
         granted: true,
       }),
     });
+    dependencies.createPlayerStatsClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue(summarisePlayerStats({})),
+    });
+    dependencies.getMatchHistory.mockResolvedValue([]);
 
     sessionClient = {
       listMySessions: vi.fn().mockResolvedValue([]),
@@ -344,6 +363,54 @@ describe("App Practice journey", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("Continue the tutorial"));
   });
 
+  it("refreshes an expired restored token before hydrating first-login history and XP", async () => {
+    const progressionGet = vi
+      .fn()
+      .mockRejectedValueOnce(new ProgressionError("unauthenticated", "expired"))
+      .mockResolvedValue({
+        progression: {
+          level: 1,
+          lifetime_xp: 125,
+          xp_into_level: 125,
+          xp_for_next_level: 500,
+          earned: [],
+        },
+        curve: [],
+      });
+    dependencies.createProgressionClient.mockReturnValue({
+      get: progressionGet,
+      awardOnboarding: vi.fn(),
+    });
+    const statisticsGet = vi
+      .fn()
+      .mockRejectedValueOnce(new PlayerStatsError("unauthenticated", "expired"))
+      .mockResolvedValue(summarisePlayerStats({}));
+    dependencies.createPlayerStatsClient.mockReturnValue({ get: statisticsGet });
+    dependencies.getMatchHistory.mockRejectedValueOnce(
+      new MatchHistoryError("unauthenticated", "expired"),
+    ).mockResolvedValue([
+      { result: "Win" },
+      { result: "Loss" },
+      { result: "Loss" },
+      { result: "Loss" },
+      { result: "Loss" },
+    ]);
+    const refreshAccessToken = vi.fn().mockResolvedValue(true);
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}),
+      getAccessToken: vi.fn().mockReturnValue("restored-token"),
+      refreshAccessToken,
+    } as unknown as BrowserIam;
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+
+    await vi.waitFor(() => expect(container.textContent).toContain("125 / 500 XP"));
+    await vi.waitFor(() => expect(container.textContent).toContain("1 Wins / 5 Games Played"));
+    expect(refreshAccessToken).toHaveBeenCalled();
+  });
+
   it("launches, replays with a fresh Session, and returns to the lobby", async () => {
     const refreshAccessToken = vi.fn().mockResolvedValue(true);
     const iam = {
@@ -385,7 +452,9 @@ describe("App Practice journey", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     expect(calls.at(-1)).toBe("leave:practice-2");
     expect(refreshAccessToken).toHaveBeenCalledOnce();
-    expect(getJadeAccount).toHaveBeenCalledTimes(3);
+    // Sign-in hydrates once immediately and once more when Lobby confirms the
+    // session; the remaining reads are the two post-hand lobby refreshes.
+    expect(getJadeAccount).toHaveBeenCalledTimes(4);
     expect(container.textContent).toContain("5,000");
     expect(container.textContent).not.toContain("Unavailable");
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();

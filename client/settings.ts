@@ -1,6 +1,7 @@
 import type { AccelByteWebSdk } from "./iam";
 
 export const PLAYER_SETTINGS_RECORD_KEY = "mahjong-player-settings";
+const PLAYER_SETTINGS_CACHE_PREFIX = `${PLAYER_SETTINGS_RECORD_KEY}:`;
 
 export interface PlayerSettings {
   showTutorial: boolean;
@@ -54,7 +55,29 @@ function responseStatus(error: unknown): number | undefined {
 
 export interface PlayerSettingsClient {
   get(): Promise<PlayerSettings>;
+  getStored(): Promise<PlayerSettings | null>;
   save(settings: PlayerSettings): Promise<PlayerSettings>;
+}
+
+function cacheKey(userId: string): string {
+  return `${PLAYER_SETTINGS_CACHE_PREFIX}${userId}`;
+}
+
+export function loadCachedPlayerSettings(userId: string): PlayerSettings | null {
+  try {
+    const value = globalThis.localStorage?.getItem(cacheKey(userId));
+    return value ? normalizePlayerSettings(JSON.parse(value)) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveCachedPlayerSettings(userId: string, settings: PlayerSettings): void {
+  try {
+    globalThis.localStorage?.setItem(cacheKey(userId), JSON.stringify(normalizePlayerSettings(settings)));
+  } catch {
+    // Private browsing and storage quotas must not block settings changes.
+  }
 }
 
 export function createPlayerSettingsClient(
@@ -68,19 +91,23 @@ export function createPlayerSettingsClient(
   const axios = sdk.assembly().axiosInstance as unknown as AxiosLike;
   const endpoint = recordEndpoint(namespace, userId);
 
+  async function getStored(): Promise<PlayerSettings | null> {
+    try {
+      const response = await axios.get(endpoint);
+      return normalizePlayerSettings(response.data);
+    } catch (error) {
+      if (responseStatus(error) === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   return {
     async get() {
-      try {
-        const response = await axios.get(endpoint);
-        return normalizePlayerSettings(response.data);
-      } catch (error) {
-        // A missing record is the first-login state, not a failure.
-        if (responseStatus(error) === 404) {
-          return DEFAULT_PLAYER_SETTINGS;
-        }
-        throw error;
-      }
+      return (await getStored()) ?? DEFAULT_PLAYER_SETTINGS;
     },
+    getStored,
     async save(settings) {
       const normalized = normalizePlayerSettings(settings);
       await axios.put(endpoint, {

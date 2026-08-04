@@ -8,6 +8,29 @@ import (
 	"github.com/gameswithout/mahjong/rulesengine"
 )
 
+func TestMatchHistoryResultDistinguishesPersonalOutcomes(t *testing.T) {
+	discard := &rulesengine.HandResult{
+		Kind:    rulesengine.WinDiscard,
+		Payer:   rulesengine.East,
+		Winners: []rulesengine.HandWinner{{Seat: rulesengine.South}},
+	}
+	if got := matchHistoryResult(discard, rulesengine.South); got != "Win" {
+		t.Fatalf("winner result = %q, want Win", got)
+	}
+	if got := matchHistoryResult(discard, rulesengine.East); got != "Loss" {
+		t.Fatalf("payer result = %q, want Loss", got)
+	}
+	if got := matchHistoryResult(discard, rulesengine.West); got != "Neutral" {
+		t.Fatalf("uninvolved result = %q, want Neutral", got)
+	}
+	if got := matchHistoryResult(&rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw}, rulesengine.North); got != "Draw" {
+		t.Fatalf("exhaustive result = %q, want Draw", got)
+	}
+	if got := matchHistoryResult(&rulesengine.HandResult{Kind: rulesengine.WinZimo, Winners: []rulesengine.HandWinner{{Seat: rulesengine.South}}}, rulesengine.West); got != "Loss" {
+		t.Fatalf("zimo opponent result = %q, want Loss", got)
+	}
+}
+
 func TestTakenOverMajorityFromEventsUsesElapsedControlTime(t *testing.T) {
 	start := time.Date(2026, time.July, 27, 12, 0, 0, 0, time.UTC)
 	events := []rulesengine.MatchEvent{

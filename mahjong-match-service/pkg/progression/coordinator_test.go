@@ -274,7 +274,6 @@ func TestCoordinator_StatsProjectOnceDespiteRepeatedProjection(t *testing.T) {
 }
 
 func TestCoordinator_PracticeProjectsNoAchievementStats(t *testing.T) {
-	// §11.4: Practice grants no achievements.
 	repository := newMemoryProgressionRepository()
 	stats := &fakeStatsMirror{}
 	coordinator := NewCoordinator(repository)
@@ -465,7 +464,6 @@ func TestCoordinator_PracticeNeverSweepsAchievements(t *testing.T) {
 	); err != nil {
 		t.Fatalf("RecordHand() error = %v", err)
 	}
-	// §11.4: Practice grants no achievements, so it must not even ask.
 	if reader.calls != 0 {
 		t.Fatalf("Practice swept achievements %d times", reader.calls)
 	}

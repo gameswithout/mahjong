@@ -20,8 +20,8 @@ export function PracticeLaunchCard({
       <p className="status-label">Solo Practice</p>
       <h2 id="practice-title">Play a full hand against three bots</h2>
       <p className="practice-description">
-        Untimed, no queue, and no pressure. Practice never changes Jade or rating; each
-        completed hand earns XP.
+        Untimed, no queue, and no pressure. Practice does not change Jade, rating,
+        levels, or achievements. Progression is earned in Online Play.
       </p>
       <button
         className="primary-action practice-action"

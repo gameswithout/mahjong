@@ -7,7 +7,7 @@
 // Play Again covers both Practice and staked requeue (§P1.3 session closure).
 import { useState, type ReactNode } from "react";
 
-import { patternGuide, taiValue } from "./scoring-guide";
+import { patternDisplayName, patternGuide, taiValue } from "./scoring-guide";
 
 import type {
   HandResult,
@@ -297,13 +297,14 @@ function PatternRow({
 }) {
   const [open, setOpen] = useState(false);
   const guide = patternGuide(pattern.name);
+  const displayName = patternDisplayName(pattern.name);
   const panelId = `pattern-${pattern.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
   const worth = guide ? taiValue(pattern.tai, stakePerTai) : null;
 
   if (!guide) {
     return (
       <li>
-        <span>{pattern.name}</span>
+        <span>{displayName}</span>
         <strong>
           {pattern.tai} <span lang="zh-Hant">台</span>
         </strong>
@@ -321,7 +322,7 @@ function PatternRow({
         aria-controls={panelId}
       >
         <span className="hand-result-pattern-name">
-          {pattern.name}
+          {displayName}
           {/* The affordance has to be visible without hover — this is a touch
               surface as much as a pointer one. */}
           <span className="hand-result-pattern-hint" aria-hidden="true">
@@ -344,7 +345,7 @@ function PatternRow({
               <span className="hand-result-pattern-upgrade-label">Worth more</span>
               <span>
                 <strong>
-                  {guide.upgrade.name} · {guide.upgrade.tai} <span lang="zh-Hant">台</span>
+                  {patternDisplayName(guide.upgrade.name)} · {guide.upgrade.tai} <span lang="zh-Hant">台</span>
                 </strong>{" "}
                 {guide.upgrade.how}
               </span>
@@ -663,7 +664,7 @@ export function HandResultScreen({
       {practice && (
         <p className="hand-result-practice-note">
           <strong>Practice result</strong>
-          <span>No Jade or rating changed. Completed hands still earn capped XP.</span>
+          <span>No Jade, rating, level, or achievement progress changed.</span>
         </p>
       )}
 

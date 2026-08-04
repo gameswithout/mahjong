@@ -3599,8 +3599,49 @@ h1 {
   padding: 0.65rem 0.75rem;
 }
 
+.achievement-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+}
+
+.achievement-filters button {
+  background: rgb(216 220 239 / 7%);
+  border: 1px solid rgb(216 220 239 / 20%);
+  border-radius: 999px;
+  color: #d8dcef;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.45rem 0.8rem;
+}
+
+.achievement-filters button:hover,
+.achievement-filters button:focus-visible,
+.achievement-filters button.is-active {
+  background: #f2c66d;
+  border-color: #f2c66d;
+  color: #15192b;
+}
+
 .achievement-section {
   margin-top: 1.25rem;
+}
+
+.achievement-alpha {
+  border: 1px solid rgb(242 198 109 / 45%);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.achievement-reset-note {
+  background: rgb(242 198 109 / 9%);
+  border-left: 4px solid #f2c66d;
+  color: #d8dcef;
+  margin: 1rem 0 0;
+  padding: 0.8rem 1rem;
 }
 
 .achievement-section-heading {
@@ -3844,6 +3885,7 @@ h1 {
 .match-history-result.is-win { background: #26734a; }
 .match-history-result.is-loss { background: #7c3540; }
 .match-history-result.is-draw { background: #4b5476; }
+.match-history-result.is-neutral { background: #52646b; }
 
 .match-history-meta {
   align-items: flex-end;

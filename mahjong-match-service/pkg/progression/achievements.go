@@ -45,7 +45,7 @@ const (
 var launchAchievementCatalog = []Achievement{
 	{
 		Code: "alpha-player", Name: "Alpha Player",
-		Description: "Complete a public hand during Alpha.", Goal: 1, XP: 100,
+		Description: "Complete an Online Play hand during Alpha.", Goal: 1, XP: 100,
 		BonusReward: "Alpha tile design (placeholder)", Available: true,
 	},
 	{
@@ -55,16 +55,16 @@ var launchAchievementCatalog = []Achievement{
 	},
 	{
 		Code: "first-hand", Name: "First Hand",
-		Description: "Complete your first public hand.", Goal: 1, XP: 100, Available: true,
+		Description: "Complete your first Online Play hand.", Goal: 1, XP: 100, Available: true,
 	},
 	{
 		Code: "first-win", Name: "First Win",
-		Description: "Win your first public hand.", Goal: 1, XP: 200,
+		Description: "Win your first Online Play hand.", Goal: 1, XP: 200,
 		BonusReward: "First Victory title", Available: true,
 	},
 	{
 		Code: "self-reliant", Name: "Self Reliant",
-		Description: "Win by Zimo 10 times.", Goal: 10, XP: 300, Available: true,
+		Description: "Win by 自摸 (Zi Mo) 10 times.", Goal: 10, XP: 300, Available: true,
 	},
 	{
 		Code: "claim-student", Name: "Claim Student",
@@ -81,23 +81,23 @@ var launchAchievementCatalog = []Achievement{
 		UnavailableReason: trackingPendingReason,
 	},
 	{
-		Code: "all-pongs", Name: "All Pongs",
-		Description: "Win with All Pongs.", Goal: 1, XP: 500,
+		Code: "all-pongs", Name: "碰碰胡 (Pong Pong Hu)",
+		Description: "Win with every set as a Pong or Kong.", Goal: 1, XP: 500,
 		BonusReward: "Pong Specialist title", Available: true,
 	},
 	{
-		Code: "pure-hand", Name: "Pure Hand",
-		Description: "Win with a Full Flush.", Goal: 1, XP: 750,
+		Code: "pure-hand", Name: "清一色 (Ching Yi Se)",
+		Description: "Win using only one numbered suit.", Goal: 1, XP: 750,
 		BonusReward: "Pure Hand frame", Available: true,
 	},
 	{
-		Code: "dragon-caller", Name: "Dragon Caller",
-		Description: "Win with Big Three Dragons.", Goal: 1, XP: 1000,
+		Code: "dragon-caller", Name: "大三元 (Dai Sam Yuen)",
+		Description: "Win with Pongs or Kongs of all three Dragons.", Goal: 1, XP: 1000,
 		BonusReward: "Dragon Caller title", Available: true,
 	},
 	{
-		Code: "four-winds", Name: "Four Winds",
-		Description: "Win with Big Four Winds.", Goal: 1, XP: 1500,
+		Code: "four-winds", Name: "大四喜 (Dai Sei Hei)",
+		Description: "Win with Pongs or Kongs of all four Winds.", Goal: 1, XP: 1500,
 		BonusReward: "Four Winds frame", Available: true,
 	},
 	{
@@ -120,19 +120,19 @@ var launchAchievementCatalog = []Achievement{
 	},
 	{
 		Code: "kong-robber", Name: "Kong Robber",
-		Description: "Win by Robbing an Added Kong.", Goal: 1, XP: 500, Available: true,
+		Description: "Win with 搶槓胡 (Cheung Gong Hu).", Goal: 1, XP: 500, Available: true,
 	},
 	{
 		Code: "replacement-artist", Name: "Replacement Artist",
-		Description: "Win after a replacement draw.", Goal: 1, XP: 300, Available: true,
+		Description: "Win with 槓上開花 (Gong Seung Hoi Fa).", Goal: 1, XP: 300, Available: true,
 	},
 	{
 		Code: "last-chance", Name: "Last Chance",
-		Description: "Win with a Last Tile Zimo.", Goal: 1, XP: 500, Available: true,
+		Description: "Win with 海底撈月 (Hoi Dai Lau Yuet).", Goal: 1, XP: 500, Available: true,
 	},
 	{
 		Code: "quiet-strength", Name: "Quiet Strength",
-		Description: "Win with a Concealed Zimo.", Goal: 1, XP: 300, Available: true,
+		Description: "Win with 門清自摸 (Mun Ching Zi Mo).", Goal: 1, XP: 300, Available: true,
 	},
 	{
 		Code: "three-of-a-mind", Name: "Three of a Mind",
@@ -140,7 +140,7 @@ var launchAchievementCatalog = []Achievement{
 	},
 	{
 		Code: "half-and-half", Name: "Half and Half",
-		Description: "Win with a Half Flush.", Goal: 1, XP: 300, Available: true,
+		Description: "Win with 混一色 (Wan Yi Se).", Goal: 1, XP: 300, Available: true,
 	},
 	{
 		Code: "garden-party", Name: "Garden Party",
@@ -148,17 +148,17 @@ var launchAchievementCatalog = []Achievement{
 	},
 	{
 		Code: "honor-guard", Name: "Honor Guard",
-		Description: "Win with All Honors.", Goal: 1, XP: 1000,
+		Description: "Win with 字一色 (Zi Yi Se).", Goal: 1, XP: 1000,
 		BonusReward: "Honored title", Available: true,
 	},
 	{
 		Code: "eightfold-bloom", Name: "Eightfold Bloom",
-		Description: "Win with Eight Flowers.", Goal: 1, XP: 1500,
+		Description: "Win with 八仙過海 (Baat Sin Gwo Hoi).", Goal: 1, XP: 1500,
 		BonusReward: "Eightfold title", Available: true,
 	},
 	{
 		Code: "self-reliant-ii", Name: "Self Reliant II",
-		Description: "Win by Zimo 50 times.", Goal: 50, XP: 750, Available: true,
+		Description: "Win by 自摸 (Zi Mo) 50 times.", Goal: 50, XP: 750, Available: true,
 	},
 	{
 		Code: "claim-scholar", Name: "Claim Scholar",

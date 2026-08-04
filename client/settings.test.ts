@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_PLAYER_SETTINGS,
   createPlayerSettingsClient,
+  loadCachedPlayerSettings,
   normalizePlayerSettings,
+  saveCachedPlayerSettings,
 } from "./settings";
 
 function sdkWith(get: ReturnType<typeof vi.fn>, put = vi.fn()) {
@@ -13,6 +15,19 @@ function sdkWith(get: ReturnType<typeof vi.fn>, put = vi.fn()) {
 }
 
 describe("player settings", () => {
+  it("caches settings by account for immediate login hydration", () => {
+    saveCachedPlayerSettings("guest-1", {
+      showTutorial: false,
+      optionalAnalyticsConsent: true,
+    });
+
+    expect(loadCachedPlayerSettings("guest-1")).toEqual({
+      showTutorial: false,
+      optionalAnalyticsConsent: true,
+    });
+    expect(loadCachedPlayerSettings("guest-2")).toBeNull();
+  });
+
   it("normalizes missing and wrapped values", () => {
     expect(normalizePlayerSettings(undefined)).toEqual(DEFAULT_PLAYER_SETTINGS);
     expect(normalizePlayerSettings({ value: { showTutorial: false } })).toEqual({
@@ -40,6 +55,12 @@ describe("player settings", () => {
     const get = vi.fn().mockRejectedValue({ response: { status: 404 } });
     const client = createPlayerSettingsClient(sdkWith(get), "mahjong", "player");
     await expect(client.get()).resolves.toEqual(DEFAULT_PLAYER_SETTINGS);
+  });
+
+  it("distinguishes a missing Cloud Save record from stored defaults", async () => {
+    const get = vi.fn().mockRejectedValue({ response: { status: 404 } });
+    const client = createPlayerSettingsClient(sdkWith(get), "mahjong", "player");
+    await expect(client.getStored()).resolves.toBeNull();
   });
 
   it("saves a private user record", async () => {

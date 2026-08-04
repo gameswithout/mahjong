@@ -206,19 +206,15 @@ function jadeStandardView(): SeatView {
   return view;
 }
 
-// Practice never implies a persistent financial reward: no Jade account, no
-// settlement ledger, no Wallet state. XP is a separate capped progression
-// award when the authoritative service includes it.
+// Practice never implies a persistent reward: no Jade, rating, XP, level, or
+// achievement progress.
 function practiceView(): SeatView {
   const view = baseCompletedView();
   view.match_id = "practice-1";
   view.xp_award = {
     award_id: "hand:practice-1:player-east",
     source: "practice_hand",
-    total: 25,
-    components: [
-      { code: "practice_hand", label: "Practice hand", amount: 25 },
-    ],
+    total: 0,
   };
   view.progression = {
     level: 2,
@@ -251,5 +247,5 @@ export const RESULT_SCENARIOS: {
 }[] = [
   { id: "jade-capped", label: "Jade — debit cap applied", practice: false, view: jadeCappedView() },
   { id: "jade-standard", label: "Jade — standard hand", practice: false, view: jadeStandardView() },
-  { id: "practice", label: "Practice — XP only", practice: true, view: practiceView() },
+  { id: "practice", label: "Practice — no progression", practice: true, view: practiceView() },
 ];

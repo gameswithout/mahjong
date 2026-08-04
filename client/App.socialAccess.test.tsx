@@ -224,7 +224,7 @@ describe("App social feature access", () => {
     });
     await vi.waitFor(() => expect(container.textContent).toContain("First Hand"));
 
-    expect(container.textContent).toContain("Only completed public human hands");
+    expect(container.textContent).toContain("Only completed Online Play hands advance levels and achievements");
     expect(container.textContent).toContain("Back to Progress");
   });
 });

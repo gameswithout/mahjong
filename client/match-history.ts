@@ -2,11 +2,22 @@ export interface MatchHistoryEntry {
   matchId: string;
   completedAt: string;
   mode: string;
-  result: "Win" | "Loss" | "Draw";
+  result: "Win" | "Loss" | "Draw" | "Neutral";
   winKind: string;
   winningTileId: string;
   rawTai: number;
   xpAwarded: number;
+}
+
+export class MatchHistoryError extends Error {
+  constructor(
+    readonly code: "unauthenticated" | "network" | "protocol",
+    message: string,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.name = "MatchHistoryError";
+  }
 }
 
 function number(value: unknown): number {
@@ -18,21 +29,39 @@ export async function getMatchHistory(
   accessToken: string,
   options: { url: string; namespace: string; fetchImpl?: typeof fetch },
 ): Promise<MatchHistoryEntry[]> {
-  const response = await (options.fetchImpl ?? fetch)(
-    `${options.url.replace(/\/+$/, "")}/v1/namespaces/${encodeURIComponent(options.namespace)}/match-history?limit=30`,
-    { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } },
-  );
-  if (!response.ok) {
-    throw new Error(`Match history request failed with HTTP ${response.status}.`);
+  let response: Response;
+  try {
+    response = await (options.fetchImpl ?? fetch)(
+      `${options.url.replace(/\/+$/, "")}/v1/namespaces/${encodeURIComponent(options.namespace)}/match-history?limit=30`,
+      {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      },
+    );
+  } catch (error) {
+    throw new MatchHistoryError("network", "Match history could not be reached.", { cause: error });
   }
-  const body = await response.json() as { matches?: unknown };
+  if (response.status === 401) {
+    throw new MatchHistoryError("unauthenticated", "Sign in again to see your match history.");
+  }
+  if (!response.ok) {
+    throw new MatchHistoryError("network", `Match history request failed with HTTP ${response.status}.`);
+  }
+  let body: { matches?: unknown };
+  try {
+    body = await response.json() as { matches?: unknown };
+  } catch (error) {
+    throw new MatchHistoryError("protocol", "Match history returned an unexpected response.", {
+      cause: error,
+    });
+  }
   if (!Array.isArray(body.matches)) return [];
   return body.matches.flatMap((value) => {
     if (!value || typeof value !== "object") return [];
     const raw = value as Record<string, unknown>;
     const read = (snake: string, camel: string) => raw[snake] ?? raw[camel];
     const result = read("result", "result");
-    if (result !== "Win" && result !== "Loss" && result !== "Draw") return [];
+    if (result !== "Win" && result !== "Loss" && result !== "Draw" && result !== "Neutral") return [];
     return [{
       matchId: String(read("match_id", "matchId") ?? ""),
       completedAt: String(read("completed_at", "completedAt") ?? ""),

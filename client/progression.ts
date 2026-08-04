@@ -282,6 +282,7 @@ export function createProgressionClient(
     try {
       response = await fetchImpl(`${path}/${resource}${suffix}`, {
         method,
+        cache: method === "GET" ? "no-store" : undefined,
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",

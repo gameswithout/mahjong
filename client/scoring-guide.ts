@@ -54,6 +54,48 @@ export interface PatternGuide {
   perInstance?: boolean;
 }
 
+// Traditional table terms are presentation data. The rules engine keeps its
+// stable English identifiers so saved matches and server contracts do not
+// change when wording changes.
+const TRADITIONAL_PATTERN_TERMS: Record<string, string> = {
+  "Base Win": "胡 (Hu)",
+  Concealed: "門前清 (Mun Chin Ching)",
+  Zimo: "自摸 (Zi Mo)",
+  "Concealed Zimo": "門清自摸 (Mun Ching Zi Mo)",
+  "Fully Exposed": "全求人 (Chuen Kau Yan)",
+  "All Chows": "平胡 (Ping Hu)",
+  "All Pongs": "碰碰胡 (Pong Pong Hu)",
+  "Three Concealed Pongs": "三暗刻 (Sam Am Hak)",
+  "Four Concealed Pongs": "四暗刻 (Sei Am Hak)",
+  "Five Concealed Pongs": "五暗刻 (Ng Am Hak)",
+  "Half Flush": "混一色 (Wan Yi Se)",
+  "Full Flush": "清一色 (Ching Yi Se)",
+  "All Honors": "字一色 (Zi Yi Se)",
+  "No Honors or Flowers": "無字無花 (Mo Zi Mo Fa)",
+  "Seat Wind Set": "門風刻 (Mun Fung Hak)",
+  "Prevailing Wind Set": "圈風刻 (Hyun Fung Hak)",
+  "Small Three Dragons": "小三元 (Siu Sam Yuen)",
+  "Big Three Dragons": "大三元 (Dai Sam Yuen)",
+  "Small Four Winds": "小四喜 (Siu Sei Hei)",
+  "Big Four Winds": "大四喜 (Dai Sei Hei)",
+  "Concealed Kong": "暗槓 (An Gong)",
+  "Exposed/Added Kong": "明槓 (Ming Gong)",
+  "Single Wait": "獨聽 (Duk Teng)",
+  "Win After Replacement": "槓上開花 (Gong Seung Hoi Fa)",
+  "Last Tile Zimo": "海底撈月 (Hoi Dai Lau Yuet)",
+  "Robbing an Added Kong": "搶槓胡 (Cheung Gong Hu)",
+  "Matching Flower": "正花 (Jing Fa)",
+  "Complete Flowers": "四花 (Sei Fa)",
+  "Complete Seasons": "四季 (Sei Gwai)",
+  "Eight Flowers": "八仙過海 (Baat Sin Gwo Hoi)",
+  "Heavenly Hand": "天胡 (Tin Hu)",
+  "Earthly Hand": "地胡 (Dei Hu)",
+};
+
+export function patternDisplayName(name: string): string {
+  return TRADITIONAL_PATTERN_TERMS[name] ?? name;
+}
+
 const GUIDES: PatternGuide[] = [
   {
     name: "Base Win",

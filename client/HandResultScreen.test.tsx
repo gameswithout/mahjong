@@ -80,8 +80,7 @@ describe("HandResultScreen", () => {
     );
 
     expect(markup).toContain("Practice result");
-    expect(markup).toContain("No Jade or rating changed");
-    expect(markup).toContain("Completed hands still earn capped XP");
+    expect(markup).toContain("No Jade, rating, level, or achievement progress changed");
     expect(markup).toContain('aria-label="1 of dots"');
     expect(markup).toContain("3 Practice points");
     expect(markup).not.toContain("3 Jade");
@@ -569,9 +568,9 @@ describe("scoring pattern guide", () => {
     // The result screen is read at a glance first. Expanding everything by
     // default would bury the score under prose.
     const { container, cleanup } = mount(viewWithPatterns([{ name: "Half Flush", tai: 4 }]));
-    expect(container.textContent).toContain("Half Flush");
+    expect(container.textContent).toContain("混一色 (Wan Yi Se)");
     expect(container.textContent).not.toContain("One numbered suit plus honour tiles");
-    expect(toggleFor(container, "Half Flush")?.getAttribute("aria-expanded")).toBe("false");
+    expect(toggleFor(container, "混一色")?.getAttribute("aria-expanded")).toBe("false");
     cleanup();
   });
 
@@ -579,10 +578,10 @@ describe("scoring pattern guide", () => {
     // The upgrade is the whole point: a definition tells a player what
     // happened, an upgrade path tells them what to do next hand.
     const { container, cleanup } = mount(viewWithPatterns([{ name: "Half Flush", tai: 4 }]));
-    const toggle = toggleFor(container, "Half Flush")!;
+    const toggle = toggleFor(container, "混一色")!;
     act(() => toggle.click());
     expect(container.textContent).toContain("One numbered suit plus honour tiles");
-    expect(container.textContent).toContain("Full Flush");
+    expect(container.textContent).toContain("清一色 (Ching Yi Se)");
     expect(container.textContent).toContain("Worth more");
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     cleanup();
@@ -592,7 +591,7 @@ describe("scoring pattern guide", () => {
     // Telling someone to commit to one suit without saying opponents will read
     // it is half the advice, and the half that loses hands.
     const { container, cleanup } = mount(viewWithPatterns([{ name: "Full Flush", tai: 8 }]));
-    act(() => toggleFor(container, "Full Flush")!.click());
+    act(() => toggleFor(container, "清一色")!.click());
     expect(container.textContent).toContain("The trade-off");
     expect(container.textContent).toContain("read a flush quickly");
     cleanup();
@@ -602,7 +601,7 @@ describe("scoring pattern guide", () => {
     // Tai is the game's unit; Jade is the one a player feels.
     const view = viewWithPatterns([{ name: "Half Flush", tai: 4 }], { stakePerTai: 10 });
     const { container, cleanup } = mount(view, false);
-    act(() => toggleFor(container, "Half Flush")!.click());
+    act(() => toggleFor(container, "混一色")!.click());
     expect(container.textContent).toContain("40 Jade at this table");
     cleanup();
   });
@@ -611,7 +610,7 @@ describe("scoring pattern guide", () => {
     // Practice stakes nothing. A Jade figure here would claim the hand paid
     // something it did not.
     const { container, cleanup } = mount(viewWithPatterns([{ name: "Half Flush", tai: 4 }]), true);
-    act(() => toggleFor(container, "Half Flush")!.click());
+    act(() => toggleFor(container, "混一色")!.click());
     expect(container.textContent).not.toContain("Jade at this table");
     cleanup();
   });
@@ -620,7 +619,7 @@ describe("scoring pattern guide", () => {
     // Two concealed Kongs score 4台 on one line. A flat "2台" beside a line
     // reading 4 looks like the score is wrong.
     const { container, cleanup } = mount(viewWithPatterns([{ name: "Concealed Kong", tai: 4 }]));
-    expect(toggleFor(container, "Concealed Kong")?.textContent).toContain("each");
+    expect(toggleFor(container, "暗槓")?.textContent).toContain("each");
     cleanup();
   });
 
@@ -640,9 +639,9 @@ describe("scoring pattern guide", () => {
         { name: "All Pongs", tai: 4 },
       ]),
     );
-    act(() => toggleFor(container, "Half Flush")!.click());
-    expect(toggleFor(container, "Half Flush")?.getAttribute("aria-expanded")).toBe("true");
-    expect(toggleFor(container, "All Pongs")?.getAttribute("aria-expanded")).toBe("false");
+    act(() => toggleFor(container, "混一色")!.click());
+    expect(toggleFor(container, "混一色")?.getAttribute("aria-expanded")).toBe("true");
+    expect(toggleFor(container, "碰碰胡")?.getAttribute("aria-expanded")).toBe("false");
     cleanup();
   });
 });

@@ -9,9 +9,9 @@ func TestHandXP_Practice(t *testing.T) {
 		wantTotal  int
 		wantCapped bool
 	}{
-		{name: "first Practice hand of the day", xpToday: 0, wantTotal: 25},
-		{name: "later Practice hands pay the same", xpToday: 150, wantTotal: 25},
-		{name: "there is no daily cap", xpToday: 10_000, wantTotal: 25},
+		{name: "first Practice hand of the day", xpToday: 0, wantTotal: 0},
+		{name: "later Practice hands remain neutral", xpToday: 150, wantTotal: 0},
+		{name: "prior totals do not matter", xpToday: 10_000, wantTotal: 0},
 	}
 
 	for _, test := range tests {
@@ -31,8 +31,8 @@ func TestHandXP_Practice(t *testing.T) {
 }
 
 func TestHandXP_PracticeIgnoresPlayOutcome(t *testing.T) {
-	// §11.4 and §12.1: Practice pays participation XP only. A monster winning
-	// hand against bots must not pay win, Zimo, Tai, or Kong bonuses.
+	// Practice never pays XP. A monster winning hand against bots must not pay
+	// completion, win, Zimo, Tai, or Kong bonuses.
 	award := HandXP(HandOutcome{
 		Practice: true,
 		Won:      true,
@@ -44,9 +44,9 @@ func TestHandXP_PracticeIgnoresPlayOutcome(t *testing.T) {
 	if award.Total != PracticeHandXP {
 		t.Fatalf("Total = %d, want the flat %d", award.Total, PracticeHandXP)
 	}
-	if len(award.Components) != 2 ||
-		award.Components[1].Code != ComponentHandWon ||
-		award.Components[1].Amount != 0 {
+	if len(award.Components) != 1 ||
+		award.Components[0].Code != ComponentHandWon ||
+		award.Components[0].Amount != 0 {
 		t.Fatalf("practice win marker = %+v", award.Components)
 	}
 }

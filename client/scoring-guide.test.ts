@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 // Read as text through Vite rather than node:fs, so this test needs no Node
 // type surface in the app's TypeScript project.
 import scoringSource from "../rulesengine/scoring.go?raw";
-import { allPatternGuides, patternGuide, taiValue } from "./scoring-guide";
+import { allPatternGuides, patternDisplayName, patternGuide, taiValue } from "./scoring-guide";
 
 /**
  * Every `PatternScore{Name: "..."}` the engine can award, and the Tai values it
@@ -40,6 +40,11 @@ function computedPatterns(): Set<string> {
 }
 
 describe("pattern guide agrees with the rules engine", () => {
+  it("uses Traditional Chinese names for special hands", () => {
+    expect(patternDisplayName("All Pongs")).toBe("碰碰胡 (Pong Pong Hu)");
+    expect(patternDisplayName("Full Flush")).toBe("清一色 (Ching Yi Se)");
+    expect(patternDisplayName("Zimo")).toBe("自摸 (Zi Mo)");
+  });
   it("names only patterns the engine can actually award", () => {
     // A guide entry for a pattern that does not exist is copy promising a way
     // to score that the game will never pay out.

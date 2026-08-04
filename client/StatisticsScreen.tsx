@@ -3,6 +3,7 @@ import type { PlayerStatSummary } from "./player-stats";
 
 function resultDetail(entry: MatchHistoryEntry): string {
   if (entry.result === "Draw") return "Round ended in a draw";
+  if (entry.result === "Neutral") return "Another player won from someone else's discard";
   if (entry.result === "Win") {
     const kind = entry.winKind === "zimo" ? "Zimo" : entry.winKind ? "Hu" : "Win";
     return `${kind}${entry.rawTai > 0 ? ` · ${entry.rawTai} Tai` : ""}`;

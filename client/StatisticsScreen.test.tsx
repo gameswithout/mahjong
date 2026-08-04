@@ -50,6 +50,22 @@ describe("StatisticsScreen", () => {
     expect(container.textContent).toContain("match-1");
   });
 
+  it("labels uninvolved discard wins as Neutral", () => {
+    render({ [STAT_HANDS]: 1 }, undefined, [{
+      matchId: "match-neutral",
+      completedAt: "2026-08-03T20:00:00Z",
+      mode: "Play Online",
+      result: "Neutral",
+      winKind: "discard",
+      winningTileId: "dots-8",
+      rawTai: 0,
+      xpAwarded: 50,
+    }]);
+
+    expect(container.textContent).toContain("Neutral");
+    expect(container.textContent).toContain("Another player won from someone else's discard");
+  });
+
   it("invites a first hand rather than showing a wall of zeroes", () => {
     const onPlay = vi.fn();
     render({}, onPlay);

@@ -349,8 +349,7 @@ func (c *Coordinator) recordHand(
 	// player), so AwardXP pays each unlock once however many times it is seen.
 	// The client polls a finished hand while the result screen is up, so the
 	// unlock lands within a few seconds and is visible where it belongs.
-	// Never for Practice: §11.4 grants no achievements there, so a Practice
-	// hand must not even ask AGS about unlocks.
+	// Practice does not advance achievements, so it must not sweep AGS unlocks.
 	if c.achievements != nil && !practice {
 		unlocked, sweepErr := c.awardUnlockedAchievements(ctx, userID)
 		if sweepErr != nil && c.onStatsError != nil {

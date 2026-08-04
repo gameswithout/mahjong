@@ -85,6 +85,19 @@ describe("reconcilePlayerStatsWithHistory", () => {
     expect(reconciled).toMatchObject({ handsPlayed: 1, wins: 1, hasPlayed: true });
   });
 
+  it("counts wins when history and aggregate hand totals are equal", () => {
+    const summary = summarisePlayerStats({ [STAT_HANDS]: 4, [STAT_WINS]: 0 });
+    const reconciled = reconcilePlayerStatsWithHistory(summary, [
+      { result: "Loss" },
+      { result: "Win" },
+      { result: "Loss" },
+      { result: "Loss" },
+    ]);
+
+    expect(reconciled).toMatchObject({ handsPlayed: 4, wins: 1, hasPlayed: true });
+    expect(reconciled.winRate).toMatchObject({ numerator: 1, denominator: 4 });
+  });
+
   it("keeps newer aggregate counters when history is limited", () => {
     const summary = summarisePlayerStats({ [STAT_HANDS]: 12, [STAT_WINS]: 4 });
     expect(reconcilePlayerStatsWithHistory(summary, [{ result: "Win" }])).toBe(summary);
@@ -138,11 +151,13 @@ describe("createPlayerStatsClient", () => {
   it("asks the match service for its own player's stats, by token rather than by id", async () => {
     let requested = "";
     let auth = "";
+    let cache: RequestCache | undefined;
     const client = createPlayerStatsClient("player-token", {
       ...options,
       fetchImpl: (async (url: string, init?: RequestInit) => {
         requested = String(url);
         auth = new Headers(init?.headers).get("Authorization") ?? "";
+        cache = init?.cache;
         return new Response(JSON.stringify({ statistics: [{ stat_code: "public-hands-completed", value: 30 }] }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -154,6 +169,7 @@ describe("createPlayerStatsClient", () => {
     expect(summary.handsPlayed).toBe(30);
     expect(requested).toBe("https://match.test/mahjong/v1/namespaces/gameswithout-mahjong/statistics");
     expect(auth).toBe("Bearer player-token");
+    expect(cache).toBe("no-store");
   });
 
   it("asks the player to sign in again on a 401 rather than showing zeroes", async () => {

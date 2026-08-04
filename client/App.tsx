@@ -50,7 +50,7 @@ import {
   reconcilePlayerStatsWithHistory,
   type PlayerStatSummary,
 } from "./player-stats";
-import { getMatchHistory, type MatchHistoryEntry } from "./match-history";
+import { getMatchHistory, MatchHistoryError, type MatchHistoryEntry } from "./match-history";
 import { StatisticsScreen } from "./StatisticsScreen";
 import {
   createFreshPracticeSession,
@@ -97,6 +97,8 @@ import { SettingsScreen } from "./SettingsScreen";
 import {
   DEFAULT_PLAYER_SETTINGS,
   createPlayerSettingsClient,
+  loadCachedPlayerSettings,
+  saveCachedPlayerSettings,
   type PlayerSettings,
 } from "./settings";
 import { FeedbackScreen } from "./FeedbackScreen";
@@ -537,19 +539,27 @@ export function App(
   }, [state.status, state.status === "signed_in" ? state.userId : null, isGuestAccount]);
 
   const settingsRequestRef = useRef(0);
+  const statisticsRequestRef = useRef(0);
 
   async function loadPlayerSettings() {
     if (state.status !== "signed_in") return;
     const requestId = ++settingsRequestRef.current;
+    const cached = loadCachedPlayerSettings(state.userId);
+    if (cached) {
+      setPlayerSettings(cached);
+      updateOptionalAnalyticsConsent(cached.optionalAnalyticsConsent);
+    }
     setSettingsSyncStatus("loading");
     try {
-      const settings = await createPlayerSettingsClient(
+      const stored = await createPlayerSettingsClient(
         stableIam.getAuthenticatedSdk(),
         accelByteConfig.namespace,
         state.userId,
-      ).get();
+      ).getStored();
       if (requestId !== settingsRequestRef.current) return;
+      const settings = stored ?? cached ?? DEFAULT_PLAYER_SETTINGS;
       setPlayerSettings(settings);
+      saveCachedPlayerSettings(state.userId, settings);
       updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent);
       setSettingsSyncStatus("ready");
     } catch {
@@ -562,6 +572,7 @@ export function App(
     if (state.status !== "signed_in") return;
     const requestId = ++settingsRequestRef.current;
     setPlayerSettings(settings);
+    saveCachedPlayerSettings(state.userId, settings);
     updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent);
     setSettingsSyncStatus("saving");
     try {
@@ -572,6 +583,7 @@ export function App(
       ).save(settings);
       if (requestId !== settingsRequestRef.current) return;
       setPlayerSettings(saved);
+      saveCachedPlayerSettings(state.userId, saved);
       setSettingsSyncStatus("ready");
     } catch {
       if (requestId !== settingsRequestRef.current) return;
@@ -1341,6 +1353,7 @@ export function App(
     matchmakingRequestRef.current += 1;
     jadeRequestRef.current += 1;
     progressionRequestRef.current += 1;
+    statisticsRequestRef.current += 1;
     achievementRequestRef.current += 1;
     friendsRequestRef.current += 1;
     partyRequestRef.current += 1;
@@ -1385,6 +1398,13 @@ export function App(
           setState((current) =>
             current.status === "signed_in" ? { ...current, lobbyStatus: "connected" } : current,
           );
+          // The first HTTP reads can race the freshly established IAM/lobby
+          // session and legitimately return the account defaults. Refresh
+          // once the lobby is authoritative so returning players see their
+          // persisted history and XP on login, not only after playing a hand.
+          void loadJadeAccount();
+          void loadProgression({ retryEmpty: true });
+          void loadStatistics({ retryEmpty: true });
           gameTelemetry.track("lobby_impression", {
             dimensions: {
               entry_point: "sign_in",
@@ -1685,26 +1705,57 @@ export function App(
 
   // Returns the account so callers deciding whether to commit Jade can act on
   // the value they just fetched instead of the render closure's stale state.
-  async function loadStatistics() {
+  async function loadStatistics(options?: { retryEmpty?: boolean }) {
+    const requestId = ++statisticsRequestRef.current;
     setStatisticsState({ status: "loading" });
     try {
       if (!accelByteConfig.matchServiceURL) {
         throw new PlayerStatsError("configuration", "Match service URL is not configured.");
       }
-      const options = {
+      const clientOptions = {
         url: accelByteConfig.matchServiceURL,
         namespace: accelByteConfig.namespace,
       };
-      const [summary, history] = await Promise.all([
-        createPlayerStatsClient(stableIam.getAccessToken(), options).get(),
-        getMatchHistory(stableIam.getAccessToken(), options),
-      ]);
+      const fetchStatistics = () => {
+        const accessToken = stableIam.getAccessToken();
+        return Promise.all([
+          createPlayerStatsClient(accessToken, clientOptions).get(),
+          getMatchHistory(accessToken, clientOptions),
+        ]);
+      };
+      let result;
+      try {
+        result = await fetchStatistics();
+      } catch (error) {
+        const unauthenticated =
+          (error instanceof PlayerStatsError && error.code === "unauthenticated") ||
+          (error instanceof MatchHistoryError && error.code === "unauthenticated");
+        if (!unauthenticated || !(await stableIam.refreshAccessToken())) {
+          throw error;
+        }
+        result = await fetchStatistics();
+      }
+      let [summary, history] = result;
+      if (options?.retryEmpty) {
+        for (const delayMs of [500, 1_000]) {
+          if (summary.handsPlayed > 0 || history.length > 0) break;
+          await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+          if (requestId !== statisticsRequestRef.current) return;
+          [summary, history] = await fetchStatistics();
+        }
+      }
+      if (requestId !== statisticsRequestRef.current) {
+        return;
+      }
       setStatisticsState({
         status: "ready",
         summary: reconcilePlayerStatsWithHistory(summary, history),
         history,
       });
     } catch (error) {
+      if (requestId !== statisticsRequestRef.current) {
+        return;
+      }
       setStatisticsState({
         status: "error",
         message:
@@ -1725,11 +1776,31 @@ export function App(
     });
   }
 
-  async function loadProgression() {
+  async function loadProgression(options?: { retryEmpty?: boolean }) {
     const requestId = ++progressionRequestRef.current;
     setProgressionState({ status: "loading" });
     try {
-      const snapshot = await createAuthenticatedProgressionClient().get();
+      let snapshot;
+      try {
+        snapshot = await createAuthenticatedProgressionClient().get();
+      } catch (error) {
+        if (
+          !(error instanceof ProgressionError) ||
+          error.code !== "unauthenticated" ||
+          !(await stableIam.refreshAccessToken())
+        ) {
+          throw error;
+        }
+        snapshot = await createAuthenticatedProgressionClient().get();
+      }
+      if (options?.retryEmpty) {
+        for (const delayMs of [500, 1_000]) {
+          if ((snapshot.progression.lifetime_xp ?? 0) > 0) break;
+          await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+          if (requestId !== progressionRequestRef.current) return;
+          snapshot = await createAuthenticatedProgressionClient().get();
+        }
+      }
       if (requestId !== progressionRequestRef.current) {
         return;
       }

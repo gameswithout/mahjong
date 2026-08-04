@@ -70,10 +70,8 @@ var patternStatCodes = map[string]string{
 
 // HandStats prices one completed hand into achievement statistics.
 //
-// Returns nil for AI Practice. §11.4 is explicit that Practice grants no
-// achievements, so Practice must not move a single achievement stat — the one
-// invariant most likely to be broken by a later refactor, and the one most
-// worth a test.
+// Returns nil for Practice. During Alpha, only Online Play advances levels or
+// achievements; bot hands remain a consequence-free learning space.
 //
 // A seat played mostly by a takeover bot still counts the hand as completed —
 // the player was present for it — but earns none of the play-quality stats,

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   LevelStep,
   PlayerAchievement,
@@ -56,8 +57,8 @@ export function ProgressionScreen({
       </header>
 
       <p className="progression-note">
-        XP comes from playing hands. It never changes matchmaking or which
-        tables you can enter — every mode is open from the start.
+        Levels and achievements advance only through Online Play. Solo Practice
+        is progression-neutral. XP never changes matchmaking or table access.
       </p>
 
       {onOpenAchievements && (
@@ -247,9 +248,20 @@ export function AchievementScreen({
   achievements: PlayerAchievement[];
   onClose: () => void;
 }) {
-  const available = achievements.filter((achievement) => achievement.eligible);
-  const unavailable = achievements.filter((achievement) => !achievement.eligible);
-  const unlocked = available.filter((achievement) => achievement.unlocked).length;
+  const [filter, setFilter] = useState<"all" | "unlocked" | "progress" | "locked">("all");
+  const alphaCodes = new Set(["alpha-player", "max-alpha-player"]);
+  const alphaAchievements = achievements.filter((achievement) => alphaCodes.has(achievement.code));
+  const releaseAchievements = achievements.filter((achievement) => !alphaCodes.has(achievement.code));
+  const allAvailable = achievements.filter((achievement) => achievement.eligible);
+  const available = releaseAchievements.filter((achievement) => achievement.eligible);
+  const unavailable = releaseAchievements.filter((achievement) => !achievement.eligible);
+  const unlocked = achievements.filter((achievement) => achievement.eligible && achievement.unlocked).length;
+  const filteredAvailable = available.filter((achievement) => {
+    if (filter === "unlocked") return achievement.unlocked;
+    if (filter === "progress") return !achievement.unlocked;
+    return filter !== "locked";
+  });
+  const showUnavailable = filter === "all" || filter === "locked";
 
   return (
     <section className="achievement-screen" aria-labelledby="achievement-title">
@@ -266,33 +278,82 @@ export function AchievementScreen({
 
       <div className="achievement-summary" aria-label="Achievement summary">
         <p><strong>{unlocked}</strong><span>Unlocked</span></p>
-        <p><strong>{available.length}</strong><span>Available</span></p>
+        <p><strong>{allAvailable.length}</strong><span>Available</span></p>
         <p><strong>{achievements.length}</strong><span>Launch goals</span></p>
       </div>
 
       <p className="achievement-note">
-        Only completed public human hands advance achievements. Practice does not.
+        Only completed Online Play hands advance levels and achievements. Solo Practice does not.
       </p>
 
-      <section className="achievement-section" aria-labelledby="available-achievements-title">
+      <section className="achievement-section achievement-alpha" aria-labelledby="alpha-achievements-title">
         <div className="achievement-section-heading">
-          <h3 id="available-achievements-title">Available now</h3>
-          <span>{available.length} goals</span>
+          <div>
+            <p className="status-label">Persistent Alpha recognition</p>
+            <h3 id="alpha-achievements-title">Alpha milestones</h3>
+            <p>
+              Alpha Player and Max Alpha Player rewards remain on your account after Alpha.
+            </p>
+          </div>
+          <span>{alphaAchievements.length} milestones</span>
         </div>
-        {available.length === 0 ? (
+        <ol className="achievement-grid">
+          {alphaAchievements.map((achievement) =>
+            achievement.eligible ? (
+              <AvailableAchievement key={achievement.code} achievement={achievement} />
+            ) : (
+              <UnavailableAchievement key={achievement.code} achievement={achievement} />
+            ),
+          )}
+        </ol>
+      </section>
+
+      <p className="achievement-reset-note">
+        Alpha statistics, levels, and all other achievement progress are seasonal test
+        progression. They reset at each major release—Beta and Launch. A persistent
+        progression loop will be introduced in a future iteration.
+      </p>
+
+      <div className="achievement-filters" role="group" aria-label="Filter achievements">
+        {([
+          ["all", "All"],
+          ["unlocked", "Unlocked"],
+          ["progress", "In Progress"],
+          ["locked", "Locked"],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={filter === value ? "is-active" : ""}
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {filter !== "locked" && <section className="achievement-section" aria-labelledby="available-achievements-title">
+        <div className="achievement-section-heading">
+          <h3 id="available-achievements-title">
+            {filter === "unlocked" ? "Unlocked" : filter === "progress" ? "In Progress" : "Available now"}
+          </h3>
+          <span>{filteredAvailable.length} goals</span>
+        </div>
+        {filteredAvailable.length === 0 ? (
           <p className="progression-empty" role="status">
-            Achievement progress is unavailable right now.
+            No achievements match this filter.
           </p>
         ) : (
           <ol className="achievement-grid">
-            {available.map((achievement) => (
+            {filteredAvailable.map((achievement) => (
               <AvailableAchievement key={achievement.code} achievement={achievement} />
             ))}
           </ol>
         )}
-      </section>
+      </section>}
 
-      {unavailable.length > 0 && (
+      {showUnavailable && unavailable.length > 0 && (
         <section
           className="achievement-section achievement-section-unavailable"
           aria-labelledby="unavailable-achievements-title"

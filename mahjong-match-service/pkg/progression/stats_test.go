@@ -33,14 +33,12 @@ func statValue(updates []StatUpdate, code string) (StatUpdate, bool) {
 }
 
 func TestHandStats_PracticeAwardsNothing(t *testing.T) {
-	// §11.4: AI Practice grants no achievements. A Practice hand must not move
-	// a single achievement stat, however good the hand was.
 	updates := HandStats(
 		HandOutcome{Practice: true, Won: true, Zimo: true, RawTai: 40, Kongs: 4},
 		winningView(rulesengine.East, 40, "All Pongs", "Full Flush"),
 	)
-	if updates != nil {
-		t.Fatalf("Practice produced achievement stats: %+v", updates)
+	if len(updates) != 0 {
+		t.Fatalf("Practice recorded achievement stats: %+v", updates)
 	}
 }
 
@@ -299,8 +297,6 @@ func TestHandStats_RecordsDealInAndTingOnALostHand(t *testing.T) {
 }
 
 func TestHandStats_DashboardStatsHonourTheExistingExclusions(t *testing.T) {
-	// Practice grants nothing at all, and a mostly-bot seat earns only the
-	// completed hand. Both rules predate these stats and must keep applying.
 	practice := HandStats(
 		HandOutcome{Practice: true, DealtIn: true, Ting: true},
 		rulesengine.SeatView{Seat: rulesengine.South},

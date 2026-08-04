@@ -164,7 +164,7 @@ describe("AchievementScreen", () => {
     expect(markup).toContain("Full Rotation is not available yet.");
   });
 
-  it("uses explicit states, exact progress, rewards, and the Practice exclusion", () => {
+  it("uses explicit states, exact progress, rewards, and achievement filters", () => {
     const markup = renderToStaticMarkup(
       <AchievementScreen achievements={achievements} onClose={vi.fn()} />,
     );
@@ -174,7 +174,12 @@ describe("AchievementScreen", () => {
     expect(markup).toContain("<strong>4</strong> / 10");
     expect(markup).toContain("+200 XP");
     expect(markup).toContain("Bonus: First Victory title");
-    expect(markup).toContain("Practice does not");
+    expect(markup).toContain("Only completed Online Play hands advance levels and achievements");
+    expect(markup).toContain("Persistent Alpha recognition");
+    expect(markup).toContain("reset at each major release");
+    expect(markup).toContain("Filter achievements");
+    expect(markup).toContain("In Progress");
+    expect(markup).toContain("Locked");
     expect(markup).toContain('aria-label="First Win progress"');
     expect(markup).toContain("Back to Progress");
   });

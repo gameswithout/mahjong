@@ -67,8 +67,8 @@ export function XPAward({
 
       {award.capped_by_daily && (
         <p className="xp-award-capped">
-          You have reached today's Practice XP limit. It resets at 00:00 UTC.
-          Practice still costs nothing and changes no Jade.
+          Solo Practice is progression-neutral. Levels and achievements are earned
+          through Online Play.
         </p>
       )}
 

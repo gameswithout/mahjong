@@ -50,7 +50,7 @@ describe("XPAward", () => {
     expect(markup).toContain("300 / 700 XP to level 4");
   });
 
-  it("distinguishes today's Practice ceiling from earning nothing", () => {
+  it("explains that Practice is progression-neutral", () => {
     const capped = renderToStaticMarkup(
       <XPAward
         award={{ source: "practice_hand", total: 0, capped_by_daily: true }}
@@ -59,11 +59,8 @@ describe("XPAward", () => {
     );
 
     expect(capped).toContain("No XP from this hand");
-    // renderToStaticMarkup escapes the apostrophe.
-    expect(capped).toContain("Practice XP limit");
-    expect(capped).toContain("00:00 UTC");
-    // Practice must never imply a Jade change.
-    expect(capped).toContain("changes no Jade");
+    expect(capped).toContain("Solo Practice is progression-neutral");
+    expect(capped).toContain("Online Play");
   });
 
   it("does not show a progress bar or next reward at the level cap", () => {

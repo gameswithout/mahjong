@@ -86,9 +86,13 @@ export interface PlayerStatSummary {
 /** Reconcile lagging aggregate counters with the authoritative session list. */
 export function reconcilePlayerStatsWithHistory(
   summary: PlayerStatSummary,
-  history: ReadonlyArray<{ result: "Win" | "Loss" | "Draw" }>,
+  history: ReadonlyArray<{ result: "Win" | "Loss" | "Draw" | "Neutral" }>,
 ): PlayerStatSummary {
-  if (history.length <= summary.handsPlayed) {
+  // Equal lengths still need reconciliation. Practice completion can advance
+  // the aggregate hand counter without advancing the public-wins counter, so
+  // returning early here produced "0 Wins / 4 Games Played" even while the
+  // authoritative list contained a winning session.
+  if (history.length < summary.handsPlayed) {
     return summary;
   }
   const handsPlayed = history.length;
@@ -212,6 +216,7 @@ export function createPlayerStatsClient(
       try {
         response = await fetchImpl(url, {
           method: "GET",
+          cache: "no-store",
           headers: { Authorization: `Bearer ${accessToken}` },
           signal: controller.signal,
         });

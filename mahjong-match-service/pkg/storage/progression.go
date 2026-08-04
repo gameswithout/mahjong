@@ -126,13 +126,9 @@ func (p *PostgreSQLStorage) PlayerMatchHistory(
 			if result != nil {
 				entry.WinKind = string(result.Kind)
 				entry.WinningTileID = result.WinningTileID
-				entry.Result = "Loss"
-				if result.Kind == rulesengine.KindExhaustiveDraw {
-					entry.Result = "Draw"
-				}
+				entry.Result = matchHistoryResult(result, rulesengine.Seat(seat))
 				for _, winner := range result.Winners {
 					if string(winner.Seat) == seat {
-						entry.Result = "Win"
 						entry.RawTai = winner.Score.RawTai
 						break
 					}
@@ -145,6 +141,24 @@ func (p *PostgreSQLStorage) PlayerMatchHistory(
 		return nil, fmt.Errorf("iterate player match history: %w", err)
 	}
 	return entries, nil
+}
+
+func matchHistoryResult(result *rulesengine.HandResult, seat rulesengine.Seat) string {
+	if result == nil || result.Kind == rulesengine.KindExhaustiveDraw {
+		return "Draw"
+	}
+	for _, winner := range result.Winners {
+		if winner.Seat == seat {
+			return "Win"
+		}
+	}
+	// Discard and rob wins have one responsible payer. Everyone else was not
+	// involved in that transfer, so their personal outcome is Neutral rather
+	// than a Loss. Multi-payer self-draw wins remain losses for every opponent.
+	if (result.Kind == rulesengine.WinDiscard || result.Kind == rulesengine.WinRob) && result.Payer != seat {
+		return "Neutral"
+	}
+	return "Loss"
 }
 
 func validateAward(award progression.HandAward) error {

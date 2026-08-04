@@ -15,7 +15,7 @@ import "time"
 const (
 	OnboardingXP = 500
 
-	PracticeHandXP     = 25
+	PracticeHandXP     = 0
 	PublicHandXP       = 100
 	PublicWinXP        = 75
 	ZimoXP             = 25
@@ -111,14 +111,11 @@ func HandXP(outcome HandOutcome, practiceXPToday int) HandAward {
 func practiceAward(outcome HandOutcome) HandAward {
 	award := HandAward{
 		Source: SourcePractice,
-		Total:  PracticeHandXP,
-		Components: []XPComponent{{
-			Code: ComponentPracticeHand, Label: "Practice hand", Amount: PracticeHandXP,
-		}},
+		Total:  0,
 	}
 	// Match History includes every completed game, including Practice. Keep a
 	// zero-value outcome marker in the same immutable ledger row without
-	// changing Practice XP or feeding the public achievement projection.
+	// changing XP or feeding the Online Play achievement projection.
 	if outcome.Won {
 		award.Components = append(award.Components, XPComponent{
 			Code: ComponentHandWon, Label: "Won the hand", Amount: 0,

@@ -89,7 +89,7 @@ describe("Progression client", () => {
     );
     const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     expect(new Headers(request.headers).has("Cache-Control")).toBe(false);
-    expect(request.cache).toBeUndefined();
+    expect(request.cache).toBe("no-store");
   });
 
   it("normalizes lower-camel protojson fields used by the hosted service", () => {
