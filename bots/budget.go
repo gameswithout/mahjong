@@ -18,23 +18,36 @@ import "time"
 // normal play.
 const DecisionBudget = 250 * time.Millisecond
 
-// needsBudgetGuard reports whether a policy is expensive enough to be worth
-// running under the timeout. Bare Easy and Medium are simple bounded
-// heuristics with no meaningful risk of exceeding budget, so they run
-// directly without the goroutine/select overhead — but a persona wrapped
-// around either of them is not bare Medium: it runs the full §3.2
-// evaluator, so it is guarded on the same footing as Hard regardless of the
-// difficulty it reports.
+// needsBudgetGuard reports whether a policy runs under the timeout.
+//
+// It names the policies known to be cheap rather than the ones known to be
+// expensive, so anything else — a persona, a future policy, or any wrapper
+// around either — is guarded by default. Identifying the expensive ones
+// instead is the fragile direction: this previously asked whether the policy
+// *was* a personaPolicy, which meant wrapping one in anything at all made
+// the assertion fail and silently turned the §11.4 guard off in production.
+// A guard that disappears when someone adds a decorator is worse than no
+// guard, because nothing looks wrong.
+//
+// Being wrong in the safe direction costs a goroutine and a select on a
+// policy that never needed them. Being wrong in the other direction lets an
+// unbounded decision stall a live table.
+//
+// Bare Easy and Medium are the two exceptions: simple bounded heuristics
+// with no meaningful risk of exceeding budget, and the fallback tier itself,
+// so guarding Medium with a fallback to Medium would be circular.
 //
 // The fallback in every case is the §11.4 chain's next tier, the plain
-// Medium legal policy. That deliberately drops the persona: a decision the
+// Medium legal policy. That deliberately drops any persona: a decision the
 // style could not produce in time is answered by the neutral policy rather
 // than by a half-computed style.
 func needsBudgetGuard(policy Policy) bool {
-	if _, styled := policy.(personaPolicy); styled {
+	switch policy.(type) {
+	case easyPolicy, mediumPolicy:
+		return false
+	default:
 		return true
 	}
-	return policy.Difficulty() == Hard
 }
 
 // DecideDiscard runs policy.DecideDiscard under the §11.4 decision budget,

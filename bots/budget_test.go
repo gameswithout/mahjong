@@ -123,3 +123,42 @@ func TestPersonaDecisionsFitTheBudget(t *testing.T) {
 		}
 	}
 }
+
+// TestBudgetGuardSurvivesWrapping is the regression for how the guard used
+// to be selected. It asked whether the policy *was* a personaPolicy, so
+// wrapping one in anything — a decorator, an instrumented policy, a future
+// styled wrapper — made the assertion fail and silently ran the most
+// expensive policy in the package with no timeout at all. Naming the cheap
+// policies instead means an unrecognised policy is guarded rather than
+// waved through.
+func TestBudgetGuardSurvivesWrapping(t *testing.T) {
+	persona := personaFixture(t, "jade-dragon")
+	wrapped := passthroughPolicy{inner: NewPersonaPolicy(NewMediumPolicy(), persona)}
+
+	if !needsBudgetGuard(wrapped) {
+		t.Fatal("a wrapped persona policy is not budget-guarded; the guard must not depend on the concrete type surviving decoration")
+	}
+	if !needsBudgetGuard(NewHardPolicy()) {
+		t.Fatal("Hard is not budget-guarded")
+	}
+	// The two cheap policies stay unwrapped, including because Medium is the
+	// fallback tier and guarding it would be circular.
+	if needsBudgetGuard(NewEasyPolicy()) || needsBudgetGuard(NewMediumPolicy()) {
+		t.Fatal("bare Easy/Medium should run without the goroutine/select overhead")
+	}
+}
+
+// passthroughPolicy adds nothing but a layer of indirection — which is
+// exactly what used to defeat the guard.
+type passthroughPolicy struct{ inner Policy }
+
+func (p passthroughPolicy) Difficulty() Difficulty { return p.inner.Difficulty() }
+func (p passthroughPolicy) DecideDiscard(obs Observation, seed uint64) Decision {
+	return p.inner.DecideDiscard(obs, seed)
+}
+func (p passthroughPolicy) DecideClaim(obs Observation, options ClaimOptions, seed uint64) Decision {
+	return p.inner.DecideClaim(obs, options, seed)
+}
+func (p passthroughPolicy) DecideSelfKong(obs Observation, options []SelfKongOption, seed uint64) Decision {
+	return p.inner.DecideSelfKong(obs, options, seed)
+}
