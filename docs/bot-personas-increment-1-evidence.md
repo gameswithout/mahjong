@@ -124,6 +124,45 @@ advances the hand, not a larger constant — the same family of evaluator work a
 pricing an open hand's lost concealed value, which `potentialValueProxy` still
 does not do before tenpai.
 
+## Live deployment
+
+Deployed to AGS Extend 2026-08-15 as image tag `personas-02d2462`
+(deployment `f44f4304-f611-4324-a4aa-49adddc3d578`, status
+`deployment-running`). The `mahjong-match-service` deployment record is
+updated in the same change.
+
+Two things were verified rather than assumed.
+
+**The personas are actually in the shipped binary.** They are embedded with
+`go:embed` through a module that is vendored into the service, and the vendor
+directory is not checked in — three places the files could have silently
+failed to travel. Grepping the compiled `linux/amd64` binary in the pushed
+image finds all six by name.
+
+**The live service names the seats.** Driving the same three calls the browser
+client makes — guest device login, create an `ai_practice` game session, join
+the match — against the deployed URL returns:
+
+```text
+seat  isBot  persona           tag        glyph
+E     true   Swift Sparrow     Rush       雀
+S     true   Stone Lion        Guard      獅
+W     false                               
+N     true   Jade Dragon       Big Hand   龍
+```
+
+The human drew seat W in that session, so the bots took E, S and N and the
+mixed lineup was assigned across them in table order, which is what
+`PersonaAssignments` specifies. The human seat carries no persona fields, as
+does any disconnect takeover.
+
+What this does **not** establish is that the table renders them. The adapter
+and badge are unit-tested and the wire contract is now verified live, but no
+human has looked at a Practice table yet, and the §9.2 blind recognition test
+— can a player match each bot to its Rush/Guard/Big Hand description after
+three hands — remains unrun. That is the question the deployment exists to
+make answerable, not one it answers.
+
 ## Not measured here
 
 §9.3's strength gates need at least 10,000 same-seed seat-rotated hands per

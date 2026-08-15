@@ -217,9 +217,10 @@ image, event log, or public payload.
 ## Deployment record
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
-ahead of the append-latency benchmark. The current 2026-08-03 deployment adds
-the authoritative match-history endpoint used by the lobby while retaining the
-Full Rotation, achievement-experience, and mobile-network work.
+ahead of the append-latency benchmark. The current 2026-08-15 deployment gives
+AI Practice bot seats distinct playing styles, while retaining the Online-only
+progression, authoritative match-history, Full Rotation, and
+achievement-experience work.
 
 **Keep this block current.** Its staleness caused a 2026-07-25 mis-diagnosis:
 the record said 2026-07-20 while the live service already carried the Jade
@@ -235,14 +236,27 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      online-only-d56af2a (deployment created
+Image tag:      personas-02d2462 (deployment created
+                2026-08-15T07:23:48.075Z, healthy; deployment
+                f44f4304-f611-4324-a4aa-49adddc3d578). Gives each AI Practice
+                bot seat a playing style: the recommended mixed lineup of
+                Swift Sparrow (Rush), Stone Lion (Guard), and Jade Dragon
+                (Big Hand), named on the wire through PlayerView's new
+                bot_persona_id/bot_persona_name/bot_style_tag/bot_glyph
+                fields. A disconnect takeover is deliberately left unnamed —
+                it still plays the neutral Medium policy. Personas are
+                embedded in the binary rather than read from disk, so they
+                travel with the AI version that §11.4 replays from; verified
+                present in the pushed image before deploying.
+
+Previous image: online-only-d56af2a (deployment created
                 2026-08-04T03:44:17.568Z, healthy; deployment
                 17e04bb2-e1fb-4bb9-8fac-165f947a7919). Makes Online Play the
                 only source of levels and achievement progress, separates the
                 persistent Alpha milestones from release-reset progression,
                 and retains the authoritative match-history endpoint.
 
-Previous image: match-history-a38b406 (deployment created
+Earlier image:  match-history-a38b406 (deployment created
                 2026-08-03T19:27:56.981Z, healthy; deployment
                 a4f75f77-e9df-44c1-9f51-c1df2a11370e). Adds the authoritative
                 /v1/namespaces/{namespace}/match-history endpoint, including
