@@ -547,3 +547,83 @@ func bestPattern(obs Observation, order []patternTarget, commitment float64, bud
 	}
 	return patternNone
 }
+
+// EfficientDiscards returns the tile IDs a one-ply efficiency reference
+// considers the best discards for this hand: those leaving the hand closest
+// to a legal shape, and among those, the ones leaving the most tiles that
+// would still improve it.
+//
+// This is the reference a tile-efficiency statistic measures a player
+// against, so it deliberately answers a narrower question than a persona
+// does. It weighs no Tai, no danger, and no opponent — a discard that gives
+// up a big hand or feeds the table can still be the efficient one. Calling
+// it "efficiency" rather than "the best move" is the honest framing.
+//
+// Availability is judged from the seat's own hand and melds alone, not from
+// the table. Two players who made the same choice from the same hand should
+// be scored the same way, and discarding a tile whose copies an opponent
+// happened to have already shown is not a different decision about hand
+// shape.
+//
+// Returns more than one ID whenever the reference genuinely cannot separate
+// the candidates, which is common early. A player matching any of them
+// discarded efficiently.
+func EfficientDiscards(hand []rulesengine.Tile, melds []rulesengine.Meld) map[string]bool {
+	discardable := legalDiscards(hand)
+	best := map[string]bool{}
+	if len(discardable) == 0 {
+		return best
+	}
+
+	budget := handOnlyBudget(hand, melds)
+	type scored struct {
+		id         string
+		distance   int
+		acceptance int
+	}
+	candidates := make([]scored, 0, len(discardable))
+	minDistance := deficiencyBase + 1
+	for _, item := range discardable {
+		remaining := withoutTile(hand, item.ID)
+		distance := deficiency(remaining, melds)
+		candidates = append(candidates, scored{id: item.ID, distance: distance})
+		if distance < minDistance {
+			minDistance = distance
+		}
+	}
+
+	// Live acceptance is only computed for the candidates still tied on
+	// distance. It is by far the more expensive of the two signals, and it
+	// cannot change the ordering of anything already further from a hand.
+	maxAcceptance := -1
+	for index, candidate := range candidates {
+		if candidate.distance != minDistance {
+			continue
+		}
+		remaining := withoutTile(hand, candidate.id)
+		acceptance := liveAcceptance(remaining, melds, budget)
+		candidates[index].acceptance = acceptance
+		if acceptance > maxAcceptance {
+			maxAcceptance = acceptance
+		}
+	}
+	for _, candidate := range candidates {
+		if candidate.distance == minDistance && candidate.acceptance == maxAcceptance {
+			best[candidate.id] = true
+		}
+	}
+	return best
+}
+
+// handOnlyBudget counts the copies of each tile type this seat cannot be
+// drawing, using only what it holds. unseenBudget's table-aware version
+// answers a different question — what is still out there — which is the
+// right input for a bot deciding what to do and the wrong one for scoring
+// how well a hand was shaped.
+func handOnlyBudget(hand []rulesengine.Tile, melds []rulesengine.Meld) map[string]int {
+	visible := map[string]int{}
+	forEachStructuralTile(hand, melds, func(item rulesengine.Tile) {
+		visible[tileTypeKey(item)]++
+	})
+	return unseenBudget(visible)
+}

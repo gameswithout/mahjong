@@ -64,6 +64,12 @@ type TableView struct {
 	// never populated for a disconnect takeover — that seat plays the
 	// neutral policy, and naming a style there would be a lie.
 	BotPersonas map[rulesengine.Seat]bots.Persona
+	// DiscardsMade and DiscardsEfficient are this seat's tile-efficiency
+	// tally for the hand, counted as it was played. Both are zero when no
+	// tally was observed, which the statistics layer treats as "this hand
+	// contributes nothing" rather than as a zero score.
+	DiscardsMade      int
+	DiscardsEfficient int
 }
 
 // RotationView is the state of a rotation, expressed in player identities

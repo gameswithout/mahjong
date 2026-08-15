@@ -251,8 +251,9 @@ func (c *Coordinator) RecordHand(
 	runtimeID string,
 	view rulesengine.SeatView,
 	practice bool,
+	options ...HandOption,
 ) (*HandXPResult, error) {
-	return c.recordHand(ctx, userID, runtimeID, view, practice, false)
+	return c.recordHand(ctx, userID, runtimeID, view, practice, false, options...)
 }
 
 // RecordRotationHand pays the §12.1 flat award for one completed Full Rotation
@@ -267,8 +268,9 @@ func (c *Coordinator) RecordRotationHand(
 	userID string,
 	handRuntimeID string,
 	view rulesengine.SeatView,
+	options ...HandOption,
 ) (*HandXPResult, error) {
-	return c.recordHand(ctx, userID, handRuntimeID, view, false, true)
+	return c.recordHand(ctx, userID, handRuntimeID, view, false, true, options...)
 }
 
 func (c *Coordinator) recordHand(
@@ -278,6 +280,7 @@ func (c *Coordinator) recordHand(
 	view rulesengine.SeatView,
 	practice bool,
 	rotation bool,
+	options ...HandOption,
 ) (*HandXPResult, error) {
 	if c == nil || c.repository == nil {
 		return nil, nil
@@ -291,6 +294,9 @@ func (c *Coordinator) recordHand(
 	outcome, complete := OutcomeFromView(view, practice, false)
 	if !complete {
 		return nil, nil
+	}
+	for _, option := range options {
+		option(&outcome)
 	}
 	if !practice {
 		takenOverMajority, err := c.repository.TakenOverMajority(ctx, userID, runtimeID)

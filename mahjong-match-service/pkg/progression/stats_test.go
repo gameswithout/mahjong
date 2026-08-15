@@ -447,3 +447,59 @@ func TestDashboardStatCodesAreAllWritten(t *testing.T) {
 		t.Errorf("dashboard reads %q but no completed hand ever writes it", code)
 	}
 }
+
+func TestHandStats_TileEfficiencyRecordsBothCountersOrNeither(t *testing.T) {
+	drawn := rulesengine.SeatView{
+		HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw},
+	}
+	counted := HandStats(
+		HandOutcome{Seat: rulesengine.East, DiscardsMade: 18, DiscardsEfficient: 13},
+		drawn,
+	)
+	made, ok := statValue(counted, StatDiscardsMade)
+	if !ok || made.Value != 18 {
+		t.Fatalf("discards made = %+v (found=%v), want 18", made, ok)
+	}
+	efficient, ok := statValue(counted, StatDiscardsEfficient)
+	if !ok || efficient.Value != 13 {
+		t.Fatalf("efficient discards = %+v (found=%v), want 13", efficient, ok)
+	}
+
+	// A hand whose tally was lost must contribute neither half. Writing the
+	// denominator alone would drag the player's efficiency toward zero for a
+	// hand they may have played perfectly.
+	lost := HandStats(HandOutcome{Seat: rulesengine.East}, drawn)
+	if _, ok := statValue(lost, StatDiscardsMade); ok {
+		t.Fatal("a hand with no tally recorded a discard denominator")
+	}
+	if _, ok := statValue(lost, StatDiscardsEfficient); ok {
+		t.Fatal("a hand with no tally recorded an efficiency numerator")
+	}
+}
+
+// WithDiscardEfficiency is the only way these counters get set, so it is the
+// place a nonsensical tally has to be refused.
+func TestWithDiscardEfficiencyRejectsAnImpossibleTally(t *testing.T) {
+	for _, testCase := range []struct {
+		name            string
+		made, efficient int
+	}{
+		{"more efficient than made", 3, 5},
+		{"no discards", 0, 0},
+		{"negative", -1, -1},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			outcome := HandOutcome{Seat: rulesengine.South}
+			WithDiscardEfficiency(testCase.made, testCase.efficient)(&outcome)
+			if outcome.DiscardsMade != 0 || outcome.DiscardsEfficient != 0 {
+				t.Fatalf("accepted %d of %d: %+v", testCase.efficient, testCase.made, outcome)
+			}
+		})
+	}
+
+	outcome := HandOutcome{Seat: rulesengine.South}
+	WithDiscardEfficiency(18, 18)(&outcome)
+	if outcome.DiscardsMade != 18 || outcome.DiscardsEfficient != 18 {
+		t.Fatalf("a perfect hand was refused: %+v", outcome)
+	}
+}

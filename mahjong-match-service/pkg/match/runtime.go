@@ -76,6 +76,36 @@ func applyBotSeats(engine *rulesengine.TurnEngine, seats map[string]rulesengine.
 	return nil
 }
 
+// tallyDiscardEfficiency scores one discard against the one-ply efficiency
+// reference and records the result for this seat.
+//
+// Cost is roughly two milliseconds on the command path. That is the price of
+// measuring the choice in the position it was made in: the finished hand does
+// not remember its own intermediate positions, and reconstructing them later
+// would mean replaying the hand from its deal.
+func tallyDiscardEfficiency(
+	current *loadedMatch,
+	seat rulesengine.Seat,
+	view rulesengine.SeatView,
+	command rulesengine.MatchCommand,
+) {
+	if current == nil || command.Type != rulesengine.CommandDiscard || command.TileID == "" {
+		return
+	}
+	if current.discards == nil {
+		current.discards = map[rulesengine.Seat]*discardTally{}
+	}
+	tally := current.discards[seat]
+	if tally == nil {
+		tally = &discardTally{}
+		current.discards[seat] = tally
+	}
+	tally.made++
+	if bots.EfficientDiscards(view.OwnHand, view.OwnMelds)[command.TileID] {
+		tally.efficient++
+	}
+}
+
 // BotPersonas resolves the playing style each AI Practice bot seat plays
 // with, from the same roster userIDs applyBotSeats reads. The assignment is
 // a pure function of the persisted seating, so a replay re-derives exactly
@@ -264,6 +294,27 @@ type loadedMatch struct {
 	// consumes (clears) this flag once it actually restores control, at
 	// the seat's next legal personal turn rather than immediately.
 	pendingRestore map[rulesengine.Seat]bool
+	// discards tallies tile efficiency per seat for this hand. It is held in
+	// memory rather than persisted because it is a statistic and not a rule:
+	// a runtime replica taking over mid-hand loses the tally, and the hand
+	// then contributes neither counter rather than a partial one, which
+	// leaves the player's efficiency rate unchanged instead of wrong.
+	//
+	// One loadedMatch is one hand — a rotation gives each of its hands its
+	// own match record — so this never needs clearing between hands.
+	discards map[rulesengine.Seat]*discardTally
+}
+
+// discardTally counts a seat's discards and how many of them matched the
+// efficiency reference.
+type discardTally struct {
+	made      int
+	efficient int
+}
+
+// DiscardEfficiency reports a seat's tile-efficiency tally for this hand.
+func (t TableView) DiscardEfficiency() (made, efficient int) {
+	return t.DiscardsMade, t.DiscardsEfficient
 }
 
 // markPresentIfTakenOver records that seat's owner was just observed
@@ -464,6 +515,10 @@ func (r *Runtime) settleAndView(ctx context.Context, current *table) (TableView,
 		HandRuntimeID: current.current.record.RuntimeID,
 		BotPersonas:   personas,
 	}
+	if tally := current.current.discards[current.seat]; tally != nil {
+		projected.DiscardsMade = tally.made
+		projected.DiscardsEfficient = tally.efficient
+	}
 	if current.rotation != nil {
 		rotationView, rotationErr := r.rotationView(current.rotation)
 		if rotationErr != nil {
@@ -584,6 +639,15 @@ func (r *Runtime) Apply(
 	if err := authorizeCommand(view, seat, &command); err != nil {
 		return rulesengine.CommandResult{}, TableView{}, err
 	}
+	// Scored before the command is applied, because the question is about the
+	// hand the player was holding when they chose. Afterwards the tile is
+	// gone and the position that made it a good or bad choice with it.
+	//
+	// Only the player's own commands reach here; a bot seat is driven through
+	// driveLocked and is deliberately not measured, since scoring a bot
+	// against the reference its own evaluator is built from would say nothing
+	// about anybody's play.
+	tallyDiscardEfficiency(current, seat, view, command)
 	result, err := current.actor.Apply(ctx, command)
 	if err != nil {
 		if errors.Is(err, rulesengine.ErrEventSequence) {

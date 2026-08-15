@@ -98,6 +98,37 @@ type HandOutcome struct {
 	// split. East deals, so its results are not comparable to the others
 	// and pooling them hides a real effect.
 	Seat rulesengine.Seat
+	// DiscardsMade and DiscardsEfficient are the tile-efficiency counters.
+	//
+	// Alone among the fields here these cannot be read off the finished
+	// hand: whether a discard was the efficient one is a fact about the
+	// position it was made in, and the final projection no longer holds
+	// those positions. They are counted as the hand is played and handed in
+	// by the caller.
+	DiscardsMade      int
+	DiscardsEfficient int
+}
+
+// HandOption adjusts a recorded hand with facts the final projection cannot
+// supply on its own.
+type HandOption func(*HandOutcome)
+
+// WithDiscardEfficiency supplies the tile-efficiency tally observed while the
+// hand was played.
+//
+// The two counters travel together on purpose. If a tally is lost — a
+// runtime replica moving mid-hand is the realistic case — both halves go
+// with it, so the hand contributes nothing rather than contributing a
+// numerator with no denominator and dragging the player's efficiency toward
+// zero.
+func WithDiscardEfficiency(made, efficient int) HandOption {
+	return func(outcome *HandOutcome) {
+		if made <= 0 || efficient > made {
+			return
+		}
+		outcome.DiscardsMade = made
+		outcome.DiscardsEfficient = efficient
+	}
 }
 
 // XPComponent is one line of the award, kept separate so the result screen can

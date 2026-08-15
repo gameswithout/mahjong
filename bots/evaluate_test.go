@@ -352,3 +352,108 @@ func BenchmarkLiveAcceptance(b *testing.B) {
 		liveAcceptance(hand, nil, budget)
 	}
 }
+
+// TestEfficientDiscardsPrefersTheUselessTile is the property the tile
+// efficiency statistic rests on: throwing away the tile that contributes
+// nothing must score as efficient, and breaking a finished set must not.
+func TestEfficientDiscardsPrefersTheUselessTile(t *testing.T) {
+	hand := []rulesengine.Tile{
+		// A completed run.
+		tile("bamboo-2-1", rulesengine.Bamboo, 2, 1),
+		tile("bamboo-3-1", rulesengine.Bamboo, 3, 1),
+		tile("bamboo-4-1", rulesengine.Bamboo, 4, 1),
+		// A pair.
+		tile("dots-5-1", rulesengine.Dots, 5, 1),
+		tile("dots-5-2", rulesengine.Dots, 5, 2),
+		// An isolated honor with nothing near it.
+		tile("wind-north-1", rulesengine.Wind, 0, 1),
+	}
+	best := EfficientDiscards(hand, nil)
+	if !best["wind-north-1"] {
+		t.Fatalf("the isolated honor was not considered an efficient discard: %v", best)
+	}
+	for _, held := range []string{"bamboo-3-1", "dots-5-1"} {
+		if best[held] {
+			t.Errorf("breaking a useful block (%s) scored as efficient: %v", held, best)
+		}
+	}
+}
+
+func TestEfficientDiscardsNeverNamesAnIllegalDiscard(t *testing.T) {
+	hand := append(dealtHand(t, 5, 16), rulesengine.Tile{ID: "flower-plum", Kind: rulesengine.Flower})
+	legal := map[string]bool{}
+	for _, item := range legalDiscards(hand) {
+		legal[item.ID] = true
+	}
+	best := EfficientDiscards(hand, nil)
+	if len(best) == 0 {
+		t.Fatal("no efficient discard was identified for a full hand")
+	}
+	for id := range best {
+		if !legal[id] {
+			t.Fatalf("named %q, which is not a legal discard", id)
+		}
+	}
+}
+
+// A hand already one tile away should keep it that way: every named discard
+// must leave the hand still waiting, never break it open.
+func TestEfficientDiscardsHoldsATenpaiHand(t *testing.T) {
+	complete := buildWinningHand(t, mathrand.New(mathrand.NewSource(4)))
+	// Drop one tile to reach tenpai, then add an unrelated floater the
+	// reference should shed to get back there.
+	waiting := append([]rulesengine.Tile(nil), complete[:len(complete)-1]...)
+	floater := rulesengine.Tile{}
+	for _, item := range rulesengine.Catalog() {
+		if item.IsFlower() {
+			continue
+		}
+		used := false
+		for _, held := range waiting {
+			if held.ID == item.ID || sameTileType(held, item) {
+				used = true
+				break
+			}
+		}
+		if !used {
+			floater = item
+			break
+		}
+	}
+	if floater.ID == "" {
+		t.Skip("fixture hand left no unrelated tile to add")
+	}
+	hand := append(append([]rulesengine.Tile(nil), waiting...), floater)
+
+	best := EfficientDiscards(hand, nil)
+	if len(best) == 0 {
+		t.Fatal("no efficient discard identified")
+	}
+	for id := range best {
+		remaining := withoutTile(hand, id)
+		if got := deficiency(remaining, nil); got != 0 {
+			t.Fatalf("discarding %q left the hand at distance %d, not still waiting", id, got)
+		}
+	}
+}
+
+func BenchmarkEfficientDiscards(b *testing.B) {
+	shuffled, err := rulesengine.ShuffledCatalog(42)
+	if err != nil {
+		b.Fatalf("ShuffledCatalog() error = %v", err)
+	}
+	hand := make([]rulesengine.Tile, 0, 17)
+	for _, item := range shuffled {
+		if item.IsFlower() {
+			continue
+		}
+		hand = append(hand, item)
+		if len(hand) == 17 {
+			break
+		}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		EfficientDiscards(hand, nil)
+	}
+}

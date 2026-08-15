@@ -167,6 +167,16 @@ func HandStats(outcome HandOutcome, view rulesengine.SeatView) []StatUpdate {
 			})
 		}
 	}
+	// Tile efficiency rides the same bulk update, but only when the hand
+	// actually produced a tally. A hand whose tally was lost contributes
+	// neither counter, which leaves the player's existing rate untouched
+	// rather than diluted.
+	if outcome.DiscardsMade > 0 {
+		updates = append(updates,
+			StatUpdate{StatCode: StatDiscardsMade, Strategy: StatIncrement, Value: float64(outcome.DiscardsMade)},
+			StatUpdate{StatCode: StatDiscardsEfficient, Strategy: StatIncrement, Value: float64(outcome.DiscardsEfficient)},
+		)
+	}
 	if codes, known := seatStatCodes[outcome.Seat]; known {
 		updates = append(updates, StatUpdate{
 			StatCode: codes.hands, Strategy: StatIncrement, Value: 1,

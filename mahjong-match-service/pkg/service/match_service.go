@@ -339,11 +339,17 @@ func (s *MatchService) projectState(
 			xp    *progression.HandXPResult
 			xpErr error
 		)
+		// Tile efficiency is counted while the hand is played, so unlike
+		// everything else priced here it has to be handed in rather than read
+		// off the finished projection.
+		efficiency := progression.WithDiscardEfficiency(view.DiscardEfficiency())
 		if view.Rotation != nil {
-			xp, xpErr = s.progression.RecordRotationHand(ctx, userID, view.HandRuntimeID, view.SeatView)
+			xp, xpErr = s.progression.RecordRotationHand(
+				ctx, userID, view.HandRuntimeID, view.SeatView, efficiency,
+			)
 		} else {
 			xp, xpErr = s.progression.RecordHand(
-				ctx, userID, view.HandRuntimeID, view.SeatView, economy.IsPractice(view.SeatView),
+				ctx, userID, view.HandRuntimeID, view.SeatView, economy.IsPractice(view.SeatView), efficiency,
 			)
 		}
 		if xpErr != nil {
