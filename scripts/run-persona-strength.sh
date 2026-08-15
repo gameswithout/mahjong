@@ -15,14 +15,24 @@
 #
 # §9.3 asks for at least 10,000 hands per persona. Every seat here runs the
 # full persona evaluator, so a hand costs several times what the
-# difficulty-only calibration costs: measured throughput on a 10-core
-# development machine is ~0.6s/hand of parallel wall-clock, i.e. roughly
-# 100 minutes per persona and the better part of a day for the whole
-# roster. Default here is 2,000 hands, which gives a ±2 percentage-point
-# 95% interval — tight enough to test a ±4 point band — and takes about
-# twenty minutes per persona. Raise it to 10,000 for the release gate, and
-# always measure on the actual runner before treating any wall-clock figure
-# as a requirement.
+# difficulty-only calibration costs.
+#
+# Budget REAL TIME, not the figure you would guess. Observed on a 10-core
+# development machine: roughly 2 hours per persona at 2,000 hands, so about
+# half a day for the roster and several days at §9.3's full 10,000.
+#
+# An earlier version of this comment claimed ~0.6s/hand and twenty minutes
+# per persona. That was measured before offline runs stopped using §11.4's
+# 250ms decision cutoff — which had been silently truncating the slowest
+# decisions and substituting a cheaper policy. The benchmark was of a faster
+# thing than this script now runs, and the estimate was out by roughly six
+# times. Removing the cutoff was correct (it made runs unrepeatable; see
+# budgetMode in bots/takeover.go), and this is its price.
+#
+# Default is 2,000 hands, whose ±2 percentage-point 95% interval is tight
+# enough to test a ±4 point band. Raise it to 10,000 for the release gate,
+# expect it to run overnight or longer, and measure on the actual runner
+# rather than trusting any figure in this comment.
 set -euo pipefail
 
 HANDS="${1:-2000}"
