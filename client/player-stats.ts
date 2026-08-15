@@ -38,6 +38,24 @@ export const STAT_DEALT_IN = "public-hands-dealt-in";
 export const STAT_TING = "public-hands-ting";
 export const STAT_KONGS = "kongs-declared";
 export const STAT_BEST_TAI = "highest-raw-tai";
+export const STAT_TOTAL_TAI = "total-raw-tai";
+export const STAT_OPENED = "public-hands-opened";
+export const STAT_DRAWN = "public-hands-drawn";
+export const STAT_TING_AT_DRAW = "public-hands-ting-at-draw";
+export const STAT_DISCARDS = "discards-made";
+export const STAT_DISCARDS_EFFICIENT = "discards-efficient";
+
+export const SEAT_ORDER = ["E", "S", "W", "N"] as const;
+export type SeatId = (typeof SEAT_ORDER)[number];
+
+// AGS stores one scalar per code and cannot group, so a seat split is four
+// pairs of counters rather than one dimensioned metric.
+const SEAT_STAT_CODES: Record<SeatId, { hands: string; wins: string }> = {
+  E: { hands: "hands-seat-east", wins: "hands-won-seat-east" },
+  S: { hands: "hands-seat-south", wins: "hands-won-seat-south" },
+  W: { hands: "hands-seat-west", wins: "hands-won-seat-west" },
+  N: { hands: "hands-seat-north", wins: "hands-won-seat-north" },
+};
 
 export const DASHBOARD_STAT_CODES = [
   STAT_HANDS,
@@ -47,6 +65,13 @@ export const DASHBOARD_STAT_CODES = [
   STAT_TING,
   STAT_KONGS,
   STAT_BEST_TAI,
+  STAT_TOTAL_TAI,
+  STAT_OPENED,
+  STAT_DRAWN,
+  STAT_TING_AT_DRAW,
+  STAT_DISCARDS,
+  STAT_DISCARDS_EFFICIENT,
+  ...SEAT_ORDER.flatMap((seat) => [SEAT_STAT_CODES[seat].hands, SEAT_STAT_CODES[seat].wins]),
 ] as const;
 
 // Below this many hands a percentage says more about luck than about the
@@ -69,6 +94,27 @@ export interface StatRate {
   ratio: number | null;
 }
 
+/**
+ * A mean rather than a share. Kept distinct from StatRate because the two
+ * cannot be formatted the same way — a ratio renders as a percentage and a
+ * mean does not — and because conflating them is how "average Tai: 300%"
+ * happens.
+ */
+export interface StatAverage {
+  total: number;
+  count: number;
+  countLabel: string;
+  mean: number | null;
+}
+
+/** One table position's record, kept separate because East deals. */
+export interface SeatSplit {
+  seat: SeatId;
+  hands: number;
+  wins: number;
+  winRate: StatRate;
+}
+
 export interface PlayerStatSummary {
   handsPlayed: number;
   wins: number;
@@ -76,6 +122,18 @@ export interface PlayerStatSummary {
   zimoShare: StatRate;
   dealInRate: StatRate;
   tingRate: StatRate;
+  // Share of hands the player opened by claiming. Per hand, not per claim
+  // opportunity: the chances a player declined are not recoverable from a
+  // finished hand, and every published call rate is per hand anyway.
+  callRate: StatRate;
+  // Ready when the wall ran out, over hands that actually reached a draw.
+  // Measured against all hands it would mostly report how often this
+  // player's tables reached a draw, which is not a fact about them.
+  tenpaiAtDrawRate: StatRate;
+  // Share of discards that matched the efficiency reference's best set.
+  tileEfficiency: StatRate;
+  averageWinTai: StatAverage;
+  seatSplits: SeatSplit[];
   kongsDeclared: number;
   bestHandTai: number;
   // True once any hand has been played; the screen shows an invitation to play
@@ -108,6 +166,11 @@ export function reconcilePlayerStatsWithHistory(
     winRate: rate(wins, handsPlayed, "hands played"),
     dealInRate: rate(summary.dealInRate.numerator, handsPlayed, "hands played"),
     tingRate: rate(summary.tingRate.numerator, handsPlayed, "hands played"),
+    // Only the per-hand rates are reconciled. Tile efficiency, tenpai-at-draw
+    // and the seat splits count against denominators the session list does
+    // not carry — discards, drawn hands, hands in one seat — so rebasing them
+    // on the history length would invent a number rather than correct one.
+    callRate: rate(summary.callRate.numerator, handsPlayed, "hands played"),
   };
 }
 
@@ -117,6 +180,15 @@ function rate(numerator: number, denominator: number, denominatorLabel: string):
     denominator,
     denominatorLabel,
     ratio: denominator >= MINIMUM_RATE_SAMPLE && denominator > 0 ? numerator / denominator : null,
+  };
+}
+
+function average(total: number, count: number, countLabel: string): StatAverage {
+  return {
+    total,
+    count,
+    countLabel,
+    mean: count >= MINIMUM_RATE_SAMPLE && count > 0 ? total / count : null,
   };
 }
 
@@ -135,6 +207,7 @@ export function summarisePlayerStats(values: Record<string, number>): PlayerStat
 
   const handsPlayed = read(STAT_HANDS);
   const wins = read(STAT_WINS);
+  const discards = read(STAT_DISCARDS);
 
   return {
     handsPlayed,
@@ -143,6 +216,20 @@ export function summarisePlayerStats(values: Record<string, number>): PlayerStat
     zimoShare: rate(read(STAT_ZIMO), wins, "wins"),
     dealInRate: rate(read(STAT_DEALT_IN), handsPlayed, "hands played"),
     tingRate: rate(read(STAT_TING), handsPlayed, "hands played"),
+    callRate: rate(read(STAT_OPENED), handsPlayed, "hands played"),
+    tenpaiAtDrawRate: rate(read(STAT_TING_AT_DRAW), read(STAT_DRAWN), "drawn hands"),
+    tileEfficiency: rate(read(STAT_DISCARDS_EFFICIENT), discards, "discards"),
+    averageWinTai: average(read(STAT_TOTAL_TAI), wins, "wins"),
+    seatSplits: SEAT_ORDER.map((seat) => {
+      const seatHands = read(SEAT_STAT_CODES[seat].hands);
+      const seatWins = read(SEAT_STAT_CODES[seat].wins);
+      return {
+        seat,
+        hands: seatHands,
+        wins: seatWins,
+        winRate: rate(seatWins, seatHands, "hands in seat"),
+      };
+    }),
     kongsDeclared: read(STAT_KONGS),
     bestHandTai: read(STAT_BEST_TAI),
     hasPlayed: handsPlayed > 0,

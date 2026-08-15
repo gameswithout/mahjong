@@ -9,7 +9,11 @@
 // idempotency keys and the SQL; this file owns only the arithmetic.
 package progression
 
-import "time"
+import (
+	"time"
+
+	"github.com/gameswithout/mahjong/rulesengine"
+)
 
 // §12.1 award values.
 const (
@@ -77,6 +81,23 @@ type HandOutcome struct {
 	// runtime to watch every transition and remember, and this is derivable
 	// from the final projection alone. The dashboard labels it accordingly.
 	Ting bool
+	// ExhaustiveDraw is true when the wall ran out and nobody won. It is the
+	// denominator the tenpai-at-draw rate needs: being ready at the end of a
+	// hand somebody else won says something different from being ready when
+	// the wall ran out, and only the second is the classic "did you get
+	// there in time" measure.
+	ExhaustiveDraw bool
+	// Opened is true when this seat claimed at least one meld, exposing part
+	// of the hand to the table. This is per hand rather than per claim
+	// opportunity on purpose: the call rate every Mahjong statistics page
+	// reports is the share of *hands* a player opened, not the share of
+	// individual chances they took, and only the former is derivable from a
+	// finished hand.
+	Opened bool
+	// Seat is the table position this hand was played from, for the seat
+	// split. East deals, so its results are not comparable to the others
+	// and pooling them hides a real effect.
+	Seat rulesengine.Seat
 }
 
 // XPComponent is one line of the award, kept separate so the result screen can

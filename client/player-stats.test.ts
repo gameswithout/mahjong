@@ -12,7 +12,97 @@ import {
   STAT_TING,
   STAT_WINS,
   STAT_ZIMO,
+  STAT_DISCARDS,
+  STAT_DISCARDS_EFFICIENT,
+  STAT_DRAWN,
+  STAT_OPENED,
+  STAT_TING_AT_DRAW,
+  STAT_TOTAL_TAI,
 } from "./player-stats";
+
+describe("statistics added for the P2.3 dashboard", () => {
+  const base = {
+    [STAT_HANDS]: 100,
+    [STAT_WINS]: 25,
+    [STAT_TOTAL_TAI]: 150,
+    [STAT_OPENED]: 40,
+    [STAT_DRAWN]: 30,
+    [STAT_TING_AT_DRAW]: 12,
+    [STAT_DISCARDS]: 900,
+    [STAT_DISCARDS_EFFICIENT]: 630,
+    "hands-seat-east": 25,
+    "hands-won-seat-east": 9,
+    "hands-seat-north": 25,
+    "hands-won-seat-north": 4,
+  };
+
+  it("divides average Tai by wins, not by hands played", () => {
+    const summary = summarisePlayerStats(base);
+    // 150 Tai over 25 wins. Dividing by the 100 hands played would report
+    // 1.5 and describe a player who wins far more often than they do.
+    expect(summary.averageWinTai.mean).toBe(6);
+    expect(summary.averageWinTai.countLabel).toBe("wins");
+  });
+
+  it("measures the call rate per hand and tenpai against drawn hands only", () => {
+    const summary = summarisePlayerStats(base);
+    expect(summary.callRate.ratio).toBeCloseTo(0.4);
+    expect(summary.callRate.denominatorLabel).toBe("hands played");
+    // 12 of the 30 hands that reached a draw, not 12 of 100.
+    expect(summary.tenpaiAtDrawRate.ratio).toBeCloseTo(0.4);
+    expect(summary.tenpaiAtDrawRate.denominatorLabel).toBe("drawn hands");
+  });
+
+  it("measures tile efficiency against discards made", () => {
+    const summary = summarisePlayerStats(base);
+    expect(summary.tileEfficiency.ratio).toBeCloseTo(0.7);
+    expect(summary.tileEfficiency.denominatorLabel).toBe("discards");
+  });
+
+  it("splits by seat and keeps each seat's own denominator", () => {
+    const summary = summarisePlayerStats(base);
+    const east = summary.seatSplits.find((split) => split.seat === "E");
+    const north = summary.seatSplits.find((split) => split.seat === "N");
+    expect(east?.winRate.ratio).toBeCloseTo(0.36);
+    expect(north?.winRate.ratio).toBeCloseTo(0.16);
+    // A seat never played reads as zero hands, not as a zero win rate that
+    // would look like failure rather than absence.
+    const west = summary.seatSplits.find((split) => split.seat === "W");
+    expect(west?.hands).toBe(0);
+    expect(west?.winRate.ratio).toBeNull();
+    expect(summary.seatSplits).toHaveLength(4);
+  });
+
+  it("withholds every new rate until its own denominator earns it", () => {
+    // Plenty of hands, but almost no draws and few discards: the per-hand
+    // rates resolve while the others must stay null rather than reporting a
+    // percentage drawn from three events.
+    const summary = summarisePlayerStats({
+      [STAT_HANDS]: 100,
+      [STAT_WINS]: 3,
+      [STAT_TOTAL_TAI]: 30,
+      [STAT_OPENED]: 40,
+      [STAT_DRAWN]: 3,
+      [STAT_TING_AT_DRAW]: 3,
+      [STAT_DISCARDS]: 5,
+      [STAT_DISCARDS_EFFICIENT]: 5,
+    });
+    expect(summary.callRate.ratio).toBeCloseTo(0.4);
+    expect(summary.tenpaiAtDrawRate.ratio).toBeNull();
+    expect(summary.tileEfficiency.ratio).toBeNull();
+    expect(summary.averageWinTai.mean).toBeNull();
+    // The counts are still there for a screen that wants to show them.
+    expect(summary.tenpaiAtDrawRate.numerator).toBe(3);
+    expect(summary.averageWinTai.total).toBe(30);
+  });
+
+  it("reads a missing code as zero rather than failing", () => {
+    const summary = summarisePlayerStats({ [STAT_HANDS]: 40 });
+    expect(summary.tileEfficiency.denominator).toBe(0);
+    expect(summary.averageWinTai.total).toBe(0);
+    expect(summary.seatSplits.every((split) => split.hands === 0)).toBe(true);
+  });
+});
 
 describe("summarisePlayerStats", () => {
   const played = (extra: Record<string, number> = {}) => ({

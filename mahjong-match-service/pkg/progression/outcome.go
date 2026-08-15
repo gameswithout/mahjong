@@ -27,7 +27,10 @@ func OutcomeFromView(
 			view.HandResult.Payer == view.Seat,
 		// A non-empty wait list is the projection's own statement that this
 		// seat was one tile from a win when the hand ended.
-		Ting: len(view.Waits) > 0,
+		Ting:           len(view.Waits) > 0,
+		ExhaustiveDraw: view.HandResult.Kind == rulesengine.KindExhaustiveDraw,
+		Opened:         openedHand(view),
+		Seat:           view.Seat,
 	}
 
 	for _, winner := range view.HandResult.Winners {
@@ -44,6 +47,21 @@ func OutcomeFromView(
 	}
 
 	return outcome, true
+}
+
+// openedHand reports whether this seat took a tile from another player.
+//
+// Claimed is the discriminator, not merely having melds: a concealed Kong is
+// a meld this seat built from its own draws and leaves the hand closed for
+// scoring, so counting it as a call would overstate how often the player
+// actually opened up.
+func openedHand(view rulesengine.SeatView) bool {
+	for _, meld := range view.OwnMelds {
+		if meld.Claimed {
+			return true
+		}
+	}
+	return false
 }
 
 // declaredKongs counts this seat's Kongs from its own melds. Exposed and

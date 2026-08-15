@@ -155,16 +155,23 @@ func TestHandStats_PatternWins(t *testing.T) {
 func TestHandStats_UnawardedPatternsScoreNothing(t *testing.T) {
 	// Most scoring patterns have no §12.3 achievement. They must be ignored
 	// silently rather than inventing a stat code.
+	//
+	// Asserted against the pattern codes specifically rather than against an
+	// allow-list of everything else a win writes: the base counters grow as
+	// the dashboard does, and a test that has to be edited each time one is
+	// added stops testing what it is named for.
 	updates := HandStats(
 		HandOutcome{Won: true, RawTai: 3},
 		winningView(rulesengine.East, 3, "Base Win", "Seat Wind Set", "Single Wait"),
 	)
 
+	patternCodes := map[string]bool{}
+	for _, code := range patternStatCodes {
+		patternCodes[code] = true
+	}
 	for _, update := range updates {
-		switch update.StatCode {
-		case StatPublicHandsCompleted, StatPublicHandsWon, StatHighestRawTai:
-		default:
-			t.Fatalf("unawarded pattern produced stat %q", update.StatCode)
+		if patternCodes[update.StatCode] {
+			t.Fatalf("unawarded pattern produced pattern stat %q", update.StatCode)
 		}
 	}
 }
@@ -316,5 +323,127 @@ func TestHandStats_DashboardStatsHonourTheExistingExclusions(t *testing.T) {
 	}
 	if _, found := statValue(takenOver, StatPublicHandsCompleted); !found {
 		t.Error("a mostly-bot seat did not record the completed hand")
+	}
+}
+
+func TestHandStats_TotalRawTaiAccumulatesAlongsideTheBest(t *testing.T) {
+	updates := HandStats(
+		HandOutcome{Won: true, RawTai: 12, Seat: rulesengine.South},
+		winningView(rulesengine.South, 12),
+	)
+	total, ok := statValue(updates, StatTotalRawTai)
+	if !ok || total.Strategy != StatIncrement || total.Value != 12 {
+		t.Fatalf("total raw Tai = %+v (found=%v), want INCREMENT 12", total, ok)
+	}
+	best, ok := statValue(updates, StatHighestRawTai)
+	if !ok || best.Strategy != StatMax || best.Value != 12 {
+		t.Fatalf("highest raw Tai = %+v (found=%v), want MAX 12", best, ok)
+	}
+	// The average needs both a sum and a count; the win counter is the
+	// denominator, so a win worth Tai must always write all three.
+	if _, ok := statValue(updates, StatPublicHandsWon); !ok {
+		t.Fatal("a win worth Tai did not record the win the average divides by")
+	}
+}
+
+func TestHandStats_OpenedHandCountsTheCallRateNumerator(t *testing.T) {
+	drawResult := rulesengine.SeatView{
+		HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw},
+	}
+	opened := HandStats(HandOutcome{Opened: true, Seat: rulesengine.West}, drawResult)
+	if _, ok := statValue(opened, StatPublicHandsOpened); !ok {
+		t.Fatal("an opened hand did not record the call-rate numerator")
+	}
+	closed := HandStats(HandOutcome{Seat: rulesengine.West}, drawResult)
+	if _, ok := statValue(closed, StatPublicHandsOpened); ok {
+		t.Fatal("a closed hand recorded a call")
+	}
+}
+
+// The tenpai-at-draw rate is only meaningful against draws. Being ready when
+// somebody else won is a different fact and must not inflate the denominator.
+func TestHandStats_TenpaiAtDrawOnlyCountsOnADraw(t *testing.T) {
+	drawn := HandStats(
+		HandOutcome{Ting: true, ExhaustiveDraw: true, Seat: rulesengine.East},
+		rulesengine.SeatView{HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw}},
+	)
+	if _, ok := statValue(drawn, StatPublicHandsDrawn); !ok {
+		t.Fatal("a draw did not record the tenpai-at-draw denominator")
+	}
+	if _, ok := statValue(drawn, StatPublicHandsTingDraw); !ok {
+		t.Fatal("ready at a draw did not record the numerator")
+	}
+
+	lost := HandStats(
+		HandOutcome{Ting: true, Seat: rulesengine.East},
+		winningView(rulesengine.South, 3),
+	)
+	if _, ok := statValue(lost, StatPublicHandsDrawn); ok {
+		t.Fatal("a hand somebody won counted toward the draw denominator")
+	}
+	if _, ok := statValue(lost, StatPublicHandsTingDraw); ok {
+		t.Fatal("ready when somebody else won counted as ready at a draw")
+	}
+	// It still counts toward the broader "ready at the end" statistic.
+	if _, ok := statValue(lost, StatPublicHandsTing); !ok {
+		t.Fatal("ready at the end of a lost hand was not recorded at all")
+	}
+}
+
+func TestHandStats_SeatSplitRecordsHandAndWinSeparately(t *testing.T) {
+	won := HandStats(
+		HandOutcome{Won: true, RawTai: 4, Seat: rulesengine.North},
+		winningView(rulesengine.North, 4),
+	)
+	if _, ok := statValue(won, "hands-seat-north"); !ok {
+		t.Fatal("the seat's hand counter was not recorded")
+	}
+	if _, ok := statValue(won, "hands-won-seat-north"); !ok {
+		t.Fatal("the seat's win counter was not recorded")
+	}
+	// A seat that played and lost still needs its denominator, or the seat
+	// win rate would read 100% for every seat.
+	lost := HandStats(
+		HandOutcome{Seat: rulesengine.North},
+		rulesengine.SeatView{HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw}},
+	)
+	if _, ok := statValue(lost, "hands-seat-north"); !ok {
+		t.Fatal("a lost hand did not record the seat denominator")
+	}
+	if _, ok := statValue(lost, "hands-won-seat-north"); ok {
+		t.Fatal("a lost hand recorded a seat win")
+	}
+	// Only the seat that was played is touched.
+	for _, code := range []string{"hands-seat-east", "hands-seat-south", "hands-seat-west"} {
+		if _, ok := statValue(won, code); ok {
+			t.Fatalf("playing North also recorded %s", code)
+		}
+	}
+}
+
+// Every dashboard code must actually be written by a completed hand, or the
+// dashboard reads a stat nothing ever sets and shows a permanent zero.
+func TestDashboardStatCodesAreAllWritten(t *testing.T) {
+	writable := map[string]bool{}
+	for _, seat := range []rulesengine.Seat{
+		rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North,
+	} {
+		for _, outcome := range []HandOutcome{
+			{Seat: seat, Won: true, Zimo: true, RawTai: 8, Kongs: 1, Opened: true, Ting: true, ExhaustiveDraw: true},
+			{Seat: seat, DealtIn: true},
+		} {
+			for _, update := range HandStats(outcome, winningView(seat, 8)) {
+				writable[update.StatCode] = true
+			}
+		}
+	}
+	// Tile efficiency is counted by replaying a hand's events rather than by
+	// HandStats, so it is excluded here and covered by its own test.
+	replayed := map[string]bool{StatDiscardsMade: true, StatDiscardsEfficient: true}
+	for _, code := range DashboardStatCodes() {
+		if replayed[code] || writable[code] {
+			continue
+		}
+		t.Errorf("dashboard reads %q but no completed hand ever writes it", code)
 	}
 }

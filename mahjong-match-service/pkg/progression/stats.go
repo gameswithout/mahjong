@@ -32,7 +32,47 @@ const (
 	// the same bulk update because they come from the same completed hand.
 	StatPublicHandsDealtIn = "public-hands-dealt-in"
 	StatPublicHandsTing    = "public-hands-ting"
+
+	// Rate denominators and numerators. AGS Statistics stores one scalar per
+	// code and cannot divide, so every rate the dashboard shows is two
+	// counters written here and a division done at read time. Storing the
+	// ratio instead would be lossy — a 1-of-2 and a 500-of-1000 player would
+	// become indistinguishable — and could not be updated incrementally.
+	StatTotalRawTai         = "total-raw-tai"
+	StatPublicHandsOpened   = "public-hands-opened"
+	StatPublicHandsDrawn    = "public-hands-drawn"
+	StatPublicHandsTingDraw = "public-hands-ting-at-draw"
+
+	// Tile efficiency. Unlike every other statistic here these cannot be read
+	// off a finished hand — whether a discard was the efficient one is a fact
+	// about the position it was made in, which the final projection no longer
+	// holds. They are counted by replaying the hand's own events.
+	StatDiscardsMade      = "discards-made"
+	StatDiscardsEfficient = "discards-efficient"
 )
+
+// seatStatCodes name the per-seat split counters. East deals, so its results
+// are not comparable with the other three and pooling them hides a real
+// effect; a player who only ever loses from North learns nothing from a
+// combined win rate.
+var seatStatCodes = map[rulesengine.Seat]struct{ hands, wins string }{
+	rulesengine.East:  {"hands-seat-east", "hands-won-seat-east"},
+	rulesengine.South: {"hands-seat-south", "hands-won-seat-south"},
+	rulesengine.West:  {"hands-seat-west", "hands-won-seat-west"},
+	rulesengine.North: {"hands-seat-north", "hands-won-seat-north"},
+}
+
+// SeatSplitStatCodes lists every per-seat counter, in table order, so callers
+// that read the dashboard do not have to know how the codes are spelled.
+func SeatSplitStatCodes() []string {
+	codes := make([]string, 0, len(seatStatCodes)*2)
+	for _, seat := range []rulesengine.Seat{
+		rulesengine.East, rulesengine.South, rulesengine.West, rulesengine.North,
+	} {
+		codes = append(codes, seatStatCodes[seat].hands, seatStatCodes[seat].wins)
+	}
+	return codes
+}
 
 // StatUpdate is one entry in a bulk statitem update.
 type StatUpdate struct {
@@ -109,6 +149,34 @@ func HandStats(outcome HandOutcome, view rulesengine.SeatView) []StatUpdate {
 			StatCode: StatPublicHandsTing, Strategy: StatIncrement, Value: 1,
 		})
 	}
+	if outcome.Opened {
+		updates = append(updates, StatUpdate{
+			StatCode: StatPublicHandsOpened, Strategy: StatIncrement, Value: 1,
+		})
+	}
+	// The tenpai-at-draw rate needs its own denominator. Measured against all
+	// hands it would mostly report how often the player's table reached a
+	// draw at all, which is a fact about the table rather than about them.
+	if outcome.ExhaustiveDraw {
+		updates = append(updates, StatUpdate{
+			StatCode: StatPublicHandsDrawn, Strategy: StatIncrement, Value: 1,
+		})
+		if outcome.Ting {
+			updates = append(updates, StatUpdate{
+				StatCode: StatPublicHandsTingDraw, Strategy: StatIncrement, Value: 1,
+			})
+		}
+	}
+	if codes, known := seatStatCodes[outcome.Seat]; known {
+		updates = append(updates, StatUpdate{
+			StatCode: codes.hands, Strategy: StatIncrement, Value: 1,
+		})
+		if outcome.Won {
+			updates = append(updates, StatUpdate{
+				StatCode: codes.wins, Strategy: StatIncrement, Value: 1,
+			})
+		}
+	}
 
 	if !outcome.Won {
 		return updates
@@ -128,6 +196,15 @@ func HandStats(outcome HandOutcome, view rulesengine.SeatView) []StatUpdate {
 		updates = append(updates, StatUpdate{
 			StatCode: StatHighestRawTai,
 			Strategy: StatMax,
+			Value:    float64(outcome.RawTai),
+		})
+		// The running total the average is divided out of. It is deliberately
+		// a separate code rather than a replacement for the MAX: the two
+		// answer different questions, and the best hand a player ever had is
+		// not recoverable from a sum.
+		updates = append(updates, StatUpdate{
+			StatCode: StatTotalRawTai,
+			Strategy: StatIncrement,
 			Value:    float64(outcome.RawTai),
 		})
 	}

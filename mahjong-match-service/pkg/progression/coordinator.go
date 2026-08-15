@@ -552,7 +552,7 @@ func (c *Coordinator) PlayerAchievements(
 // Kept beside the achievement codes so the two cannot drift: every one of
 // these is written by HandStats above.
 func DashboardStatCodes() []string {
-	return []string{
+	return append([]string{
 		StatPublicHandsCompleted,
 		StatPublicHandsWon,
 		StatZimoWins,
@@ -560,7 +560,13 @@ func DashboardStatCodes() []string {
 		StatPublicHandsTing,
 		StatKongsDeclared,
 		StatHighestRawTai,
-	}
+		StatTotalRawTai,
+		StatPublicHandsOpened,
+		StatPublicHandsDrawn,
+		StatPublicHandsTingDraw,
+		StatDiscardsMade,
+		StatDiscardsEfficient,
+	}, SeatSplitStatCodes()...)
 }
 
 // PlayerStatistics returns the player's dashboard counters.
