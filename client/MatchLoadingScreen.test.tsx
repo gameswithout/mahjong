@@ -23,6 +23,35 @@ function loadingView(): SeatView {
   };
 }
 
+function personaView(): SeatView {
+  const view = loadingView();
+  view.players = [
+    {
+      seat: "E",
+      hand_count: 16,
+      is_bot: true,
+      bot_persona_id: "swift-sparrow",
+      bot_persona_name: "Swift Sparrow",
+      bot_style_tag: "Rush",
+      bot_glyph: "雀",
+    },
+    { seat: "S", hand_count: 16 },
+    {
+      seat: "W",
+      hand_count: 16,
+      is_bot: true,
+      bot_persona_id: "stone-lion",
+      bot_persona_name: "Stone Lion",
+      bot_style_tag: "Guard",
+      bot_glyph: "獅",
+    },
+    // A bot the service sent no persona for — an older match, or a roster
+    // this deployment does not carry.
+    { seat: "N", hand_count: 16, is_bot: true },
+  ];
+  return view;
+}
+
 describe("MatchLoadingScreen", () => {
   it("shows all four profiles in seat order with local, bot, wind, and dealer identity", () => {
     const markup = renderToStaticMarkup(<MatchLoadingScreen view={loadingView()} />);
@@ -37,5 +66,35 @@ describe("MatchLoadingScreen", () => {
     expect(markup).toContain("Entering the Mahjong table");
     expect(markup.match(/match-loading-shared-profile/g)).toHaveLength(4);
     expect(markup.match(/profile-tile-icon/g)).toHaveLength(12);
+  });
+
+  // The table names these seats too, and the two screens used to hold
+  // separate copies of the rule — so this screen introduced an opponent as
+  // "Bot" and the table called the same seat Swift Sparrow moments later.
+  it("names each bot by its personality and shows the style", () => {
+    const markup = renderToStaticMarkup(<MatchLoadingScreen view={personaView()} />);
+
+    expect(markup).toContain("Swift Sparrow");
+    expect(markup).toContain("Bot · Rush");
+    expect(markup).toContain("Stone Lion");
+    expect(markup).toContain("Bot · Guard");
+    expect(markup).toContain("雀");
+  });
+
+  it("falls back to Bot for a seat with no personality", () => {
+    const markup = renderToStaticMarkup(<MatchLoadingScreen view={personaView()} />);
+
+    // North carries no persona, so it stays the plain label and contributes
+    // no style line at all rather than an empty one.
+    expect(markup).toContain(">Bot<");
+    expect(markup.match(/match-loading-persona-tag/g)).toHaveLength(2);
+  });
+
+  it("never labels the local player or a human seat as a bot", () => {
+    const markup = renderToStaticMarkup(<MatchLoadingScreen view={personaView()} />);
+    const localBlock = markup.slice(markup.indexOf('data-seat="S"'), markup.indexOf('data-seat="W"'));
+
+    expect(localBlock).toContain("You");
+    expect(localBlock).not.toContain("match-loading-persona");
   });
 });

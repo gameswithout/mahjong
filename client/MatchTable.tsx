@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { TileFace } from "./TileFace";
+import { botBadgeLabel } from "./bot-persona";
 import { PlayerProfileBadge } from "./PlayerProfile";
 import {
   defaultPlayerProfile,
@@ -176,7 +177,7 @@ function TakeoverBadge({
         title={styleTag ? `AI-controlled seat · ${styleTag} style` : "AI-controlled seat"}
         role="status"
       >
-        {styleTag ? `Bot · ${styleTag}` : "Bot"}
+        {botBadgeLabel(styleTag)}
       </span>
     );
   }

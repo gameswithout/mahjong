@@ -3,6 +3,7 @@
 // validated the layout against mock data; this is the E8 bridge that feeds
 // it real match state instead.
 import type { MahjongTile, MeldView, SeatView } from "../protocol/envelope";
+import { seatDisplayName, seatPersona } from "./bot-persona";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WireMeld } from "./matchTableTypes";
 import { tile, tileTypeKey } from "./matchTableTypes";
 
@@ -210,12 +211,12 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       const isBot = player?.is_bot ?? false;
       // An AI Practice bot seat plays a named personality, so it is shown
       // by name instead of as one of three interchangeable "Bot" labels.
-      // A disconnect takeover carries no persona and keeps the plain
-      // label, as does any match from before personas existed.
-      const personaName = isBot ? (player?.bot_persona_name ?? "") : "";
+      // The rule lives in bot-persona.ts because the loading screen names
+      // the same seats and the two had already drifted apart.
+      const persona = seatPersona(player);
       const state: SeatState = {
         seat,
-        displayName: isLocal ? "You" : isBot ? personaName || "Bot" : "Player",
+        displayName: seatDisplayName(player, isLocal),
         wind: seat,
         isDealer: seat === HARDCODED_DEALER,
         isActive: seat === view.active_seat,
@@ -229,8 +230,8 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         discards: (discardsBySeat.get(seat) ?? []).map(wireTile),
         takenOver: player?.taken_over ?? false,
         isBot,
-        botStyleTag: isBot ? (player?.bot_style_tag ?? "") || undefined : undefined,
-        botGlyph: isBot ? (player?.bot_glyph ?? "") || undefined : undefined,
+        botStyleTag: persona?.styleTag || undefined,
+        botGlyph: persona?.glyph || undefined,
       };
       return [seat, state];
     }),

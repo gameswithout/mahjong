@@ -2375,6 +2375,29 @@ h1 {
   text-transform: uppercase;
 }
 
+/* The opponent's playing style, shown while the table is being set so the
+   player knows who they are up against before the first discard rather than
+   inferring it from the badges mid-hand. */
+.match-loading-persona {
+  align-items: center;
+  color: #8fb2a0;
+  display: flex;
+  gap: 0.28rem;
+  font-size: clamp(0.6rem, 1.4vw, 0.71rem);
+  margin: 0.14rem 0 0;
+}
+
+.match-loading-persona-glyph {
+  font-size: 1.05em;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.match-loading-persona-tag {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
 .match-loading-wind {
   align-items: center;
   background: #313a6e;

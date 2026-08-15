@@ -1,4 +1,5 @@
 import type { MahjongSeat, SeatView } from "../protocol/envelope";
+import { seatDisplayName, seatPersona } from "./bot-persona";
 import { windName } from "./matchTableTypes";
 import { PlayerProfileBadge } from "./PlayerProfile";
 import {
@@ -31,7 +32,11 @@ export function MatchLoadingScreen({
           const player = playersBySeat.get(seat);
           const isLocal = seat === view.seat;
           const isBot = player?.is_bot ?? false;
-          const name = isLocal ? "You" : isBot ? "Bot" : "Player";
+          // The table names these seats too. Both read the same rule so the
+          // loading screen cannot introduce an opponent as "Bot" and then
+          // have the table call it Swift Sparrow a moment later.
+          const name = seatDisplayName(player, isLocal);
+          const persona = seatPersona(player);
           const seatProfile: PlayerProfileConfig = isLocal && playerProfile
             ? playerProfile
             : {
@@ -59,6 +64,16 @@ export function MatchLoadingScreen({
                   {windName(seat)} seat
                   {seat === "E" ? <span className="match-loading-dealer">Dealer</span> : null}
                 </p>
+                {persona ? (
+                  <p className="match-loading-persona">
+                    <span className="match-loading-persona-glyph" aria-hidden="true">
+                      {persona.glyph}
+                    </span>
+                    <span className="match-loading-persona-tag">
+                      {persona.styleTag ? `Bot · ${persona.styleTag}` : "Bot"}
+                    </span>
+                  </p>
+                ) : null}
               </div>
               <span className="match-loading-wind" aria-label={`${windName(seat)} wind`}>
                 {seat}
