@@ -30,14 +30,19 @@ import (
 // Dealer is always East and continuation 0, matching that same no-session
 // convention.
 func PlayCalibrationHand(seed uint64, seats map[rulesengine.Seat]Policy) (HandOutcome, error) {
-	if len(seats) != len(seatOrder) {
-		return HandOutcome{}, fmt.Errorf("bots: calibration requires exactly %d seated policies, got %d", len(seatOrder), len(seats))
+	engine, err := newCalibrationEngine(seed)
+	if err != nil {
+		return HandOutcome{}, err
 	}
-	for _, seat := range seatOrder {
-		if seats[seat] == nil {
-			return HandOutcome{}, fmt.Errorf("bots: calibration seat %s has no policy", seat)
-		}
+	if err := driveCalibrationHand(engine, seed, seats); err != nil {
+		return HandOutcome{}, err
 	}
+	return outcomeFromResult(seed, engine.Result()), nil
+}
+
+// newCalibrationEngine deals one seeded hand and runs the initial Flower
+// replacement, leaving an engine ready to be driven.
+func newCalibrationEngine(seed uint64) (*rulesengine.TurnEngine, error) {
 	rng := newSeedSequence(seed)
 	dice := [2]uint8{
 		uint8(1 + rng.forStep(0)%6),
@@ -45,16 +50,32 @@ func PlayCalibrationHand(seed uint64, seats map[rulesengine.Seat]Policy) (HandOu
 	}
 	deal, err := rulesengine.Deal(seed, dice)
 	if err != nil {
-		return HandOutcome{}, err
+		return nil, err
 	}
 	clockValue := time.Date(2026, 7, 19, 6, 0, 0, 0, time.UTC)
 	engine, err := rulesengine.NewTurnEngine(deal, func() time.Time { return clockValue })
 	if err != nil {
-		return HandOutcome{}, err
+		return nil, err
 	}
 	if err := engine.BeginInitialReplacement(); err != nil && !errors.Is(err, rulesengine.ErrHandComplete) {
-		return HandOutcome{}, fmt.Errorf("begin initial replacement: %w", err)
+		return nil, fmt.Errorf("begin initial replacement: %w", err)
 	}
+	return engine, nil
+}
+
+// driveCalibrationHand plays engine to a terminal phase with each seat
+// driven by its assigned Policy. Callers read whatever they need off the
+// engine afterwards: who finished first, or the full result.
+func driveCalibrationHand(engine *rulesengine.TurnEngine, seed uint64, seats map[rulesengine.Seat]Policy) error {
+	if len(seats) != len(seatOrder) {
+		return fmt.Errorf("bots: calibration requires exactly %d seated policies, got %d", len(seatOrder), len(seats))
+	}
+	for _, seat := range seatOrder {
+		if seats[seat] == nil {
+			return fmt.Errorf("bots: calibration seat %s has no policy", seat)
+		}
+	}
+	rng := newSeedSequence(seed)
 
 	const dealer, prevailingWind, continuation = rulesengine.East, rulesengine.East, 0
 	step := uint64(1)
@@ -67,29 +88,29 @@ func PlayCalibrationHand(seed uint64, seats map[rulesengine.Seat]Policy) (HandOu
 	for iteration := 0; iteration < stepBudget; iteration++ {
 		switch engine.Phase {
 		case rulesengine.PhaseHandComplete, rulesengine.PhaseExhaustiveDraw:
-			return outcomeFromResult(seed, engine.Result()), nil
+			return nil
 
 		case rulesengine.PhaseOfferPending:
 			// Eight Flowers and Heavenly are both wins; §11.3 always
 			// declares a legal Win regardless of difficulty.
 			offer := engine.Offer()
 			if _, err := engine.RespondOffer(engine.Version, offer.Seat, true); err != nil && !errors.Is(err, rulesengine.ErrHandComplete) {
-				return HandOutcome{}, fmt.Errorf("respond offer: %w", err)
+				return fmt.Errorf("respond offer: %w", err)
 			}
 
 		case rulesengine.PhaseAwaitingDraw:
 			if _, err := engine.Draw(engine.Version); err != nil && !errors.Is(err, rulesengine.ErrHandComplete) {
-				return HandOutcome{}, fmt.Errorf("draw: %w", err)
+				return fmt.Errorf("draw: %w", err)
 			}
 
 		case rulesengine.PhaseAwaitingDiscard:
 			seat := engine.ActiveSeat
 			command, err := decideTurnCommand(engine, seats[seat], seat, dealer, prevailingWind, continuation, nextSeed())
 			if err != nil {
-				return HandOutcome{}, fmt.Errorf("decide turn for %s: %w", seat, err)
+				return fmt.Errorf("decide turn for %s: %w", seat, err)
 			}
 			if err := applyPolicyCommand(engine, command); err != nil && !errors.Is(err, rulesengine.ErrHandComplete) {
-				return HandOutcome{}, fmt.Errorf("apply turn for %s: %w", seat, err)
+				return fmt.Errorf("apply turn for %s: %w", seat, err)
 			}
 
 		case rulesengine.PhaseClaimWindow:
@@ -100,15 +121,15 @@ func PlayCalibrationHand(seed uint64, seats map[rulesengine.Seat]Policy) (HandOu
 				}
 				command, err := decideClaimCommand(engine, seats[seat], seat, dealer, prevailingWind, continuation, nextSeed(), window)
 				if err != nil {
-					return HandOutcome{}, fmt.Errorf("decide claim for %s: %w", seat, err)
+					return fmt.Errorf("decide claim for %s: %w", seat, err)
 				}
 				if err := applyPolicyCommand(engine, command); err != nil {
-					return HandOutcome{}, fmt.Errorf("apply claim for %s: %w", seat, err)
+					return fmt.Errorf("apply claim for %s: %w", seat, err)
 				}
 				window = engine.Claim
 			}
 			if _, err := engine.ResolveClaims(window.StateVersion); err != nil && !errors.Is(err, rulesengine.ErrHandComplete) {
-				return HandOutcome{}, fmt.Errorf("resolve claims: %w", err)
+				return fmt.Errorf("resolve claims: %w", err)
 			}
 
 		case rulesengine.PhaseRobWindow:
@@ -121,19 +142,19 @@ func PlayCalibrationHand(seed uint64, seats map[rulesengine.Seat]Policy) (HandOu
 				win := !engine.IsWinLocked(seat) && rulesengine.DefaultWinValidator(engine.Deal, seat, window.Tile)
 				response := rulesengine.RobResponse{Seat: seat, StateVersion: window.StateVersion, Win: win}
 				if err := engine.SubmitRobResponse(response); err != nil {
-					return HandOutcome{}, fmt.Errorf("submit rob for %s: %w", seat, err)
+					return fmt.Errorf("submit rob for %s: %w", seat, err)
 				}
 				window = engine.Rob()
 			}
 			if _, err := engine.ResolveRob(window.StateVersion); err != nil && !errors.Is(err, rulesengine.ErrHandComplete) {
-				return HandOutcome{}, fmt.Errorf("resolve rob: %w", err)
+				return fmt.Errorf("resolve rob: %w", err)
 			}
 
 		default:
-			return HandOutcome{}, fmt.Errorf("bots: unexpected phase %s during calibration", engine.Phase)
+			return fmt.Errorf("bots: unexpected phase %s during calibration", engine.Phase)
 		}
 	}
-	return HandOutcome{}, fmt.Errorf("%w (seed %d, phase %s)", ErrCalibrationStepBudget, seed, engine.Phase)
+	return fmt.Errorf("%w (seed %d, phase %s)", ErrCalibrationStepBudget, seed, engine.Phase)
 }
 
 // ErrCalibrationStepBudget is returned when a calibration hand does not
