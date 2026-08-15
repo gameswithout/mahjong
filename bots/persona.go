@@ -39,7 +39,7 @@ var personaFiles embed.FS
 // PersonaVersion is recorded on every Decision alongside the persona ID, so
 // a replay can tell a retuned Swift Sparrow from the one that actually
 // played the hand. Bump it whenever any personas/*/style.json changes.
-const PersonaVersion = "v1.0.0"
+const PersonaVersion = "v1.1.0"
 
 // DefaultPersonaID is what an unqualified request resolves to. It is only
 // the default, not a privileged persona the others hang off: River Scholar

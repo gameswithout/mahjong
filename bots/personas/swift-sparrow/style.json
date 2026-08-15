@@ -1,8 +1,8 @@
 {
-  "_comment": "Editable style knobs. Speed persona: completion and live acceptance dominate, Tai is nearly ignored, and claim_bias is the roster's highest so it opens the hand readily. commitment is set near 1.0 because a rush hand should never stop to chase a pattern.",
+  "_comment": "Editable style knobs. Speed persona: acceptance is weighted to twice completion, which is the 'builds wide waits' half of its promise — given a choice between the marginally closer hand and the one with more tiles still live, it takes the wider wait. Weighting both equally would only scale River Scholar's own ranking, and a ranking is unchanged by scaling: the ratio is what makes this a different player rather than a louder one. Tai is nearly ignored, claim_bias is the roster's highest, and commitment sits near 1.0 because a rush hand should never stop to chase a pattern.",
   "name": "Swift Sparrow",
-  "completion_weight": 1.8,
-  "acceptance_weight": 1.8,
+  "completion_weight": 1.2,
+  "acceptance_weight": 2.4,
   "tai_weight": 0.3,
   "risk_weight": 0.6,
   "claim_bias": 1.2,

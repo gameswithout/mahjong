@@ -4,7 +4,7 @@
 - Ruleset: Taiwanese 16-tile v1.1
 - Proposal: [Bot Playing-Style Research and Persona Proposal](bot-playing-style-personas.md)
 - Date: 2026-08-14
-- AI version: `v1.1.0` · Persona version: `v1.0.0`
+- AI version: `v1.1.0` · Persona version: `v1.1.0`
 
 ## What shipped
 
@@ -71,36 +71,58 @@ earlier pooled measurement made Thunder Tiger look like a Chow specialist.
 | Persona | Divergence | Discard | Claim | Pong taken | Chow taken |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | River Scholar (reference) | 0.0% | 0.0% | 0.0% | 89.0% | 88.0% |
-| Swift Sparrow | 12.8% | 14.0% | 12.2% | 92.5% | 100.0% |
+| Swift Sparrow | 20.6% | 38.0% | 11.8% | 92.5% | 98.7% |
 | Stone Lion | 68.4% | 40.0% | 82.8% | 13.0% | 0.0% |
 | Jade Dragon | 24.4% | 24.7% | 24.3% | 85.6% | 51.3% |
-| Thunder Tiger | 14.8% | 28.7% | 7.8% | 99.3% | 93.3% |
+| Thunder Tiger | 16.6% | 36.7% | 6.4% | 100.0% | 88.7% |
 | Silent Crane | 64.1% | 14.7% | 89.2% | 0.0% | 0.0% |
 
-Directions match the cards: Rush calls more than the reference, Guard and
-Concealed call far less, Concealed is the roster's lowest caller, and Pongs &
-Kongs takes a larger share of the Pongs it is offered than of the Chows.
+All six clear §9.2's proposed 15% divergence gate, and directions match the
+cards: Rush calls more than the reference, Guard and Concealed call far less,
+Concealed is the roster's lowest caller, and Pongs & Kongs takes a larger share
+of the Pongs it is offered than of the Chows.
 
-### Where this falls short of §9.2
+### Two personas that were names before they were styles
 
-The proposal's §9.2 gate asks each specialist to differ from River Scholar on
-at least 15% of style-relevant decisions. Four of six clear it. **Swift Sparrow
-(12.8%) and Thunder Tiger (14.8%) do not.**
+Swift Sparrow and Thunder Tiger first measured at 12.8% and 14.8%, under the
+gate. Both had a real defect their own cards had already described and their
+weights had not.
 
-The cause is worth recording rather than tuning away. Both differ from the
-reference mainly in *degree* along an axis the neutral evaluator already
-optimises — speed — so their best-scoring action often coincides with its own.
-The reference itself accepts ~88% of the claim opportunities in this sample,
-which leaves a rush persona almost no room above it. Closing that needs the
-reference to price an open hand's lost concealed value properly; today
-`potentialValueProxy` applies no openness penalty before tenpai, and the flat
-concealment constant is a poor stand-in for it.
+**Swift Sparrow weighted completion and acceptance equally — the same 1:1
+ratio as the reference.** A ranking is unchanged by scaling, so setting both to
+1.8 against the reference's 1.0 produced a louder River Scholar rather than a
+different player. Its card promises "builds wide waits", which is acceptance
+*over* completion; weighting acceptance to twice completion expresses that, and
+took its discard divergence from 14.0% to 38.0%.
 
-Every scale setting tried that widened the gap also pushed Stone Lion into
-never claiming at all, which contradicts §6.3. The shipped setting keeps the
-shared openness cost modest and lets each persona's `claim_bias` carry its own
-reluctance; the automated floor is set at 10% with §9.2's 15% left as the
-tuning-pass target.
+**Thunder Tiger paid less for a Chow than the reference did.** `chow_bias` is
+summed with `claim_bias`, so −1.0 against +0.8 netted to −0.2: a cost of 14
+where the neutral reference paid 30. It took *more* Chows than the reference,
+the exact opposite of the high Chow threshold on its card. At −1.8 the sum
+finally runs the right way.
+
+### The claim-rate ceiling, and one thing that did not work
+
+Claim acceptance is dominated by whether a claim takes a whole step off the
+hand's distance, which is worth 100 in this evaluator. Bias constants below
+that barely move it, which has two consequences worth recording.
+
+The reference itself accepts ~88% of claim opportunities in this sample. That
+is probably close to right for this ruleset — Taiwanese 16-tile rewards calling
+far more than Riichi does — but it means §6.2's hypothesis that Rush should
+accept "at least 20 percentage points" more than the reference is not reachable
+arithmetically. Swift Sparrow is already at 92.5% and 98.7%. Its identity has
+to live in its discards, and now does.
+
+Raising `personaClaimScale` from 40 to 70 to give shape preferences more
+authority **was tried and reverted**. It moved Thunder Tiger's Chow rate by
+less than two points while pushing Stone Lion from 13% Pong acceptance back to
+never claiming at all, contradicting §6.3. Thunder Tiger's Chow rate therefore
+remains at parity with the reference rather than above its promised threshold.
+Expressing that properly needs the claim evaluation to grade *how much* a claim
+advances the hand, not a larger constant — the same family of evaluator work as
+pricing an open hand's lost concealed value, which `potentialValueProxy` still
+does not do before tenpai.
 
 ## Not measured here
 

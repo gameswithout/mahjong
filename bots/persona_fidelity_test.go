@@ -33,23 +33,26 @@ func fidelityReports(t *testing.T) map[string]PersonaFidelityReport {
 // increment is responsible for: is each persona a style, or only a name? A
 // bot that agrees with River Scholar on nearly every decision is the latter.
 //
-// The floor asserted here is 10%, not §9.2's proposed 15% product gate.
-// That gate is a tuning-pass target and is currently met by four of the six
-// personas; Swift Sparrow and Thunder Tiger sit just under it, for a reason
-// worth recording rather than tuning away. Both differ from the reference
-// mostly in *degree* along an axis the neutral evaluator already optimises
-// — speed — so their best-scoring action frequently coincides with its own.
-// Closing that needs the reference itself to price an open hand's lost
-// concealed value properly, which §3.2 lists as evaluator work still to do,
-// not a weight that can be nudged: every scale that widened the gap here
-// pushed Stone Lion into never calling at all.
+// The threshold is §9.2's proposed 15% product gate. Two personas needed
+// real fixes to reach it, both of which their own cards had already
+// described and the weights had not:
+//
+//   - Swift Sparrow weighted completion and acceptance equally, the same
+//     ratio as the reference. A ranking is unchanged by scaling, so
+//     doubling both only made it a louder River Scholar. Weighting
+//     acceptance above completion is the "builds wide waits" half of its
+//     promise, and is what makes it a different player.
+//   - Thunder Tiger's Chow penalty was summed with its general eagerness to
+//     claim and lost, so it paid *less* for a Chow than the reference and
+//     took more of them — the opposite of the high Chow threshold on its
+//     card.
 func TestEverySpecialistDivergesFromTheReference(t *testing.T) {
 	reports := fidelityReports(t)
 
 	if scholar := reports[DefaultPersonaID]; scholar.StyleRelevantDivergence != 0 {
 		t.Fatalf("the reference persona diverges from itself by %.3f, want 0", scholar.StyleRelevantDivergence)
 	}
-	const floor = 0.10
+	const gate = 0.15
 	for id, report := range reports {
 		if id == DefaultPersonaID {
 			continue
@@ -57,9 +60,9 @@ func TestEverySpecialistDivergesFromTheReference(t *testing.T) {
 		if report.DiscardSamples == 0 || report.ClaimOpportunities == 0 {
 			t.Fatalf("%s: sample was empty (%d discards, %d claims)", id, report.DiscardSamples, report.ClaimOpportunities)
 		}
-		if report.StyleRelevantDivergence < floor {
+		if report.StyleRelevantDivergence < gate {
 			t.Errorf("%s diverges from %s on %.1f%% of style-relevant decisions, want at least %.0f%%",
-				id, report.ReferenceID, report.StyleRelevantDivergence*100, floor*100)
+				id, report.ReferenceID, report.StyleRelevantDivergence*100, gate*100)
 		}
 	}
 }

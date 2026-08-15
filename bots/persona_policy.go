@@ -64,6 +64,17 @@ const (
 	// persona's own reluctance is both better behaved and easier to author
 	// against: a persona's calling appetite lives in its own file rather
 	// than in the interaction of two scales.
+	// Claim acceptance is dominated by whether the claim takes a whole step
+	// off the hand's distance, which is worth 100 here. Bias scales below
+	// that barely move it: raising this to 70 shifted Thunder Tiger's Chow
+	// rate by less than two points while pushing Stone Lion back to never
+	// claiming at all, because Stone Lion was already close to that floor
+	// and Thunder Tiger's own completion weight grew alongside the penalty.
+	// A bias large enough to decline an advancing claim would have to rival
+	// the completion term and would then dominate every other persona's
+	// score. Expressing "high threshold for a Chow" needs the claim
+	// evaluation to grade *how much* a claim advances the hand, which is
+	// evaluator work — not a bigger constant here.
 	personaClaimScale       = 40.0
 	personaConcealmentScale = 30.0
 	personaFoldScale        = 150.0
