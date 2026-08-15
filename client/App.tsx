@@ -30,7 +30,7 @@ import { jadeEntryRequirementMessage, stakeSummary } from "./jade-entry";
 import { JadeRecoveryCard, type JadeRecoveryState } from "./JadeRecoveryCard";
 import { LobbyHeader } from "./LobbyHeader";
 import { LockedTiers } from "./LockedTiers";
-import { playableTier, tierSummary } from "./lobby-tiers";
+import { playableTier, tierName, tierSummary } from "./lobby-tiers";
 import { queueElapsedLabel, queueHealth, queueHealthMessage } from "./queue-health";
 import { TutorialScreen } from "./tutorial/TutorialScreen";
 import { createFriendsClient, FriendsError, type Friend, type FriendRequest } from "./friends";
@@ -103,6 +103,8 @@ import {
 } from "./settings";
 import { FeedbackScreen } from "./FeedbackScreen";
 import { createFeedbackClient, type PlayerFeedback } from "./feedback";
+import { displayCountryName, formatNumber, t, translateSource } from "./i18n";
+import { useLocale } from "./i18n/useLocale";
 import "./styles.css";
 import "./match-table.css";
 
@@ -410,6 +412,9 @@ export function App(
     telemetry: injectedTelemetry,
   }: { iam?: BrowserIam; telemetry?: GameTelemetry } = {},
 ) {
+  // One subscription at the application boundary refreshes every translated
+  // child when the global language selector changes.
+  useLocale();
   const [stableIam] = useState(() => injectedIam ?? createBrowserIam());
   const [gameTelemetry] = useState<GameTelemetry>(() =>
     injectedTelemetry ??
@@ -3040,8 +3045,8 @@ export function App(
           <section className="achievement-screen" aria-labelledby="achievement-title">
             <header className="achievement-header">
               <div>
-                <p className="status-label">Progression</p>
-                <h2 id="achievement-title">Achievements</h2>
+                <p className="status-label">{t("progression.label")}</p>
+                <h2 id="achievement-title">{t("progression.achievements")}</h2>
               </div>
               <button
                 type="button"
@@ -3059,12 +3064,12 @@ export function App(
                   className="secondary-action"
                   onClick={() => void loadAchievements()}
                 >
-                  Retry achievements
+                  {t("achievement.retry")}
                 </button>
               </div>
             ) : (
               <p className="status-message" role="status" aria-live="polite">
-                Loading your achievements…
+                {t("achievement.loading")}
               </p>
             )}
           </section>
@@ -3114,23 +3119,23 @@ export function App(
           <section className="statistics-screen" aria-labelledby="statistics-title">
             <header className="statistics-header">
               <div>
-                <p className="status-label">Statistics</p>
-                <h2 id="statistics-title">Quick Play</h2>
+                <p className="status-label">{t("statistics.label")}</p>
+                <h2 id="statistics-title">{t("statistics.quickPlay")}</h2>
               </div>
               <button type="button" className="statistics-close" onClick={() => setStatisticsOpen(false)}>
-                Close
+                {t("common.close")}
               </button>
             </header>
             {statisticsState.status === "error" ? (
               <div className="session-error" role="alert">
                 <p>{statisticsState.message}</p>
                 <button type="button" className="secondary-action" onClick={() => void loadStatistics()}>
-                  Retry
+                  {t("common.retry")}
                 </button>
               </div>
             ) : (
               <p className="status-message" role="status" aria-live="polite">
-                Loading your statistics…
+                {t("statistics.loading")}
               </p>
             )}
           </section>
@@ -3157,11 +3162,11 @@ export function App(
     return (
       <div className="game-screen">
         <section className="placeholder-screen" aria-labelledby="store-title">
-          <p className="status-label">Store</p>
-          <h1 id="store-title">TBD</h1>
-          <p>Cosmetics and Tael purchases will be added later.</p>
+          <p className="status-label">{t("header.store")}</p>
+          <h1 id="store-title">{t("store.comingSoon")}</h1>
+          <p>{t("store.placeholder")}</p>
           <button type="button" className="secondary-action" onClick={() => setStoreOpen(false)}>
-            Back to lobby
+            {t("common.backToLobby")}
           </button>
         </section>
       </div>
@@ -3210,7 +3215,7 @@ export function App(
       <div className="game-screen">
         {matchRuntimeState.status === "preparing" && (
           <div className="game-screen-status" role="status" aria-live="assertive">
-            <p className="game-screen-status-text">{matchRuntimeState.message}</p>
+            <p className="game-screen-status-text">{translateSource(matchRuntimeState.message)}</p>
           </div>
         )}
 
@@ -3218,8 +3223,11 @@ export function App(
           <div className="game-screen-status" role="status" aria-live="assertive">
             <p className="game-screen-status-text">
               {reconnectAttempt > 0
-                ? `Reconnecting… (attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`
-                : "Joining the table…"}
+                ? t("game.reconnectingAttempt", {
+                    attempt: reconnectAttempt,
+                    maximum: MAX_RECONNECT_ATTEMPTS,
+                  })
+                : t("game.joiningTable")}
             </p>
           </div>
         )}
@@ -3227,7 +3235,7 @@ export function App(
         {matchRuntimeState.status === "joined" && matchRuntimeState.stalled && (
           <div className="game-screen-stalled" role="status" aria-live="polite" data-testid="table-stalled-notice">
             <p className="game-screen-stalled-text">
-              Reconnecting to the table… showing the last state we received.
+              {t("game.reconnectingStalled")}
             </p>
           </div>
         )}
@@ -3312,23 +3320,23 @@ export function App(
               <div className="game-screen-fullscreen">
                 {fullscreenHelp ? (
                   <p className="fullscreen-help" role="status">
-                    For full screen on iPhone: Share → Add to Home Screen
+                    {t("game.fullscreenHelp")}
                   </p>
                 ) : null}
                 <button
                   className="fullscreen-match-button"
                   type="button"
                   onClick={() => void enterGameFullscreen()}
-                  aria-label="Enter full screen"
+                  aria-label={t("game.enterFullscreen")}
                 >
                   <span aria-hidden="true">⛶</span>
-                  <span>Full screen</span>
+                  <span>{t("game.fullscreen")}</span>
                 </button>
               </div>
               <div className="game-screen-topbar">
                 {controlRestoredNotice && (
                   <p className="control-restored-toast" role="status" aria-live="polite">
-                    Control restored — it's you again.
+                    {t("game.controlRestored")}
                   </p>
                 )}
                 <button
@@ -3336,7 +3344,7 @@ export function App(
                   type="button"
                   onClick={() => void leaveTable()}
                 >
-                  Leave match
+                  {t("game.leaveMatch")}
                 </button>
               </div>
               {videoHumanSeats.length > 0 && (
@@ -3344,7 +3352,7 @@ export function App(
                   <VideoCallPanel
                     controller={videoController}
                     humanSeats={videoHumanSeats}
-                    seatName={() => "Player"}
+                    seatName={() => t("game.player")}
                   />
                 </div>
               )}
@@ -3388,12 +3396,13 @@ export function App(
 
         {matchRuntimeState.status === "error" && (
           <div className="game-screen-status" role="alert">
-            <p className="game-screen-status-text">{matchRuntimeState.message}</p>
+            <p className="game-screen-status-text">{translateSource(matchRuntimeState.message)}</p>
             <p className="error-code">
-              Error code:{" "}
-              {matchRuntimeState.retry === "practice"
-                ? matchRuntimeState.code
-                : `match_runtime_${matchRuntimeState.code}`}
+              {t("common.errorCode", {
+                code: matchRuntimeState.retry === "practice"
+                  ? matchRuntimeState.code
+                  : `match_runtime_${matchRuntimeState.code}`,
+              })}
             </p>
             <div className="game-screen-actions">
               <button
@@ -3407,14 +3416,14 @@ export function App(
                   }
                 }}
               >
-                {matchRuntimeState.retry === "practice" ? "Retry Practice" : "Reconnect"}
+                {matchRuntimeState.retry === "practice" ? t("game.retryPractice") : t("game.reconnect")}
               </button>
               <button
                 className="leave-match-button"
                 type="button"
                 onClick={() => void leaveTable()}
               >
-                Leave match
+                {t("game.leaveMatch")}
               </button>
             </div>
           </div>
@@ -3427,12 +3436,12 @@ export function App(
     <main className="bootstrap-shell">
       <section className="bootstrap-card" aria-labelledby="bootstrap-title">
         <h1 id="bootstrap-title" className="mahjong-online-title">
-          Mahjong Online <small>Alpha</small>
+          {t("auth.title")} <small>{t("auth.alpha")}</small>
         </h1>
         {state.status === "idle" && (
           <>
             <button className="primary-action" type="button" onClick={signInAsGuest}>
-              Continue as Guest
+              {t("auth.continueGuest")}
             </button>
 
             <div className="analytics-consent">
@@ -3442,16 +3451,13 @@ export function App(
                   checked={optionalAnalyticsConsent}
                   onChange={(event) => updateOptionalAnalyticsConsent(event.target.checked)}
                 />
-                Share optional gameplay analytics to help improve Mahjong.
+                {t("auth.analyticsConsent")}
               </label>
-              <p>
-                This includes tutorial and queue journey events. Essential reliability diagnostics
-                remain on. We never include email, birth date, chat, or concealed tiles.
-              </p>
+              <p>{t("auth.analyticsDetail")}</p>
             </div>
 
             <div className="email-auth-panel">
-              <div className="email-auth-tabs" role="tablist" aria-label="Email sign-in method">
+              <div className="email-auth-tabs" role="tablist" aria-label={t("auth.methodLabel")}>
                 <button
                   type="button"
                   role="tab"
@@ -3463,7 +3469,7 @@ export function App(
                     setEmailCodeRequested(false);
                   }}
                 >
-                  Sign in
+                  {t("auth.signIn")}
                 </button>
                 <button
                   type="button"
@@ -3476,7 +3482,7 @@ export function App(
                     setEmailCodeRequested(false);
                   }}
                 >
-                  Create account
+                  {t("auth.createAccount")}
                 </button>
               </div>
 
@@ -3489,7 +3495,7 @@ export function App(
                   }}
                 >
                   <label className="session-input-label" htmlFor="signin-email">
-                    Email
+                    {t("auth.email")}
                   </label>
                   <input
                     id="signin-email"
@@ -3501,7 +3507,7 @@ export function App(
                     onChange={(event) => updateEmailForm({ email: event.target.value })}
                   />
                   <label className="session-input-label" htmlFor="signin-password">
-                    Password
+                    {t("auth.password")}
                   </label>
                   <input
                     id="signin-password"
@@ -3517,7 +3523,7 @@ export function App(
                     className="secondary-action session-action"
                     disabled={emailAuthState.status === "working"}
                   >
-                    {emailAuthState.status === "working" ? "Signing in…" : "Sign in with email"}
+                    {emailAuthState.status === "working" ? t("auth.signingIn") : t("auth.signInEmail")}
                   </button>
                 </form>
               )}
@@ -3535,7 +3541,7 @@ export function App(
                   }}
                 >
                   <label className="session-input-label" htmlFor="register-email">
-                    Email
+                    {t("auth.email")}
                   </label>
                   <input
                     id="register-email"
@@ -3554,12 +3560,12 @@ export function App(
                       className="secondary-action session-action"
                       disabled={emailAuthState.status === "working" || !emailForm.email}
                     >
-                      {emailAuthState.status === "working" ? "Sending code…" : "Send verification code"}
+                      {emailAuthState.status === "working" ? t("auth.sendingCode") : t("auth.sendCode")}
                     </button>
                   ) : (
                     <>
                       <label className="session-input-label" htmlFor="register-code">
-                        Verification code
+                        {t("auth.verificationCode")}
                       </label>
                       <input
                         id="register-code"
@@ -3573,7 +3579,7 @@ export function App(
                       />
 
                       <label className="session-input-label" htmlFor="register-username">
-                        Username
+                        {t("auth.username")}
                       </label>
                       <input
                         id="register-username"
@@ -3586,7 +3592,7 @@ export function App(
                       />
 
                       <label className="session-input-label" htmlFor="register-password">
-                        Password
+                        {t("auth.password")}
                       </label>
                       <input
                         id="register-password"
@@ -3599,7 +3605,7 @@ export function App(
                       />
 
                       <label className="session-input-label" htmlFor="register-country">
-                        Country
+                        {t("auth.country")}
                       </label>
                       <select
                         id="register-country"
@@ -3609,22 +3615,22 @@ export function App(
                       >
                         {CLOSED_BETA_COUNTRIES.map((country) => (
                           <option key={country.code} value={country.code}>
-                            {country.name}
+                            {displayCountryName(country.code, country.name)}
                           </option>
                         ))}
                       </select>
 
-                      <span className="session-input-label">Birth month and year</span>
+                      <span className="session-input-label">{t("auth.birthMonthYear")}</span>
                       <div className="email-auth-row">
                         <select
-                          aria-label="Birth month"
+                          aria-label={t("auth.birthMonthLabel")}
                           className="session-input"
                           required
                           value={emailForm.birthMonth}
                           onChange={(event) => updateEmailForm({ birthMonth: event.target.value })}
                         >
                           <option value="" disabled>
-                            Month
+                            {t("auth.month")}
                           </option>
                           {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
                             <option key={month} value={month}>
@@ -3633,14 +3639,14 @@ export function App(
                           ))}
                         </select>
                         <select
-                          aria-label="Birth year"
+                          aria-label={t("auth.birthYearLabel")}
                           className="session-input"
                           required
                           value={emailForm.birthYear}
                           onChange={(event) => updateEmailForm({ birthYear: event.target.value })}
                         >
                           <option value="" disabled>
-                            Year
+                            {t("auth.year")}
                           </option>
                           {birthYearOptions.map((year) => (
                             <option key={year} value={year}>
@@ -3656,7 +3662,7 @@ export function App(
                           checked={emailForm.ageConfirmed}
                           onChange={(event) => updateEmailForm({ ageConfirmed: event.target.checked })}
                         />
-                        I confirm this birth month and year are accurate.
+                        {t("auth.ageConfirm")}
                       </label>
 
                       <button
@@ -3664,7 +3670,7 @@ export function App(
                         className="secondary-action session-action"
                         disabled={emailAuthState.status === "working"}
                       >
-                        {emailAuthState.status === "working" ? "Creating account…" : "Create account"}
+                        {emailAuthState.status === "working" ? t("auth.creatingAccount") : t("auth.createAccount")}
                       </button>
                     </>
                   )}
@@ -3682,7 +3688,7 @@ export function App(
 
         {state.status === "signing_in" && (
           <p className="status-message" role="status" aria-live="polite">
-            Signing in…
+            {t("auth.signingIn")}
           </p>
         )}
 
@@ -3746,14 +3752,14 @@ export function App(
                     className="secondary-action"
                     onClick={() => void loadProgression()}
                   >
-                    Retry progress
+                    {t("progression.retry")}
                   </button>
                   <button
                     type="button"
                     className="secondary-action"
                     onClick={() => setProgressionOpen(false)}
                   >
-                    Dismiss
+                    {t("common.dismiss")}
                   </button>
                 </div>
               </div>
@@ -3763,13 +3769,13 @@ export function App(
               <div className="session-panel">
                 {playerSettings.showTutorial && (
                 <section className="tutorial-card" aria-labelledby="tutorial-title">
-                  <h2 id="tutorial-title" className="tutorial-heading">Learn to Play</h2>
+                  <h2 id="tutorial-title" className="tutorial-heading">{t("lobby.learnTitle")}</h2>
                   <p className="practice-description">
                     {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
-                      ? "Replay the beginner lessons any time. Untimed, skippable, and safe."
+                      ? t("lobby.learnReplay")
                       : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
-                        ? "Pick up the four beginner lessons whenever you are ready."
-                        : "Learn turns, winning shapes, claim words, and Tai on the real table. Your first completion or intentional skip awards 500 XP."}
+                        ? t("lobby.learnResume")
+                        : t("lobby.learnNew")}
                   </p>
                   <button
                     className="secondary-action session-action"
@@ -3785,15 +3791,15 @@ export function App(
                     }}
                   >
                     {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
-                      ? "Replay the tutorial"
+                      ? t("lobby.replayTutorial")
                       : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
-                        ? "Continue the tutorial"
-                        : "Start the tutorial"}
+                        ? t("lobby.continueTutorial")
+                        : t("lobby.startTutorial")}
                   </button>
                   <button
                     className="text-action tutorial-hide-action"
                     type="button"
-                    aria-label="Hide"
+                    aria-label={t("common.hide")}
                     onClick={() =>
                       void updatePlayerSettings({
                         ...playerSettings,
@@ -3801,7 +3807,7 @@ export function App(
                       })
                     }
                   >
-                    Hide
+                    {t("common.hide")}
                   </button>
                 </section>
                 )}
@@ -3821,16 +3827,16 @@ export function App(
                 />
 
                 <section className="practice-card online-play-card" aria-labelledby="online-title">
-                  <p className="status-label">Play Online</p>
-                  <h2 id="online-title">Play one hand at {playableTier().name}</h2>
-                  <p className="practice-description">
-                    One live hand against three humans · about 8 to 15 minutes.
-                  </p>
+                  <p className="status-label">{t("lobby.playOnline")}</p>
+                  <h2 id="online-title">
+                    {t("lobby.playAtTier", { tier: tierName(playableTier()) })}
+                  </h2>
+                  <p className="practice-description">{t("lobby.onlineDescription")}</p>
                   <p className="practice-description">{tierSummary(playableTier())}</p>
 
                   {jadeState.status === "loading" && (
                     <p className="matchmaking-result" aria-live="polite">
-                      Loading Jade balance…
+                      {t("lobby.loadingJade")}
                     </p>
                   )}
 
@@ -3842,19 +3848,17 @@ export function App(
                         type="button"
                         onClick={() => void loadJadeAccount()}
                       >
-                        Retry balance
+                        {t("lobby.retryBalance")}
                       </button>
                     </div>
                   )}
 
                   {jadeState.status === "ready" && (
                     <div className="jade-balance" data-testid="jade-balance">
-                      <p>
-                        <strong>{jadeState.account.available.toLocaleString()}</strong> Jade available
-                      </p>
+                      <p>{t("lobby.jadeAvailable", { count: formatNumber(jadeState.account.available) })}</p>
                       {jadeState.account.reserved > 0 && (
                         <p className="session-detail">
-                          {jadeState.account.reserved.toLocaleString()} Jade reserved for your table
+                          {t("lobby.jadeReserved", { count: formatNumber(jadeState.account.reserved) })}
                         </p>
                       )}
                       {!jadeState.account.eligible && (
@@ -3875,7 +3879,7 @@ export function App(
 
                   {!accelByteConfig.matchPool && matchmakingState.status === "idle" && (
                     <p className="matchmaking-result" role="status" aria-live="polite">
-                      Online play is unavailable because the matchmaking pool is not configured.
+                      {t("lobby.poolUnavailable")}
                     </p>
                   )}
 
@@ -3891,7 +3895,7 @@ export function App(
                         !jadeState.account.eligible
                       }
                     >
-                      Find a table
+                      {t("lobby.findTable")}
                     </button>
                   )}
                 </section>
@@ -3899,23 +3903,28 @@ export function App(
                 {matchmakingState.status !== "idle" && (
                   <section
                     className="matchmaking-panel online-card"
-                    aria-label={`${matchmakingModeRef.current === "full_rotation" ? "Full Rotation" : "Quick Play"} matchmaking status`}
+                    aria-label={t("lobby.matchmakingLabel", {
+                      mode:
+                        matchmakingModeRef.current === "full_rotation"
+                          ? t("lobby.fullRotation")
+                          : t("lobby.quickPlay"),
+                    })}
                   >
                     <p className="status-label">
                       {matchmakingModeRef.current === "full_rotation"
-                        ? "Full Rotation queue"
-                        : "Quick Play queue"}
+                        ? t("lobby.fullRotationQueue")
+                        : t("lobby.quickPlayQueue")}
                     </p>
 
                     {matchmakingState.status === "loading" && (
                       <p className="matchmaking-result" role="status" aria-live="polite">
-                        Joining queue…
+                        {t("lobby.joiningQueue")}
                       </p>
                     )}
 
                     {matchmakingState.status === "releasing" && (
                       <p className="matchmaking-result" role="status" aria-live="polite">
-                        Releasing Jade reservation…
+                        {t("lobby.releasingJade")}
                       </p>
                     )}
 
@@ -3935,14 +3944,14 @@ export function App(
                           matchmakingState.status === "searching" && (
                             <div className="queue-alternatives">
                               <p className="session-detail">
-                                You can keep waiting, or play a Practice hand now instead.
+                                {t("lobby.queueAlternative")}
                               </p>
                               <button
                                 className="secondary-action session-action"
                                 type="button"
                                 onClick={() => void leaveQueueForPractice()}
                               >
-                                Practice instead
+                                {t("lobby.practiceInstead")}
                               </button>
                             </div>
                           )}
@@ -3953,22 +3962,22 @@ export function App(
                           onClick={() => void cancelMatchmaking()}
                           disabled={matchmakingState.status === "canceling"}
                         >
-                          {matchmakingState.status === "canceling" ? "Leaving queue…" : "Cancel"}
+                          {matchmakingState.status === "canceling" ? t("lobby.leavingQueue") : t("common.cancel")}
                         </button>
 
                         <p className="session-detail queue-ticket">
-                          Ticket: {sessionIdFragment(matchmakingState.ticket.ticketId)}
+                          {t("lobby.ticket", { id: sessionIdFragment(matchmakingState.ticket.ticketId) })}
                         </p>
                       </div>
                     )}
 
                     {matchmakingState.status === "matched" && (
                       <div className="matchmaking-result" role="status" aria-live="polite">
-                        <p className="status-label">Match found</p>
+                        <p className="status-label">{t("lobby.matchFound")}</p>
                         {matchmakingState.ticket.sessionId ? (
                           <>
                             <p className="session-detail">
-                              Joining the shared table automatically…
+                              {t("lobby.joiningTable")}
                             </p>
                             {sessionState.status === "error" && (
                               <button
@@ -3976,12 +3985,12 @@ export function App(
                                 type="button"
                                 onClick={joinMatchedTable}
                               >
-                                Retry joining table
+                                {t("lobby.retryJoin")}
                               </button>
                             )}
                           </>
                         ) : (
-                          <p>AGS returned a match without a Session yet.</p>
+                          <p>{t("lobby.agsNoSession")}</p>
                         )}
                       </div>
                     )}
@@ -3990,7 +3999,7 @@ export function App(
                       <div className="session-error" role="alert">
                         <p>{matchmakingState.message}</p>
                         <p className="error-code">
-                          Error code: matchmaking_{matchmakingState.code}
+                          {t("common.errorCode", { code: `matchmaking_${matchmakingState.code}` })}
                         </p>
                         {/* Ineligible Jade and a guest identity are durable
                             eligibility failures; retrying cannot change them. */}
@@ -4000,7 +4009,7 @@ export function App(
                             type="button"
                             onClick={() => void retryMatchmakingCancellation()}
                           >
-                            Retry leaving queue
+                            {t("lobby.retryLeaveQueue")}
                           </button>
                         ) : matchmakingState.recovery === "release_reservation" ? (
                           <button
@@ -4008,7 +4017,7 @@ export function App(
                             type="button"
                             onClick={() => void retryJadeReservationRelease()}
                           >
-                            Retry releasing Jade
+                            {t("lobby.retryReleaseJade")}
                           </button>
                         ) : matchmakingState.code !== "jade_ineligible" &&
                           matchmakingState.code !== "linked_account_required" ? (
@@ -4021,7 +4030,7 @@ export function App(
                                 : findTable())
                             }
                           >
-                            Retry matchmaking
+                            {t("lobby.retryMatchmaking")}
                           </button>
                         ) : null}
                       </div>
@@ -4096,8 +4105,8 @@ export function App(
                   className="settings-link"
                   onClick={() => setFeedbackSessionId(null)}
                 >
-                  Submit Feedback
-                  <span>Share gameplay, connection, or UI feedback</span>
+                  {t("lobby.submitFeedback")}
+                  <span>{t("lobby.feedbackHelp")}</span>
                 </button>
 
                 <button
@@ -4105,8 +4114,8 @@ export function App(
                   className="settings-link"
                   onClick={() => setSettingsOpen(true)}
                 >
-                  Settings
-                  <span>Rules, tutorial visibility, and privacy</span>
+                  {t("settings.title")}
+                  <span>{t("lobby.settingsHelp")}</span>
                 </button>
 
                 <details className="developer-tools">
@@ -4279,12 +4288,12 @@ export function App(
         {state.status === "error" && (
           <div className="error-panel" role="alert">
             <p className="status-label">
-              {state.phase === "iam" ? "Sign-in failed" : "Lobby connection failed"}
+              {state.phase === "iam" ? t("auth.signInFailed") : t("lobby.connectionFailed")}
             </p>
-            <p>{state.message}</p>
-            <p className="error-code">Error code: {state.code}</p>
+            <p>{translateSource(state.message)}</p>
+            <p className="error-code">{t("common.errorCode", { code: state.code })}</p>
             <button className="secondary-action" type="button" onClick={signInAsGuest}>
-              Retry
+              {t("common.retry")}
             </button>
           </div>
         )}

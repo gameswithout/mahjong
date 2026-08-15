@@ -4461,3 +4461,28 @@ h1 {
     transform: translateY(-2px);
   }
 }
+/* Language stays reachable on every screen, including sign-in and a live
+   match. Safe-area offsets keep it clear of iPhone notches in PWA mode. */
+.language-selector {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface, #f7f2e8) 92%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 14%);
+  display: flex;
+  font-size: 0.78rem;
+  gap: 0.45rem;
+  inset-block-start: max(0.75rem, env(safe-area-inset-top));
+  inset-inline-end: max(0.75rem, env(safe-area-inset-right));
+  padding: 0.35rem 0.55rem 0.35rem 0.7rem;
+  position: fixed;
+  z-index: 1000;
+}
+
+.language-selector select {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  max-width: 9.5rem;
+}

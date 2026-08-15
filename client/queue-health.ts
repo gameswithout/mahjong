@@ -29,19 +29,23 @@ export function queueHealth(elapsedMs: number): QueueHealth {
 export function queueHealthMessage(health: QueueHealth): string {
   switch (health) {
     case "slow":
-      return "This is taking longer than usual. Four players are needed and nobody is filled in by a bot.";
+      return t("queue.slow");
     case "normal":
-      return "Still searching. A table needs four players.";
+      return t("queue.normal");
     case "starting":
-      return "Searching for players.";
+      return t("queue.searching");
   }
 }
 
 export function queueElapsedLabel(elapsedMs: number): string {
   const seconds = Math.max(0, Math.floor(elapsedMs / 1_000));
   if (seconds < 60) {
-    return `${seconds}s in queue`;
+    return t("queue.seconds", { seconds });
   }
   const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ${String(seconds % 60).padStart(2, "0")}s in queue`;
+  return t("queue.minutes", {
+    minutes,
+    seconds: String(seconds % 60).padStart(2, "0"),
+  });
 }
+import { t } from "./i18n";

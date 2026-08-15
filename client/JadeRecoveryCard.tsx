@@ -1,4 +1,5 @@
 import type { JadeAccount } from "../protocol/envelope";
+import { formatNumber, t } from "./i18n";
 
 export type JadeRecoveryState =
   | { status: "idle" }
@@ -37,30 +38,31 @@ export function JadeRecoveryCard({
   let guidance: string;
   switch (account.welfare_reason) {
     case "available":
-      guidance =
-        `Your Practice hand unlocked today's recovery. Claim ${amount.toLocaleString()} Jade ` +
-        `to return to the ${account.minimum_balance.toLocaleString()}-Jade Bamboo minimum.`;
+      guidance = t("recovery.available", {
+        amount: formatNumber(amount),
+        minimum: formatNumber(account.minimum_balance),
+      });
       break;
     case "practice_hand_required":
-      guidance =
-        `Finish one free Practice hand today to unlock a top-up to ` +
-        `${account.minimum_balance.toLocaleString()} Jade.`;
+      guidance = t("recovery.practiceRequired", {
+        minimum: formatNumber(account.minimum_balance),
+      });
       break;
     case "claimed_today":
-      guidance = "Today's recovery has already been used. It resets at 00:00 UTC.";
+      guidance = t("recovery.claimed");
       break;
     case "reservation_open":
-      guidance = "Leave your active table and release its Jade before claiming recovery.";
+      guidance = t("recovery.reservation");
       break;
     default:
-      guidance = "Recovery status is unavailable. Refresh your Jade balance and try again.";
+      guidance = t("recovery.unavailable");
       break;
   }
 
   return (
     <section className="jade-recovery" aria-labelledby="jade-recovery-title">
-      <p className="status-label">Jade recovery</p>
-      <h3 id="jade-recovery-title">Get back to Bamboo</h3>
+      <p className="status-label">{t("recovery.eyebrow")}</p>
+      <h3 id="jade-recovery-title">{t("recovery.title")}</h3>
       <p>{guidance}</p>
       {canClaim && (
         <button
@@ -70,8 +72,8 @@ export function JadeRecoveryCard({
           onClick={onClaim}
         >
           {state.status === "claiming"
-            ? "Claiming recovery…"
-            : `Claim ${amount.toLocaleString()} Jade`}
+            ? t("recovery.claiming")
+            : t("recovery.claim", { amount: formatNumber(amount) })}
         </button>
       )}
       {state.status === "error" && (

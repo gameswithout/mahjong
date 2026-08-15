@@ -5,6 +5,7 @@ import {
   defaultPlayerProfile,
   type PlayerProfileConfig,
 } from "./player-profile";
+import { t, translateSource } from "./i18n";
 
 const PROFILE_ORDER: MahjongSeat[] = ["E", "S", "W", "N"];
 
@@ -20,18 +21,18 @@ export function MatchLoadingScreen({
   const playersBySeat = new Map(view.players.map((player) => [player.seat, player]));
 
   return (
-    <section className="match-loading-screen" role="status" aria-label="Players joining the table">
+    <section className="match-loading-screen" role="status" aria-label={t("loading.joiningLabel")}>
       <header className="match-loading-heading">
-        <p>Players ready</p>
-        <h1>Entering the Mahjong table</h1>
+        <p>{t("loading.ready")}</p>
+        <h1>{t("loading.entering")}</h1>
       </header>
 
-      <div className="match-loading-profile-grid" aria-label="Player profiles">
+      <div className="match-loading-profile-grid" aria-label={t("loading.profiles")}>
         {PROFILE_ORDER.map((seat) => {
           const player = playersBySeat.get(seat);
           const isLocal = seat === view.seat;
           const isBot = player?.is_bot ?? false;
-          const name = isLocal ? "You" : isBot ? "Bot" : "Player";
+          const name = isLocal ? t("common.you") : isBot ? t("table.bot") : t("loading.player");
           const seatProfile: PlayerProfileConfig = isLocal && playerProfile
             ? playerProfile
             : {
@@ -56,11 +57,14 @@ export function MatchLoadingScreen({
               />
               <div className="match-loading-profile-copy">
                 <p className="match-loading-seat-name">
-                  {windName(seat)} seat
-                  {seat === "E" ? <span className="match-loading-dealer">Dealer</span> : null}
+                  {t("loading.seat", { wind: translateSource(windName(seat)) })}
+                  {seat === "E" ? <span className="match-loading-dealer">{t("table.dealer")}</span> : null}
                 </p>
               </div>
-              <span className="match-loading-wind" aria-label={`${windName(seat)} wind`}>
+              <span
+                className="match-loading-wind"
+                aria-label={t("loading.wind", { wind: translateSource(windName(seat)) })}
+              >
                 {seat}
               </span>
             </article>
@@ -71,7 +75,7 @@ export function MatchLoadingScreen({
       <div className="match-loading-progress" aria-hidden="true">
         <span />
       </div>
-      <p className="match-loading-status">Setting the table…</p>
+      <p className="match-loading-status">{t("loading.settingTable")}</p>
     </section>
   );
 }

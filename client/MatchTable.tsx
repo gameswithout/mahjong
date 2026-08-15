@@ -10,6 +10,7 @@ import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMe
 import { windName } from "./matchTableTypes";
 import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
 import { isMatchingFlower } from "./flowerTai";
+import { t, translateSource } from "./i18n";
 
 // Production match table and the standalone §9.2 validation harness share this
 // component. The live adapter supplies authoritative seat/action state; the
@@ -97,7 +98,7 @@ function BonusTiles({
   return (
     <div
       className={`bonus-tile-area${local ? " bonus-tile-area-local" : ""}`}
-      aria-label={local ? "Your exposed Flowers and Seasons" : "Opponent exposed Flowers and Seasons"}
+      aria-label={local ? t("table.yourFlowers") : t("table.opponentFlowers")}
     >
       {tiles.map((item) => {
         const matching = isMatchingFlower(item.id, seat);
@@ -107,7 +108,7 @@ function BonusTiles({
             className={`bonus-tile${matching ? " bonus-tile-matching" : ""}`}
             // The seat's own Flower is the one that actually pays, so say so
             // rather than leaving it to be inferred from the tile face.
-            title={matching ? `${item.label} — your Flower, +1 Tai` : item.label}
+            title={matching ? t("table.yourFlowerBonus", { tile: item.label }) : item.label}
           >
             <Tile t={item} size="sm" />
           </span>
@@ -121,7 +122,7 @@ function DiscardGrid({
   discards,
   highlightId,
   claimed,
-  label = "Discards",
+  label = t("table.discards"),
 }: {
   discards: WireTile[];
   highlightId?: string;
@@ -141,7 +142,7 @@ function DiscardGrid({
       ))}
       {claimed && highlightId ? (
         <span className="discard-slot discard-slot-claimed" role="listitem">
-          claimed
+          {t("table.claimed")}
         </span>
       ) : null}
     </div>
@@ -158,14 +159,14 @@ function TakeoverBadge({ takenOver, isBot }: { takenOver?: boolean; isBot?: bool
   }
   if (isBot) {
     return (
-      <span className="takeover-badge bot-badge" title="AI-controlled seat" role="status">
-        Bot
+      <span className="takeover-badge bot-badge" title={t("table.aiSeat")} role="status">
+        {t("table.bot")}
       </span>
     );
   }
   return (
-    <span className="takeover-badge" title="Auto-playing (disconnected)" role="status">
-      Auto-playing
+    <span className="takeover-badge" title={t("table.autoPlayingTitle")} role="status">
+      {t("table.autoPlaying")}
     </span>
   );
 }
@@ -179,11 +180,11 @@ function WaitPanel({ waits }: { waits: WaitEntry[] }) {
     return null;
   }
   return (
-    <div className="wait-panel" role="group" aria-label="Ting waits">
+    <div className="wait-panel" role="group" aria-label={t("table.waitsLabel")}>
       <span className="wait-label" role="presentation">
-        Ting · Ready
+        {t("table.ready")}
       </span>
-      <span className="wait-entries" role="list" aria-label="Winning tiles">
+      <span className="wait-entries" role="list" aria-label={t("table.winningTiles")}>
         {waits.map((entry) => (
           <span
             key={entry.tile.id}
@@ -191,13 +192,15 @@ function WaitPanel({ waits }: { waits: WaitEntry[] }) {
             className="wait-entry"
             aria-label={`${entry.tile.label}: ${
               entry.visibleRemaining > 0
-                ? `${entry.visibleRemaining} copies not visible`
-                : "all four copies visible"
+                ? t("table.copiesHidden", { count: entry.visibleRemaining })
+                : t("table.allCopiesVisible")
             }`}
           >
             <Tile t={entry.tile} size="sm" />
             <span className="wait-remaining">
-              {entry.visibleRemaining > 0 ? `${entry.visibleRemaining} left` : "All visible"}
+              {entry.visibleRemaining > 0
+                ? t("table.left", { count: entry.visibleRemaining })
+                : t("table.allVisible")}
             </span>
           </span>
         ))}
@@ -237,17 +240,17 @@ function PlayerActivity({
   messageTitle?: string;
 }) {
   return (
-    <div className="seat-activity" aria-label="Player status">
+    <div className="seat-activity" aria-label={t("table.playerStatus")}>
       <span className="seat-match-facts">
         <span
           className={`wind-badge${state.wind === prevailingWind ? " wind-badge-prevailing" : ""}`}
         >
           {windName(state.wind).slice(0, 1)}
         </span>
-        {state.isDealer ? <span className="dealer-badge" title="Dealer">D</span> : null}
+        {state.isDealer ? <span className="dealer-badge" title={t("table.dealer")}>D</span> : null}
       </span>
       <span className="seat-activity-message">
-        {state.isActive ? <span className="active-badge" title="Active player">●</span> : null}
+        {state.isActive ? <span className="active-badge" title={t("table.activePlayer")}>●</span> : null}
         {message ? <span className="claim-badge" title={messageTitle}>{message}</span> : null}
       </span>
       <span className="seat-activity-facts">
@@ -282,8 +285,8 @@ function OpponentSeat({
         <PlayerActivity
           state={state}
           prevailingWind={prevailingWind}
-          message={claimSource === seat ? "waiting" : undefined}
-          messageTitle="Waiting for responses"
+          message={claimSource === seat ? t("table.waiting") : undefined}
+          messageTitle={t("table.waitingResponses")}
         />
       </div>
       <div className="opponent-hand-backs" aria-hidden="true">
@@ -292,7 +295,7 @@ function OpponentSeat({
         ))}
       </div>
       {state.melds.length > 0 ? (
-        <div className="meld-area" aria-label="Exposed melds">
+        <div className="meld-area" aria-label={t("table.exposedMelds")}>
           {state.melds.map((meld) => (
             <MeldGroup key={meld.id} meld={meld} />
           ))}
@@ -318,8 +321,11 @@ function DiscardRiver({
 }) {
   const label =
     slot === "bottom"
-      ? "Your discard river"
-      : `${state.displayName} · ${windName(seat)} discard river`;
+      ? t("table.yourDiscardRiver")
+      : t("table.opponentDiscardRiver", {
+          player: state.displayName,
+          wind: translateSource(windName(seat)),
+        });
   return (
     <section
       className={`discard-river discard-river-${slot}${claimSource === seat ? " discard-river-claim-source" : ""}`}
@@ -396,10 +402,10 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
     }
     if (state.countdownSeconds <= RED_THRESHOLD_SECONDS && announcedThresholdRef.current !== RED_THRESHOLD_SECONDS) {
       announcedThresholdRef.current = RED_THRESHOLD_SECONDS;
-      setAnnouncement("1 second remaining");
+      setAnnouncement(t("table.oneSecond"));
     } else if (state.countdownSeconds <= AMBER_THRESHOLD_SECONDS && announcedThresholdRef.current === null) {
       announcedThresholdRef.current = AMBER_THRESHOLD_SECONDS;
-      setAnnouncement("3 seconds remaining");
+      setAnnouncement(t("table.threeSeconds"));
     }
   }, [state.countdownSeconds, state.untimed]);
 
@@ -410,28 +416,32 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
     }
     if (wallRemaining <= WALL_CRITICAL_TILES && announcedWallThresholdRef.current !== WALL_CRITICAL_TILES) {
       announcedWallThresholdRef.current = WALL_CRITICAL_TILES;
-      setWallAnnouncement(`${wallRemaining} tiles left. Wall critically low.`);
+      setWallAnnouncement(t("table.wallCriticalAnnouncement", { count: wallRemaining }));
     } else if (wallRemaining <= WALL_WARNING_TILES && announcedWallThresholdRef.current === null) {
       announcedWallThresholdRef.current = WALL_WARNING_TILES;
-      setWallAnnouncement(`${wallRemaining} tiles left. Wall running low.`);
+      setWallAnnouncement(t("table.wallLowAnnouncement", { count: wallRemaining }));
     }
   }, [wallRemaining]);
 
   return (
     <div
       className={`center-panel${activeSeat === state.localSeat ? " center-panel-your-turn" : ""}`}
-      aria-label="Table status"
+      aria-label={t("table.tableStatus")}
     >
       {state.untimed ? (
-        <div className="countdown countdown-untimed countdown-elapsed" role="timer" aria-label={`${elapsedSeconds} seconds elapsed`}>
+        <div
+          className="countdown countdown-untimed countdown-elapsed"
+          role="timer"
+          aria-label={t("table.secondsElapsed", { seconds: elapsedSeconds })}
+        >
           <span className="countdown-elapsed-time" aria-hidden="true">{elapsedLabel}</span>
-          <span className="countdown-elapsed-caption" aria-hidden="true">elapsed</span>
+          <span className="countdown-elapsed-caption" aria-hidden="true">{t("table.elapsed")}</span>
         </div>
       ) : (
         <div
           className={`countdown${urgent ? " countdown-urgent" : warn ? " countdown-warn" : ""}`}
           role="timer"
-          aria-label={`${state.countdownSeconds} seconds remaining`}
+          aria-label={t("table.secondsRemaining", { seconds: state.countdownSeconds })}
         >
           <svg viewBox="0 0 36 36" className="countdown-ring" aria-hidden="true">
             <circle cx="18" cy="18" r="15.5" className="countdown-ring-track" />
@@ -455,19 +465,26 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       <div
         className={`wall-outline${wallWarning ? " wall-outline-warning" : ""}${wallCritical ? " wall-outline-critical" : ""}`}
         style={wallWarningStyle}
-        aria-label={`${wallRemaining} drawable tiles remaining${
-          wallCritical ? ", wall critically low" : wallWarning ? ", wall running low" : ""
-        }`}
+        aria-label={t("table.wallRemaining", {
+          count: wallRemaining,
+          warning: wallCritical
+            ? t("table.wallCritical")
+            : wallWarning
+              ? t("table.wallLow")
+              : "",
+        })}
       >
         <span className="wall-count">{wallRemaining}</span>
-        <span className="wall-count-label">left</span>
+        <span className="wall-count-label">{t("table.leftCaption")}</span>
       </div>
       <div className="round-status">
-        <span className="round-wind">Round {windName(state.prevailingWind)}</span>
+        <span className="round-wind">
+          {t("table.round", { wind: translateSource(windName(state.prevailingWind)) })}
+        </span>
         {state.continuation > 0 ? (
           <span
             className="round-continuation"
-            aria-label={`Dealer repeat ${state.continuation}`}
+            aria-label={t("table.dealerRepeat", { count: state.continuation })}
           >
             R×{state.continuation}
           </span>
@@ -478,8 +495,11 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
         aria-live="polite"
       >
         {activeSeat === state.localSeat
-          ? "Your turn"
-          : `${state.seats[activeSeat].displayName}'s turn · ${windName(activeSeat)}`}
+          ? t("table.yourTurn")
+          : t("table.playerTurn", {
+              player: state.seats[activeSeat].displayName,
+              wind: translateSource(windName(activeSeat)),
+            })}
       </div>
     </div>
   );
@@ -510,15 +530,17 @@ function CurrentTileFocus({
   if (!discard) {
     return (
       <div className={`current-tile-focus current-tile-focus-empty${canDiscard ? " current-tile-focus-your-turn" : ""}`}>
-        <span className="current-tile-kicker">{canDiscard ? "Your turn" : "Waiting"}</span>
+        <span className="current-tile-kicker">
+          {canDiscard ? t("table.yourTurn") : t("table.waiting")}
+        </span>
         <strong className="current-tile-prompt">
           {discardPending
-            ? "Discarding…"
+            ? t("table.discarding")
             : canDiscard && selectedTile
-              ? `${selectedTile.label} · select again to discard`
+              ? t("table.selectAgain", { tile: selectedTile.label })
               : canDiscard
-                ? "Select a tile to discard"
-                : "Waiting for the first discard"}
+                ? t("table.selectDiscard")
+                : t("table.firstDiscard")}
         </strong>
       </div>
     );
@@ -526,35 +548,35 @@ function CurrentTileFocus({
 
   const source =
     discard.seat === state.localSeat
-      ? "You"
+      ? t("common.you")
       : `${state.seats[discard.seat].displayName} · ${windName(discard.seat)}`;
   const prompt = claimAvailable
-    ? "Choose a claim or pass"
+    ? t("table.chooseClaim")
     : passOnly
-      ? "No claim · passing"
+      ? t("table.noClaim")
       : canDiscard
         ? discardPending
-          ? "Discarding…"
+          ? t("table.discarding")
           : selectedTile
-            ? `${selectedTile.label} selected · select again to discard`
+            ? t("table.selectAgain", { tile: selectedTile.label })
           : selfTurnActionAvailable
-            ? "Choose Win/Gang or select a tile to discard"
-            : "Your turn · select a tile to discard"
-        : "Last tile played";
+            ? t("table.chooseWinGang")
+            : t("table.selectDiscardTurn")
+        : t("table.lastPlayed");
 
   return (
     <div
       className={`current-tile-focus${claimAvailable ? " current-tile-focus-claim" : ""}${canDiscard ? " current-tile-focus-your-turn" : ""}`}
       role="status"
       aria-live="polite"
-      aria-label={`${claimAvailable ? "Tile in play" : "Latest discard"}: ${discard.tile.label}, from ${source}. ${prompt}`}
+      aria-label={`${claimAvailable ? t("table.tileInPlay") : t("table.latestDiscard")}: ${discard.tile.label}, ${t("table.from", { source })}. ${prompt}`}
     >
       <span className="current-tile-kicker">
-        {claimAvailable ? "Tile in play" : "Latest discard"}
+        {claimAvailable ? t("table.tileInPlay") : t("table.latestDiscard")}
       </span>
       <Tile t={discard.tile} size="focus" />
       <strong className="current-tile-name">{discard.tile.label}</strong>
-      <span className="current-tile-source">from {source}</span>
+      <span className="current-tile-source">{t("table.from", { source })}</span>
       <span className="current-tile-prompt">{prompt}</span>
     </div>
   );
@@ -591,7 +613,7 @@ function TablePlayfield({
           />
         );
       })}
-      <div className="table-center-cluster central-dashboard" aria-label="Central table dashboard">
+      <div className="table-center-cluster central-dashboard" aria-label={t("table.centralDashboard")}>
         <WallAndTurnCenter state={state} />
         <CurrentTileFocus
           state={state}
@@ -601,21 +623,22 @@ function TablePlayfield({
         />
       </div>
       {state.showdown && revealedSeats.length > 0 ? (
-        <div className="showdown-hands" aria-label="Winning hand reveal">
+        <div className="showdown-hands" aria-label={t("result.winningReveal")}>
           {state.showdownWinningTile ? (
             <div
               className="showdown-winning-discard"
               role="group"
               aria-label={
                 state.showdownWinningDiscard
-                  ? `Winning discard: ${state.showdownWinningTile.label}, from ${
-                      state.showdownWinningDiscard.seat === state.localSeat
-                        ? "you"
-                        : `${state.seats[state.showdownWinningDiscard.seat].displayName} · ${windName(
+                  ? t("table.winningDiscard", {
+                      tile: state.showdownWinningTile.label,
+                      source: state.showdownWinningDiscard.seat === state.localSeat
+                        ? t("common.you").toLowerCase()
+                        : `${state.seats[state.showdownWinningDiscard.seat].displayName} · ${translateSource(windName(
                             state.showdownWinningDiscard.seat,
-                          )}`
-                    }`
-                  : `Self-drawn winning tile: ${state.showdownWinningTile.label}`
+                          ))}`,
+                    })
+                  : t("table.selfDrawWinningTile", { tile: state.showdownWinningTile.label })
               }
             >
               <div className="showdown-winning-discard-copy">
@@ -642,7 +665,9 @@ function TablePlayfield({
                   className="showdown-hand"
                   key={seat}
                   role="group"
-                  aria-label={`${seat === state.localSeat ? "Your" : windName(seat)} winning hand`}
+                  aria-label={seat === state.localSeat
+                    ? t("table.yourWinningHand")
+                    : t("table.opponentWinningHand", { wind: translateSource(windName(seat)) })}
                   style={{ "--reveal-tile-count": revealedHand.length } as CSSProperties}
                 >
                   {revealedHand.map((item, index) => (
@@ -707,7 +732,7 @@ function LocalSeat({
       className={`seat seat-bottom local-seat${state.isActive ? " seat-active" : ""}${
         state.revealedHand ? " seat-celebrating" : ""
       }`}
-      aria-label="Your seat"
+      aria-label={t("table.yourSeat")}
     >
       <div className="local-seat-footer">
         <div className="seat-meta">
@@ -715,32 +740,36 @@ function LocalSeat({
           <PlayerActivity
             state={state}
             prevailingWind={prevailingWind}
-            message={isClaimThinking ? "thinking" : undefined}
-            messageTitle="Choose a response"
+            message={isClaimThinking ? t("table.thinking") : undefined}
+            messageTitle={t("table.chooseResponse")}
           />
         </div>
-        <div className="local-game-controls" aria-label="Game controls">
+        <div className="local-game-controls" aria-label={t("table.controls")}>
           <button
             type="button"
             className="sort-toggle-button"
             onClick={onCycleSortMode}
-            aria-label={`Hand sort: ${sortModeLabel(sortMode)}. Activate to change.`}
+            aria-label={t("table.handSortControl", { mode: translateSource(sortModeLabel(sortMode)) })}
           >
-            Sort: {sortModeLabel(sortMode)}
+            {t("table.sort", { mode: translateSource(sortModeLabel(sortMode)) })}
           </button>
           <button
             type="button"
             className={`table-fx-toggle${tableFxEnabled ? " table-fx-toggle-on" : ""}`}
             onClick={onToggleTableFx}
             aria-pressed={tableFxEnabled}
-            aria-label={`Table sounds and haptics ${tableFxEnabled ? "on" : "off"}`}
+            aria-label={t("table.fxState", {
+              state: tableFxEnabled ? t("table.on") : t("table.off"),
+            })}
           >
-            FX {tableFxEnabled ? "On" : "Off"}
+            {t("table.fxVisible", {
+              state: tableFxEnabled ? t("table.on") : t("table.off"),
+            })}
           </button>
         </div>
       </div>
       {state.melds.length > 0 ? (
-        <div className="meld-area" aria-label="Your exposed melds">
+        <div className="meld-area" aria-label={t("table.yourMelds")}>
           {state.melds.map((meld) => (
             <MeldGroup key={meld.id} meld={meld} />
           ))}
@@ -748,17 +777,17 @@ function LocalSeat({
       ) : null}
       <BonusTiles tiles={state.bonusTiles} owner="your" seat={state.seat} />
       <WaitPanel waits={waits} />
-      <div className="local-hand" role="group" aria-label="Your hand">
+      <div className="local-hand" role="group" aria-label={t("table.yourHand")}>
         {displayedHand.map((item) => {
           const drawn = drawnTileId === item.id;
           const selected = selectedTileId === item.id;
           const actionLabel = selected
             ? canDiscard
-              ? `${item.label} selected. Select again to discard.`
-              : `${item.label} selected.`
+              ? t("table.selectedDiscard", { tile: item.label })
+              : t("table.selected", { tile: item.label })
             : canDiscard
-              ? `Inspect ${item.label}. Activate twice to discard.`
-              : `Inspect ${item.label}.`;
+              ? t("table.inspectDiscard", { tile: item.label })
+              : t("table.inspect", { tile: item.label });
           return (
             <button
               key={item.id}
@@ -766,7 +795,7 @@ function LocalSeat({
               className={`local-hand-tile-wrap local-hand-tile-button${
                 drawn ? " local-hand-tile-drawn" : ""
               }${selected ? " local-hand-tile-selected" : ""}`}
-              aria-label={`${actionLabel}${drawn ? " Newly drawn." : ""}`}
+              aria-label={`${actionLabel}${drawn ? t("table.newlyDrawn") : ""}`}
               aria-pressed={selected}
               data-tile-id={item.id}
               disabled={discardPending}
@@ -838,7 +867,7 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
     };
     const term = Object.entries(terms).find(([prefix]) => key === prefix || key.startsWith(`${prefix}-`))?.[1];
     if (!term) {
-      return <span className="action-label-single">{action.label}</span>;
+      return <span className="action-label-single">{translateSource(action.label)}</span>;
     }
     const suffix = action.label.replace(/^(Chow|Pong|Kong|Gang)\b/i, "").trim();
     return (
@@ -850,7 +879,7 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
   };
   return (
     <div className="action-choice-stack">
-      <div className="action-row" role="group" aria-label="Legal actions">
+      <div className="action-row" role="group" aria-label={t("table.legalActions")}>
         {actions.map((action) => {
           const confirming = action.id === confirmingActionId;
           const title = [action.disabledReason, action.preview ? winButtonTitle(action.preview) : undefined]
@@ -876,14 +905,14 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
               aria-describedby={action.disabledReason ? disabledReasonId : undefined}
               aria-label={
                 confirming
-                  ? "Confirm Gang. This changes your hand and cannot be undone."
+                  ? t("table.confirmGangLabel")
                   : action.chowPreview
                     ? `${action.label}: ${action.chowPreview.tiles.map((item) => item.label).join(", ")}`
                     : undefined
               }
             >
               {confirming ? (
-                <span className="action-label-single">Confirm Gang</span>
+                <span className="action-label-single">{t("table.confirmGang")}</span>
               ) : (
                 localizedAction(action)
               )}
@@ -912,8 +941,7 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
       </div>
       {confirmingActionId ? (
         <p className="action-explanation" role="status">
-          Gang changes your hand and cannot be undone. Activate Confirm Gang to continue,
-          or choose another action.
+          {t("table.gangWarning")}
         </p>
       ) : null}
       {disabledReason ? (
@@ -975,7 +1003,7 @@ function ActionBar({
     return (
       <div
         className={`action-bar ${selfTurnActions ? "action-bar-self-turn" : "action-bar-claim"}`}
-        aria-label={selfTurnActions ? "Self-turn actions" : "Respond to the tile in play"}
+        aria-label={selfTurnActions ? t("table.selfTurnActions") : t("table.respondTile")}
       >
         <ClaimButtons actions={orderedActions} />
       </div>
@@ -986,10 +1014,10 @@ function ActionBar({
       <div className="action-bar action-bar-draw">
         <p className="action-bar-prompt action-bar-hint" role="status" aria-live="polite">
           {drawPending
-            ? "Drawing your tile…"
+            ? t("table.drawing")
             : manualDrawOnly
-              ? "Practice the first step of your turn"
-              : "Your tile will draw automatically"}
+              ? t("table.practiceFirstStep")
+              : t("table.autoDraw")}
         </p>
         {/* Keep the fallback mounted while auto-draw is in flight. Removing it
             after 320 ms can detach the control underneath a pointer or touch. */}
@@ -999,7 +1027,7 @@ function ActionBar({
           onClick={onDraw}
           disabled={drawPending}
         >
-          Draw now
+          {t("table.drawNow")}
         </button>
       </div>
     );

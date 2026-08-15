@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+
 export interface PracticeLaunchCardProps {
   busy: boolean;
   hasSelectedSession: boolean;
@@ -17,31 +19,28 @@ export function PracticeLaunchCard({
 }: PracticeLaunchCardProps) {
   return (
     <section className="practice-card" aria-labelledby="practice-title">
-      <p className="status-label">Solo Practice</p>
-      <h2 id="practice-title">Play a full hand against three bots</h2>
-      <p className="practice-description">
-        Untimed, no queue, and no pressure. Practice does not change Jade, rating,
-        levels, or achievements. Progression is earned in Online Play.
-      </p>
+      <p className="status-label">{t("practice.eyebrow")}</p>
+      <h2 id="practice-title">{t("practice.title")}</h2>
+      <p className="practice-description">{t("practice.description")}</p>
       <button
         className="primary-action practice-action"
         type="button"
         onClick={onStart}
         disabled={busy || hasSelectedSession || !matchServiceAvailable}
       >
-        Practice vs Bots
+        {t("practice.action")}
       </button>
       {!matchServiceAvailable && (
         <p className="practice-unavailable" role="alert">
-          Practice is unavailable because the match service is not configured.
+          {t("practice.unconfigured")}
         </p>
       )}
       {hasSelectedSession && (
         <div className="practice-existing-session" role={cleanupRequired ? "alert" : undefined}>
           <p className="practice-unavailable">
             {cleanupRequired
-              ? "We couldn't leave your previous table. Retry before starting another."
-              : "A table is already active. Leave it before starting Practice."}
+              ? t("practice.leaveFailed")
+              : t("practice.tableActive")}
           </p>
           {onLeaveSelectedSession && (
             <button
@@ -49,7 +48,7 @@ export function PracticeLaunchCard({
               type="button"
               onClick={onLeaveSelectedSession}
             >
-              {cleanupRequired ? "Retry leaving table" : "Leave current table"}
+              {cleanupRequired ? t("practice.retryLeave") : t("practice.leaveCurrent")}
             </button>
           )}
         </div>

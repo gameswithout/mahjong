@@ -1,5 +1,6 @@
 import { RULES_NAME, RULES_VERSION } from "./rules-version";
 import type { PlayerSettings } from "./settings";
+import { t } from "./i18n";
 
 export interface SettingsScreenProps {
   settings: PlayerSettings;
@@ -20,28 +21,23 @@ export function SettingsScreen({
     <section className="settings-screen" aria-labelledby="settings-title">
       <header className="settings-header">
         <div>
-          <p className="status-label">Account</p>
-          <h2 id="settings-title">Settings</h2>
-          <p>
-            Preferences are saved to your Mahjong account and follow registered
-            players to other devices.
-          </p>
+          <p className="status-label">{t("settings.account")}</p>
+          <h2 id="settings-title">{t("settings.title")}</h2>
+          <p>{t("settings.description")}</p>
         </div>
         <button type="button" className="secondary-action" onClick={onClose}>
-          Back to lobby
+          {t("common.backToLobby")}
         </button>
       </header>
 
       <div className="settings-list">
         <section className="settings-card" aria-labelledby="settings-learning-title">
-          <p className="status-label">Learning</p>
-          <h3 id="settings-learning-title">Tutorial</h3>
+          <p className="status-label">{t("settings.learning")}</p>
+          <h3 id="settings-learning-title">{t("settings.tutorial")}</h3>
           <label className="settings-toggle">
             <span>
-              <strong>Show Learn section</strong>
-              <small>
-                Hide the tutorial card from the lobby. You can always turn it back on here.
-              </small>
+              <strong>{t("settings.showLearn")}</strong>
+              <small>{t("settings.showLearnHelp")}</small>
             </span>
             <input
               type="checkbox"
@@ -55,15 +51,12 @@ export function SettingsScreen({
         </section>
 
         <section className="settings-card" aria-labelledby="settings-privacy-title">
-          <p className="status-label">Privacy</p>
-          <h3 id="settings-privacy-title">Analytics</h3>
+          <p className="status-label">{t("settings.privacy")}</p>
+          <h3 id="settings-privacy-title">{t("settings.analytics")}</h3>
           <label className="settings-toggle">
             <span>
-              <strong>Share optional gameplay analytics</strong>
-              <small>
-                Helps improve tutorial and queue journeys. Email, birth date, chat, and
-                concealed tiles are never included.
-              </small>
+              <strong>{t("settings.shareAnalytics")}</strong>
+              <small>{t("settings.shareAnalyticsHelp")}</small>
             </span>
             <input
               type="checkbox"
@@ -79,21 +72,21 @@ export function SettingsScreen({
         </section>
 
         <section className="settings-card" aria-labelledby="settings-rules-title">
-          <p className="status-label">Rules</p>
+          <p className="status-label">{t("settings.rules")}</p>
           <h3 id="settings-rules-title">{RULES_NAME}</h3>
           <p className="settings-rule-version">{RULES_VERSION}</p>
         </section>
       </div>
 
       <div className="settings-sync-status" role="status" aria-live="polite">
-        {syncStatus === "loading" && "Loading account settings…"}
-        {syncStatus === "saving" && "Saving to your account…"}
-        {syncStatus === "ready" && "Settings saved to your account."}
+        {syncStatus === "loading" && t("settings.loading")}
+        {syncStatus === "saving" && t("settings.saving")}
+        {syncStatus === "ready" && t("settings.saved")}
         {syncStatus === "error" && (
           <>
-            Settings could not sync with AccelByte Cloud Save.
+            {t("settings.syncError")}
             <button type="button" className="text-action" onClick={onRetry}>
-              Retry
+              {t("common.retry")}
             </button>
           </>
         )}
