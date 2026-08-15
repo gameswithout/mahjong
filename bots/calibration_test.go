@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gameswithout/mahjong/rulesengine"
 )
 
 // TestCalibrationSuite runs the §11.4 placement-band calibration for all
@@ -113,4 +115,64 @@ func writeCalibrationReport(t *testing.T, path string, reports []CalibrationRepo
 		t.Fatalf("write calibration report to %s: %v", path, err)
 	}
 	t.Logf("wrote calibration report to %s", path)
+}
+
+// TestCalibrationHandsReplayFromSeed is the property every measurement in
+// this package rests on: the same seed and the same seated policies must
+// produce the same hand, every time.
+//
+// It regressed once and the cause is worth remembering. §11.4's 250ms
+// decision budget races a policy against the wall clock and substitutes the
+// neutral Medium policy when it loses, so whether a decision misses the
+// budget depends on machine load rather than on the seed. With the guard in
+// the calibration loop, 2 of 60 replayed hands came out differently, and a
+// 2,000-hand persona strength run moved by about a percentage point between
+// two runs of identical inputs — the harness was partly measuring the host.
+// Offline analysis now runs unbudgeted (see budgetMode); production keeps
+// the guard, where it belongs.
+func TestCalibrationHandsReplayFromSeed(t *testing.T) {
+	roster, err := Personas()
+	if err != nil {
+		t.Fatalf("Personas() error = %v", err)
+	}
+	specialist, _ := roster.ByID("jade-dragon")
+	reference := roster.Default()
+
+	seatsFor := func() map[rulesengine.Seat]Policy {
+		seats := make(map[rulesengine.Seat]Policy, len(seatOrder))
+		for _, seat := range seatOrder {
+			persona := reference
+			if seat == rulesengine.East {
+				persona = specialist
+			}
+			seats[seat] = NewPersonaPolicy(newDifficultyPolicy(Medium), persona)
+		}
+		return seats
+	}
+
+	describe := func(result *rulesengine.HandResult) string {
+		if result == nil {
+			return "nil"
+		}
+		out := string(result.Kind) + "|payer=" + string(result.Payer)
+		for _, winner := range result.Winners {
+			out += "|" + string(winner.Seat) + ":" + strconv.Itoa(winner.Score.RawTai)
+		}
+		return out
+	}
+
+	for index := 0; index < 16; index++ {
+		seed := uint64(20260814 + index)
+		first, err := playStrengthHand(seed, seatsFor())
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		second, err := playStrengthHand(seed, seatsFor())
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		if describe(first) != describe(second) {
+			t.Fatalf("seed %d did not replay:\n  %s\n  %s", seed, describe(first), describe(second))
+		}
+	}
 }

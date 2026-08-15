@@ -105,7 +105,7 @@ func driveCalibrationHand(engine *rulesengine.TurnEngine, seed uint64, seats map
 
 		case rulesengine.PhaseAwaitingDiscard:
 			seat := engine.ActiveSeat
-			command, err := decideTurnCommand(engine, seats[seat], seat, dealer, prevailingWind, continuation, nextSeed())
+			command, err := decideTurnCommand(engine, seats[seat], seat, dealer, prevailingWind, continuation, nextSeed(), ignoreBudget)
 			if err != nil {
 				return fmt.Errorf("decide turn for %s: %w", seat, err)
 			}
@@ -119,7 +119,7 @@ func driveCalibrationHand(engine *rulesengine.TurnEngine, seed uint64, seats map
 				if _, responded := window.Responses[seat]; responded {
 					continue
 				}
-				command, err := decideClaimCommand(engine, seats[seat], seat, dealer, prevailingWind, continuation, nextSeed(), window)
+				command, err := decideClaimCommand(engine, seats[seat], seat, dealer, prevailingWind, continuation, nextSeed(), window, ignoreBudget)
 				if err != nil {
 					return fmt.Errorf("decide claim for %s: %w", seat, err)
 				}

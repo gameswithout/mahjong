@@ -134,7 +134,7 @@ func decideSeatCommand(
 		if engine.ActiveSeat != seat {
 			return nil, nil
 		}
-		return decideTurnCommand(engine, policy, seat, dealer, prevailingWind, continuation, seed)
+		return decideTurnCommand(engine, policy, seat, dealer, prevailingWind, continuation, seed, enforceBudget)
 
 	case rulesengine.PhaseClaimWindow:
 		claim := engine.Claim
@@ -144,11 +144,60 @@ func decideSeatCommand(
 		if _, already := claim.Responses[seat]; already {
 			return nil, nil
 		}
-		return decideClaimCommand(engine, policy, seat, dealer, prevailingWind, continuation, seed, claim)
+		return decideClaimCommand(engine, policy, seat, dealer, prevailingWind, continuation, seed, claim, enforceBudget)
 
 	default:
 		return nil, nil
 	}
+}
+
+// budgetMode selects whether a decision runs under §11.4's 250ms wall-clock
+// guard.
+//
+// The guard is a race between how long a policy takes and how long the clock
+// allows, and its fallback substitutes the neutral Medium policy's answer.
+// That is correct in production — a slow decision must not stall a live
+// table — but it makes the same seed produce different play depending on
+// machine load, because whether a decision misses the budget is not a
+// function of the seed.
+//
+// Offline analysis therefore runs unbudgeted. A calibration or strength run
+// that keeps the guard in the loop is partly measuring the host it ran on:
+// under load its policies quietly become Medium for a scattering of
+// decisions, hands diverge from there, and two runs of identical inputs
+// disagree. Measured directly, this produced mismatched outcomes on 2 of 60
+// replayed hands, and it moved a 2,000-hand persona result by about a
+// percentage point between runs.
+type budgetMode bool
+
+const (
+	// enforceBudget is the production path: §11.4's guard, with its
+	// documented fallback chain.
+	enforceBudget budgetMode = true
+	// ignoreBudget is the offline path, where reproducibility is the whole
+	// point and no live table is waiting.
+	ignoreBudget budgetMode = false
+)
+
+func (m budgetMode) discard(policy Policy, obs Observation, seed uint64) Decision {
+	if m == ignoreBudget {
+		return policy.DecideDiscard(obs, seed)
+	}
+	return DecideDiscard(policy, obs, seed)
+}
+
+func (m budgetMode) claim(policy Policy, obs Observation, options ClaimOptions, seed uint64) Decision {
+	if m == ignoreBudget {
+		return policy.DecideClaim(obs, options, seed)
+	}
+	return DecideClaim(policy, obs, options, seed)
+}
+
+func (m budgetMode) selfKong(policy Policy, obs Observation, options []SelfKongOption, seed uint64) Decision {
+	if m == ignoreBudget {
+		return policy.DecideSelfKong(obs, options, seed)
+	}
+	return DecideSelfKong(policy, obs, options, seed)
 }
 
 // decideTurnCommand handles seat's own turn under policy: declare a legal
@@ -162,6 +211,7 @@ func decideTurnCommand(
 	seat, dealer, prevailingWind rulesengine.Seat,
 	continuation int,
 	seed uint64,
+	budget budgetMode,
 ) (*rulesengine.MatchCommand, error) {
 	obs, err := BuildObservation(engine, seat, dealer, prevailingWind, continuation)
 	if err != nil {
@@ -175,7 +225,7 @@ func decideTurnCommand(
 		}, nil
 	}
 	if options := buildSelfKongOptions(obs.Hand, obs.Melds); len(options) > 0 {
-		decision := DecideSelfKong(policy, obs, options, seed)
+		decision := budget.selfKong(policy, obs, options, seed)
 		switch decision.Action.Kind {
 		case ActionConcealedKong:
 			return &rulesengine.MatchCommand{
@@ -193,7 +243,7 @@ func decideTurnCommand(
 			}, nil
 		}
 	}
-	decision := DecideDiscard(policy, obs, seed)
+	decision := budget.discard(policy, obs, seed)
 	if decision.Action.TileID == "" {
 		return nil, fmt.Errorf("bots: policy produced no discard for %s", seat)
 	}
@@ -215,6 +265,7 @@ func decideClaimCommand(
 	continuation int,
 	seed uint64,
 	claim *rulesengine.ClaimWindow,
+	budget budgetMode,
 ) (*rulesengine.MatchCommand, error) {
 	obs, err := BuildObservation(engine, seat, dealer, prevailingWind, continuation)
 	if err != nil {
@@ -228,7 +279,7 @@ func decideClaimCommand(
 	if seat != nextSeatAfter(claim.Discard.Seat) {
 		options.ChowSets = nil
 	}
-	decision := DecideClaim(policy, obs, options, seed)
+	decision := budget.claim(policy, obs, options, seed)
 
 	response := rulesengine.ClaimResponse{
 		Seat:         seat,
