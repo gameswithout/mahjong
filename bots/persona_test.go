@@ -214,6 +214,92 @@ func TestPersonaAssignmentsHandleFewerBotSeats(t *testing.T) {
 	}
 }
 
+// TestPersonaAssignmentsWithPicksHonorsExplicitChoices is the picker
+// feature's core promise: a player who asks for a specific opponent gets
+// exactly that opponent, at whichever physical seat lands the pick.
+func TestPersonaAssignmentsWithPicksHonorsExplicitChoices(t *testing.T) {
+	roster, err := Personas()
+	if err != nil {
+		t.Fatalf("Personas() error = %v", err)
+	}
+	assignments := roster.PersonaAssignmentsWithPicks(map[rulesengine.Seat]string{
+		rulesengine.South: "silent-crane",
+		rulesengine.West:  "",
+		rulesengine.North: "thunder-tiger",
+	})
+	if assignments[rulesengine.South].ID != "silent-crane" {
+		t.Errorf("South = %q, want the explicit pick silent-crane", assignments[rulesengine.South].ID)
+	}
+	if assignments[rulesengine.North].ID != "thunder-tiger" {
+		t.Errorf("North = %q, want the explicit pick thunder-tiger", assignments[rulesengine.North].ID)
+	}
+	if assignments[rulesengine.West].ID == "" {
+		t.Error("West was left to auto-fill but got no persona at all")
+	}
+}
+
+// TestPersonaAssignmentsWithPicksAutoFillAvoidsExplicitDuplicates is the
+// point of routing auto-fill through a pool that excludes what was already
+// picked: "select for me" on the remaining seats should not just repeat the
+// opponent the player already chose for themselves.
+func TestPersonaAssignmentsWithPicksAutoFillAvoidsExplicitDuplicates(t *testing.T) {
+	roster, err := Personas()
+	if err != nil {
+		t.Fatalf("Personas() error = %v", err)
+	}
+	// The player explicitly picked every persona the default mixed lineup
+	// would otherwise have reached for, so auto-fill is forced past its
+	// first choice on both remaining seats.
+	assignments := roster.PersonaAssignmentsWithPicks(map[rulesengine.Seat]string{
+		rulesengine.East:  "swift-sparrow",
+		rulesengine.South: "stone-lion",
+		rulesengine.West:  "jade-dragon",
+		rulesengine.North: "",
+	})
+	north := assignments[rulesengine.North].ID
+	if north == "swift-sparrow" || north == "stone-lion" || north == "jade-dragon" {
+		t.Errorf("North auto-filled to %q, which the player already explicitly picked elsewhere", north)
+	}
+	if north == "" {
+		t.Fatal("North was left unassigned")
+	}
+}
+
+// An ID that is not a real persona — a typo, or a name a later build
+// retired — must degrade to auto-fill rather than stall the hand.
+func TestPersonaAssignmentsWithPicksTreatsAnUnknownIDAsAuto(t *testing.T) {
+	roster, err := Personas()
+	if err != nil {
+		t.Fatalf("Personas() error = %v", err)
+	}
+	assignments := roster.PersonaAssignmentsWithPicks(map[rulesengine.Seat]string{
+		rulesengine.South: "not-a-real-persona",
+	})
+	if assignments[rulesengine.South].ID == "" {
+		t.Fatal("an unrecognized pick left the seat with no persona at all")
+	}
+}
+
+// A table where nobody picked anything must reproduce today's exact
+// default — the "select for me" behavior a player gets by touching nothing.
+func TestPersonaAssignmentsWithPicksMatchesTheDefaultWhenAllAuto(t *testing.T) {
+	roster, err := Personas()
+	if err != nil {
+		t.Fatalf("Personas() error = %v", err)
+	}
+	seats := []rulesengine.Seat{rulesengine.South, rulesengine.West, rulesengine.North}
+	viaPicks := roster.PersonaAssignmentsWithPicks(map[rulesengine.Seat]string{
+		rulesengine.South: "", rulesengine.West: "", rulesengine.North: "",
+	})
+	viaSeats := roster.PersonaAssignments(seats)
+	for _, seat := range seats {
+		if viaPicks[seat].ID != viaSeats[seat].ID {
+			t.Errorf("%s: all-auto picks gave %q, plain PersonaAssignments gave %q",
+				seat, viaPicks[seat].ID, viaSeats[seat].ID)
+		}
+	}
+}
+
 func TestByIDRejectsAnUnknownPersona(t *testing.T) {
 	roster, err := Personas()
 	if err != nil {

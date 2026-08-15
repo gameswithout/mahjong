@@ -91,6 +91,100 @@ func TestRuntimeAIPractice_SeatsNamedPersonas(t *testing.T) {
 	}
 }
 
+// TestBotPersonasHonorsAnExplicitPick covers the picker feature end to end
+// at the BotPersonas layer: a persona ID baked into a bot user ID by
+// session.padWithBotSeats reaches the seat it was requested for, and the
+// unrequested seats still auto-fill rather than going unassigned.
+func TestBotPersonasHonorsAnExplicitPick(t *testing.T) {
+	seats := map[string]rulesengine.Seat{
+		"real-player": rulesengine.East,
+		session.BotUserIDPrefix + "session-1:2:silent-crane": rulesengine.South,
+		session.BotUserIDPrefix + "session-1:3":              rulesengine.West,
+		session.BotUserIDPrefix + "session-1:4":              rulesengine.North,
+	}
+	personas, err := BotPersonas(seats)
+	if err != nil {
+		t.Fatalf("BotPersonas() error = %v", err)
+	}
+	if personas[rulesengine.South].ID != "silent-crane" {
+		t.Errorf("South = %q, want the explicitly picked silent-crane", personas[rulesengine.South].ID)
+	}
+	if personas[rulesengine.West].ID == "" || personas[rulesengine.North].ID == "" {
+		t.Error("an unrequested bot seat was left without a persona")
+	}
+}
+
+// An unrecognized persona ID — a stale client, a typo, a retired name — must
+// degrade to auto-fill rather than leave the seat (and so the whole hand)
+// unable to start.
+func TestBotPersonasFallsBackOnAnUnrecognizedPick(t *testing.T) {
+	seats := map[string]rulesengine.Seat{
+		session.BotUserIDPrefix + "session-1:2:not-a-real-persona": rulesengine.South,
+	}
+	personas, err := BotPersonas(seats)
+	if err != nil {
+		t.Fatalf("BotPersonas() error = %v", err)
+	}
+	if personas[rulesengine.South].ID == "" {
+		t.Error("an unrecognized pick left the seat with no persona at all")
+	}
+}
+
+func TestPersonaPickFromBotUserID(t *testing.T) {
+	cases := map[string]string{
+		"bot:session-1:2":              "",
+		"bot:session-1:2:stone-lion":   "stone-lion",
+		"not-a-bot-id":                 "",
+		"bot:session-1:2:with:a:colon": "with:a:colon",
+	}
+	for userID, want := range cases {
+		if got := personaPickFromBotUserID(userID); got != want {
+			t.Errorf("personaPickFromBotUserID(%q) = %q, want %q", userID, got, want)
+		}
+	}
+}
+
+// TestRuntimeAIPractice_SeatsAPlayerChosenPersona is the runtime-level
+// counterpart to TestRuntimeAIPractice_SeatsNamedPersonas: the roster this
+// time already carries a player's pick, exactly as session.padWithBotSeats
+// would have encoded it, and the projected table must honor it.
+func TestRuntimeAIPractice_SeatsAPlayerChosenPersona(t *testing.T) {
+	clock := time.Date(2026, 8, 14, 8, 0, 0, 0, time.UTC)
+	key := storage.MatchKey{
+		Namespace: "gameswithout-mahjong",
+		SessionID: "session-picked",
+		MatchID:   "match-picked",
+	}
+	runtime := NewRuntime(
+		session.StaticResolver{Members: []string{
+			"human",
+			"bot:practice:1:thunder-tiger",
+			"bot:practice:2",
+			"bot:practice:3",
+		}},
+		&fakeMatchRepository{},
+		rulesengine.NewMemoryEventStore(),
+		func() time.Time { return clock },
+	)
+
+	view, err := runtime.Join(context.Background(), key, "human")
+	if err != nil {
+		t.Fatalf("Join() error = %v", err)
+	}
+	var found bool
+	for _, persona := range view.BotPersonas {
+		if persona.ID == "thunder-tiger" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the player's chosen persona did not reach the table: %+v", view.BotPersonas)
+	}
+	if len(view.BotPersonas) != 3 {
+		t.Fatalf("practice table seated %d personas, want 3", len(view.BotPersonas))
+	}
+}
+
 // TestBotPersonasIgnoresAHumanOnlyTable keeps public and ranked matches out
 // of the persona path entirely: a disconnect takeover there plays the
 // neutral policy, not a style nobody chose.

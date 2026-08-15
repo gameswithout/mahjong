@@ -69,7 +69,7 @@ func rosterFromResponse(
 		// deterministic, per-session bot IDs rather than making the
 		// player wait for three more humans who were never coming.
 		if aiPracticeAttribute(response.Attributes) && len(members) >= 1 && len(members) < 4 {
-			return padWithBotSeats(members, sessionID), nil
+			return padWithBotSeats(members, sessionID, botPersonaPicks(response.Attributes)), nil
 		}
 		return nil, fmt.Errorf("%w: got %d", ErrSessionRoster, len(members))
 	}
@@ -95,14 +95,66 @@ func aiPracticeAttribute(attributes interface{}) bool {
 	}
 }
 
+// botPersonaPicks reads the client-supplied "bot_personas" custom session
+// attribute (set at session creation alongside "ai_practice"; see
+// client/session.ts): a comma-separated list of persona IDs the player
+// explicitly chose for their AI Practice opponents. Absent or empty means
+// "select for me" — today's fixed mixed lineup — which is also exactly what
+// any pre-persona client produces by never setting the attribute at all.
+//
+// Tokens are only sanitized here, not validated against the persona roster.
+// An unrecognized ID is not this package's problem to reject:
+// bots.BotPersonas already treats an unrecognized trailing segment on a bot
+// user ID as "auto" for that seat, so rejecting it here would just mean the
+// same leniency has to be re-implemented in two places.
+func botPersonaPicks(attributes interface{}) []string {
+	values, ok := attributes.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	raw, ok := values["bot_personas"].(string)
+	if !ok {
+		return nil
+	}
+	var picks []string
+	for _, token := range strings.Split(raw, ",") {
+		token = strings.TrimSpace(token)
+		// A colon would corrupt the bot:<sessionID>:<index>:<personaID>
+		// shape padWithBotSeats builds below, so a token carrying one is
+		// dropped outright — this is a safety check, not a validity check.
+		if token == "" || strings.Contains(token, ":") {
+			continue
+		}
+		picks = append(picks, token)
+	}
+	return picks
+}
+
 // padWithBotSeats fills roster out to four members with deterministic bot
 // IDs derived from sessionID, so repeated Roster() calls for the same
 // session produce the same roster (EnsureMatch's idempotency depends on a
 // stable roster hash across calls).
-func padWithBotSeats(members []string, sessionID string) []string {
+//
+// picks names the personas the player explicitly requested, in no
+// particular order relative to which physical seat each ends up in — the
+// player never sees or chooses seat identity, only which personalities are
+// somewhere at the table. Each pick is baked directly into the bot ID it
+// produces (bot:<sessionID>:<index>:<personaID>) rather than tracked
+// separately, so whichever physical seat gets assigned that ID later
+// carries the right persona with no ordinal bookkeeping required. A slot
+// beyond len(picks) — or a session with no picks at all — gets a bare ID,
+// which bots.BotPersonas reads as "auto" and fills from the default mixed
+// lineup.
+func padWithBotSeats(members []string, sessionID string, picks []string) []string {
 	padded := append([]string(nil), members...)
+	pickIndex := 0
 	for index := len(padded); index < 4; index++ {
-		padded = append(padded, fmt.Sprintf("%s%s:%d", BotUserIDPrefix, sessionID, index+1))
+		id := fmt.Sprintf("%s%s:%d", BotUserIDPrefix, sessionID, index+1)
+		if pickIndex < len(picks) {
+			id += ":" + picks[pickIndex]
+			pickIndex++
+		}
+		padded = append(padded, id)
 	}
 	return padded
 }

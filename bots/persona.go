@@ -162,21 +162,90 @@ func (r Roster) MixedTable() []Persona {
 // and will need real persistence, because a player's choice is not
 // recoverable from the seating.
 func (r Roster) PersonaAssignments(botSeats []rulesengine.Seat) map[rulesengine.Seat]Persona {
-	table := r.MixedTable()
-	assignments := make(map[rulesengine.Seat]Persona, len(botSeats))
-	seated := map[rulesengine.Seat]bool{}
+	picks := make(map[rulesengine.Seat]string, len(botSeats))
 	for _, seat := range botSeats {
-		seated[seat] = true
+		picks[seat] = ""
 	}
-	ordinal := 0
+	return r.PersonaAssignmentsWithPicks(picks)
+}
+
+// PersonaAssignmentsWithPicks is PersonaAssignments plus a player's choice:
+// the picker lets a player request specific opponents for their table
+// ("give me option to pick which bot to play against"), with an explicit
+// "select for me" for any seat they leave unset.
+//
+// picks maps each bot seat to the persona ID the player requested for it,
+// or "" to auto-fill that seat. An ID that does not resolve to a real
+// persona in this roster — a typo, or an older client naming a persona a
+// later build retired — is treated the same as "": a request for the wrong
+// opponent must not stop the hand from starting, and bots.Personas() has
+// already validated every ID this roster actually contains.
+//
+// Auto-filled seats draw from the recommended §5 mixed lineup first — the
+// same "clearest first-session contrast" default used when nobody picks
+// anything — skipping any persona an explicit pick elsewhere at this table
+// already claimed, then falling through to the rest of the roster in
+// canonical order if the mixed lineup runs out. With at most three bot
+// seats and six personas this can never need to repeat one the auto-fill
+// itself already chose.
+func (r Roster) PersonaAssignmentsWithPicks(picks map[rulesengine.Seat]string) map[rulesengine.Seat]Persona {
+	assignments := make(map[rulesengine.Seat]Persona, len(picks))
+	used := map[string]bool{}
+	var autoSeats []rulesengine.Seat
+
 	for _, seat := range seatOrder {
-		if !seated[seat] {
+		id, requested := picks[seat]
+		if !requested {
 			continue
 		}
-		assignments[seat] = table[ordinal%len(table)]
-		ordinal++
+		id = strings.TrimSpace(id)
+		if persona, ok := r.ByID(id); ok && id != "" {
+			assignments[seat] = persona
+			used[persona.ID] = true
+			continue
+		}
+		autoSeats = append(autoSeats, seat)
+	}
+	if len(autoSeats) == 0 {
+		return assignments
+	}
+	pool := r.autoFillPool(used)
+	for index, seat := range autoSeats {
+		assignments[seat] = pool[index%len(pool)]
 	}
 	return assignments
+}
+
+// autoFillPool orders the personas an auto-filled seat draws from: the
+// recommended mixed lineup first, then the rest of the roster in canonical
+// (sorted) order, both skipping anything in used.
+func (r Roster) autoFillPool(used map[string]bool) []Persona {
+	var pool []Persona
+	seen := map[string]bool{}
+	add := func(persona Persona) {
+		if used[persona.ID] || seen[persona.ID] {
+			return
+		}
+		seen[persona.ID] = true
+		pool = append(pool, persona)
+	}
+	for _, persona := range r.MixedTable() {
+		add(persona)
+	}
+	for _, id := range r.IDs() {
+		if persona, ok := r.ByID(id); ok {
+			add(persona)
+		}
+	}
+	if len(pool) == 0 {
+		// Every persona in the roster is already explicitly claimed
+		// elsewhere at this table — not reachable with today's at-most-three
+		// bot seats, but a caller with more bot seats than personas should
+		// still get something playable rather than a pool it would index
+		// out of bounds on.
+		pool = append(pool, r.Default())
+	}
+	return pool
 }
 
 var (

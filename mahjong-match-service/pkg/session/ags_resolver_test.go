@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/AccelByte/accelbyte-go-sdk/session-sdk/pkg/sessionclientmodels"
@@ -207,6 +208,146 @@ func TestStaticResolver_RequiresFourAndReturnsCopy(t *testing.T) {
 		context.Background(), "namespace", "session",
 	); !errors.Is(err, ErrSessionRoster) {
 		t.Fatalf("three-member error = %v, want ErrSessionRoster", err)
+	}
+}
+
+// TestRosterFromResponse_BakesChosenPersonasIntoBotIDs covers the picker
+// feature's whole server-side wire contract: a player-chosen persona ID
+// travels from the session attribute into the exact bot user ID string the
+// rest of the service reads (bots.BotPersonas parses this same suffix).
+func TestRosterFromResponse_BakesChosenPersonasIntoBotIDs(t *testing.T) {
+	namespace := "gameswithout-mahjong"
+	sessionID := "session-picked"
+	active := true
+	response := &sessionclientmodels.ApimodelsGameSessionResponse{
+		Namespace: &namespace,
+		ID:        &sessionID,
+		IsActive:  &active,
+		Attributes: map[string]interface{}{
+			"ai_practice":  "true",
+			"bot_personas": "stone-lion,jade-dragon",
+		},
+		Members: []*sessionclientmodels.ApimodelsUserResponse{
+			sessionMember("u1", "CONNECTED"),
+		},
+	}
+	roster, err := rosterFromResponse(response, namespace, sessionID)
+	if err != nil {
+		t.Fatalf("rosterFromResponse() error = %v", err)
+	}
+	if len(roster) != 4 {
+		t.Fatalf("roster size = %d, want 4", len(roster))
+	}
+	if !strings.HasSuffix(roster[1], ":stone-lion") {
+		t.Fatalf("roster[1] = %q, want a stone-lion suffix", roster[1])
+	}
+	if !strings.HasSuffix(roster[2], ":jade-dragon") {
+		t.Fatalf("roster[2] = %q, want a jade-dragon suffix", roster[2])
+	}
+	// The third bot seat got no pick, so it stays a bare ID — "auto" from
+	// bots.BotPersonas' perspective, not an empty or malformed suffix.
+	if IsBotUserID(roster[3]) && strings.Count(roster[3], ":") != 2 {
+		t.Fatalf("roster[3] = %q, want the bare bot:<session>:<index> shape", roster[3])
+	}
+}
+
+// A malicious or malformed session attribute must not corrupt the bot ID
+// shape bots.BotPersonas and session.IsBotUserID both depend on.
+func TestRosterFromResponse_DropsUnsafePersonaTokens(t *testing.T) {
+	namespace := "gameswithout-mahjong"
+	sessionID := "session-unsafe"
+	active := true
+	response := &sessionclientmodels.ApimodelsGameSessionResponse{
+		Namespace: &namespace,
+		ID:        &sessionID,
+		IsActive:  &active,
+		Attributes: map[string]interface{}{
+			"ai_practice": "true",
+			// A colon would corrupt the bot:<session>:<index>:<personaID>
+			// shape; a blank token between commas must not become an empty
+			// but present pick either.
+			"bot_personas": "stone-lion,evil:injection,,jade-dragon",
+		},
+		Members: []*sessionclientmodels.ApimodelsUserResponse{
+			sessionMember("u1", "CONNECTED"),
+		},
+	}
+	roster, err := rosterFromResponse(response, namespace, sessionID)
+	if err != nil {
+		t.Fatalf("rosterFromResponse() error = %v", err)
+	}
+	for _, id := range roster[1:] {
+		if strings.Contains(id, "evil") {
+			t.Fatalf("roster entry %q carries the unsafe token", id)
+		}
+	}
+	if !strings.HasSuffix(roster[1], ":stone-lion") {
+		t.Fatalf("roster[1] = %q, want stone-lion (the unsafe token must be skipped, not consumed)", roster[1])
+	}
+	if !strings.HasSuffix(roster[2], ":jade-dragon") {
+		t.Fatalf("roster[2] = %q, want jade-dragon", roster[2])
+	}
+}
+
+// Picks must not break the idempotency EnsureMatch's roster-hash check
+// depends on: the same session resolved twice must produce the same roster.
+func TestRosterFromResponse_PickedRosterIsStableAcrossCalls(t *testing.T) {
+	namespace := "gameswithout-mahjong"
+	sessionID := "session-stable"
+	active := true
+	response := &sessionclientmodels.ApimodelsGameSessionResponse{
+		Namespace: &namespace,
+		ID:        &sessionID,
+		IsActive:  &active,
+		Attributes: map[string]interface{}{
+			"ai_practice":  "true",
+			"bot_personas": "silent-crane",
+		},
+		Members: []*sessionclientmodels.ApimodelsUserResponse{
+			sessionMember("u1", "CONNECTED"),
+		},
+	}
+	first, err := rosterFromResponse(response, namespace, sessionID)
+	if err != nil {
+		t.Fatalf("first rosterFromResponse() error = %v", err)
+	}
+	second, err := rosterFromResponse(response, namespace, sessionID)
+	if err != nil {
+		t.Fatalf("second rosterFromResponse() error = %v", err)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("picked roster is not stable across calls: %#v vs %#v", first, second)
+	}
+}
+
+func TestBotPersonaPicks(t *testing.T) {
+	cases := []struct {
+		name       string
+		attributes interface{}
+		want       []string
+	}{
+		{"no attributes", nil, nil},
+		{"not ai practice shaped", map[string]interface{}{"ai_practice": "true"}, nil},
+		{"single pick", map[string]interface{}{"bot_personas": "swift-sparrow"}, []string{"swift-sparrow"}},
+		{
+			"trims whitespace around tokens",
+			map[string]interface{}{"bot_personas": " stone-lion , jade-dragon "},
+			[]string{"stone-lion", "jade-dragon"},
+		},
+		{
+			"drops empty and colon-bearing tokens",
+			map[string]interface{}{"bot_personas": "stone-lion,,evil:thing,jade-dragon"},
+			[]string{"stone-lion", "jade-dragon"},
+		},
+		{"wrong attribute type", map[string]interface{}{"bot_personas": 42}, nil},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := botPersonaPicks(testCase.attributes)
+			if !reflect.DeepEqual(got, testCase.want) {
+				t.Fatalf("botPersonaPicks(%v) = %#v, want %#v", testCase.attributes, got, testCase.want)
+			}
+		})
 	}
 }
 

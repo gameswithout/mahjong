@@ -116,20 +116,40 @@ func tallyDiscardEfficiency(
 // the binary and covered by the bots package's loader tests, so reaching
 // here means the build itself is wrong.
 func BotPersonas(seats map[string]rulesengine.Seat) (map[rulesengine.Seat]bots.Persona, error) {
-	var botSeats []rulesengine.Seat
+	picks := map[rulesengine.Seat]string{}
 	for userID, seat := range seats {
 		if session.IsBotUserID(userID) {
-			botSeats = append(botSeats, seat)
+			// A player-chosen persona is baked into the bot ID itself
+			// (session.padWithBotSeats), not tracked separately — an empty
+			// string here means the seat was left to "select for me", which
+			// bots.PersonaAssignmentsWithPicks reads as auto-fill.
+			picks[seat] = personaPickFromBotUserID(userID)
 		}
 	}
-	if len(botSeats) == 0 {
+	if len(picks) == 0 {
 		return nil, nil
 	}
 	roster, err := bots.Personas()
 	if err != nil {
 		return nil, fmt.Errorf("load bot personas: %w", err)
 	}
-	return roster.PersonaAssignments(botSeats), nil
+	return roster.PersonaAssignmentsWithPicks(picks), nil
+}
+
+// personaPickFromBotUserID reads the persona ID a player's pick baked into
+// a synthetic bot user ID, or "" for a bare bot:<session>:<index> ID that
+// carries none.
+//
+// Splitting into at most 4 parts trusts the same "session IDs never contain
+// a colon" precedent session.BotUserIDPrefix's own doc comment already
+// relies on (AGS session IDs are opaque UUID-shaped strings) — a colon
+// there would already have broken IsBotUserID's own prefix matching.
+func personaPickFromBotUserID(userID string) string {
+	parts := strings.SplitN(userID, ":", 4)
+	if len(parts) < 4 {
+		return ""
+	}
+	return parts[3]
 }
 
 // enrichedView calls actor.View(seat) and, once the hand has actually
