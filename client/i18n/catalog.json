@@ -45,6 +45,8 @@
   "settings.account": { "context": "Settings section eyebrow", "en": "Account", "zh-CN": "账号", "zh-TW": "帳號", "status": "ai_draft" },
   "settings.title": { "context": "Settings screen title", "en": "Settings", "zh-CN": "设置", "zh-TW": "設定", "status": "ai_draft" },
   "settings.description": { "context": "Settings account-sync explanation", "en": "Preferences are saved to your Mahjong account and follow registered players to other devices.", "zh-CN": "偏好设置会保存到你的麻将账号，并会随已注册玩家同步到其他设备。", "zh-TW": "偏好設定會儲存至你的麻將帳號，已註冊玩家在其他裝置上也會同步套用。", "status": "ai_draft" },
+  "settings.displayLanguage": { "context": "Settings language control heading", "en": "Display language", "zh-CN": "显示语言", "zh-TW": "顯示語言", "status": "ai_draft" },
+  "settings.languageHelp": { "context": "Settings language control explanation", "en": "Changes immediately and is remembered on this device.", "zh-CN": "更改会立即生效，并记忆在此设备上。", "zh-TW": "變更會立即生效，並記憶在此裝置上。", "status": "ai_draft" },
   "settings.learning": { "context": "Learning settings category", "en": "Learning", "zh-CN": "学习", "zh-TW": "學習", "status": "ai_draft" },
   "settings.tutorial": { "context": "Tutorial settings title", "en": "Tutorial", "zh-CN": "教程", "zh-TW": "教學", "status": "ai_draft" },
   "settings.showLearn": { "context": "Tutorial visibility toggle", "en": "Show Learn section", "zh-CN": "显示“学习”区域", "zh-TW": "顯示「學習」區域", "status": "ai_draft" },

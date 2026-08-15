@@ -5,7 +5,7 @@ import { SettingsScreen } from "./SettingsScreen";
 import { RULES_NAME, RULES_VERSION } from "./rules-version";
 
 describe("SettingsScreen", () => {
-  it("holds rules, tutorial visibility, analytics, and account sync status", () => {
+  it("holds language, rules, tutorial visibility, analytics, and account sync status", () => {
     const markup = renderToStaticMarkup(
       <SettingsScreen
         settings={{ showTutorial: false, optionalAnalyticsConsent: false }}
@@ -17,6 +17,9 @@ describe("SettingsScreen", () => {
     );
 
     expect(markup).toContain("Show Learn section");
+    expect(markup).toContain("Display language");
+    expect(markup).toContain("Simplified Chinese");
+    expect(markup).toContain("Traditional Chinese");
     expect(markup).toContain("Share optional gameplay analytics");
     expect(markup).toContain(RULES_NAME);
     expect(markup).toContain(RULES_VERSION);

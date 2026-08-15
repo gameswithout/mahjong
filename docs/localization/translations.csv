@@ -42,6 +42,8 @@
 "settings.account","Settings section eyebrow","Account","账号","帳號","ai_draft"
 "settings.title","Settings screen title","Settings","设置","設定","ai_draft"
 "settings.description","Settings account-sync explanation","Preferences are saved to your Mahjong account and follow registered players to other devices.","偏好设置会保存到你的麻将账号，并会随已注册玩家同步到其他设备。","偏好設定會儲存至你的麻將帳號，已註冊玩家在其他裝置上也會同步套用。","ai_draft"
+"settings.displayLanguage","Settings language control heading","Display language","显示语言","顯示語言","ai_draft"
+"settings.languageHelp","Settings language control explanation","Changes immediately and is remembered on this device.","更改会立即生效，并记忆在此设备上。","變更會立即生效，並記憶在此裝置上。","ai_draft"
 "settings.learning","Learning settings category","Learning","学习","學習","ai_draft"
 "settings.tutorial","Tutorial settings title","Tutorial","教程","教學","ai_draft"
 "settings.showLearn","Tutorial visibility toggle","Show Learn section","显示“学习”区域","顯示「學習」區域","ai_draft"

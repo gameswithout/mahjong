@@ -1,6 +1,7 @@
 import { RULES_NAME, RULES_VERSION } from "./rules-version";
 import type { PlayerSettings } from "./settings";
 import { t } from "./i18n";
+import { LanguageSelector } from "./i18n/LanguageSelector";
 
 export interface SettingsScreenProps {
   settings: PlayerSettings;
@@ -31,6 +32,13 @@ export function SettingsScreen({
       </header>
 
       <div className="settings-list">
+        <section className="settings-card" aria-labelledby="settings-language-title">
+          <p className="status-label">{t("language.label")}</p>
+          <h3 id="settings-language-title">{t("settings.displayLanguage")}</h3>
+          <p className="settings-language-help">{t("settings.languageHelp")}</p>
+          <LanguageSelector inline />
+        </section>
+
         <section className="settings-card" aria-labelledby="settings-learning-title">
           <p className="status-label">{t("settings.learning")}</p>
           <h3 id="settings-learning-title">{t("settings.tutorial")}</h3>

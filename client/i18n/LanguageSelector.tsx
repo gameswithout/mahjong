@@ -7,11 +7,11 @@ const LABEL_KEYS = {
   "zh-TW": "language.traditionalChinese",
 } as const;
 
-export function LanguageSelector() {
+export function LanguageSelector({ inline = false }: { inline?: boolean }) {
   const locale = useLocale();
 
   return (
-    <label className="language-selector">
+    <label className={`language-selector${inline ? " language-selector-inline" : ""}`}>
       <span>{t("language.label")}</span>
       <select
         aria-label={t("language.label")}
