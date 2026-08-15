@@ -124,6 +124,39 @@ advances the hand, not a larger constant — the same family of evaluator work a
 pricing an open hand's lost concealed value, which `potentialValueProxy` still
 does not do before tenpai.
 
+## A measurement bug found on the way
+
+Two 2,000-hand strength runs with identical inputs disagreed. Replaying
+single hands found 2 of 60 came out differently on the same seed, in-process
+and sequential.
+
+The cause is §11.4's decision budget. It races a policy against a 250ms wall
+clock and substitutes the neutral Medium policy's answer when it loses, so
+whether a decision misses the budget depends on machine load rather than on
+the seed. One missed budget silently swaps a persona's move for Medium's, the
+hand diverges from there, and the aggregate moves. The two requirements in
+§11.4 genuinely conflict — a live table must not stall, and an offline
+measurement must repeat — so the budget is now explicit at the call site:
+production keeps the guard, offline analysis runs without it.
+
+What this does and does not invalidate:
+
+- **The fidelity numbers above are unaffected.** `RunPersonaFidelity`
+  compares decisions by calling the policies directly and never goes through
+  the budget wrapper, so no measurement in that table could have been
+  substituted.
+- **Strength numbers measured before the fix are void**, including an early
+  Jade Dragon reading that appeared to sit just outside the §9.3 band. It was
+  not a finding; it was the harness.
+- **The pre-existing §11.4 Easy/Medium/Hard calibration is affected too**,
+  since it runs Hard through the same wrapper. The effect there is smaller —
+  those policies are far cheaper than a persona, so they miss the budget less
+  often — but the recorded bands were measured on a harness that did not
+  strictly repeat.
+
+The regression test replays each seed and compares the settled hand, which is
+what caught this and what would have caught it earlier.
+
 ## Live deployment
 
 Deployed to AGS Extend 2026-08-15 as image tag `personas-02d2462`
