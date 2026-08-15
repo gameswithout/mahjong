@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gameswithout/mahjong/bots"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/storage"
 	"github.com/gameswithout/mahjong/rulesengine"
 )
@@ -57,6 +58,12 @@ type TableView struct {
 	HandRuntimeID string
 	// Rotation is nil for Quick Play and AI Practice.
 	Rotation *RotationView
+	// BotPersonas names the playing style seated at each AI Practice bot
+	// seat, so the client can show "Swift Sparrow · Rush" rather than three
+	// identical "Bot" labels. Empty for any table without bot seats, and
+	// never populated for a disconnect takeover — that seat plays the
+	// neutral policy, and naming a style there would be a lie.
+	BotPersonas map[rulesengine.Seat]bots.Persona
 }
 
 // RotationView is the state of a rotation, expressed in player identities

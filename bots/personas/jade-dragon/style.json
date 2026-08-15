@@ -1,0 +1,18 @@
+{
+  "_comment": "Editable style knobs. Big Hand persona: tai_weight dominates and completion is discounted, so it will hold a slower hand that is worth more. commitment is the roster's lowest — it adopts a pattern once a little over half the hand already points at one — and pattern_preference puts the flushes ahead of the shape families.",
+  "name": "Jade Dragon",
+  "completion_weight": 0.7,
+  "acceptance_weight": 0.8,
+  "tai_weight": 2.6,
+  "risk_weight": 0.9,
+  "claim_bias": -0.3,
+  "chow_bias": -0.4,
+  "pong_bias": 0.2,
+  "kong_bias": 0.5,
+  "concealment_value": 1.3,
+  "commitment": 0.55,
+  "safe_reserve_value": 0.8,
+  "context_sensitivity": 1.0,
+  "pattern_preference": ["full_flush", "half_flush", "all_pongs", "honors"],
+  "bars": { "pace": 2, "value": 5, "caution": 2, "calling": 2, "concealment": 4 }
+}

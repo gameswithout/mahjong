@@ -12,7 +12,18 @@ import (
 // placeholder — the deadline/auto-discard mechanism in rulesengine would
 // keep the match moving either way, but only this makes the takeover
 // actually play the hand.
+//
+// A takeover seat deliberately gets no persona. The player whose seat it is
+// did not choose a playing style for it, and that seat may be competing for
+// real stakes, so it plays the neutral policy rather than a style someone
+// else picked (docs/bot-playing-style-personas.md, "Recommended decision").
 var takeoverDifficulty = NewMediumPolicy()
+
+// practiceDifficulty is the base a permanent AI Practice bot seat plays at.
+// It matches the takeover policy's difficulty because player-selected
+// difficulty is not a feature yet; persona is layered on top of it, and the
+// two are orthogonal by construction (§11.3 versus the persona §4 weights).
+var practiceDifficulty = NewMediumPolicy()
 
 // ErrSeatNotTakenOver is returned when DriveTakeoverSeat is asked to act
 // for a seat that is not currently under takeover.
@@ -74,6 +85,33 @@ func DecideTakeoverCommand(
 	continuation int,
 	seed uint64,
 ) (*rulesengine.MatchCommand, error) {
+	return decideSeatCommand(engine, takeoverDifficulty, seat, dealer, prevailingWind, continuation, seed)
+}
+
+// DecideBotSeatCommand is DecideTakeoverCommand for a permanent AI Practice
+// bot seat (rulesengine.MarkBotSeat), which plays a chosen persona rather
+// than the neutral takeover policy. A zero Persona falls through to the
+// plain difficulty policy, so an unresolved roster degrades to today's
+// behaviour instead of to a bot with silently-zeroed preferences.
+func DecideBotSeatCommand(
+	engine *rulesengine.TurnEngine,
+	seat, dealer, prevailingWind rulesengine.Seat,
+	continuation int,
+	seed uint64,
+	persona Persona,
+) (*rulesengine.MatchCommand, error) {
+	return decideSeatCommand(engine, NewPersonaPolicy(practiceDifficulty, persona), seat, dealer, prevailingWind, continuation, seed)
+}
+
+// decideSeatCommand is the shared body: whichever policy is supplied, the
+// set of decision points a bot-controlled seat can act on is the same.
+func decideSeatCommand(
+	engine *rulesengine.TurnEngine,
+	policy Policy,
+	seat, dealer, prevailingWind rulesengine.Seat,
+	continuation int,
+	seed uint64,
+) (*rulesengine.MatchCommand, error) {
 	if engine == nil {
 		return nil, fmt.Errorf("bots: %w", ErrIncompleteState)
 	}
@@ -96,7 +134,7 @@ func DecideTakeoverCommand(
 		if engine.ActiveSeat != seat {
 			return nil, nil
 		}
-		return decideTurnCommand(engine, takeoverDifficulty, seat, dealer, prevailingWind, continuation, seed)
+		return decideTurnCommand(engine, policy, seat, dealer, prevailingWind, continuation, seed)
 
 	case rulesengine.PhaseClaimWindow:
 		claim := engine.Claim
@@ -106,7 +144,7 @@ func DecideTakeoverCommand(
 		if _, already := claim.Responses[seat]; already {
 			return nil, nil
 		}
-		return decideClaimCommand(engine, takeoverDifficulty, seat, dealer, prevailingWind, continuation, seed, claim)
+		return decideClaimCommand(engine, policy, seat, dealer, prevailingWind, continuation, seed, claim)
 
 	default:
 		return nil, nil

@@ -149,6 +149,41 @@ describe("seatViewToMatchTableState", () => {
     expect(state.seats.N.isBot).toBe(false);
   });
 
+  it("names a bot seat after its persona and keeps the style tag", () => {
+    const state = seatViewToMatchTableState(
+      seatView({
+        players: [
+          { seat: "E", hand_count: 1 },
+          {
+            seat: "S",
+            hand_count: 16,
+            taken_over: true,
+            is_bot: true,
+            bot_persona_id: "swift-sparrow",
+            bot_persona_name: "Swift Sparrow",
+            bot_style_tag: "Rush",
+            bot_glyph: "雀",
+          },
+          { seat: "W", hand_count: 16, taken_over: true, is_bot: true },
+          { seat: "N", hand_count: 16, taken_over: true },
+        ],
+      }),
+      { now: Date.now(), onClaimAction: vi.fn() },
+    );
+    expect(state.seats.S.displayName).toBe("Swift Sparrow");
+    expect(state.seats.S.botStyleTag).toBe("Rush");
+    expect(state.seats.S.botGlyph).toBe("雀");
+
+    // A bot seat the service sent no persona for — an older match, or a
+    // roster the deployment does not carry — still reads as a bot.
+    expect(state.seats.W.displayName).toBe("Bot");
+    expect(state.seats.W.botStyleTag).toBeUndefined();
+
+    // A disconnect takeover is not a persona seat at all.
+    expect(state.seats.N.displayName).toBe("Player");
+    expect(state.seats.N.botStyleTag).toBeUndefined();
+  });
+
   it("maps exposed Flowers and Seasons into each seat's public bonus area", () => {
     const state = seatViewToMatchTableState(
       seatView({

@@ -611,6 +611,62 @@ describe("MatchTable table-first UX", () => {
     expect(onDraw).toHaveBeenCalledOnce();
   });
 
+  // The local seat is S, so W renders in the right-hand slot and E in the
+  // left (see remapSeats).
+  it("labels an AI Practice seat with its playing style, and a takeover without one", () => {
+    const state = {
+      ...mockMatchTableState,
+      seats: {
+        ...mockMatchTableState.seats,
+        W: {
+          ...mockMatchTableState.seats.W,
+          displayName: "Stone Lion",
+          takenOver: true,
+          isBot: true,
+          botStyleTag: "Guard",
+        },
+        E: {
+          ...mockMatchTableState.seats.E,
+          displayName: "Player",
+          takenOver: true,
+          isBot: false,
+        },
+      },
+    };
+    act(() => root.render(<MatchTable state={state} />));
+
+    // §11 keeps a bot visibly a bot: the style rides on the badge rather
+    // than replacing it.
+    const bot = container.querySelector(".seat-right .takeover-badge");
+    expect(bot?.textContent).toBe("Bot · Guard");
+    expect(bot?.className).toContain("bot-badge");
+    expect(container.querySelector(".seat-right")?.textContent).toContain("Stone Lion");
+
+    // A disconnected human is not a persona seat and must not be dressed up
+    // as one.
+    const takeover = container.querySelector(".seat-left .takeover-badge");
+    expect(takeover?.textContent).toBe("Auto-playing");
+    expect(takeover?.className).not.toContain("bot-badge");
+  });
+
+  it("falls back to a plain Bot label when no persona was sent", () => {
+    const state = {
+      ...mockMatchTableState,
+      seats: {
+        ...mockMatchTableState.seats,
+        W: {
+          ...mockMatchTableState.seats.W,
+          displayName: "Bot",
+          takenOver: true,
+          isBot: true,
+        },
+      },
+    };
+    act(() => root.render(<MatchTable state={state} />));
+
+    expect(container.querySelector(".seat-right .takeover-badge")?.textContent).toBe("Bot");
+  });
+
   it("persists the optional table feedback preference", () => {
     act(() => root.render(<MatchTable state={mockMatchTableState} />));
 

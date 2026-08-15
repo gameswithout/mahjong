@@ -1450,6 +1450,19 @@
         "isBot": {
           "type": "boolean",
           "description": "is_bot reports whether this seat was never assigned to a human (AI\nPractice mode), distinct from the broader taken_over — a client uses\nthis to show \"Bot\" instead of \"Auto-playing (disconnected)\", which\nwould be misleading for a seat that was never a human to begin with."
+        },
+        "botPersonaId": {
+          "type": "string",
+          "description": "The playing style seated here, set only when is_bot is true. A\ndisconnect takeover leaves these empty: that seat plays the neutral\npolicy because its owner chose no style for it.\n\nbot_style_tag is the plain-language label (\"Rush\", \"Guard\") and matters\nmore to a player than bot_persona_name; bot_persona_id is the stable\nkey, and bot_glyph is the character shown beside the name so adding a\npersonality stays a data change rather than a client edit. A client\nthat has none of these falls back to plain \"Bot\"."
+        },
+        "botPersonaName": {
+          "type": "string"
+        },
+        "botStyleTag": {
+          "type": "string"
+        },
+        "botGlyph": {
+          "type": "string"
         }
       }
     },

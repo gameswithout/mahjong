@@ -1,0 +1,18 @@
+{
+  "_comment": "Editable style knobs. Shape persona: pong_bias and kong_bias are strongly positive while chow_bias is strongly negative, which is what separates it from Swift Sparrow — both claim a lot, but not the same things. pattern_preference leads with all_pongs so its commitment goes to triplet shape rather than to a suit.",
+  "name": "Thunder Tiger",
+  "completion_weight": 1.1,
+  "acceptance_weight": 1.0,
+  "tai_weight": 1.3,
+  "risk_weight": 0.4,
+  "claim_bias": 0.8,
+  "chow_bias": -1.0,
+  "pong_bias": 1.6,
+  "kong_bias": 1.4,
+  "concealment_value": 0.2,
+  "commitment": 0.6,
+  "safe_reserve_value": 0.2,
+  "context_sensitivity": 0.7,
+  "pattern_preference": ["all_pongs", "honors", "half_flush", "full_flush"],
+  "bars": { "pace": 4, "value": 3, "caution": 1, "calling": 5, "concealment": 1 }
+}

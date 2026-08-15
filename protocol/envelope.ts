@@ -124,6 +124,15 @@ export interface PlayerView {
   // (disconnected)" for a seat that was never a human to begin with.
   taken_over?: boolean;
   is_bot?: boolean;
+  // The playing style seated here, present only alongside is_bot. A
+  // disconnect takeover leaves these empty: that seat plays the neutral
+  // policy because its owner chose no style for it, and naming one would
+  // be a lie. Absent entirely on any match predating personas, so the
+  // client falls back to a plain "Bot" label.
+  bot_persona_id?: string;
+  bot_persona_name?: string;
+  bot_style_tag?: string;
+  bot_glyph?: string;
 }
 
 export type WinKind = "discard" | "zimo" | "rob" | "eight_flowers" | "heavenly" | "exhaustive_draw";

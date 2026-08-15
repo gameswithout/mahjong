@@ -1,0 +1,17 @@
+{
+  "_comment": "Editable style knobs. Guard persona: risk_weight and safe_reserve_value are the roster's highest and claim_bias is strongly negative, so it trades hand efficiency for a lower chance of feeding an opponent. context_sensitivity is raised so a late wall and a visibly threatening seat move it further than they move anyone else.",
+  "name": "Stone Lion",
+  "completion_weight": 0.8,
+  "acceptance_weight": 0.9,
+  "tai_weight": 0.7,
+  "risk_weight": 2.6,
+  "claim_bias": -0.9,
+  "chow_bias": -0.2,
+  "pong_bias": -0.1,
+  "kong_bias": -0.5,
+  "concealment_value": 1.4,
+  "commitment": 0.95,
+  "safe_reserve_value": 2.2,
+  "context_sensitivity": 1.5,
+  "bars": { "pace": 2, "value": 2, "caution": 5, "calling": 1, "concealment": 4 }
+}

@@ -152,14 +152,31 @@ function DiscardGrid({
 // §11.1 disclosed AFK takeover, or a permanent AI Practice bot seat
 // (isBot) that was never a human to begin with, for which "Auto-playing
 // (disconnected)" would be a misleading label.
-function TakeoverBadge({ takenOver, isBot }: { takenOver?: boolean; isBot?: boolean }) {
+//
+// An AI Practice bot also plays a named style, and styleTag is that style's
+// plain-language label. It rides on the "Bot" badge rather than replacing
+// it: §11 requires a bot to stay visibly a bot, so the badge always says so
+// and the style is shown alongside.
+function TakeoverBadge({
+  takenOver,
+  isBot,
+  styleTag,
+}: {
+  takenOver?: boolean;
+  isBot?: boolean;
+  styleTag?: string;
+}) {
   if (!takenOver) {
     return null;
   }
   if (isBot) {
     return (
-      <span className="takeover-badge bot-badge" title="AI-controlled seat" role="status">
-        Bot
+      <span
+        className="takeover-badge bot-badge"
+        title={styleTag ? `AI-controlled seat · ${styleTag} style` : "AI-controlled seat"}
+        role="status"
+      >
+        {styleTag ? `Bot · ${styleTag}` : "Bot"}
       </span>
     );
   }
@@ -251,7 +268,11 @@ function PlayerActivity({
         {message ? <span className="claim-badge" title={messageTitle}>{message}</span> : null}
       </span>
       <span className="seat-activity-facts">
-        {!state.isBot ? <TakeoverBadge takenOver={state.takenOver} /> : null}
+        <TakeoverBadge
+          takenOver={state.takenOver}
+          isBot={state.isBot}
+          styleTag={state.botStyleTag}
+        />
       </span>
     </div>
   );

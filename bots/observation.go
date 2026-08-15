@@ -14,10 +14,14 @@ import (
 
 // RulesVersion and AIVersion are recorded on every Decision so a replay can
 // reproduce it exactly from (rules version, AI version, difficulty,
-// observation, seed) per §11.4.
+// persona, observation, seed) per §11.4.
+//
+// AIVersion moved to v1.1.0 when selectable personas landed: the same
+// observation and seed no longer produce the same action as v1.0.0 for a
+// seat playing a style.
 const (
 	RulesVersion = "v1.2"
-	AIVersion    = "v1.0.0"
+	AIVersion    = "v1.1.0"
 )
 
 // Difficulty selects a bot's decision policy (§11.3).

@@ -208,9 +208,14 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         ? (view.own_melds ?? []).map((meld, index) => wireMeld(meld, seat, index))
         : (player?.melds ?? []).map((meld, index) => wireMeld(meld, seat, index));
       const isBot = player?.is_bot ?? false;
+      // An AI Practice bot seat plays a named personality, so it is shown
+      // by name instead of as one of three interchangeable "Bot" labels.
+      // A disconnect takeover carries no persona and keeps the plain
+      // label, as does any match from before personas existed.
+      const personaName = isBot ? (player?.bot_persona_name ?? "") : "";
       const state: SeatState = {
         seat,
-        displayName: isLocal ? "You" : isBot ? "Bot" : "Player",
+        displayName: isLocal ? "You" : isBot ? personaName || "Bot" : "Player",
         wind: seat,
         isDealer: seat === HARDCODED_DEALER,
         isActive: seat === view.active_seat,
@@ -224,6 +229,8 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         discards: (discardsBySeat.get(seat) ?? []).map(wireTile),
         takenOver: player?.taken_over ?? false,
         isBot,
+        botStyleTag: isBot ? (player?.bot_style_tag ?? "") || undefined : undefined,
+        botGlyph: isBot ? (player?.bot_glyph ?? "") || undefined : undefined,
       };
       return [seat, state];
     }),

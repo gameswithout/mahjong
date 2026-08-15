@@ -76,6 +76,32 @@ func applyBotSeats(engine *rulesengine.TurnEngine, seats map[string]rulesengine.
 	return nil
 }
 
+// BotPersonas resolves the playing style each AI Practice bot seat plays
+// with, from the same roster userIDs applyBotSeats reads. The assignment is
+// a pure function of the persisted seating, so a replay re-derives exactly
+// the personas that played the match and nothing extra is stored.
+//
+// Returns nil for a match with no bot seats. A malformed persona roster is
+// returned as an error rather than degraded around: the data is embedded in
+// the binary and covered by the bots package's loader tests, so reaching
+// here means the build itself is wrong.
+func BotPersonas(seats map[string]rulesengine.Seat) (map[rulesengine.Seat]bots.Persona, error) {
+	var botSeats []rulesengine.Seat
+	for userID, seat := range seats {
+		if session.IsBotUserID(userID) {
+			botSeats = append(botSeats, seat)
+		}
+	}
+	if len(botSeats) == 0 {
+		return nil, nil
+	}
+	roster, err := bots.Personas()
+	if err != nil {
+		return nil, fmt.Errorf("load bot personas: %w", err)
+	}
+	return roster.PersonaAssignments(botSeats), nil
+}
+
 // enrichedView calls actor.View(seat) and, once the hand has actually
 // ended, attaches the §9.7 items ProjectSeat itself cannot compute
 // (Settlement, NextDealer) since those need dealer/continuation/tier
@@ -136,15 +162,15 @@ type MatchRepository interface {
 }
 
 type Runtime struct {
-	mu        sync.Mutex
+	mu         sync.Mutex
 	rosters    session.Resolver
 	matches    MatchRepository
 	rotations  RotationRepository
 	identities session.IdentityResolver
-	events    rulesengine.EventStore
-	now       func() time.Time
-	actors    map[string]*loadedMatch
-	locks     map[string]*sync.Mutex
+	events     rulesengine.EventStore
+	now        func() time.Time
+	actors     map[string]*loadedMatch
+	locks      map[string]*sync.Mutex
 }
 
 // SetRotations supplies the storage a Full Rotation needs. Without it the
@@ -429,7 +455,15 @@ func (r *Runtime) settleAndView(ctx context.Context, current *table) (TableView,
 	if err != nil {
 		return TableView{}, err
 	}
-	projected := TableView{SeatView: view, HandRuntimeID: current.current.record.RuntimeID}
+	personas, err := BotPersonas(current.current.record.Seats)
+	if err != nil {
+		return TableView{}, err
+	}
+	projected := TableView{
+		SeatView:      view,
+		HandRuntimeID: current.current.record.RuntimeID,
+		BotPersonas:   personas,
+	}
 	if current.rotation != nil {
 		rotationView, rotationErr := r.rotationView(current.rotation)
 		if rotationErr != nil {
@@ -668,6 +702,10 @@ func (r *Runtime) resolveClaimResponse(
 func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 	const dealer, prevailingWind = rulesengine.East, rulesengine.East
 	const maxSteps = 16
+	personas, err := BotPersonas(current.record.Seats)
+	if err != nil {
+		return err
+	}
 	for step := 0; step < maxSteps; step++ {
 		engine := current.actor.Peek()
 		if engine == nil {
@@ -815,7 +853,18 @@ func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 				acted = true
 				break
 			}
-			command, err := bots.DecideTakeoverCommand(engine, seat, dealer, prevailingWind, 0, version)
+			// A permanent AI Practice bot plays the persona seated here; a
+			// disconnected human's seat plays the neutral takeover policy,
+			// because that player chose no style for it.
+			var (
+				command *rulesengine.MatchCommand
+				err     error
+			)
+			if engine.IsBotSeat(seat) {
+				command, err = bots.DecideBotSeatCommand(engine, seat, dealer, prevailingWind, 0, version, personas[seat])
+			} else {
+				command, err = bots.DecideTakeoverCommand(engine, seat, dealer, prevailingWind, 0, version)
+			}
 			if err != nil {
 				return fmt.Errorf("drive takeover seat %s: %w", seat, err)
 			}

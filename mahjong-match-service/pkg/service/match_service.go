@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gameswithout/mahjong/bots"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/common"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/match"
@@ -312,7 +313,7 @@ func (s *MatchService) projectState(
 	userID string,
 	view match.TableView,
 ) (*pb.MatchState, error) {
-	state := projectState(key.MatchID, view.SeatView)
+	state := projectState(key.MatchID, view.SeatView, view.BotPersonas)
 	var settlement *economy.PlayerSettlement
 	if s.economy != nil && view.Rotation == nil {
 		account, projectedSettlement, err := s.economy.Project(
@@ -816,7 +817,7 @@ func rpcError(err error) error {
 	}
 }
 
-func projectState(matchID string, view rulesengine.SeatView) *pb.MatchState {
+func projectState(matchID string, view rulesengine.SeatView, personas map[rulesengine.Seat]bots.Persona) *pb.MatchState {
 	state := &pb.MatchState{
 		MatchId:      matchID,
 		Seat:         string(view.Seat),
@@ -838,7 +839,7 @@ func projectState(matchID string, view rulesengine.SeatView) *pb.MatchState {
 		TurnDeadline: view.TurnDeadline,
 	}
 	for _, player := range view.Players {
-		state.Players = append(state.Players, &pb.PlayerView{
+		projected := &pb.PlayerView{
 			Seat:      string(player.Seat),
 			HandCount: int32(player.HandCount),
 			Exposed:   projectTiles(player.Exposed),
@@ -846,7 +847,17 @@ func projectState(matchID string, view rulesengine.SeatView) *pb.MatchState {
 			Melds:     projectMeldViews(player.Melds),
 			TakenOver: player.TakenOver,
 			IsBot:     player.IsBot,
-		})
+		}
+		// Only a permanent bot seat is named. A seat that is merely taken
+		// over is left as a plain takeover, because its owner chose no
+		// playing style for it.
+		if persona, styled := personas[player.Seat]; styled && player.IsBot {
+			projected.BotPersonaId = persona.ID
+			projected.BotPersonaName = persona.Name
+			projected.BotStyleTag = persona.Tag
+			projected.BotGlyph = persona.Glyph
+		}
+		state.Players = append(state.Players, projected)
 	}
 	if view.LastDiscard != nil {
 		state.LastDiscard = projectDiscard(*view.LastDiscard)

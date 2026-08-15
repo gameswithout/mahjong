@@ -30,17 +30,22 @@ type Action struct {
 }
 
 // Decision is a fully replayable AI action (§11.4): rules version, AI
-// version, difficulty, the observation it was computed from, and the
-// bot-randomness seed are everything needed to reproduce Action
+// version, difficulty, persona, the observation it was computed from, and
+// the bot-randomness seed are everything needed to reproduce Action
 // deterministically, and everything a replay/audit trail records.
 type Decision struct {
 	RulesVersion string
 	AIVersion    string
 	Difficulty   Difficulty
-	Seed         uint64
-	Observation  Observation
-	Action       Action
-	ReactionTime time.Duration
+	// Persona and PersonaVersion identify the playing style that produced
+	// this action. Both are empty for a decision made by a bare difficulty
+	// policy — a disconnect takeover, or any pre-persona replay.
+	Persona        string
+	PersonaVersion string
+	Seed           uint64
+	Observation    Observation
+	Action         Action
+	ReactionTime   time.Duration
 }
 
 func newDecision(difficulty Difficulty, seed uint64, obs Observation, action Action, reaction time.Duration) Decision {

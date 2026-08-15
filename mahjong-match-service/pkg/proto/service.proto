@@ -612,6 +612,19 @@ message PlayerView {
   // this to show "Bot" instead of "Auto-playing (disconnected)", which
   // would be misleading for a seat that was never a human to begin with.
   bool is_bot = 7;
+  // The playing style seated here, set only when is_bot is true. A
+  // disconnect takeover leaves these empty: that seat plays the neutral
+  // policy because its owner chose no style for it.
+  //
+  // bot_style_tag is the plain-language label ("Rush", "Guard") and matters
+  // more to a player than bot_persona_name; bot_persona_id is the stable
+  // key, and bot_glyph is the character shown beside the name so adding a
+  // personality stays a data change rather than a client edit. A client
+  // that has none of these falls back to plain "Bot".
+  string bot_persona_id = 8;
+  string bot_persona_name = 9;
+  string bot_style_tag = 10;
+  string bot_glyph = 11;
 }
 
 // Meld is the full, unredacted representation used where redaction is not

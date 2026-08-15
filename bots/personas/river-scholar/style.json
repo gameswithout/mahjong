@@ -1,0 +1,17 @@
+{
+  "_comment": "Editable style knobs. Yours to tune; nothing machine-writes this file. Weights scale terms of the action score and are 0.0-4.0; biases are additive and may be negative, -2.0 to 2.0. River Scholar is the neutral reference every specialist is measured against, so every weight here is 1.0 and every bias is 0.0 by design — change these and you move the baseline itself.",
+  "name": "River Scholar",
+  "completion_weight": 1.0,
+  "acceptance_weight": 1.0,
+  "tai_weight": 1.0,
+  "risk_weight": 1.0,
+  "claim_bias": 0.0,
+  "chow_bias": 0.0,
+  "pong_bias": 0.0,
+  "kong_bias": 0.0,
+  "concealment_value": 1.0,
+  "commitment": 0.85,
+  "safe_reserve_value": 1.0,
+  "context_sensitivity": 1.0,
+  "bars": { "pace": 3, "value": 3, "caution": 3, "calling": 3, "concealment": 3 }
+}

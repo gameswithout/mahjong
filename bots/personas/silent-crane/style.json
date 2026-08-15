@@ -1,0 +1,17 @@
+{
+  "_comment": "Editable style knobs. Concealed persona: concealment_value is the roster's highest and claim_bias its most negative, so an ordinary Chow or Pong is simply not worth what opening the hand costs. tai_weight is raised because the Concealed and Concealed Zimo patterns are where its value actually comes from.",
+  "name": "Silent Crane",
+  "completion_weight": 1.0,
+  "acceptance_weight": 1.1,
+  "tai_weight": 1.6,
+  "risk_weight": 1.1,
+  "claim_bias": -1.4,
+  "chow_bias": -0.5,
+  "pong_bias": -0.4,
+  "kong_bias": -0.2,
+  "concealment_value": 2.6,
+  "commitment": 0.8,
+  "safe_reserve_value": 1.1,
+  "context_sensitivity": 1.0,
+  "bars": { "pace": 3, "value": 4, "caution": 3, "calling": 1, "concealment": 5 }
+}

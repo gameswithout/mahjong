@@ -1,0 +1,17 @@
+{
+  "_comment": "Editable style knobs. Speed persona: completion and live acceptance dominate, Tai is nearly ignored, and claim_bias is the roster's highest so it opens the hand readily. commitment is set near 1.0 because a rush hand should never stop to chase a pattern.",
+  "name": "Swift Sparrow",
+  "completion_weight": 1.8,
+  "acceptance_weight": 1.8,
+  "tai_weight": 0.3,
+  "risk_weight": 0.6,
+  "claim_bias": 1.2,
+  "chow_bias": 0.3,
+  "pong_bias": 0.2,
+  "kong_bias": 0.0,
+  "concealment_value": 0.2,
+  "commitment": 0.98,
+  "safe_reserve_value": 0.3,
+  "context_sensitivity": 0.7,
+  "bars": { "pace": 5, "value": 1, "caution": 2, "calling": 5, "concealment": 1 }
+}

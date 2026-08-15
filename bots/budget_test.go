@@ -78,3 +78,48 @@ func TestDecisionBudgetPassesThroughEasyAndMediumUnwrapped(t *testing.T) {
 		}
 	}
 }
+
+// TestPersonaPolicyIsGuardedRegardlessOfDifficulty covers the gap a persona
+// opens in the §11.4 budget: a persona over Medium reports Medium but runs
+// the full evaluator, so waving it through on "not Hard" would leave the
+// most expensive policy in the package entirely untimed.
+func TestPersonaPolicyIsGuardedRegardlessOfDifficulty(t *testing.T) {
+	obs := personaObservation(t)
+	persona := personaFixture(t, "jade-dragon")
+	for _, base := range []Policy{NewEasyPolicy(), NewMediumPolicy(), NewHardPolicy()} {
+		policy := NewPersonaPolicy(base, persona)
+		if !needsBudgetGuard(policy) {
+			t.Fatalf("persona over %s is not budget-guarded", base.Difficulty())
+		}
+		// A budget no real computation can meet forces the fallback tier,
+		// which is the neutral Medium policy — not a half-computed style.
+		discard := decideDiscardWithBudget(policy, obs, 42, time.Nanosecond)
+		if discard.Persona != "" {
+			t.Errorf("persona over %s: timed-out decision kept persona %q, want the neutral fallback", base.Difficulty(), discard.Persona)
+		}
+		if discard.Difficulty != Medium {
+			t.Errorf("persona over %s: fallback difficulty = %s, want Medium", base.Difficulty(), discard.Difficulty)
+		}
+	}
+}
+
+// TestPersonaDecisionsFitTheBudget measures the real cost on a full mid-hand
+// position. The evaluator adds a generalized deficiency search and a
+// live-acceptance sweep per candidate, so §11.4's 250ms budget needs to be
+// shown to hold rather than assumed.
+func TestPersonaDecisionsFitTheBudget(t *testing.T) {
+	obs := personaObservation(t)
+	roster, err := Personas()
+	if err != nil {
+		t.Fatalf("Personas() error = %v", err)
+	}
+	for _, id := range roster.IDs() {
+		persona, _ := roster.ByID(id)
+		policy := NewPersonaPolicy(NewHardPolicy(), persona)
+		start := time.Now()
+		policy.DecideDiscard(obs, 1)
+		if elapsed := time.Since(start); elapsed > DecisionBudget {
+			t.Errorf("%s discard took %s, over the %s budget", id, elapsed, DecisionBudget)
+		}
+	}
+}

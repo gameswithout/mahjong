@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gameswithout/mahjong/bots"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/common"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/economy"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/match"
@@ -560,7 +561,7 @@ func TestProjectState_ProjectsDiscardAndOnlyOwnClaimResponse(t *testing.T) {
 		},
 	}
 
-	state := projectState("public-match-id", view.SeatView)
+	state := projectState("public-match-id", view.SeatView, view.BotPersonas)
 	if state.GetMatchId() != "public-match-id" ||
 		state.GetLastDiscard().GetTile().GetId() != "dots-9-1" {
 		t.Fatalf("projected state/discard = %#v", state)
@@ -592,7 +593,7 @@ func TestProjectState_ProjectsWaitsOwnMeldsDiscardsAndTurnDeadline(t *testing.T)
 	}
 	view.TurnDeadline = "2026-07-18T12:00:10Z"
 
-	state := projectState("public-match-id", view.SeatView)
+	state := projectState("public-match-id", view.SeatView, view.BotPersonas)
 	if len(state.GetWaits()) != 1 || state.GetWaits()[0].GetVisibleRemaining() != 3 {
 		t.Fatalf("projected waits = %#v", state.GetWaits())
 	}
@@ -618,7 +619,7 @@ func TestProjectState_ProjectsPlayerMeldsAndTakenOver(t *testing.T) {
 		},
 	}
 
-	state := projectState("public-match-id", view.SeatView)
+	state := projectState("public-match-id", view.SeatView, view.BotPersonas)
 	south := state.GetPlayers()[1]
 	if !south.GetTakenOver() {
 		t.Fatalf("expected taken_over projected, got %#v", south)
@@ -653,7 +654,7 @@ func TestProjectState_ProjectsIsBotDistinctFromTakenOver(t *testing.T) {
 		IsBot:     false,
 	}
 
-	state := projectState("public-match-id", view.SeatView)
+	state := projectState("public-match-id", view.SeatView, view.BotPersonas)
 	south := state.GetPlayers()[1]
 	west := state.GetPlayers()[2]
 	if !south.GetIsBot() {
@@ -664,6 +665,55 @@ func TestProjectState_ProjectsIsBotDistinctFromTakenOver(t *testing.T) {
 	}
 	if !south.GetTakenOver() || !west.GetTakenOver() {
 		t.Fatalf("both seats should still project taken_over regardless of is_bot: south=%#v west=%#v", south, west)
+	}
+}
+
+// TestProjectState_ProjectsBotPersonaOnlyForBotSeats is the same guard one
+// field further on: the persona reaches a player only if projectState copies
+// it, and it must never be attached to a disconnect takeover, whose owner
+// chose no playing style.
+func TestProjectState_ProjectsBotPersonaOnlyForBotSeats(t *testing.T) {
+	roster, err := bots.Personas()
+	if err != nil {
+		t.Fatalf("bots.Personas() error = %v", err)
+	}
+	sparrow, ok := roster.ByID("swift-sparrow")
+	if !ok {
+		t.Fatal("swift-sparrow is missing from the roster")
+	}
+
+	view := privateView()
+	view.Players[1] = rulesengine.PlayerView{
+		Seat: rulesengine.South, HandCount: 13, TakenOver: true, IsBot: true,
+	}
+	view.Players[2] = rulesengine.PlayerView{
+		Seat: rulesengine.West, HandCount: 13, TakenOver: true, IsBot: false,
+	}
+	view.BotPersonas = map[rulesengine.Seat]bots.Persona{
+		rulesengine.South: sparrow,
+		// A persona wrongly offered for a takeover seat must still be
+		// dropped, so the projection is safe even if a caller over-supplies.
+		rulesengine.West: sparrow,
+	}
+
+	state := projectState("public-match-id", view.SeatView, view.BotPersonas)
+	south := state.GetPlayers()[1]
+	if south.GetBotPersonaId() != "swift-sparrow" ||
+		south.GetBotPersonaName() != sparrow.Name ||
+		south.GetBotStyleTag() != "Rush" ||
+		south.GetBotGlyph() != sparrow.Glyph {
+		t.Fatalf("bot seat persona projection = %#v", south)
+	}
+	west := state.GetPlayers()[2]
+	if west.GetBotPersonaId() != "" || west.GetBotStyleTag() != "" {
+		t.Fatalf("a disconnect takeover was given a persona: %#v", west)
+	}
+
+	// A table with no personas at all still projects, so a human-only match
+	// and any pre-persona replay keep working.
+	plain := projectState("public-match-id", view.SeatView, nil)
+	if plain.GetPlayers()[1].GetBotPersonaId() != "" {
+		t.Fatalf("persona projected with no roster supplied: %#v", plain.GetPlayers()[1])
 	}
 }
 
@@ -692,7 +742,7 @@ func TestProjectState_ProjectsClaimOptionsWithWinPreview(t *testing.T) {
 		},
 	}
 
-	state := projectState("public-match-id", view.SeatView)
+	state := projectState("public-match-id", view.SeatView, view.BotPersonas)
 	options := state.GetClaim().GetOptions()
 	if !options.GetCanWin() || !options.GetCanPong() {
 		t.Fatalf("projected claim options = %#v", options)
@@ -747,7 +797,7 @@ func TestProjectState_ProjectsHandResultSettlementAndNextDealer(t *testing.T) {
 		DealerRetains:     false,
 	}
 
-	state := projectState("public-match-id", view.SeatView)
+	state := projectState("public-match-id", view.SeatView, view.BotPersonas)
 	result := state.GetHandResult()
 	if result.GetKind() != string(rulesengine.WinDiscard) || result.GetPayer() != "S" {
 		t.Fatalf("projected hand_result = %#v", result)

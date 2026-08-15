@@ -45,6 +45,13 @@ export interface SeatState {
   // "disconnected"). Defaults to false for the E7.F5 mock data.
   takenOver?: boolean;
   isBot?: boolean;
+  // The bot seat's playing style, set only alongside isBot. botStyleTag is
+  // the plain-language label ("Rush", "Guard") shown beside the "Bot"
+  // badge — the tag is what a player reads a style from, more than the
+  // personality's name. Both are absent for a disconnect takeover, whose
+  // owner chose no style, and for any match predating personas.
+  botStyleTag?: string;
+  botGlyph?: string;
 }
 
 export interface WallState {
