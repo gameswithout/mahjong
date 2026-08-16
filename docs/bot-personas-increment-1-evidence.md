@@ -196,15 +196,76 @@ human has looked at a Practice table yet, and the §9.2 blind recognition test
 three hands — remains unrun. That is the question the deployment exists to
 make answerable, not one it answers.
 
+## Strength results
+
+`RunPersonaStrength`, 2,000 seed-rotated hands per persona at Medium against
+three River Scholars, on the fixed (post-budget-fix) harness — this run took
+13.7 hours real time, which is itself the corrected throughput estimate from
+`scripts/run-persona-strength.sh`'s header. Not §9.3's full 10,000-hand
+sample; a 2,000-hand run gives a 95% interval of roughly ±1–2 percentage
+points, which is tight enough to place a persona relative to the ±4pp band
+with confidence, not tight enough to claim the precise number.
+
+| Persona | First place | Draws | Avg winning Tai | Deal-in | In §9.3 band? |
+| --- | ---: | ---: | ---: | ---: | :---: |
+| River Scholar (reference) | 27.18% ± 2.08% | 245 | 3.07 | 17.89% | — |
+| Jade Dragon | 22.38% ± 1.97% | 275 | 3.13 | 18.61% | yes |
+| Thunder Tiger | 23.22% ± 1.97% | 243 | 3.02 | 20.43% | yes |
+| Swift Sparrow | 15.73% ± 1.73% | 296 | 2.82 | 20.89% | **no** |
+| Silent Crane | 9.02% ± 1.40% | 393 | 3.88 | 16.37% | **no** |
+| Stone Lion | 4.27% ± 1.01% | 455 | 3.65 | 12.88% | **no** |
+
+Band is population first-place rate within ±4 percentage points of the
+neutral 25% share, i.e. [21%, 29%]. `TestPersonaStrengthSuite` fails under
+`MAHJONG_PERSONA_HANDS` for exactly this reason — three of six personas are
+outside it, by margins their confidence intervals do not come close to
+closing.
+
+### The pattern is coherent, not noise or a bug
+
+The two personas that stay in band are the ones whose card commits to a
+single axis while leaving the evaluator's other terms close to neutral:
+Jade Dragon raises `tai_weight` but keeps `completion_weight` and
+`risk_weight` near River Scholar's; Thunder Tiger raises its claim biases
+but its completion and risk weights are likewise unremarkable. The three
+that fail are exactly the three whose card is built around *maximizing* one
+axis at real cost to the others — and they fail in the order their card
+commits:
+
+- **Stone Lion** (`risk_weight` 2.6, the roster's highest; `claim_bias` -0.9,
+  the most call-averse) is worst at 4.27%. Its draw count (455 of 2,000
+  hands, more than double the reference's 245) is the direct mechanism: a
+  persona built to fold rather than push simply produces more hands nobody
+  wins, and every one of those is a hand it didn't win either.
+- **Silent Crane** (`concealment_value` 2.6, the roster's highest) is next
+  at 9.02%, with the second-highest draw count (393) for the same reason —
+  refusing ordinary calls costs it the tempo needed to finish hands before
+  the wall runs out. Its average winning Tai (3.88, the roster's highest)
+  confirms it is winning the hands its style predicts; there are just far
+  fewer of them.
+- **Swift Sparrow** (`acceptance_weight` 2.4 against completion's 1.2, the
+  most lopsided ratio on the roster) is the mildest failure at 15.73%.
+  Unlike the other two its draw count is close to baseline (296) — it does
+  finish hands at a normal rate. Its deal-in rate (20.89%, the roster's
+  highest) is where the cost actually shows: racing for tempo means taking
+  more marginal claims, and here that converts into feeding opponents more
+  often than it converts into winning first.
+
+This is the tension the proposal's own §9.3 names in advance: *"If a persona
+cannot stay in the difficulty band without losing its identity, label it as
+a special challenge opponent rather than misrepresenting it as
+equivalent."* Per the standing instruction for this investigation, these
+weights are reported rather than retuned — bringing Stone Lion or Silent
+Crane into band would mean diluting the exact axis their fidelity numbers
+(§ above) already confirm they express faithfully, and deciding how much of
+that identity is worth trading for population balance is a product call, not
+one implicit in a weight file.
+
 ## Not measured here
 
-§9.3's strength gates need at least 10,000 same-seed seat-rotated hands per
-persona against the same-difficulty population, reporting first-place share,
-average raw Tai, deal-in rate and expected Tai paid, plus the full round-robin
-matrix. None of that is run here, so **nothing in this document says the roster
-is balanced** — only that the personas are real and point the way their cards
-promise. The §9.2 classifier check and the blind recognition playtest are also
-outstanding.
+§9.3 also asks for the full round-robin matrix (every persona pair, not just
+each against three River Scholars) — not run here. The §9.2 classifier
+check and the blind recognition playtest are likewise still outstanding.
 
 ## Rules and fairness
 

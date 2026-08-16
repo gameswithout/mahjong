@@ -29,6 +29,18 @@ SEED="${2:-20260719}"
 REPORT="${3:-calibration-report.json}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# `go test ./bots` runs the compiled test binary with its working directory
+# set to the package directory (bots/), not wherever this script was
+# invoked from — a plain relative REPORT path silently lands in bots/
+# rather than at the repo root the final echo below implies. Resolved to an
+# absolute path here so the report ends up exactly where this script says
+# it does, regardless of go test's own cwd behavior. (Found while chasing
+# the same bug in run-persona-strength.sh, which copies this script's
+# pattern.)
+if [[ "$REPORT" != /* ]]; then
+  REPORT="$REPO_ROOT/$REPORT"
+fi
+
 echo "Running ${HANDS} calibration hands per pairing starting at seed ${SEED}..."
 cd "$REPO_ROOT"
 MAHJONG_CALIBRATION_HANDS="$HANDS" MAHJONG_CALIBRATION_SEED="$SEED" MAHJONG_CALIBRATION_REPORT="$REPORT" \

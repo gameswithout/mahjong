@@ -41,6 +41,16 @@ REPORT="${3:-persona-strength-report.json}"
 DIFFICULTY="${4:-medium}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# `go test ./bots` runs the compiled test binary with its working directory
+# set to the package directory (bots/), not wherever this script was
+# invoked from — a plain relative REPORT path silently lands in bots/
+# rather than at the repo root the final echo below implies. Resolved to an
+# absolute path here so the report ends up exactly where this script says
+# it does, regardless of go test's own cwd behavior.
+if [[ "$REPORT" != /* ]]; then
+  REPORT="$REPO_ROOT/$REPORT"
+fi
+
 echo "Running ${HANDS} hands per persona at ${DIFFICULTY}, starting at seed ${SEED}..."
 cd "$REPO_ROOT"
 MAHJONG_PERSONA_HANDS="$HANDS" \
