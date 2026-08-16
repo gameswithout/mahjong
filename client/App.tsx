@@ -53,6 +53,11 @@ import {
 import { getMatchHistory, MatchHistoryError, type MatchHistoryEntry } from "./match-history";
 import { StatisticsScreen } from "./StatisticsScreen";
 import {
+  createBotPersonaCatalogClient,
+  BotPersonaCatalogError,
+  type BotPersonaCard,
+} from "./bot-persona-catalog";
+import {
   createFreshPracticeSession,
   isPracticeMatch,
   leaveSessionIfPresent,
@@ -83,6 +88,7 @@ import type {
 import { AccountUpgradeCard } from "./AccountUpgradeCard";
 import { MINIMUM_ACCOUNT_AGE, ageInYears } from "./age-gate";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
+import { MAX_PERSONA_PICKS } from "./BotPersonaPicker";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
 import { MATCH_LOADING_SCREEN_MS, MatchLoadingScreen } from "./MatchLoadingScreen";
 import { createBrowserTelemetry, type GameTelemetry } from "./telemetry";
@@ -218,6 +224,16 @@ type StatisticsState =
   | { status: "loading" }
   | { status: "ready"; summary: PlayerStatSummary; history: MatchHistoryEntry[] }
   | { status: "error"; message: string };
+
+// Unlike most *State types here this always carries personas — kept from
+// the last successful load on both "loading" (a re-open after an earlier
+// success shouldn't blank the grid) and "error" (a stale catalog to browse
+// beats none while a retry is possible).
+type BotPersonaCatalogState =
+  | { status: "idle"; personas: BotPersonaCard[] }
+  | { status: "loading"; personas: BotPersonaCard[] }
+  | { status: "ready"; personas: BotPersonaCard[] }
+  | { status: "error"; personas: BotPersonaCard[]; message: string };
 
 type ProgressionState =
   | { status: "idle" }
@@ -471,6 +487,18 @@ export function App(
   // they load on demand instead of riding the lobby's other traffic.
   const [statisticsOpen, setStatisticsOpen] = useState(false);
   const [statisticsState, setStatisticsState] = useState<StatisticsState>({ status: "idle" });
+  // AI Practice opponent picker. The catalog is fetched lazily on first
+  // expand (BotPersonaPicker's onOpen) rather than on lobby load, since most
+  // players never open it — "select for me" is what an untouched selection
+  // already means. The selection itself persists across Play Again, so
+  // replaying a Practice hand keeps facing the same chosen opponents until
+  // the player changes the picker.
+  const [botPersonaCatalogState, setBotPersonaCatalogState] = useState<BotPersonaCatalogState>({
+    status: "idle",
+    personas: [],
+  });
+  const botPersonaCatalogRequestRef = useRef(0);
+  const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -2727,6 +2755,66 @@ export function App(
     }
   }
 
+  // Fetched at most once per lobby visit — BotPersonaPicker's onOpen calls
+  // this, and the "idle" guard means a second expand (or a re-render) does
+  // not repeat the request. A failed load can still be retried by
+  // collapsing and re-expanding, since the guard only blocks "idle".
+  async function loadBotPersonaCatalog() {
+    if (botPersonaCatalogState.status !== "idle") {
+      return;
+    }
+    const requestId = ++botPersonaCatalogRequestRef.current;
+    setBotPersonaCatalogState((current) => ({ status: "loading", personas: current.personas }));
+    try {
+      if (!accelByteConfig.matchServiceURL) {
+        throw new BotPersonaCatalogError("configuration", "Match service URL is not configured.");
+      }
+      const clientOptions = {
+        url: accelByteConfig.matchServiceURL,
+        namespace: accelByteConfig.namespace,
+      };
+      const fetchCatalog = () =>
+        createBotPersonaCatalogClient(stableIam.getAccessToken(), clientOptions).list();
+      let personas: BotPersonaCard[];
+      try {
+        personas = await fetchCatalog();
+      } catch (error) {
+        const unauthenticated =
+          error instanceof BotPersonaCatalogError && error.code === "unauthenticated";
+        if (!unauthenticated || !(await stableIam.refreshAccessToken())) {
+          throw error;
+        }
+        personas = await fetchCatalog();
+      }
+      if (requestId !== botPersonaCatalogRequestRef.current) {
+        return;
+      }
+      setBotPersonaCatalogState({ status: "ready", personas });
+    } catch (error) {
+      if (requestId !== botPersonaCatalogRequestRef.current) {
+        return;
+      }
+      setBotPersonaCatalogState((current) => ({
+        status: "error",
+        personas: current.personas,
+        message:
+          error instanceof BotPersonaCatalogError
+            ? error.message
+            : "The opponent catalog could not be loaded.",
+      }));
+    }
+  }
+
+  function togglePersonaPick(id: string) {
+    setSelectedPersonaIds((current) =>
+      current.includes(id)
+        ? current.filter((pickedId) => pickedId !== id)
+        : current.length >= MAX_PERSONA_PICKS
+          ? current
+          : [...current, id],
+    );
+  }
+
   // AI Practice is a complete one-hand product flow: create a bot-padded AGS
   // Session, then join its authoritative match immediately. Play Again first
   // leaves the completed Session so every hand gets a fresh identity and wall.
@@ -2747,9 +2835,14 @@ export function App(
 
     try {
       const client = createAuthenticatedSessionClient();
-      const session = await createFreshPracticeSession(client, previousSessionId, () => {
-        previousSessionLeft = true;
-      });
+      const session = await createFreshPracticeSession(
+        client,
+        previousSessionId,
+        () => {
+          previousSessionLeft = true;
+        },
+        selectedPersonaIds,
+      );
       if (requestId !== sessionRequestRef.current) {
         // A newer action or unmount won the race after AGS created this
         // Session. Best-effort cleanup prevents the superseded request from
@@ -3818,6 +3911,18 @@ export function App(
                   matchServiceAvailable={Boolean(accelByteConfig.matchServiceURL)}
                   onStart={() => void practiceVsBots()}
                   onLeaveSelectedSession={() => void leaveTable()}
+                  personaPicker={{
+                    personas: botPersonaCatalogState.personas,
+                    loading: botPersonaCatalogState.status === "loading",
+                    error:
+                      botPersonaCatalogState.status === "error"
+                        ? botPersonaCatalogState.message
+                        : null,
+                    selectedIds: selectedPersonaIds,
+                    onToggle: togglePersonaPick,
+                    onSelectForMe: () => setSelectedPersonaIds([]),
+                    onOpen: () => void loadBotPersonaCatalog(),
+                  }}
                 />
 
                 <section className="practice-card online-play-card" aria-labelledby="online-title">

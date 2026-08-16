@@ -5,6 +5,21 @@ import type { AccelByteSDK } from "@accelbyte/sdk";
 // the roster with bot seats instead of requiring three more real players.
 export const AI_PRACTICE_SESSION_ATTRIBUTES: Record<string, unknown> = { ai_practice: "true" };
 
+// The opponents the player explicitly chose (the picker's "pick which bot
+// to play against" half). An empty list omits the attribute entirely
+// rather than sending an empty string — the server already reads "no
+// bot_personas attribute" as "select for me", so this keeps a player who
+// never opens the picker sending exactly the same request as before it
+// existed, and keeps the attribute out of the AGS session record when
+// there is nothing to say.
+export function aiPracticeSessionAttributes(personaIds: readonly string[] = []): Record<string, unknown> {
+  const ids = personaIds.filter((id) => id.trim().length > 0);
+  return {
+    ...AI_PRACTICE_SESSION_ATTRIBUTES,
+    ...(ids.length > 0 ? { bot_personas: ids.join(",") } : {}),
+  };
+}
+
 // §8.4 Full Rotation: read by the match service's session resolver
 // (AGSResolver.Mode, pkg/session/ags_resolver.go) to play the match as a
 // rotation rather than a single hand.

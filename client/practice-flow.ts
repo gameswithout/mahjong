@@ -1,6 +1,6 @@
 import type { SeatView } from "../protocol/envelope";
 import {
-  AI_PRACTICE_SESSION_ATTRIBUTES,
+  aiPracticeSessionAttributes,
   SessionLookupError,
   type GameSessionSummary,
   type SessionClient,
@@ -28,18 +28,25 @@ export async function leaveSessionIfPresent(
  * AI Practice is a one-hand mode. Replaying always leaves the completed AGS
  * Session and creates a fresh one so seats, wall, and match identity cannot
  * leak across hands.
+ *
+ * personaIds are the opponents the player explicitly chose from the picker,
+ * in no particular order — the player never sees or chooses which physical
+ * seat a pick lands in, only which personalities are somewhere at the
+ * table. Omit it (or pass none) for "select for me", which is also what a
+ * caller that hasn't wired the picker gets automatically.
  */
 export async function createFreshPracticeSession(
   client: Pick<SessionClient, "createSession" | "leaveSession">,
   previousSessionId?: string,
   onPreviousSessionLeft?: () => void,
+  personaIds: readonly string[] = [],
 ): Promise<GameSessionSummary> {
   if (previousSessionId) {
     await leaveSessionIfPresent(client, previousSessionId);
     onPreviousSessionLeft?.();
   }
 
-  return client.createSession(AI_PRACTICE_SESSION_ATTRIBUTES);
+  return client.createSession(aiPracticeSessionAttributes(personaIds));
 }
 
 /**

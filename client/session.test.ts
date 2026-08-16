@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AccelByteSDK } from "@accelbyte/sdk";
 
-import { AI_PRACTICE_SESSION_ATTRIBUTES, createSessionClient } from "./session";
+import { AI_PRACTICE_SESSION_ATTRIBUTES, aiPracticeSessionAttributes, createSessionClient } from "./session";
 
 function fakeSdk(
   get: (url: string) => Promise<{ data: unknown }>,
@@ -207,5 +207,26 @@ describe("createSessionClient", () => {
     });
     expect(calls).toHaveLength(1);
     expect((calls[0].body as { attributes: unknown }).attributes).toEqual({ ai_practice: "true" });
+  });
+});
+
+describe("aiPracticeSessionAttributes", () => {
+  it("omits bot_personas entirely for select-for-me, matching a pre-picker client exactly", () => {
+    expect(aiPracticeSessionAttributes()).toEqual({ ai_practice: "true" });
+    expect(aiPracticeSessionAttributes([])).toEqual({ ai_practice: "true" });
+  });
+
+  it("joins the chosen persona ids into one comma-separated attribute", () => {
+    expect(aiPracticeSessionAttributes(["stone-lion", "jade-dragon"])).toEqual({
+      ai_practice: "true",
+      bot_personas: "stone-lion,jade-dragon",
+    });
+  });
+
+  it("drops a blank id rather than sending a stray comma", () => {
+    expect(aiPracticeSessionAttributes(["stone-lion", "  ", ""])).toEqual({
+      ai_practice: "true",
+      bot_personas: "stone-lion",
+    });
   });
 });

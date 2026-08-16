@@ -692,6 +692,164 @@ h1 {
   width: 100%;
 }
 
+/* "Give me option to pick which bot to play against, or select for me." A
+   collapsed-by-default <details> so a player who doesn't care about opponent
+   choice sees no new friction in the primary Practice flow. */
+.persona-picker {
+  margin: 0.75rem 0;
+}
+
+.persona-picker-summary {
+  align-items: center;
+  color: #f2c66d;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.85rem;
+  font-weight: 700;
+  gap: 0.5rem;
+  justify-content: space-between;
+  list-style: none;
+  padding: 0.4rem 0;
+}
+
+.persona-picker-summary::-webkit-details-marker {
+  display: none;
+}
+
+.persona-picker-count {
+  background: rgb(242 198 109 / 18%);
+  border-radius: 999px;
+  color: #f2c66d;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+}
+
+.persona-picker-count-auto {
+  background: rgb(216 220 239 / 14%);
+  color: #d8dcef;
+}
+
+.persona-picker-hint {
+  color: #b9cabe;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin: 0.3rem 0 0.6rem;
+}
+
+.persona-picker-reset {
+  margin-bottom: 0.6rem;
+}
+
+.persona-picker-status {
+  color: #d8dcef;
+  font-size: 0.8rem;
+  margin: 0.4rem 0;
+}
+
+.persona-picker-error {
+  color: #e8867a;
+}
+
+.persona-picker-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+}
+
+.persona-picker-card {
+  background: rgb(23 45 42 / 60%);
+  border: 1px solid rgb(216 220 239 / 18%);
+  border-radius: 0.75rem;
+  color: #d8dcef;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem;
+  text-align: left;
+}
+
+.persona-picker-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.persona-picker-card-selected {
+  background: rgb(242 198 109 / 14%);
+  border-color: #f2c66d;
+}
+
+.persona-picker-card-glyph {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.persona-picker-card-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.persona-picker-card-tag {
+  color: #f2c66d;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.persona-picker-card-tagline {
+  color: #b9cabe;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.persona-picker-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.2rem 0;
+}
+
+.persona-picker-bar {
+  align-items: center;
+  display: flex;
+  gap: 0.3rem;
+}
+
+.persona-picker-bar-label {
+  color: #8fb2a0;
+  font-size: 0.6rem;
+  width: 0.7rem;
+}
+
+.persona-picker-bar-track {
+  background: rgb(216 220 239 / 14%);
+  border-radius: 999px;
+  flex: 1;
+  height: 0.28rem;
+  overflow: hidden;
+}
+
+.persona-picker-bar-fill {
+  background: #f2c66d;
+  border-radius: 999px;
+  display: block;
+  height: 100%;
+}
+
+.persona-picker-card-trait {
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.persona-picker-card-trait strong {
+  color: #d8dcef;
+  display: block;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
 .developer-tools {
   border-top: 1px solid rgb(216 220 239 / 12%);
   margin-top: 1rem;

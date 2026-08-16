@@ -22,6 +22,20 @@ describe("createFreshPracticeSession", () => {
     expect(client.createSession).toHaveBeenCalledWith({ ai_practice: "true" });
   });
 
+  it("carries the player's chosen opponents into the session attributes", async () => {
+    const client = {
+      leaveSession: vi.fn(),
+      createSession: vi.fn().mockResolvedValue(freshSession),
+    };
+
+    await createFreshPracticeSession(client, undefined, undefined, ["stone-lion", "jade-dragon"]);
+
+    expect(client.createSession).toHaveBeenCalledWith({
+      ai_practice: "true",
+      bot_personas: "stone-lion,jade-dragon",
+    });
+  });
+
   it("leaves the completed Session before creating a replay hand", async () => {
     const calls: string[] = [];
     const onPreviousSessionLeft = vi.fn();
