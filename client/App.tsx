@@ -162,8 +162,8 @@ const HUMAN_MATCH_SIZE = 4;
 const PLAYER_SETTING_FEATURES = [
   "showTutorial",
   "expertHud",
-  "autoPassClaims",
-  "compactClaimPrompts",
+  "autoPassDelay",
+  "claimImpactAnalysis",
   "practiceBotSpeed",
 ] as const satisfies ReadonlyArray<keyof PlayerSettings>;
 const AUTO_DRAW_DELAY_MS = 320;
@@ -3836,8 +3836,8 @@ export function App(
                       playerProfile={playerProfile}
                       preferences={{
                         expertHud: false,
-                        autoPassClaims: playerSettings.autoPassClaims,
-                        compactClaimPrompts: true,
+                        autoPassDelay: playerSettings.autoPassDelay,
+                        claimImpactAnalysis: playerSettings.claimImpactAnalysis,
                       }}
                     />
                   </div>
@@ -3952,18 +3952,31 @@ export function App(
                   preferences={{
                     expertHud:
                       (guidedPractice && isPracticeMatch(matchRuntimeState.view)) || playerSettings.expertHud,
-                    autoPassClaims:
+                    // A guided practice hand teaches, so it passes nothing
+                    // automatically and shows the impact text whatever the
+                    // player normally prefers.
+                    autoPassDelay:
                       guidedPractice && isPracticeMatch(matchRuntimeState.view)
-                        ? false
-                        : playerSettings.autoPassClaims,
-                    compactClaimPrompts:
+                        ? "off"
+                        : playerSettings.autoPassDelay,
+                    claimImpactAnalysis:
                       guidedPractice && isPracticeMatch(matchRuntimeState.view)
-                        ? false
-                        : playerSettings.compactClaimPrompts,
+                        ? true
+                        : playerSettings.claimImpactAnalysis,
                     guided: guidedPractice && isPracticeMatch(matchRuntimeState.view),
                     onExpertHudChange: guidedPractice
                       ? undefined
                       : (expertHud) => void updatePlayerSettings({ ...playerSettings, expertHud }),
+                    // Left unset during guided practice so a lesson cannot be
+                    // switched off mid-hand and then persist afterwards.
+                    onClaimImpactChange: guidedPractice
+                      ? undefined
+                      : (claimImpactAnalysis) =>
+                          void updatePlayerSettings({ ...playerSettings, claimImpactAnalysis }),
+                    onAutoPassDelayChange: guidedPractice
+                      ? undefined
+                      : (autoPassDelay) =>
+                          void updatePlayerSettings({ ...playerSettings, autoPassDelay }),
                   }}
                   interaction={{
                     canDraw:

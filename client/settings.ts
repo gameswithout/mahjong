@@ -3,6 +3,26 @@ import type { AccelByteWebSdk } from "./iam";
 export const PLAYER_SETTINGS_RECORD_KEY = "mahjong-player-settings";
 const PLAYER_SETTINGS_CACHE_PREFIX = `${PLAYER_SETTINGS_RECORD_KEY}:`;
 
+// How long the table waits before passing for the player when Pass is the only
+// legal response. "off" leaves the claim to them. The delay is the point, not a
+// loading cost: it is the window in which they read the discard that was just
+// made, so the shortest offered value is a second rather than zero.
+export const AUTO_PASS_DELAYS = ["off", "1s", "3s", "5s"] as const;
+export type AutoPassDelay = (typeof AUTO_PASS_DELAYS)[number];
+
+export function autoPassDelayMs(delay: AutoPassDelay): number {
+  switch (delay) {
+    case "1s":
+      return 1_000;
+    case "3s":
+      return 3_000;
+    case "5s":
+      return 5_000;
+    default:
+      return 0;
+  }
+}
+
 export interface PlayerSettings {
   showTutorial: boolean;
   optionalAnalyticsConsent: boolean;
@@ -13,8 +33,11 @@ export interface PlayerSettings {
   // does not mean being asked again on the next.
   analyticsConsentDecided: boolean;
   expertHud: boolean;
-  autoPassClaims: boolean;
-  compactClaimPrompts: boolean;
+  autoPassDelay: AutoPassDelay;
+  // Whether the claim buttons carry their "what this does to your hand"
+  // sentence. Off by default: it is the wordiest thing on the table and it is
+  // read once and then never again by a player who knows the game.
+  claimImpactAnalysis: boolean;
   practiceBotSpeed: "learning" | "normal" | "fast";
 }
 
@@ -23,8 +46,8 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   optionalAnalyticsConsent: false,
   analyticsConsentDecided: false,
   expertHud: false,
-  autoPassClaims: false,
-  compactClaimPrompts: false,
+  autoPassDelay: "off",
+  claimImpactAnalysis: false,
   practiceBotSpeed: "learning",
 };
 
@@ -35,6 +58,10 @@ interface AxiosLike {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object";
+}
+
+function isAutoPassDelay(value: unknown): value is AutoPassDelay {
+  return AUTO_PASS_DELAYS.includes(value as AutoPassDelay);
 }
 
 export function normalizePlayerSettings(value: unknown): PlayerSettings {
@@ -61,14 +88,23 @@ export function normalizePlayerSettings(value: unknown): PlayerSettings {
       typeof envelope.expertHud === "boolean"
         ? envelope.expertHud
         : DEFAULT_PLAYER_SETTINGS.expertHud,
-    autoPassClaims:
-      typeof envelope.autoPassClaims === "boolean"
-        ? envelope.autoPassClaims
-        : DEFAULT_PLAYER_SETTINGS.autoPassClaims,
-    compactClaimPrompts:
-      typeof envelope.compactClaimPrompts === "boolean"
-        ? envelope.compactClaimPrompts
-        : DEFAULT_PLAYER_SETTINGS.compactClaimPrompts,
+    // autoPassClaims was a boolean before the delay existed, and its "on"
+    // meant passing the instant the claim appeared. Nothing that fast is
+    // offered now, so it migrates to the shortest delay rather than to off:
+    // a player who asked not to click Pass should not have to start again.
+    autoPassDelay: isAutoPassDelay(envelope.autoPassDelay)
+      ? envelope.autoPassDelay
+      : envelope.autoPassClaims === true
+        ? "1s"
+        : DEFAULT_PLAYER_SETTINGS.autoPassDelay,
+    // Deliberately not migrated from compactClaimPrompts. That flag defaulted
+    // to "show the impact text", so carrying it across would leave the wordy
+    // table switched on for everybody who never touched the setting — which is
+    // the thing this replaces.
+    claimImpactAnalysis:
+      typeof envelope.claimImpactAnalysis === "boolean"
+        ? envelope.claimImpactAnalysis
+        : DEFAULT_PLAYER_SETTINGS.claimImpactAnalysis,
     practiceBotSpeed:
       envelope.practiceBotSpeed === "learning" ||
       envelope.practiceBotSpeed === "fast" ||

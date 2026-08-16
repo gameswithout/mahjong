@@ -38,6 +38,27 @@ describe("player settings", () => {
     });
   });
 
+  it("migrates the old auto-pass switch to the shortest offered delay", () => {
+    // The boolean meant "pass the instant the claim appears". Nothing that
+    // fast is offered now, so it lands on 1s — off would silently take the
+    // feature away from someone who had asked for it.
+    expect(normalizePlayerSettings({ value: { autoPassClaims: true } }).autoPassDelay).toBe("1s");
+    expect(normalizePlayerSettings({ value: { autoPassClaims: false } }).autoPassDelay).toBe("off");
+    expect(normalizePlayerSettings({ value: { autoPassDelay: "5s" } }).autoPassDelay).toBe("5s");
+    expect(normalizePlayerSettings({ value: { autoPassDelay: "2s" } }).autoPassDelay).toBe("off");
+  });
+
+  it("leaves claim impact analysis off regardless of the retired compact flag", () => {
+    // compactClaimPrompts defaulted to "show the impact text", so migrating it
+    // would switch the wordy table back on for everyone who never touched it.
+    expect(
+      normalizePlayerSettings({ value: { compactClaimPrompts: false } }).claimImpactAnalysis,
+    ).toBe(false);
+    expect(
+      normalizePlayerSettings({ value: { claimImpactAnalysis: true } }).claimImpactAnalysis,
+    ).toBe(true);
+  });
+
   it("treats a record written before the consent ask existed as never asked", () => {
     // "declined" and "never asked" are both optionalAnalyticsConsent: false.
     // A record from before the field existed has to normalize to the second,

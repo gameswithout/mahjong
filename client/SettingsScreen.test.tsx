@@ -24,7 +24,13 @@ describe("SettingsScreen", () => {
     expect(markup).toContain("Share optional gameplay analytics");
     expect(markup).toContain("Show Learning HUD");
     expect(markup).toContain("Auto-pass when Pass is the only action");
-    expect(markup).toContain("Compact claim prompts");
+    // Auto-pass is a delay, not a switch: every offered wait has to be here,
+    // including the off that is the default.
+    expect(markup).toContain('value="off"');
+    expect(markup).toContain(">1s</option>");
+    expect(markup).toContain(">3s</option>");
+    expect(markup).toContain(">5s</option>");
+    expect(markup).toContain("Show claim impact analysis");
     expect(markup).toContain("Learning</option>");
     expect(markup).toContain(">Fast</option>");
     expect(markup).toContain(RULES_NAME);

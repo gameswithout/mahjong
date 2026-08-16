@@ -10,6 +10,7 @@ import {
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
 import { tileTypeKey, windName } from "./matchTableTypes";
 import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
+import { AUTO_PASS_DELAYS, autoPassDelayMs, type AutoPassDelay } from "./settings";
 import { isMatchingFlower } from "./flowerTai";
 import { t, translateSource } from "./i18n";
 
@@ -919,6 +920,12 @@ function TablePlayfield({
   );
 }
 
+// "Off" is a word; the rest are already their own labels. Kept out of the
+// message catalog because "3s" is the same string in every locale we ship.
+function autoPassDelayLabel(delay: AutoPassDelay): string {
+  return delay === "off" ? t("table.off") : delay;
+}
+
 function LocalSeat({
   state,
   displayedHand,
@@ -935,6 +942,10 @@ function LocalSeat({
   drawnTileId,
   tableFxEnabled,
   onToggleTableFx,
+  claimImpactEnabled,
+  onToggleClaimImpact,
+  autoPassDelay,
+  onCycleAutoPassDelay,
   isClaimThinking,
   prevailingWind,
   profile,
@@ -954,6 +965,10 @@ function LocalSeat({
   drawnTileId: string | null;
   tableFxEnabled: boolean;
   onToggleTableFx: () => void;
+  claimImpactEnabled: boolean;
+  onToggleClaimImpact: () => void;
+  autoPassDelay: AutoPassDelay;
+  onCycleAutoPassDelay: () => void;
   isClaimThinking: boolean;
   prevailingWind: SeatId;
   profile?: PlayerProfileConfig;
@@ -983,6 +998,27 @@ function LocalSeat({
             aria-label={t("table.handSortControl", { mode: translateSource(sortModeLabel(sortMode)) })}
           >
             {t("table.sort", { mode: translateSource(sortModeLabel(sortMode)) })}
+          </button>
+          <button
+            type="button"
+            className={`sort-toggle-button${claimImpactEnabled ? " sort-toggle-button-on" : ""}`}
+            onClick={onToggleClaimImpact}
+            aria-pressed={claimImpactEnabled}
+            aria-label={t("table.impactControl", {
+              state: claimImpactEnabled ? t("table.on") : t("table.off"),
+            })}
+          >
+            {t("table.impact", {
+              state: claimImpactEnabled ? t("table.on") : t("table.off"),
+            })}
+          </button>
+          <button
+            type="button"
+            className={`sort-toggle-button${autoPassDelay !== "off" ? " sort-toggle-button-on" : ""}`}
+            onClick={onCycleAutoPassDelay}
+            aria-label={t("table.autoPassControl", { value: autoPassDelayLabel(autoPassDelay) })}
+          >
+            {t("table.autoPass", { value: autoPassDelayLabel(autoPassDelay) })}
           </button>
           <button
             type="button"
@@ -1079,7 +1115,7 @@ function winButtonTitle(preview: NonNullable<MatchAction["preview"]>): string {
   return preview.patterns.map((p) => `${p.name} (${p.tai})`).join(", ");
 }
 
-function ClaimButtons({ actions, compact }: { actions: MatchAction[]; compact: boolean }) {
+function ClaimButtons({ actions, showImpact }: { actions: MatchAction[]; showImpact: boolean }) {
   const disabledReasonId = useId();
   const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
   const disabledReason = actions.find((action) => action.disabledReason)?.disabledReason;
@@ -1176,7 +1212,7 @@ function ClaimButtons({ actions, compact }: { actions: MatchAction[]; compact: b
                   {action.preview.rawTai} <span lang="zh-Hant">台</span> <small>(Tai)</small>
                 </span>
               ) : null}
-              {!compact && action.impact ? (
+              {showImpact && action.impact ? (
                 <span className="claim-impact">
                   <small>{t("table.claimImpact")}</small>
                   {translateSource(action.impact)}
@@ -1214,16 +1250,16 @@ function ActionBar({
   onDraw,
   drawPending,
   manualDrawOnly,
-  compactClaims,
-  autoPassClaims,
+  showClaimImpact,
+  autoPassEnabled,
 }: {
   legalActions: MatchAction[];
   canDraw?: boolean;
   onDraw?: () => void;
   drawPending?: boolean;
   manualDrawOnly?: boolean;
-  compactClaims: boolean;
-  autoPassClaims: boolean;
+  showClaimImpact: boolean;
+  autoPassEnabled: boolean;
 }) {
   const winningClaimAvailable = legalActions.some((action) => {
     const id = action.id.toLowerCase();
@@ -1248,7 +1284,7 @@ function ActionBar({
     (left, right) => actionPriority(left) - actionPriority(right),
   );
   const passOnly =
-    autoPassClaims &&
+    autoPassEnabled &&
     orderedActions.length === 1 &&
     orderedActions[0]?.id.toLowerCase() === "pass";
   if (orderedActions.length > 0 && !passOnly) {
@@ -1260,7 +1296,7 @@ function ActionBar({
         className={`action-bar ${selfTurnActions ? "action-bar-self-turn" : "action-bar-claim"}`}
         aria-label={selfTurnActions ? t("table.selfTurnActions") : t("table.respondTile")}
       >
-        <ClaimButtons actions={orderedActions} compact={compactClaims} />
+        <ClaimButtons actions={orderedActions} showImpact={showClaimImpact} />
       </div>
     );
   }
@@ -1304,10 +1340,16 @@ export interface MatchTableInteraction {
 
 export interface MatchTablePreferences {
   expertHud: boolean;
-  autoPassClaims: boolean;
-  compactClaimPrompts: boolean;
+  autoPassDelay: AutoPassDelay;
+  claimImpactAnalysis: boolean;
   guided?: boolean;
   onExpertHudChange?: (enabled: boolean) => void;
+  // The table owns these two while a hand is live, because they are pacing
+  // and verbosity controls a player reaches for mid-hand rather than in a
+  // settings screen. The callbacks let the surrounding app persist what they
+  // chose; without them the choice still applies to this table.
+  onClaimImpactChange?: (enabled: boolean) => void;
+  onAutoPassDelayChange?: (delay: AutoPassDelay) => void;
 }
 
 export function MatchTable({
@@ -1331,11 +1373,6 @@ export function MatchTable({
     state.legalActions[0]?.id.toLowerCase() === "pass"
       ? state.legalActions[0]
       : null;
-  const automaticPassKey =
-    (preferences?.autoPassClaims ?? true) && passOnlyAction && state.lastDiscard
-      ? `${state.lastDiscard.tile.id}:${state.claimSource ?? state.lastDiscard.seat}`
-      : null;
-
   const [sortMode, setSortMode] = useState<SortMode>("suit-rank");
   const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
@@ -1343,6 +1380,18 @@ export function MatchTable({
   const [learningHudEnabled, setLearningHudEnabled] = useState(
     preferences?.expertHud ?? true,
   );
+  // Mirrored rather than read straight from preferences so the footer buttons
+  // respond on the click instead of waiting for a Cloud Save round trip.
+  const [claimImpactEnabled, setClaimImpactEnabled] = useState(
+    preferences?.claimImpactAnalysis ?? false,
+  );
+  const [autoPassDelay, setAutoPassDelay] = useState<AutoPassDelay>(
+    preferences?.autoPassDelay ?? "off",
+  );
+  const automaticPassKey =
+    autoPassDelay !== "off" && passOnlyAction && state.lastDiscard
+      ? `${state.lastDiscard.tile.id}:${state.claimSource ?? state.lastDiscard.seat}`
+      : null;
   const [drawnTileId, setDrawnTileId] = useState<string | null>(() =>
     interaction?.canDiscard ? (localHand.at(-1)?.id ?? null) : null,
   );
@@ -1362,6 +1411,14 @@ export function MatchTable({
   );
   const previousClaimCountRef = useRef(state.legalActions.length);
   const automaticPassRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setClaimImpactEnabled(preferences?.claimImpactAnalysis ?? false);
+  }, [preferences?.claimImpactAnalysis]);
+
+  useEffect(() => {
+    setAutoPassDelay(preferences?.autoPassDelay ?? "off");
+  }, [preferences?.autoPassDelay]);
 
   useEffect(() => {
     setLearningHudEnabled(preferences?.expertHud ?? true);
@@ -1472,12 +1529,19 @@ export function MatchTable({
     ) {
       return;
     }
+    const submit = passOnlyAction.onClick;
+    // The key is claimed before the timer fires, not inside it: a re-render
+    // during the wait must not schedule a second pass for the same discard.
     automaticPassRef.current = automaticPassKey;
-    passOnlyAction.onClick();
+    const timer = window.setTimeout(submit, autoPassDelayMs(autoPassDelay));
+    // The wait is the whole feature — it is the window in which the player
+    // reads the discard — so it has to survive a re-render and be cancelled
+    // if the table moves on first.
+    return () => window.clearTimeout(timer);
     // The stable discard/source key, rather than the callback identity,
     // prevents adapter re-renders from submitting the same pass twice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [automaticPassKey, passOnlyAction?.disabled]);
+  }, [automaticPassKey, passOnlyAction?.disabled, autoPassDelay]);
 
   useEffect(() => {
     const nextIds = localHand.map((tile) => tile.id);
@@ -1577,6 +1641,22 @@ export function MatchTable({
     });
   }
 
+  // Both write through to the app so the choice sticks past this hand, and
+  // both apply locally first so the button responds even when nothing is
+  // listening (the wireframe harness, or a guided practice hand).
+  function toggleClaimImpact() {
+    const next = !claimImpactEnabled;
+    setClaimImpactEnabled(next);
+    preferences?.onClaimImpactChange?.(next);
+  }
+
+  function cycleAutoPassDelay() {
+    const next =
+      AUTO_PASS_DELAYS[(AUTO_PASS_DELAYS.indexOf(autoPassDelay) + 1) % AUTO_PASS_DELAYS.length];
+    setAutoPassDelay(next);
+    preferences?.onAutoPassDelayChange?.(next);
+  }
+
   function activateTile(tileId: string) {
     if (interaction?.discardPending) {
       return;
@@ -1625,8 +1705,8 @@ export function MatchTable({
         onDraw={interaction?.onDraw}
         drawPending={interaction?.drawPending}
         manualDrawOnly={interaction?.manualDrawOnly}
-        compactClaims={preferences?.compactClaimPrompts ?? false}
-        autoPassClaims={preferences?.autoPassClaims ?? true}
+        showClaimImpact={claimImpactEnabled}
+        autoPassEnabled={autoPassDelay !== "off"}
       />
       <LearningHud
         state={state}
@@ -1652,6 +1732,10 @@ export function MatchTable({
         drawnTileId={drawnTileId}
         tableFxEnabled={tableFxEnabled}
         onToggleTableFx={toggleTableFx}
+        claimImpactEnabled={claimImpactEnabled}
+        onToggleClaimImpact={toggleClaimImpact}
+        autoPassDelay={autoPassDelay}
+        onCycleAutoPassDelay={cycleAutoPassDelay}
         isClaimThinking={state.legalActions.length > 0}
         prevailingWind={state.prevailingWind}
         profile={playerProfile}

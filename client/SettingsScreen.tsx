@@ -74,29 +74,37 @@ export function SettingsScreen({
               }
             />
           </label>
-          <label className="settings-toggle">
+          <label className="settings-select-label" htmlFor="auto-pass-delay">
             <span>
               <strong>{t("settings.autoPass")}</strong>
               <small>{t("settings.autoPassHelp")}</small>
             </span>
-            <input
-              type="checkbox"
-              checked={settings.autoPassClaims}
+            <select
+              id="auto-pass-delay"
+              value={settings.autoPassDelay}
               onChange={(event) =>
-                onSettingsChange({ ...settings, autoPassClaims: event.target.checked })
+                onSettingsChange({
+                  ...settings,
+                  autoPassDelay: event.target.value as PlayerSettings["autoPassDelay"],
+                })
               }
-            />
+            >
+              <option value="off">{t("table.off")}</option>
+              <option value="1s">1s</option>
+              <option value="3s">3s</option>
+              <option value="5s">5s</option>
+            </select>
           </label>
           <label className="settings-toggle">
             <span>
-              <strong>{t("settings.compactClaims")}</strong>
-              <small>{t("settings.compactClaimsHelp")}</small>
+              <strong>{t("settings.claimImpact")}</strong>
+              <small>{t("settings.claimImpactHelp")}</small>
             </span>
             <input
               type="checkbox"
-              checked={settings.compactClaimPrompts}
+              checked={settings.claimImpactAnalysis}
               onChange={(event) =>
-                onSettingsChange({ ...settings, compactClaimPrompts: event.target.checked })
+                onSettingsChange({ ...settings, claimImpactAnalysis: event.target.checked })
               }
             />
           </label>

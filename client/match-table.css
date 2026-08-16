@@ -2046,7 +2046,8 @@ body {
   z-index: 5;
 }
 
-.table-fx-toggle-on {
+.table-fx-toggle-on,
+.sort-toggle-button-on {
   background: #285b43;
   border-color: #4a9b72;
 }
