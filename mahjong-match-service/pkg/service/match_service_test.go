@@ -873,3 +873,69 @@ func (f *fakeEconomyRepository) ClaimJadeWelfare(
 		Reason:   economy.WelfareAvailable,
 	}, nil
 }
+
+// TestListBotPersonas_ReturnsTheWholeRosterWithCardContentOnly is the
+// picker's whole data contract: every persona bots.Personas() carries
+// reaches the client, with exactly the fields a picker card shows and none
+// of the internal weights those cards describe.
+func TestListBotPersonas_ReturnsTheWholeRosterWithCardContentOnly(t *testing.T) {
+	roster, err := bots.Personas()
+	if err != nil {
+		t.Fatalf("bots.Personas() error = %v", err)
+	}
+	service := NewMatchService("gameswithout-mahjong", &fakeRuntime{})
+
+	response, err := service.ListBotPersonas(context.Background(), &pb.ListBotPersonasRequest{
+		Namespace: "gameswithout-mahjong",
+	})
+	if err != nil {
+		t.Fatalf("ListBotPersonas() error = %v", err)
+	}
+	if len(response.GetPersonas()) != len(roster.IDs()) {
+		t.Fatalf("ListBotPersonas() returned %d personas, want %d", len(response.GetPersonas()), len(roster.IDs()))
+	}
+
+	byID := map[string]*pb.BotPersonaSummary{}
+	for _, summary := range response.GetPersonas() {
+		byID[summary.GetId()] = summary
+	}
+	for _, id := range roster.IDs() {
+		persona, _ := roster.ByID(id)
+		summary, ok := byID[id]
+		if !ok {
+			t.Fatalf("roster persona %q was not projected", id)
+		}
+		if summary.GetName() != persona.Name || summary.GetStyleTag() != persona.Tag ||
+			summary.GetTagline() != persona.Tagline || summary.GetGlyph() != persona.Glyph ||
+			summary.GetStrength() != persona.Strength || summary.GetWeakness() != persona.Weakness {
+			t.Errorf("%s: projected card content does not match the roster: %+v", id, summary)
+		}
+		bars := summary.GetBars()
+		if bars == nil ||
+			int(bars.GetPace()) != persona.Bars.Pace ||
+			int(bars.GetValue()) != persona.Bars.Value ||
+			int(bars.GetCaution()) != persona.Bars.Caution ||
+			int(bars.GetCalling()) != persona.Bars.Calling ||
+			int(bars.GetConcealment()) != persona.Bars.Concealment {
+			t.Errorf("%s: projected bars = %+v, want %+v", id, bars, persona.Bars)
+		}
+	}
+}
+
+func TestListBotPersonas_RejectsCrossNamespaceRequest(t *testing.T) {
+	service := NewMatchService("gameswithout-mahjong", &fakeRuntime{})
+	_, err := service.ListBotPersonas(context.Background(), &pb.ListBotPersonasRequest{
+		Namespace: "other-project",
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("ListBotPersonas() code = %s, want PermissionDenied", status.Code(err))
+	}
+}
+
+func TestListBotPersonas_RejectsMissingNamespace(t *testing.T) {
+	service := NewMatchService("gameswithout-mahjong", &fakeRuntime{})
+	_, err := service.ListBotPersonas(context.Background(), &pb.ListBotPersonasRequest{})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("ListBotPersonas() code = %s, want InvalidArgument", status.Code(err))
+	}
+}

@@ -165,6 +165,27 @@ service Service {
     };
   }
 
+  // ListBotPersonas returns the AI Practice opponent catalog the client
+  // renders as picker cards. This is the single source of truth for persona
+  // display copy (bots/personas/<id>/persona.md + style.json) — the client
+  // does not hold a second hand-authored copy of the same six cards, which
+  // would drift the moment either side changed.
+  rpc ListBotPersonas(ListBotPersonasRequest) returns (ListBotPersonasResponse) {
+    option (google.api.http) = {
+      get: "/v1/namespaces/{namespace}/bot-personas"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "List the AI Practice opponent personas a player can pick"
+      description: "Player-facing card content only (name, style tag, tagline, glyph, bars, one strength, one weakness) — never the internal decision weights those cards describe."
+      security: {
+        security_requirement: {
+          key: "Bearer"
+          value: {}
+        }
+      }
+    };
+  }
+
   rpc JoinMatch(JoinMatchRequest) returns (JoinMatchResponse) {
     option (google.api.http) = {
       post: "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join"
@@ -280,6 +301,44 @@ message PlayerAchievement {
 
 message GetPlayerAchievementsResponse {
   repeated PlayerAchievement achievements = 1;
+}
+
+// ListBotPersonasRequest takes no picker-specific arguments: the catalog is
+// the same for every caller in the namespace.
+message ListBotPersonasRequest {
+  string namespace = 1;
+}
+
+// PersonaBars are the five §5 display ratings, 1-5. They describe intended
+// decision preferences for the picker card, not guaranteed outcomes and not
+// difficulty.
+message PersonaBars {
+  int32 pace = 1;
+  int32 value = 2;
+  int32 caution = 3;
+  int32 calling = 4;
+  int32 concealment = 5;
+}
+
+// BotPersonaSummary is one persona's public-facing card content — the same
+// fields a table already shows once a persona is seated (name, style tag,
+// glyph), plus the picker-only prose (tagline, bars, strength, weakness).
+// Never the internal PersonaProfile weights those cards describe.
+message BotPersonaSummary {
+  string id = 1;
+  string name = 2;
+  // Plain-language style label — "Rush", "Guard" — matching PlayerView's
+  // bot_style_tag for the same persona once seated.
+  string style_tag = 3;
+  string tagline = 4;
+  string glyph = 5;
+  PersonaBars bars = 6;
+  string strength = 7;
+  string weakness = 8;
+}
+
+message ListBotPersonasResponse {
+  repeated BotPersonaSummary personas = 1;
 }
 
 message JoinMatchRequest {

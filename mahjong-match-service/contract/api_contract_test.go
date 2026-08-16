@@ -67,6 +67,11 @@ func TestMahjongServiceHTTPContract(t *testing.T) {
 			path:   "/v1/namespaces/{namespace}/progression/onboarding",
 		},
 		{
+			method: "ListBotPersonas",
+			verb:   http.MethodGet,
+			path:   "/v1/namespaces/{namespace}/bot-personas",
+		},
+		{
 			method: "JoinMatch",
 			verb:   http.MethodPost,
 			path:   "/v1/namespaces/{namespace}/sessions/{session_id}/matches/{match_id}/join",

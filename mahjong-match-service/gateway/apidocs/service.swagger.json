@@ -54,6 +54,43 @@
         ]
       }
     },
+    "/v1/namespaces/{namespace}/bot-personas": {
+      "get": {
+        "summary": "List the AI Practice opponent personas a player can pick",
+        "description": "Player-facing card content only (name, style tag, tagline, glyph, bars, one strength, one weakness) — never the internal decision weights those cards describe.",
+        "operationId": "Service_ListBotPersonas",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/serviceListBotPersonasResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Service"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v1/namespaces/{namespace}/jade": {
       "get": {
         "summary": "Get the authenticated player's Jade account",
@@ -631,6 +668,37 @@
         }
       }
     },
+    "serviceBotPersonaSummary": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "styleTag": {
+          "type": "string",
+          "description": "Plain-language style label — \"Rush\", \"Guard\" — matching PlayerView's\nbot_style_tag for the same persona once seated."
+        },
+        "tagline": {
+          "type": "string"
+        },
+        "glyph": {
+          "type": "string"
+        },
+        "bars": {
+          "$ref": "#/definitions/servicePersonaBars"
+        },
+        "strength": {
+          "type": "string"
+        },
+        "weakness": {
+          "type": "string"
+        }
+      },
+      "description": "BotPersonaSummary is one persona's public-facing card content — the same\nfields a table already shows once a persona is seated (name, style tag,\nglyph), plus the picker-only prose (tagline, bars, strength, weakness).\nNever the internal PersonaProfile weights those cards describe."
+    },
     "serviceChowSet": {
       "type": "object",
       "properties": {
@@ -1091,6 +1159,18 @@
         }
       }
     },
+    "serviceListBotPersonasResponse": {
+      "type": "object",
+      "properties": {
+        "personas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceBotPersonaSummary"
+          }
+        }
+      }
+    },
     "serviceMatchCommandType": {
       "type": "string",
       "enum": [
@@ -1327,6 +1407,32 @@
           "format": "int32"
         }
       }
+    },
+    "servicePersonaBars": {
+      "type": "object",
+      "properties": {
+        "pace": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "value": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "caution": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "calling": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "concealment": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "PersonaBars are the five §5 display ratings, 1-5. They describe intended\ndecision preferences for the picker card, not guaranteed outcomes and not\ndifficulty."
     },
     "servicePlayerAchievement": {
       "type": "object",

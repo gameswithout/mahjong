@@ -32,6 +32,7 @@ const (
 	Service_GetPlayerStatistics_FullMethodName   = "/service.Service/GetPlayerStatistics"
 	Service_GetMatchHistory_FullMethodName       = "/service.Service/GetMatchHistory"
 	Service_GetPlayerAchievements_FullMethodName = "/service.Service/GetPlayerAchievements"
+	Service_ListBotPersonas_FullMethodName       = "/service.Service/ListBotPersonas"
 	Service_JoinMatch_FullMethodName             = "/service.Service/JoinMatch"
 	Service_GetMatchState_FullMethodName         = "/service.Service/GetMatchState"
 	Service_SubmitMatchCommand_FullMethodName    = "/service.Service/SubmitMatchCommand"
@@ -53,6 +54,7 @@ type ServiceClient interface {
 	GetPlayerStatistics(ctx context.Context, in *GetPlayerStatisticsRequest, opts ...grpc.CallOption) (*GetPlayerStatisticsResponse, error)
 	GetMatchHistory(ctx context.Context, in *GetMatchHistoryRequest, opts ...grpc.CallOption) (*GetMatchHistoryResponse, error)
 	GetPlayerAchievements(ctx context.Context, in *GetPlayerAchievementsRequest, opts ...grpc.CallOption) (*GetPlayerAchievementsResponse, error)
+	ListBotPersonas(ctx context.Context, in *ListBotPersonasRequest, opts ...grpc.CallOption) (*ListBotPersonasResponse, error)
 	JoinMatch(ctx context.Context, in *JoinMatchRequest, opts ...grpc.CallOption) (*JoinMatchResponse, error)
 	// GetMatchState returns a caller-specific projection. Concealed tiles and
 	// private claim responses belonging to other players are never included.
@@ -160,6 +162,16 @@ func (c *serviceClient) GetPlayerAchievements(ctx context.Context, in *GetPlayer
 	return out, nil
 }
 
+func (c *serviceClient) ListBotPersonas(ctx context.Context, in *ListBotPersonasRequest, opts ...grpc.CallOption) (*ListBotPersonasResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListBotPersonasResponse)
+	err := c.cc.Invoke(ctx, Service_ListBotPersonas_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serviceClient) JoinMatch(ctx context.Context, in *JoinMatchRequest, opts ...grpc.CallOption) (*JoinMatchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(JoinMatchResponse)
@@ -206,6 +218,7 @@ type ServiceServer interface {
 	GetPlayerStatistics(context.Context, *GetPlayerStatisticsRequest) (*GetPlayerStatisticsResponse, error)
 	GetMatchHistory(context.Context, *GetMatchHistoryRequest) (*GetMatchHistoryResponse, error)
 	GetPlayerAchievements(context.Context, *GetPlayerAchievementsRequest) (*GetPlayerAchievementsResponse, error)
+	ListBotPersonas(context.Context, *ListBotPersonasRequest) (*ListBotPersonasResponse, error)
 	JoinMatch(context.Context, *JoinMatchRequest) (*JoinMatchResponse, error)
 	// GetMatchState returns a caller-specific projection. Concealed tiles and
 	// private claim responses belonging to other players are never included.
@@ -248,6 +261,9 @@ func (UnimplementedServiceServer) GetMatchHistory(context.Context, *GetMatchHist
 }
 func (UnimplementedServiceServer) GetPlayerAchievements(context.Context, *GetPlayerAchievementsRequest) (*GetPlayerAchievementsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlayerAchievements not implemented")
+}
+func (UnimplementedServiceServer) ListBotPersonas(context.Context, *ListBotPersonasRequest) (*ListBotPersonasResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListBotPersonas not implemented")
 }
 func (UnimplementedServiceServer) JoinMatch(context.Context, *JoinMatchRequest) (*JoinMatchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method JoinMatch not implemented")
@@ -440,6 +456,24 @@ func _Service_GetPlayerAchievements_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_ListBotPersonas_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBotPersonasRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).ListBotPersonas(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_ListBotPersonas_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).ListBotPersonas(ctx, req.(*ListBotPersonasRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Service_JoinMatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(JoinMatchRequest)
 	if err := dec(in); err != nil {
@@ -536,6 +570,10 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPlayerAchievements",
 			Handler:    _Service_GetPlayerAchievements_Handler,
+		},
+		{
+			MethodName: "ListBotPersonas",
+			Handler:    _Service_ListBotPersonas_Handler,
 		},
 		{
 			MethodName: "JoinMatch",

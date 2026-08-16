@@ -560,6 +560,67 @@ func namespaceFromGetPlayerAchievements(req *pb.GetPlayerAchievementsRequest) st
 	return req.GetNamespace()
 }
 
+// ListBotPersonas serves the AI Practice picker's opponent catalog.
+//
+// Unlike the other handlers here this reads no player-specific state — the
+// catalog is the same for every caller in the namespace — so it needs
+// neither jadePrincipal nor progressionPrincipal's subsystem-initialized
+// check; the proto's Bearer security requirement is enforced by the auth
+// interceptor before this handler ever runs (see
+// pkg/common/authServerInterceptor.go), and the namespace check below is
+// kept only for the same "wrong namespace, no free peek" consistency every
+// other endpoint on this surface has.
+func (s *MatchService) ListBotPersonas(
+	ctx context.Context,
+	req *pb.ListBotPersonasRequest,
+) (*pb.ListBotPersonasResponse, error) {
+	namespace := strings.TrimSpace(req.GetNamespace())
+	if namespace == "" {
+		return nil, status.Error(codes.InvalidArgument, "namespace is required")
+	}
+	if namespace != s.namespace {
+		return nil, status.Error(codes.PermissionDenied, "namespace is not allowed")
+	}
+	roster, err := bots.Personas()
+	if err != nil {
+		return nil, status.Error(codes.Internal, "bot persona catalog failed to load")
+	}
+	ids := roster.IDs()
+	personas := make([]*pb.BotPersonaSummary, 0, len(ids))
+	for _, id := range ids {
+		persona, ok := roster.ByID(id)
+		if !ok {
+			continue
+		}
+		personas = append(personas, projectBotPersonaSummary(persona))
+	}
+	return &pb.ListBotPersonasResponse{Personas: personas}, nil
+}
+
+// projectBotPersonaSummary is the picker card's whole public contract:
+// display copy and the five §5 bars only. persona.Profile — the internal
+// PersonaProfile weights — never crosses this boundary; a player is shown
+// what a persona promises, not the numbers a real opponent could read back
+// out to counter it.
+func projectBotPersonaSummary(persona bots.Persona) *pb.BotPersonaSummary {
+	return &pb.BotPersonaSummary{
+		Id:       persona.ID,
+		Name:     persona.Name,
+		StyleTag: persona.Tag,
+		Tagline:  persona.Tagline,
+		Glyph:    persona.Glyph,
+		Bars: &pb.PersonaBars{
+			Pace:        int32(persona.Bars.Pace),
+			Value:       int32(persona.Bars.Value),
+			Caution:     int32(persona.Bars.Caution),
+			Calling:     int32(persona.Bars.Calling),
+			Concealment: int32(persona.Bars.Concealment),
+		},
+		Strength: persona.Strength,
+		Weakness: persona.Weakness,
+	}
+}
+
 func projectPlayerAchievement(achievement progression.PlayerAchievement) *pb.PlayerAchievement {
 	definition := achievement.Achievement
 	return &pb.PlayerAchievement{
