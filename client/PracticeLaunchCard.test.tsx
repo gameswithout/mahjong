@@ -36,12 +36,35 @@ describe("PracticeLaunchCard", () => {
     });
 
     expect(container.textContent).toContain("Play a full hand against three bots");
-    expect(container.textContent).toContain("Progression is earned in Online Play");
-    expect(container.textContent).not.toContain("per UTC day");
+    expect(container.textContent).toContain("earns 25 Mastery XP");
+    expect(container.textContent).toContain("up to 100 XP per UTC day");
+    expect(container.textContent).toContain("saved to history");
     const button = container.querySelector("button");
     expect(button?.textContent).toBe("Practice vs Bots");
     act(() => button?.click());
     expect(onStart).toHaveBeenCalledOnce();
+  });
+
+  it("offers a clearly explained slower guided path", () => {
+    const onStart = vi.fn();
+    const onStartGuided = vi.fn();
+    act(() => root.render(
+      <PracticeLaunchCard
+        busy={false}
+        hasSelectedSession={false}
+        matchServiceAvailable
+        onStart={onStart}
+        onStartGuided={onStartGuided}
+      />,
+    ));
+
+    expect(container.textContent).toContain("Slower bot actions");
+    const guided = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Guided Practice",
+    );
+    act(() => guided?.click());
+    expect(onStartGuided).toHaveBeenCalledOnce();
+    expect(onStart).not.toHaveBeenCalled();
   });
 
   it("blocks a second launch while a Session is already selected", () => {

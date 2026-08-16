@@ -6,6 +6,7 @@ import type { MatchCommandRequest, SeatView } from "../protocol/envelope";
 import type { BrowserIam } from "./iam";
 import { JadeError } from "./jade";
 import { MatchHistoryError } from "./match-history";
+import { savedMatchReviewIds } from "./match-reviews";
 import { MatchRuntimeError } from "./match-runtime";
 import { PlayerStatsError, summarisePlayerStats } from "./player-stats";
 import { ProgressionError } from "./progression";
@@ -171,7 +172,9 @@ function chowOpportunityView(matchId: string): SeatView {
 
 function button(container: HTMLElement, label: string): HTMLButtonElement {
   const match = Array.from(container.querySelectorAll("button")).find(
-    (candidate) => candidate.textContent === label,
+    (candidate) =>
+      candidate.textContent === label ||
+      candidate.querySelector(".action-label-single")?.textContent === label,
   );
   if (!(match instanceof HTMLButtonElement)) {
     throw new Error(`Button not found: ${label}`);
@@ -426,6 +429,7 @@ describe("App Practice journey", () => {
 
     await clickAndFlush(container, "Practice vs Bots");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
+    expect(savedMatchReviewIds("guest-1").has("practice-1")).toBe(true);
     expect(calls).toEqual([
       'create:{"ai_practice":"true"}',
       "connect:practice-1",
@@ -458,6 +462,43 @@ describe("App Practice journey", () => {
     expect(container.textContent).toContain("5,000");
     expect(container.textContent).not.toContain("Unavailable");
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
+  });
+
+  it("starts Guided Practice with learning hints visible", async () => {
+    dependencies.createMatchRuntimeConnection.mockImplementation(
+      (_accessToken: string, options: MatchRuntimeConnectionOptions) => ({
+        ready: Promise.resolve({
+          protocol_version: "1",
+          server_time: "2026-08-15T00:00:00Z",
+          user_id: "guest-1",
+        }),
+        join: vi.fn((matchId: string) => {
+          queueMicrotask(() => options.onJoined?.({
+            match_id: matchId,
+            seat: "E",
+            view: discardPracticeView(matchId),
+          }));
+          return `join-${matchId}`;
+        }),
+        sync: vi.fn(() => "sync"),
+        command: vi.fn(() => "command"),
+        close: vi.fn(),
+      }),
+    );
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}),
+      getAccessToken: vi.fn().mockReturnValue("guest-token"),
+    } as unknown as BrowserIam;
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Guided Practice"));
+    await clickAndFlush(container, "Guided Practice");
+
+    await vi.waitFor(() => expect(container.querySelector('[aria-label="Learning HUD"]')).not.toBeNull());
+    expect(container.querySelector('[aria-label="Recent actions"]')).not.toBeNull();
+    expect(container.textContent).toContain("Public information only");
   });
 
   it("keeps a live table on screen when a poll fails, and recovers on the next good state", async () => {

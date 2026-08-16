@@ -1,5 +1,7 @@
 import { RULES_NAME, RULES_VERSION } from "./rules-version";
 import type { PlayerSettings } from "./settings";
+import { t } from "./i18n";
+import { LanguageSelector } from "./i18n/LanguageSelector";
 
 export interface SettingsScreenProps {
   settings: PlayerSettings;
@@ -20,28 +22,30 @@ export function SettingsScreen({
     <section className="settings-screen" aria-labelledby="settings-title">
       <header className="settings-header">
         <div>
-          <p className="status-label">Account</p>
-          <h2 id="settings-title">Settings</h2>
-          <p>
-            Preferences are saved to your Mahjong account and follow registered
-            players to other devices.
-          </p>
+          <p className="status-label">{t("settings.account")}</p>
+          <h2 id="settings-title">{t("settings.title")}</h2>
+          <p>{t("settings.description")}</p>
         </div>
         <button type="button" className="secondary-action" onClick={onClose}>
-          Back to lobby
+          {t("common.backToLobby")}
         </button>
       </header>
 
       <div className="settings-list">
+        <section className="settings-card" aria-labelledby="settings-language-title">
+          <p className="status-label">{t("language.label")}</p>
+          <h3 id="settings-language-title">{t("settings.displayLanguage")}</h3>
+          <p className="settings-language-help">{t("settings.languageHelp")}</p>
+          <LanguageSelector inline />
+        </section>
+
         <section className="settings-card" aria-labelledby="settings-learning-title">
-          <p className="status-label">Learning</p>
-          <h3 id="settings-learning-title">Tutorial</h3>
+          <p className="status-label">{t("settings.learning")}</p>
+          <h3 id="settings-learning-title">{t("settings.tutorial")}</h3>
           <label className="settings-toggle">
             <span>
-              <strong>Show Learn section</strong>
-              <small>
-                Hide the tutorial card from the lobby. You can always turn it back on here.
-              </small>
+              <strong>{t("settings.showLearn")}</strong>
+              <small>{t("settings.showLearnHelp")}</small>
             </span>
             <input
               type="checkbox"
@@ -54,16 +58,80 @@ export function SettingsScreen({
           </label>
         </section>
 
-        <section className="settings-card" aria-labelledby="settings-privacy-title">
-          <p className="status-label">Privacy</p>
-          <h3 id="settings-privacy-title">Analytics</h3>
+        <section className="settings-card" aria-labelledby="settings-table-title">
+          <p className="status-label">{t("settings.gameplay")}</p>
+          <h3 id="settings-table-title">{t("settings.tablePreferences")}</h3>
           <label className="settings-toggle">
             <span>
-              <strong>Share optional gameplay analytics</strong>
-              <small>
-                Helps improve tutorial and queue journeys. Email, birth date, chat, and
-                concealed tiles are never included.
-              </small>
+              <strong>{t("settings.expertHud")}</strong>
+              <small>{t("settings.expertHudHelp")}</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.expertHud}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, expertHud: event.target.checked })
+              }
+            />
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>{t("settings.autoPass")}</strong>
+              <small>{t("settings.autoPassHelp")}</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.autoPassClaims}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, autoPassClaims: event.target.checked })
+              }
+            />
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>{t("settings.compactClaims")}</strong>
+              <small>{t("settings.compactClaimsHelp")}</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.compactClaimPrompts}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, compactClaimPrompts: event.target.checked })
+              }
+            />
+          </label>
+          <label className="settings-select-label" htmlFor="practice-bot-speed">
+            <span>
+              <strong>{t("settings.botSpeed")}</strong>
+              <small>{t("settings.botSpeedHelp")}</small>
+            </span>
+            <select
+              id="practice-bot-speed"
+              value={settings.practiceBotSpeed}
+              onChange={(event) =>
+                onSettingsChange({
+                  ...settings,
+                  practiceBotSpeed:
+                    event.target.value === "fast" || event.target.value === "normal"
+                      ? event.target.value
+                      : "learning",
+                })
+              }
+            >
+              <option value="learning">{t("settings.botSpeedLearning")}</option>
+              <option value="normal">{t("settings.botSpeedNormal")}</option>
+              <option value="fast">{t("settings.botSpeedFast")}</option>
+            </select>
+          </label>
+        </section>
+
+        <section className="settings-card" aria-labelledby="settings-privacy-title">
+          <p className="status-label">{t("settings.privacy")}</p>
+          <h3 id="settings-privacy-title">{t("settings.analytics")}</h3>
+          <label className="settings-toggle">
+            <span>
+              <strong>{t("settings.shareAnalytics")}</strong>
+              <small>{t("settings.shareAnalyticsHelp")}</small>
             </span>
             <input
               type="checkbox"
@@ -79,21 +147,21 @@ export function SettingsScreen({
         </section>
 
         <section className="settings-card" aria-labelledby="settings-rules-title">
-          <p className="status-label">Rules</p>
+          <p className="status-label">{t("settings.rules")}</p>
           <h3 id="settings-rules-title">{RULES_NAME}</h3>
           <p className="settings-rule-version">{RULES_VERSION}</p>
         </section>
       </div>
 
       <div className="settings-sync-status" role="status" aria-live="polite">
-        {syncStatus === "loading" && "Loading account settings…"}
-        {syncStatus === "saving" && "Saving to your account…"}
-        {syncStatus === "ready" && "Settings saved to your account."}
+        {syncStatus === "loading" && t("settings.loading")}
+        {syncStatus === "saving" && t("settings.saving")}
+        {syncStatus === "ready" && t("settings.saved")}
         {syncStatus === "error" && (
           <>
-            Settings could not sync with AccelByte Cloud Save.
+            {t("settings.syncError")}
             <button type="button" className="text-action" onClick={onRetry}>
-              Retry
+              {t("common.retry")}
             </button>
           </>
         )}

@@ -2,6 +2,7 @@ import type { JadeAccount, PlayerProgression } from "../protocol/envelope";
 import { PlayerProfileBadge, PlayerProfileEditor } from "./PlayerProfile";
 import { defaultPlayerProfile, type PlayerProfileConfig } from "./player-profile";
 import type { PlayerStatSummary } from "./player-stats";
+import { formatNumber, t } from "./i18n";
 
 export interface LobbyHeaderProps {
   guest: boolean;
@@ -53,25 +54,25 @@ export function LobbyHeader({
           <PlayerProfileBadge profile={profile} className="lobby-player-profile" />
         </div>
         <div className="lobby-wallet-column">
-          <div className="lobby-wallet" aria-label="Virtual currency balances">
+          <div className="lobby-wallet" aria-label={t("header.walletLabel")}>
             <span className="currency-balance currency-jade">
               <span className="currency-icon" aria-hidden="true">◆</span>
               <strong>
                 {jadeStatus === "ready" && account
-                  ? account.available.toLocaleString()
+                  ? formatNumber(account.available)
                   : jadeStatus === "loading"
                     ? "…"
-                    : "Unavailable"}
+                    : t("common.unavailable")}
               </strong>
-              <span className="sr-only">Jade</span>
+              <span className="sr-only">{t("common.jade")}</span>
             </span>
           </div>
         </div>
         <button type="button" className="lobby-inline-link" onClick={onOpenStore}>
-          Store
+          {t("header.store")}
         </button>
         <details className="profile-editor-disclosure">
-          <summary>Edit</summary>
+          <summary>{t("header.edit")}</summary>
           <PlayerProfileEditor
             profile={profile}
             guest={guest}
@@ -80,16 +81,16 @@ export function LobbyHeader({
         </details>
         {guest && (
           <span className="lobby-identity-note">
-            Progress is tied to this device until you{" "}
+            {t("header.guestPrefix")}{" "}
             <button type="button" className="lobby-text-link" onClick={onCreateAccount}>
-              create an account
+              {t("header.createAccount")}
             </button>
             .
           </span>
         )}
         {account && account.reserved > 0 ? (
           <span className="lobby-identity-note">
-            {account.reserved.toLocaleString()} Jade reserved for your current table.
+            {t("header.reserved", { count: formatNumber(account.reserved) })}
           </span>
         ) : null}
       </div>
@@ -97,19 +98,22 @@ export function LobbyHeader({
       <dl className="lobby-facts">
         {onOpenStatistics ? (
           <div className="lobby-fact lobby-statistics-fact">
-            <dt>Match History</dt>
+            <dt>{t("header.matchHistory")}</dt>
             <dd>
               <button
                 type="button"
                 className="lobby-progress-trigger"
                 onClick={onOpenStatistics}
-                aria-label="Open match history"
+                aria-label={t("header.openMatchHistory")}
                 disabled={!statistics?.hasPlayed}
               >
                 <strong>
                   {statistics?.hasPlayed
-                    ? `${statistics.wins.toLocaleString()} Wins / ${statistics.handsPlayed.toLocaleString()} Games Played`
-                    : "Play a Game"}{" "}
+                    ? t("header.winsGames", {
+                        wins: formatNumber(statistics.wins),
+                        games: formatNumber(statistics.handsPlayed),
+                      })
+                    : t("header.playGame")}{" "}
                   {statistics?.hasPlayed && <span aria-hidden="true">›</span>}
                 </strong>
               </button>
@@ -117,7 +121,7 @@ export function LobbyHeader({
           </div>
         ) : null}
         <div className="lobby-fact lobby-progress-fact">
-          <dt>Progress</dt>
+          <dt>{t("header.progress")}</dt>
           <dd>
             <button
               type="button"
@@ -126,18 +130,18 @@ export function LobbyHeader({
               disabled={(progression?.lifetime_xp ?? 0) <= 0}
               aria-label={
                 progressionStatus === "ready"
-                  ? `Open progression, level ${level}`
-                  : "Open progression"
+                  ? t("header.openProgressLevel", { level })
+                  : t("header.openProgress")
               }
             >
               <strong>
                 {progressionStatus === "ready"
                   ? (progression?.lifetime_xp ?? 0) > 0
-                    ? `Level ${level}`
-                    : "No progress yet"
+                    ? t("header.level", { level })
+                    : t("header.noProgress")
                   : progressionStatus === "loading"
-                    ? "Loading…"
-                    : "View Progress"}{" "}
+                    ? t("common.loading")
+                    : t("header.viewProgress")}{" "}
                 {progressionStatus !== "loading" &&
                   (progression?.lifetime_xp ?? 0) > 0 &&
                   <span aria-hidden="true">›</span>}
@@ -145,15 +149,15 @@ export function LobbyHeader({
               {progressionStatus !== "loading" && (
                 <span className="lobby-fact-note">
                   {progressionStatus === "ready" && progression?.at_cap
-                    ? "Maximum level"
-                    : `${xpIntoLevel.toLocaleString()} / ${xpForNextLevel.toLocaleString()} XP`}
+                    ? t("header.maximumLevel")
+                    : `${formatNumber(xpIntoLevel)} / ${formatNumber(xpForNextLevel)} XP`}
                 </span>
               )}
               {progressionStatus !== "loading" && !progression?.at_cap && (
                 <span
                   className="lobby-progress-bar"
                   role="progressbar"
-                  aria-label={`Level ${level} progress`}
+                  aria-label={t("header.levelProgress", { level })}
                   aria-valuemin={0}
                   aria-valuemax={xpForNextLevel}
                   aria-valuenow={xpIntoLevel}
@@ -171,8 +175,8 @@ export function LobbyHeader({
       {connection !== "connected" && (
         <p className="lobby-connection" role="status" aria-live="polite">
           {connection === "connecting"
-            ? "Connecting…"
-            : "Connection lost. Reconnecting…"}
+            ? t("header.connecting")
+            : t("header.reconnecting")}
         </p>
       )}
 

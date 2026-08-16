@@ -100,16 +100,25 @@ export const mockMatchTableState: MatchTableState = {
   countdownTotalSeconds: 15,
   untimed: false,
   legalActions: [
-    { id: "Pass", label: "Pass" },
+    {
+      id: "Pass",
+      label: "Pass",
+      impact: "Keeps the hand concealed and preserves your current shape.",
+    },
     {
       id: "Chow",
       label: "Chow",
+      impact: "Opens the hand and completes the shown sequence.",
       chowPreview: {
         tiles: ["dots-4-1", "dots-5-1", "dots-6-2"].map(tile),
         claimedTileId: "dots-6-2",
       },
     },
-    { id: "Pong", label: "Pong" },
+    {
+      id: "Pong",
+      label: "Pong",
+      impact: "Opens the hand and completes a three-of-a-kind set.",
+    },
     { id: "Win", label: "Win" },
   ],
   waits: [

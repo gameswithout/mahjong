@@ -790,6 +790,7 @@ func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 	if err != nil {
 		return err
 	}
+	publicBotDiscarded := false
 	for step := 0; step < maxSteps; step++ {
 		engine := current.actor.Peek()
 		if engine == nil {
@@ -955,6 +956,12 @@ func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 			if command == nil {
 				continue
 			}
+			// One public discard is one learner-visible beat. Finish the claim
+			// responses caused by it, but leave the next bot discard for the next
+			// Practice poll so it cannot be skipped in the returned projection.
+			if engine.IsBotSeat(seat) && command.Type == rulesengine.CommandDiscard && publicBotDiscarded {
+				return nil
+			}
 			command.MatchID = current.record.RuntimeID
 			command.RequestID = "system:takeover:" + string(seat) + ":" + strconv.FormatUint(version, 10)
 			result, applyErr := current.actor.Apply(ctx, *command)
@@ -965,6 +972,17 @@ func (r *Runtime) driveLocked(ctx context.Context, current *loadedMatch) error {
 				if _, err := r.resolveClaimResponse(ctx, current, result); err != nil {
 					return err
 				}
+			}
+			// Permanent Practice bots used to cascade through several public
+			// discards and exposed claims inside one View/Apply request. The client
+			// could only render the final projection, so a learner saw players and
+			// rivers jump with no chance to understand the intervening actions.
+			// Remember that this request has emitted its learner-visible beat.
+			// Draws and claim responses may continue so the returned action version
+			// is stable for any human decision. Disclosed AFK takeover remains
+			// unchanged for online tables because IsBotSeat only marks permanent bots.
+			if engine.IsBotSeat(seat) && command.Type == rulesengine.CommandDiscard {
+				publicBotDiscarded = true
 			}
 			acted = true
 			break

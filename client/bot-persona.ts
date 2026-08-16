@@ -1,4 +1,5 @@
 import type { PlayerView } from "../protocol/envelope";
+import { t } from "./i18n";
 
 /**
  * How a seat is named and labelled.
@@ -45,20 +46,25 @@ export function seatPersona(player: PlayerView | undefined): BotPersona | null {
 /**
  * What to call this seat.
  *
- * A named bot is shown by name; an unnamed one stays "Bot", which is also
- * what §11 requires a bot to remain regardless of how it is styled.
+ * A named bot is shown by name; an unnamed one stays localized "Bot", which
+ * is also what §11 requires a bot to remain regardless of how it is styled.
+ *
+ * The persona's own name/tag/glyph are server-provided proper nouns and
+ * deliberately not run through t(): per the persona proposal, "working
+ * persona names ... will receive separate cultural review" — they are not
+ * yet part of the localization catalog the way the surrounding UI copy is.
  */
 export function seatDisplayName(
   player: PlayerView | undefined,
   isLocal: boolean,
 ): string {
   if (isLocal) {
-    return "You";
+    return t("common.you");
   }
   if (!player?.is_bot) {
-    return "Player";
+    return t("loading.player");
   }
-  return seatPersona(player)?.name || "Bot";
+  return seatPersona(player)?.name || t("table.bot");
 }
 
 /**
@@ -67,9 +73,10 @@ export function seatDisplayName(
  *
  * The style rides alongside the word "Bot" rather than replacing it. §11
  * requires a bot to stay visibly a bot, and a seat labelled only "Rush"
- * would read as a human's chosen nickname.
+ * would read as a human's chosen nickname. The style tag itself is not
+ * translated, for the same reason seatDisplayName's persona name isn't.
  */
 export function botBadgeLabel(styleTag: string | undefined): string {
   const tag = styleTag?.trim();
-  return tag ? `Bot · ${tag}` : "Bot";
+  return tag ? t("table.botStyled", { style: tag }) : t("table.bot");
 }

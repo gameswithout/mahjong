@@ -794,11 +794,18 @@ message HandWinner {
   ScoreResult score = 3;
 }
 
+message DrawSeatAnalysis {
+  string seat = 1;
+  bool tenpai = 2;
+  repeated WaitTileView waits = 3;
+}
+
 message HandResult {
   string kind = 1;
   repeated HandWinner winners = 2;
   string payer = 3;
   string winning_tile_id = 4;
+  repeated DrawSeatAnalysis draw_analysis = 5;
 }
 
 message Transfer {

@@ -79,6 +79,13 @@ type MatchHistoryRepository interface {
 	PlayerMatchHistory(ctx context.Context, userID string, limit int) ([]MatchHistoryEntry, error)
 }
 
+// DailyPracticeXPRepository supplies the authoritative UTC-day total used by
+// Practice's capped mastery award. It is optional so rules-only repositories
+// and older storage adapters continue to support public progression.
+type DailyPracticeXPRepository interface {
+	PracticeXPToday(ctx context.Context, userID string) (int, error)
+}
+
 // StatsMirror projects §12.3 achievement statistics into AGS. Optional: the
 // service runs without it, awarding XP as usual and simply not feeding
 // achievements.
@@ -306,14 +313,22 @@ func (c *Coordinator) recordHand(
 		outcome.TakenOverMajority = takenOverMajority
 	}
 
-	// Alpha has no daily XP cap. The second argument remains for compatibility
-	// with the existing pure award API and is deliberately ignored.
+	practiceXPToday := 0
+	if practice {
+		if daily, ok := c.repository.(DailyPracticeXPRepository); ok {
+			var err error
+			practiceXPToday, err = daily.PracticeXPToday(ctx, userID)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	var achievements []HandAward
 	// §12.1 scores the two modes differently: Quick Play prices the hand
 	// itself, Full Rotation pays a flat rate and settles the rest on final
 	// placement, because a hand lost early in a rotation can be the right play
 	// for the match.
-	award := HandXP(outcome, 0)
+	award := HandXP(outcome, practiceXPToday)
 	if rotation {
 		award = RotationHandAward()
 	}

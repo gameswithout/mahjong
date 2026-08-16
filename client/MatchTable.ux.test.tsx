@@ -333,7 +333,7 @@ describe("MatchTable table-first UX", () => {
     expect(sortedAfter.at(-1)).toContain("wind east");
   });
 
-  it("shows an indefinite elapsed move timer for untimed development play", () => {
+  it("shows elapsed time for the whole untimed hand without resetting each turn", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-24T18:00:00Z"));
     act(() =>
@@ -342,11 +342,27 @@ describe("MatchTable table-first UX", () => {
       ),
     );
     expect(container.querySelector('[role="timer"]')?.getAttribute("aria-label")).toBe(
-      "0 seconds elapsed",
+      "0 seconds into this hand",
     );
     act(() => vi.advanceTimersByTime(3000));
     expect(container.querySelector('[role="timer"]')?.getAttribute("aria-label")).toBe(
-      "3 seconds elapsed",
+      "3 seconds into this hand",
+    );
+    act(() => root.render(
+      <MatchTable
+        state={{
+          ...mockMatchTableState,
+          untimed: true,
+          seats: {
+            ...mockMatchTableState.seats,
+            E: { ...mockMatchTableState.seats.E, isActive: false },
+            S: { ...mockMatchTableState.seats.S, isActive: true },
+          },
+        }}
+      />,
+    ));
+    expect(container.querySelector('[role="timer"]')?.getAttribute("aria-label")).toBe(
+      "3 seconds into this hand",
     );
     expect(container.querySelector(".countdown-elapsed-time")?.textContent).toBe("0:03");
     vi.useRealTimers();
@@ -485,6 +501,28 @@ describe("MatchTable table-first UX", () => {
     expect(onGang).toHaveBeenCalledOnce();
   });
 
+  it("confirms Chow and Pong before changing the learner's hand", () => {
+    const onPong = vi.fn();
+    act(() => root.render(
+      <MatchTable
+        state={{
+          ...mockMatchTableState,
+          legalActions: [{ id: "pong", label: "Pong", onClick: onPong }],
+        }}
+      />,
+    ));
+
+    const pong = container.querySelector<HTMLButtonElement>(".action-pong");
+    act(() => pong?.click());
+    expect(onPong).not.toHaveBeenCalled();
+    expect(pong?.textContent).toContain("Confirm Pong");
+    expect(container.querySelector(".action-explanation")?.textContent).toContain(
+      "changes your hand and cannot be undone",
+    );
+    act(() => pong?.click());
+    expect(onPong).toHaveBeenCalledOnce();
+  });
+
   it("explains actions disabled while a table request is pending", () => {
     act(() =>
       root.render(
@@ -528,6 +566,92 @@ describe("MatchTable table-first UX", () => {
 
     act(() => root.render(<MatchTable state={{ ...passOnlyState }} />));
     expect(onPass).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a Pass-only response visible when automatic passing is disabled", () => {
+    const onPass = vi.fn();
+    act(() => root.render(
+      <MatchTable
+        state={{
+          ...mockMatchTableState,
+          legalActions: [{ id: "pass", label: "Pass", onClick: onPass }],
+        }}
+        preferences={{ expertHud: false, autoPassClaims: false, compactClaimPrompts: false }}
+      />,
+    ));
+
+    expect(onPass).not.toHaveBeenCalled();
+    expect(container.querySelector(".action-pass")).not.toBeNull();
+  });
+
+  it("shows the optional Learning HUD with an explicit public-information boundary", () => {
+    act(() => root.render(
+      <MatchTable
+        state={mockMatchTableState}
+        preferences={{ expertHud: true, autoPassClaims: true, compactClaimPrompts: false }}
+      />,
+    ));
+
+    expect(container.querySelector('[aria-label="Learning HUD"]')).not.toBeNull();
+    expect(container.textContent).toContain("Public information only");
+    expect(container.querySelector('[aria-label="Learning HUD"] .wait-panel')).toBeNull();
+    const expand = container.querySelector<HTMLButtonElement>('[aria-label="Open Learning HUD details"]');
+    act(() => expand?.click());
+    expect(container.querySelector('[aria-label="Learning HUD"]')?.textContent).toContain(
+      "Select a tile to inspect its public visibility",
+    );
+    expect(expand?.getAttribute("aria-expanded")).toBe("true");
+
+    act(() => root.render(
+      <MatchTable
+        state={mockMatchTableState}
+        preferences={{ expertHud: false, autoPassClaims: true, compactClaimPrompts: false }}
+      />,
+    ));
+    expect(container.querySelector('[aria-label="Learning HUD"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Learning HUD hidden"]')).not.toBeNull();
+    const show = container.querySelector<HTMLButtonElement>('[aria-label="Learning HUD hidden"] button');
+    act(() => show?.click());
+    expect(container.querySelector('[aria-label="Learning HUD"]')).not.toBeNull();
+  });
+
+  it("keeps a visible feed of recent discards and claims", () => {
+    act(() => root.render(<MatchTable state={mockMatchTableState} />));
+    expect(container.querySelector('[aria-label="Recent actions"]')?.textContent).toContain(
+      "Bot discarded 6 of dots",
+    );
+
+    const claimed = {
+      ...mockMatchTableState,
+      lastDiscard: { seat: "W" as const, tile: tile("dots-5-4") },
+      seats: {
+        ...mockMatchTableState.seats,
+        W: {
+          ...mockMatchTableState.seats.W,
+          discards: [...mockMatchTableState.seats.W.discards, tile("dots-5-4")],
+          melds: [{
+            id: "w-pong-1",
+            type: "pong" as const,
+            tiles: ["wind-west-1", "wind-west-2", "wind-west-3"].map(tile),
+          }],
+        },
+      },
+    };
+    act(() => root.render(<MatchTable state={claimed} />));
+
+    const feed = container.querySelector('[aria-label="Recent actions"]');
+    expect(feed?.textContent).toContain("Bot discarded 5 of dots");
+    expect(feed?.textContent).toContain("Bot claimed Pong");
+
+    // A reconnect can briefly render an older authoritative projection. When
+    // the latest projection returns, the same physical tile is refreshed in
+    // place rather than appended with a duplicate React key.
+    act(() => root.render(<MatchTable state={mockMatchTableState} />));
+    act(() => root.render(<MatchTable state={claimed} />));
+    expect(
+      Array.from(container.querySelectorAll('[aria-label="Recent actions"] li'))
+        .filter((item) => item.textContent === "Bot discarded 5 of dots"),
+    ).toHaveLength(1);
   });
 
   it("never auto-passes when another claim is available", () => {

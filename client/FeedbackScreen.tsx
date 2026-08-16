@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 
 import type { FeedbackCategory, PlayerFeedback } from "./feedback";
+import { t } from "./i18n";
 
 export function FeedbackScreen({
   sessionId,
@@ -32,38 +33,40 @@ export function FeedbackScreen({
       <section className="feedback-card">
         <header className="feedback-header">
           <div>
-            <p className="status-label">Help improve Mahjong</p>
-            <h1 id="feedback-title">{sessionId ? "Report Issues" : "Submit Feedback"}</h1>
+            <p className="status-label">{t("feedback.help")}</p>
+            <h1 id="feedback-title">
+              {sessionId ? t("feedback.report") : t("feedback.submitTitle")}
+            </h1>
           </div>
-          <button type="button" className="secondary-action" onClick={onClose}>Close</button>
+          <button type="button" className="secondary-action" onClick={onClose}>{t("common.close")}</button>
         </header>
 
         {status === "sent" ? (
           <div className="feedback-success" role="status">
-            <h2>Thank you</h2>
-            <p>Your feedback was saved with your account for review.</p>
-            {sessionId && <p>Session <code>{sessionId}</code> was attached automatically.</p>}
-            <button type="button" className="primary-action" onClick={onClose}>Done</button>
+            <h2>{t("feedback.thanks")}</h2>
+            <p>{t("feedback.saved")}</p>
+            {sessionId && <p>{t("feedback.sessionAttached", { id: sessionId })}</p>}
+            <button type="button" className="primary-action" onClick={onClose}>{t("feedback.done")}</button>
           </div>
         ) : (
           <form className="feedback-form" onSubmit={(event) => void submit(event)}>
             {sessionId && (
               <label>
-                Session ID
+                {t("feedback.sessionId")}
                 <input value={sessionId} readOnly />
               </label>
             )}
             <label>
-              Category
+              {t("feedback.category")}
               <select value={category} onChange={(event) => setCategory(event.target.value as FeedbackCategory)}>
-                <option value="gameplay">Gameplay</option>
-                <option value="connection">Connection or loading</option>
-                <option value="ui">UI or readability</option>
-                <option value="other">Other</option>
+                <option value="gameplay">{t("feedback.gameplay")}</option>
+                <option value="connection">{t("feedback.connection")}</option>
+                <option value="ui">{t("feedback.ui")}</option>
+                <option value="other">{t("feedback.other")}</option>
               </select>
             </label>
             <label>
-              Short summary
+              {t("feedback.summary")}
               <input
                 value={summary}
                 onChange={(event) => setSummary(event.target.value)}
@@ -72,7 +75,7 @@ export function FeedbackScreen({
               />
             </label>
             <label>
-              What happened?
+              {t("feedback.details")}
               <textarea
                 value={details}
                 onChange={(event) => setDetails(event.target.value)}
@@ -83,11 +86,11 @@ export function FeedbackScreen({
             </label>
             {status === "error" && (
               <p className="feedback-error" role="alert">
-                Feedback could not be saved. Please try again.
+                {t("feedback.saveError")}
               </p>
             )}
             <button className="primary-action" type="submit" disabled={status === "submitting"}>
-              {status === "submitting" ? "Submitting…" : "Submit"}
+              {status === "submitting" ? t("feedback.submitting") : t("feedback.submit")}
             </button>
           </form>
         )}

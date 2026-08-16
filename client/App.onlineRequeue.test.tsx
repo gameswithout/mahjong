@@ -338,17 +338,46 @@ describe("App online matchmaking and requeue", () => {
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull());
   }
 
-  it("keeps Full Rotation out of the Alpha matchmaking lobby", async () => {
+  it("shows Full Rotation while keeping account-required entry gated", async () => {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
     await vi.waitFor(() => expect(container.textContent).toContain("Play Online"));
 
-    expect(container.textContent).not.toContain("Full Rotation");
+    expect(container.textContent).toContain("Full Rotation");
+    expect(container.textContent).toContain("Four dealerships");
+    expect(container.textContent).toContain("A full account is required");
     expect(
       Array.from(container.querySelectorAll("button")).some(
         (candidate) => candidate.textContent === "Find a rotation",
       ),
     ).toBe(false);
+    expect(
+      Array.from(container.querySelectorAll("button")).some(
+        (candidate) => candidate.textContent === "Unlock Full Rotation",
+      ),
+    ).toBe(true);
+  });
+
+  it("offers the existing Full Rotation matchmaking pool to full accounts", async () => {
+    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({
+      userId: "guest-1",
+      deviceId: "device-1",
+      isGuest: false,
+    });
+
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Full Rotation"));
+
+    expect(button(container, "Find a rotation")).toBeInstanceOf(HTMLButtonElement);
+    expect(container.textContent).not.toContain("A full account is required");
+    await clickAndFlush(container, "Find a rotation");
+    await vi.waitFor(() => expect(createTicket).toHaveBeenCalledOnce());
+    expect(dependencies.createMatchmakingClient).toHaveBeenCalledWith(
+      expect.anything(),
+      "mahjong-test",
+      expect.objectContaining({ matchPool: "rotation" }),
+    );
   });
 
   it("offers a way out of a queue that has passed 90 seconds, releasing the reservation", async () => {

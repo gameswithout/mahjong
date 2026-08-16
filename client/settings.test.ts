@@ -17,11 +17,13 @@ function sdkWith(get: ReturnType<typeof vi.fn>, put = vi.fn()) {
 describe("player settings", () => {
   it("caches settings by account for immediate login hydration", () => {
     saveCachedPlayerSettings("guest-1", {
+      ...DEFAULT_PLAYER_SETTINGS,
       showTutorial: false,
       optionalAnalyticsConsent: true,
     });
 
     expect(loadCachedPlayerSettings("guest-1")).toEqual({
+      ...DEFAULT_PLAYER_SETTINGS,
       showTutorial: false,
       optionalAnalyticsConsent: true,
     });
@@ -31,8 +33,27 @@ describe("player settings", () => {
   it("normalizes missing and wrapped values", () => {
     expect(normalizePlayerSettings(undefined)).toEqual(DEFAULT_PLAYER_SETTINGS);
     expect(normalizePlayerSettings({ value: { showTutorial: false } })).toEqual({
+      ...DEFAULT_PLAYER_SETTINGS,
       showTutorial: false,
+    });
+  });
+
+  it("treats a record written before the consent ask existed as never asked", () => {
+    // "declined" and "never asked" are both optionalAnalyticsConsent: false.
+    // A record from before the field existed has to normalize to the second,
+    // or every player who predates the ask is silently counted as having
+    // refused and never gets asked at all.
+    const legacy = normalizePlayerSettings({
+      value: { showTutorial: false, optionalAnalyticsConsent: false },
+    });
+    expect(legacy.analyticsConsentDecided).toBe(false);
+
+    const answered = normalizePlayerSettings({
+      value: { optionalAnalyticsConsent: false, analyticsConsentDecided: true },
+    });
+    expect(answered).toMatchObject({
       optionalAnalyticsConsent: false,
+      analyticsConsentDecided: true,
     });
   });
 
@@ -43,6 +64,7 @@ describe("player settings", () => {
     const client = createPlayerSettingsClient(sdkWith(get), "mahjong", "player 1");
 
     await expect(client.get()).resolves.toEqual({
+      ...DEFAULT_PLAYER_SETTINGS,
       showTutorial: false,
       optionalAnalyticsConsent: true,
     });
@@ -70,15 +92,16 @@ describe("player settings", () => {
     const client = createPlayerSettingsClient(sdkWith(vi.fn(), put), "mahjong", "player");
 
     await expect(
-      client.save({ showTutorial: false, optionalAnalyticsConsent: true }),
+      client.save({ ...DEFAULT_PLAYER_SETTINGS, showTutorial: false, optionalAnalyticsConsent: true }),
     ).resolves.toEqual({
+      ...DEFAULT_PLAYER_SETTINGS,
       showTutorial: false,
       optionalAnalyticsConsent: true,
     });
     expect(put).toHaveBeenCalledWith(
       "/cloudsave/v1/namespaces/mahjong/users/player/records/mahjong-player-settings",
       {
-        value: { showTutorial: false, optionalAnalyticsConsent: true },
+        value: { ...DEFAULT_PLAYER_SETTINGS, showTutorial: false, optionalAnalyticsConsent: true },
         isPublic: false,
       },
     );
@@ -91,8 +114,9 @@ describe("player settings", () => {
     const client = createPlayerSettingsClient(sdkWith(vi.fn(), put), "mahjong", "player");
 
     await expect(
-      client.save({ showTutorial: false, optionalAnalyticsConsent: false }),
+      client.save({ ...DEFAULT_PLAYER_SETTINGS, showTutorial: false, optionalAnalyticsConsent: false }),
     ).resolves.toEqual({
+      ...DEFAULT_PLAYER_SETTINGS,
       showTutorial: false,
       optionalAnalyticsConsent: false,
     });

@@ -821,6 +821,39 @@ func TestProjectState_ProjectsHandResultSettlementAndNextDealer(t *testing.T) {
 	}
 }
 
+func TestProjectState_RevealsAllSeatWaitsOnlyInTheTerminalDrawResult(t *testing.T) {
+	view := privateView()
+	view.Phase = rulesengine.PhaseExhaustiveDraw
+	view.HandResult = &rulesengine.HandResult{
+		Kind: rulesengine.KindExhaustiveDraw,
+		DrawAnalysis: []rulesengine.DrawSeatAnalysis{
+			{
+				Seat:   rulesengine.East,
+				Tenpai: true,
+				Waits: []rulesengine.WaitTileView{{
+					Tile:             rulesengine.Tile{ID: "dots-5-2", Kind: rulesengine.Dots, Rank: 5, Copy: 2},
+					VisibleRemaining: 2,
+				}},
+			},
+			{Seat: rulesengine.South, Tenpai: false},
+			{Seat: rulesengine.West, Tenpai: true},
+			{Seat: rulesengine.North, Tenpai: false},
+		},
+	}
+
+	analysis := projectState("public-match-id", view.SeatView, view.BotPersonas).GetHandResult().GetDrawAnalysis()
+	if len(analysis) != 4 {
+		t.Fatalf("projected draw analysis = %#v, want all four seats", analysis)
+	}
+	if !analysis[0].GetTenpai() || analysis[0].GetWaits()[0].GetTile().GetId() != "dots-5-2" ||
+		analysis[0].GetWaits()[0].GetVisibleRemaining() != 2 {
+		t.Fatalf("projected East analysis = %#v", analysis[0])
+	}
+	if analysis[1].GetTenpai() || analysis[1].GetSeat() != "S" {
+		t.Fatalf("projected South analysis = %#v", analysis[1])
+	}
+}
+
 func privateView() match.TableView {
 	// HandRuntimeID is what per-hand XP and statistics are keyed on. The real
 	// runtime always sets it; the service refuses an empty one rather than

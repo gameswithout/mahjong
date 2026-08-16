@@ -7,12 +7,13 @@
 // Play Again covers both Practice and staked requeue (§P1.3 session closure).
 import { useState, type ReactNode } from "react";
 
-import { patternDisplayName, patternGuide, taiValue } from "./scoring-guide";
+import { patternDisplayName, patternGuide } from "./scoring-guide";
 
 import type {
   HandResult,
   HandWinner,
   HandXPAward,
+  MahjongTile,
   MahjongSeat,
   PatternScore,
   SeatView,
@@ -20,10 +21,15 @@ import type {
 } from "../protocol/envelope";
 import { TileFace } from "./TileFace";
 import { XPAward } from "./XPAward";
+import { formatNumber, getLocale, t, translateSource } from "./i18n";
 import type { SeatId } from "./matchTableTypes";
-import { tile, windName } from "./matchTableTypes";
+import { tile, tileTypeKey, windName } from "./matchTableTypes";
 
 const SEAT_ORDER: MahjongSeat[] = ["E", "S", "W", "N"];
+
+function localizedPatternName(name: string): string {
+  return getLocale() === "en" ? patternDisplayName(name) : translateSource(name);
+}
 
 export interface ResultFriendOpponent {
   userId: string;
@@ -76,7 +82,7 @@ function ResultFriends({
       outcome = {
         ok: false,
         code: "unknown",
-        message: "The friend request could not be sent. Please retry.",
+        message: t("result.friendSendError"),
       };
     }
     setRequestStates((current) => ({
@@ -89,20 +95,20 @@ function ResultFriends({
     <section className="result-friends" aria-labelledby="result-friends-title">
       <div className="result-friends-heading">
         <div>
-          <p className="hand-result-kicker">Players</p>
-          <h3 id="result-friends-title">Add friends from this hand</h3>
+          <p className="hand-result-kicker">{t("result.players")}</p>
+          <h3 id="result-friends-title">{t("result.addFriends")}</h3>
         </div>
         <span>
-          {state.opponents.length} {state.opponents.length === 1 ? "opponent" : "opponents"}
+          {t(state.opponents.length === 1 ? "result.opponent" : "result.opponents", {
+            count: state.opponents.length,
+          })}
         </span>
       </div>
-      <p className="result-friends-intro">
-        Send a request while this table is still fresh. Your next match will still use a new queue.
-      </p>
+      <p className="result-friends-intro">{t("result.friendIntro")}</p>
 
       {state.status === "loading" && (
         <p className="result-friends-status" role="status" aria-live="polite">
-          Checking friend status…
+          {t("result.checkingFriends")}
         </p>
       )}
 
@@ -112,14 +118,14 @@ function ResultFriends({
             {state.message} <span className="result-friends-error-code">({state.code})</span>
           </p>
           <button type="button" className="secondary-action friend-action" onClick={onRetry}>
-            Retry
+            {t("common.retry")}
           </button>
         </div>
       )}
 
       {state.status === "ready" && (
         state.opponents.length === 0 ? (
-          <p className="result-friends-status">No eligible opponents were found for this hand.</p>
+          <p className="result-friends-status">{t("result.noOpponents")}</p>
         ) : (
           <ul className="result-friends-list">
             {state.opponents.map((opponent) => {
@@ -141,19 +147,19 @@ function ResultFriends({
                   <span className="result-friend-action">
                     {sent ? (
                       <span className="result-friend-relationship" role="status">
-                        {opponent.relationship === "friend" ? "Friends" : "Request sent"}
+                        {opponent.relationship === "friend" ? t("result.friends") : t("result.requestSent")}
                       </span>
                     ) : opponent.relationship === "incoming" ? (
-                      <span className="result-friend-relationship">Request received</span>
+                      <span className="result-friend-relationship">{t("result.requestReceived")}</span>
                     ) : (
                       <button
                         type="button"
                         className="secondary-action friend-action"
-                        aria-label={`Add ${playerLabel} as a friend`}
+                        aria-label={t("result.addFriendLabel", { player: playerLabel })}
                         disabled={sending}
                         onClick={() => void addFriend(opponent.userId)}
                       >
-                        {sending ? "Sending…" : "Add Friend"}
+                        {sending ? t("result.sending") : t("result.addFriend")}
                       </button>
                     )}
                   </span>
@@ -178,7 +184,8 @@ function ResultFriends({
 }
 
 function seatLabel(seat: MahjongSeat, localSeat: MahjongSeat): string {
-  return seat === localSeat ? `You (${windName(seat as SeatId)})` : windName(seat as SeatId);
+  const wind = translateSource(windName(seat as SeatId));
+  return seat === localSeat ? t("result.youSeat", { wind }) : wind;
 }
 
 function currentDealer(view: SeatView): MahjongSeat | null {
@@ -193,41 +200,289 @@ function currentDealer(view: SeatView): MahjongSeat | null {
   return nextIndex < 0 ? null : SEAT_ORDER[(nextIndex + SEAT_ORDER.length - 1) % SEAT_ORDER.length];
 }
 
+function publicTileCounts(view: SeatView): Map<string, number> {
+  const counts = new Map<string, number>();
+  const seenPhysicalTiles = new Set<string>();
+  const add = (candidate: MahjongTile) => {
+    if (seenPhysicalTiles.has(candidate.id)) return;
+    seenPhysicalTiles.add(candidate.id);
+    const key = tileTypeKey(candidate.id);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  };
+
+  for (const discard of view.discards ?? []) add(discard.tile);
+  for (const player of view.players) {
+    if (player.melds) {
+      for (const meld of player.melds) {
+        if (!meld.concealed) {
+          for (const candidate of meld.tiles ?? []) add(candidate);
+        }
+      }
+    } else {
+      for (const candidate of player.exposed ?? []) add(candidate);
+    }
+  }
+  return counts;
+}
+
+function completedGroup(view: SeatView): string | null {
+  const result = view.hand_result;
+  const winningType = result?.winning_tile_id ? tileTypeKey(result.winning_tile_id) : null;
+  if (!winningType) return null;
+  for (const winner of result?.winners ?? []) {
+    if (winner.score.shape.pair.some((candidate) => tileTypeKey(candidate.id) === winningType)) {
+      return t("result.completedPair");
+    }
+    const meld = winner.score.shape.melds.find((candidate) =>
+      candidate.tiles?.some((meldTile) => tileTypeKey(meldTile.id) === winningType),
+    );
+    if (meld) {
+      if (meld.type === "pong") return t("result.completedPong");
+      if (meld.type === "kong") return t("result.completedKong");
+      return t("result.completedChow");
+    }
+  }
+  return null;
+}
+
+function finalShapeProgress(view: SeatView): { groups: number; hasPair: boolean } {
+  const counts = new Map<string, number>();
+  for (const candidate of view.own_hand) {
+    if (candidate.kind === "flower") continue;
+    const key = `${candidate.kind}:${candidate.rank ?? candidate.id.split("-").slice(0, -1).join("-")}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const keys = Array.from(counts.keys()).sort();
+  const values = keys.map((key) => counts.get(key) ?? 0);
+  const indexByKey = new Map(keys.map((key, index) => [key, index]));
+  const memo = new Map<string, { groups: number; hasPair: boolean }>();
+
+  const best = (left: { groups: number; hasPair: boolean }, right: { groups: number; hasPair: boolean }) =>
+    right.groups > left.groups || (right.groups === left.groups && right.hasPair && !left.hasPair)
+      ? right
+      : left;
+  const search = (remaining: number[], pairUsed: boolean): { groups: number; hasPair: boolean } => {
+    const memoKey = `${pairUsed ? 1 : 0}:${remaining.join(",")}`;
+    const cached = memo.get(memoKey);
+    if (cached) return cached;
+    const index = remaining.findIndex((count) => count > 0);
+    if (index < 0) return { groups: 0, hasPair: pairUsed };
+
+    const skipped = [...remaining];
+    skipped[index] -= 1;
+    let result = search(skipped, pairUsed);
+
+    if (remaining[index] >= 3) {
+      const triplet = [...remaining];
+      triplet[index] -= 3;
+      const next = search(triplet, pairUsed);
+      result = best(result, { groups: next.groups + 1, hasPair: next.hasPair });
+    }
+    if (!pairUsed && remaining[index] >= 2) {
+      const pair = [...remaining];
+      pair[index] -= 2;
+      result = best(result, search(pair, true));
+    }
+
+    const [kind, rankText] = keys[index].split(":");
+    const rank = Number(rankText);
+    if ((kind === "characters" || kind === "bamboo" || kind === "dots") && rank <= 7) {
+      const second = indexByKey.get(`${kind}:${rank + 1}`);
+      const third = indexByKey.get(`${kind}:${rank + 2}`);
+      if (second !== undefined && third !== undefined && remaining[second] > 0 && remaining[third] > 0) {
+        const sequence = [...remaining];
+        sequence[index] -= 1;
+        sequence[second] -= 1;
+        sequence[third] -= 1;
+        const next = search(sequence, pairUsed);
+        result = best(result, { groups: next.groups + 1, hasPair: next.hasPair });
+      }
+    }
+    memo.set(memoKey, result);
+    return result;
+  };
+
+  const concealed = search(values, false);
+  return {
+    groups: concealed.groups + (view.own_melds?.length ?? 0),
+    hasPair: concealed.hasPair,
+  };
+}
+
+function ResultAnalysis({ view }: { view: SeatView }) {
+  const result = view.hand_result;
+  if (!result) return null;
+
+  if (result.kind === "exhaustive_draw") {
+    const rows = result.draw_analysis?.length
+      ? result.draw_analysis
+      : [{ seat: view.seat, tenpai: (view.waits?.length ?? 0) > 0, waits: view.waits }];
+    return (
+      <section className="hand-result-analysis" aria-labelledby="result-analysis-heading">
+        <p className="hand-result-kicker">{t("result.review")}</p>
+        <h3 id="result-analysis-heading">{t("result.drawAnalysis")}</h3>
+        <p className="hand-result-analysis-lead">{t("result.drawAnalysisLead")}</p>
+        <ul className="hand-result-draw-rows">
+          {rows.map((row) => {
+            const liveCopies = (row.waits ?? []).reduce(
+              (sum, wait) => sum + wait.visible_remaining,
+              0,
+            );
+            const localShape = row.seat === view.seat && !row.tenpai
+              ? finalShapeProgress(view)
+              : null;
+            return (
+              <li key={row.seat} className={row.tenpai ? "is-tenpai" : "is-not-tenpai"}>
+                <div className="hand-result-draw-seat">
+                  <strong>{seatLabel(row.seat, view.seat)}</strong>
+                  <span>{row.tenpai ? t("result.tenpai") : t("result.notTenpai")}</span>
+                </div>
+                {row.tenpai && (row.waits?.length ?? 0) > 0 ? (
+                  <div className="hand-result-draw-waits">
+                    {(row.waits ?? []).map((wait) => (
+                      <span key={`${row.seat}-${tileTypeKey(wait.tile.id)}`} className="hand-result-draw-wait">
+                        <span className="tile tile-sm" role="img" aria-label={tile(wait.tile.id).label}>
+                          <TileFace id={wait.tile.id} size="sm" />
+                        </span>
+                        <small>{t("result.liveCopies", { count: wait.visible_remaining })}</small>
+                      </span>
+                    ))}
+                    <span className="hand-result-live-total">
+                      {t("result.liveTotal", { count: liveCopies })}
+                    </span>
+                  </div>
+                ) : row.tenpai ? (
+                  <small>{t("result.waitsUnavailable")}</small>
+                ) : localShape ? (
+                  <div className="hand-result-draw-shape">
+                    <small>{t("result.finalShapeProgress", {
+                      groups: localShape.groups,
+                      pair: t(localShape.hasPair ? "result.withPair" : "result.withoutPair"),
+                    })}</small>
+                    <div className="hand-result-final-tiles" aria-label={t("result.yourFinalTiles")}>
+                      {view.own_hand.filter((candidate) => candidate.kind !== "flower").map((candidate) => (
+                        <span key={candidate.id} className="tile tile-sm" role="img" aria-label={tile(candidate.id).label}>
+                          <TileFace id={candidate.id} size="sm" />
+                        </span>
+                      ))}
+                    </div>
+                    <small>{t(localShape.hasPair ? "result.nextFocusGroups" : "result.nextFocusPair")}</small>
+                  </div>
+                ) : (
+                  <small>{t("result.finishedNotReady")}</small>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    );
+  }
+
+  if (result.kind !== "discard" || result.payer !== view.seat || !result.winning_tile_id) {
+    return null;
+  }
+
+  const winning = tile(result.winning_tile_id);
+  const winningType = tileTypeKey(result.winning_tile_id);
+  const publicCounts = publicTileCounts(view);
+  const visibleBefore = Math.max(0, (publicCounts.get(winningType) ?? 0) - 1);
+  const completed = completedGroup(view);
+  const alternatives = Array.from(
+    new Map(
+      view.own_hand
+        .filter((candidate) => candidate.kind !== "flower" && tileTypeKey(candidate.id) !== winningType)
+        .map((candidate) => [tileTypeKey(candidate.id), candidate]),
+    ).values(),
+  )
+    .map((candidate) => ({
+      candidate,
+      visible: publicCounts.get(tileTypeKey(candidate.id)) ?? 0,
+    }))
+    .sort((left, right) => right.visible - left.visible || left.candidate.id.localeCompare(right.candidate.id))
+    .slice(0, 3);
+
+  return (
+    <section className="hand-result-analysis" aria-labelledby="result-analysis-heading">
+      <p className="hand-result-kicker">{t("result.review")}</p>
+      <h3 id="result-analysis-heading">{t("result.decisionAnalysis")}</h3>
+      <div className="hand-result-deal-in">
+        <span className="tile tile-md" role="img" aria-label={winning.label}>
+          <TileFace id={winning.id} size="md" />
+        </span>
+        <div>
+          <strong>{t("result.dealInTitle", { tile: winning.label })}</strong>
+          <p>{visibleBefore === 0
+            ? t("result.dealInUnseen")
+            : t("result.dealInSeen", { count: visibleBefore })}</p>
+          {completed ? <p>{t("result.completedGroup", { group: completed })}</p> : null}
+        </div>
+      </div>
+      {alternatives.length > 0 ? (
+        <div className="hand-result-alternatives">
+          <strong>{t("result.visibilityAlternatives")}</strong>
+          <div>
+            {alternatives.map(({ candidate, visible }) => (
+              <span key={tileTypeKey(candidate.id)} className="hand-result-alternative">
+                <span className="tile tile-sm" role="img" aria-label={tile(candidate.id).label}>
+                  <TileFace id={candidate.id} size="sm" />
+                </span>
+                <small>{t("result.publicCopies", { count: visible })}</small>
+              </span>
+            ))}
+          </div>
+          <p>{t("result.alternativesCaveat")}</p>
+        </div>
+      ) : null}
+      <p className="hand-result-analysis-source">{t("result.publicOnlyReview")}</p>
+    </section>
+  );
+}
+
 function walletSyncPresentation(status: string | undefined, error: string | undefined): {
   icon: string;
   message: string;
 } {
   switch (status) {
     case "synced":
-      return { icon: "✓", message: "Settlement posted · AGS Wallet synced" };
+      return { icon: "✓", message: t("result.walletSynced") };
     case "pending":
-      return { icon: "…", message: "Settlement posted · AGS Wallet queued" };
+      return { icon: "…", message: t("result.walletQueued") };
     case "syncing":
-      return { icon: "↻", message: "Settlement posted · AGS Wallet syncing" };
+      return { icon: "↻", message: t("result.walletSyncing") };
     case "error":
       if (error === "unauthorized" || error === "forbidden") {
         return {
           icon: "!",
-          message: "Settlement posted · Wallet sync needs service attention; your Jade is safe",
+          message: t("result.walletServiceAttention"),
         };
       }
       return {
         icon: "!",
-        message: "Settlement posted · Wallet sync delayed; retrying automatically",
+        message: t("result.walletDelayed"),
       };
     default:
-      return { icon: "?", message: "Settlement posted · Wallet status unavailable" };
+      return { icon: "?", message: t("result.walletUnavailable") };
   }
 }
 
-const WIN_TYPE_COPY: Record<HandResult["kind"], { chinese: string; romanized: string; english: string }> = {
-  discard: { chinese: "胡", romanized: "Hu", english: "" },
-  zimo: { chinese: "自摸", romanized: "Zi Mo", english: "Self-Draw" },
-  rob: { chinese: "搶槓", romanized: "Qiang Gang", english: "Robbing the Kong" },
-  eight_flowers: { chinese: "八仙過海", romanized: "Eight Flowers", english: "Eight Flowers Win" },
-  heavenly: { chinese: "天胡", romanized: "Tian Hu", english: "Heavenly Hand" },
-  exhaustive_draw: { chinese: "流局", romanized: "Liu Ju", english: "Exhaustive Draw" },
+const WIN_TYPE_COPY: Record<HandResult["kind"], { chinese: string; romanized: string }> = {
+  discard: { chinese: "胡", romanized: "Hu" },
+  zimo: { chinese: "自摸", romanized: "Zi Mo" },
+  rob: { chinese: "搶槓", romanized: "Qiang Gang" },
+  eight_flowers: { chinese: "八仙過海", romanized: "Eight Flowers" },
+  heavenly: { chinese: "天胡", romanized: "Tian Hu" },
+  exhaustive_draw: { chinese: "流局", romanized: "Liu Ju" },
 };
+
+function winTypeEnglish(kind: HandResult["kind"]): string {
+  if (kind === "zimo") return t("result.selfDraw");
+  if (kind === "rob") return t("result.robbingKong");
+  if (kind === "eight_flowers") return t("result.eightFlowers");
+  if (kind === "heavenly") return t("result.heavenlyHand");
+  if (kind === "exhaustive_draw") return t("result.exhaustiveDraw");
+  return "";
+}
 
 function WinTypeBanner({
   result,
@@ -239,6 +494,7 @@ function WinTypeBanner({
   localSeat: MahjongSeat;
 }) {
   const copy = WIN_TYPE_COPY[result.kind];
+  const english = winTypeEnglish(result.kind);
   const winningTile = result.winning_tile_id ? tile(result.winning_tile_id) : null;
   const winnerNames = winners.map((winner) => seatLabel(winner.seat, localSeat)).join(" & ");
   const payerName = result.payer ? seatLabel(result.payer, localSeat) : null;
@@ -247,29 +503,29 @@ function WinTypeBanner({
     <header className={`hand-result-win-type hand-result-win-type-${result.kind}`}>
       <h2 className="hand-result-win-type-chinese" lang="zh-Hant">{copy.chinese}</h2>
       <p className="hand-result-win-type-name">
-        {copy.romanized}{copy.english ? ` · ${copy.english}` : ""}
+        {copy.romanized}{english ? ` · ${english}` : ""}
       </p>
       {result.kind === "discard" && payerName && winnerNames ? (
-        <div className="hand-result-win-relationship" aria-label={`${payerName} discarded the winning tile to ${winnerNames}`}>
+        <div className="hand-result-win-relationship" aria-label={t("result.discardRelationship", { payer: payerName, winners: winnerNames })}>
           <strong className="hand-result-payer">{payerName}</strong>
-          <span className="hand-result-win-arrow">discarded winning tile</span>
+          <span className="hand-result-win-arrow">{t("result.discardedWinningTile")}</span>
           {winningTile ? (
             <span className="tile tile-md" role="img" aria-label={winningTile.label}>
               <TileFace id={winningTile.id} size="md" />
             </span>
           ) : null}
-          <span className="hand-result-win-arrow">to</span>
+          <span className="hand-result-win-arrow">{t("result.to")}</span>
           <strong className="hand-result-recipient">{winnerNames}</strong>
         </div>
       ) : result.kind === "zimo" && winnerNames ? (
-        <div className="hand-result-win-relationship hand-result-self-draw" aria-label={`${winnerNames} drew the winning tile`}>
+        <div className="hand-result-win-relationship hand-result-self-draw" aria-label={t("result.drewWinningTileLabel", { winners: winnerNames })}>
           <strong className="hand-result-recipient">{winnerNames}</strong>
-          <span>drew the winning tile themselves</span>
+          <span>{t("result.drewWinningTile")}</span>
         </div>
       ) : null}
       {winningTile && result.kind !== "discard" ? (
         <div className="hand-result-hero-tile">
-          <span>Winning tile</span>
+          <span>{t("result.winningTile")}</span>
           <span className="tile tile-md" role="img" aria-label={winningTile.label}>
             <TileFace id={winningTile.id} size="md" />
           </span>
@@ -297,9 +553,11 @@ function PatternRow({
 }) {
   const [open, setOpen] = useState(false);
   const guide = patternGuide(pattern.name);
-  const displayName = patternDisplayName(pattern.name);
+  const displayName = localizedPatternName(pattern.name);
   const panelId = `pattern-${pattern.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
-  const worth = guide ? taiValue(pattern.tai, stakePerTai) : null;
+  const worth = guide && stakePerTai && stakePerTai > 0
+    ? t("result.jadeWorth", { amount: formatNumber(pattern.tai * stakePerTai) })
+    : null;
 
   if (!guide) {
     return (
@@ -326,28 +584,28 @@ function PatternRow({
           {/* The affordance has to be visible without hover — this is a touch
               surface as much as a pointer one. */}
           <span className="hand-result-pattern-hint" aria-hidden="true">
-            {open ? "Hide" : "What is this?"}
+            {open ? t("common.hide") : t("result.whatIsThis")}
           </span>
         </span>
         <strong>
           {pattern.tai} <span lang="zh-Hant">台</span>
-          {guide.perInstance && <span className="hand-result-pattern-each"> each</span>}
+          {guide.perInstance && <span className="hand-result-pattern-each"> {t("result.each")}</span>}
         </strong>
       </button>
       {open && (
         <div id={panelId} className="hand-result-pattern-detail">
-          <p className="hand-result-pattern-what">{guide.what}</p>
-          {guide.build && <p className="hand-result-pattern-build">{guide.build}</p>}
+          <p className="hand-result-pattern-what">{translateSource(guide.what)}</p>
+          {guide.build && <p className="hand-result-pattern-build">{translateSource(guide.build)}</p>}
           {/* The upgrade is the part meant to change the next hand, so it is
               the most prominent thing in the panel rather than a footnote. */}
           {guide.upgrade && (
             <p className="hand-result-pattern-upgrade">
-              <span className="hand-result-pattern-upgrade-label">Worth more</span>
+              <span className="hand-result-pattern-upgrade-label">{t("result.worthMore")}</span>
               <span>
                 <strong>
-                  {patternDisplayName(guide.upgrade.name)} · {guide.upgrade.tai} <span lang="zh-Hant">台</span>
+                  {localizedPatternName(guide.upgrade.name)} · {guide.upgrade.tai} <span lang="zh-Hant">台</span>
                 </strong>{" "}
-                {guide.upgrade.how}
+                {translateSource(guide.upgrade.how)}
               </span>
             </p>
           )}
@@ -355,8 +613,8 @@ function PatternRow({
               price is how a player is talked into chasing one they cannot finish. */}
           {guide.cost && (
             <p className="hand-result-pattern-cost">
-              <span className="hand-result-pattern-cost-label">The trade-off</span>
-              <span>{guide.cost}</span>
+              <span className="hand-result-pattern-cost-label">{t("result.tradeOff")}</span>
+              <span>{translateSource(guide.cost)}</span>
             </p>
           )}
           {worth && <p className="hand-result-pattern-worth">{worth}</p>}
@@ -383,17 +641,17 @@ function WinnerBreakdown({
     <section className="hand-result-winner" aria-labelledby={`winner-${winner.seat}`}>
       <div className="hand-result-winner-header">
         <div>
-          <p className="hand-result-kicker">Winning hand</p>
+          <p className="hand-result-kicker">{t("result.winningHand")}</p>
           <h4 id={`winner-${winner.seat}`} className="hand-result-winner-heading">
             {seatLabel(winner.seat, localSeat)}
           </h4>
         </div>
-        <div className="hand-result-score-badge" aria-label={`${winner.score.raw_tai} raw 台`}>
-          <span>Raw score</span>
+        <div className="hand-result-score-badge" aria-label={t("result.rawScoreLabel", { tai: winner.score.raw_tai })}>
+          <span>{t("result.rawScore")}</span>
           <strong>{winner.score.raw_tai} <span lang="zh-Hant">台</span></strong>
         </div>
       </div>
-      <div className="hand-result-decomposition" aria-label="Winning hand decomposition">
+      <div className="hand-result-decomposition" aria-label={t("result.decomposition")}>
         {winner.score.shape.melds.map((meld, index) => (
           <span key={index} className="hand-result-meld">
             {meld.tiles?.map((item) => (
@@ -418,18 +676,18 @@ function WinnerBreakdown({
         aria-expanded={expanded}
         aria-controls={`winner-score-${winner.seat}`}
       >
-        <span>Scoring details</span>
+        <span>{t("result.scoringDetails")}</span>
         <span aria-hidden="true">{expanded ? "−" : "+"}</span>
       </button>
       {expanded && (
         <div id={`winner-score-${winner.seat}`} className="hand-result-score-details">
-          <ul className="hand-result-patterns" aria-label="Scoring patterns">
+          <ul className="hand-result-patterns" aria-label={t("result.scoringPatterns")}>
             {winner.score.patterns.map((pattern) => (
               <PatternRow key={pattern.name} pattern={pattern} stakePerTai={stakePerTai} />
             ))}
           </ul>
           <p className="hand-result-tai-total">
-            <span>Raw subtotal</span>
+            <span>{t("result.rawSubtotal")}</span>
             <strong>{winner.score.raw_tai} <span lang="zh-Hant">台</span></strong>
           </p>
         </div>
@@ -442,7 +700,7 @@ function formatSignedAmount(amount: number): string {
   if (amount === 0) {
     return "0";
   }
-  return `${amount > 0 ? "+" : "−"}${Math.abs(amount).toLocaleString()}`;
+  return `${amount > 0 ? "+" : "−"}${formatNumber(Math.abs(amount))}`;
 }
 
 function SettlementRow({
@@ -453,7 +711,7 @@ function SettlementRow({
 }: {
   transfer: Transfer;
   localSeat: MahjongSeat;
-  unit: "Jade" | "Practice points";
+  unit: string;
   stakePerTai?: number;
 }) {
   const capped = transfer.capped || transfer.amount < transfer.raw_amount;
@@ -465,16 +723,24 @@ function SettlementRow({
         <span>{seatLabel(transfer.to, localSeat)}</span>
       </div>
       <strong className="hand-result-transfer-amount">
-        {transfer.amount.toLocaleString()} {unit}
+        {formatNumber(transfer.amount)} {unit}
       </strong>
       <p className="hand-result-transfer-formula">
         {stakePerTai
-          ? `${stakePerTai.toLocaleString()} Jade per 台 × ${transfer.effective_tai} 台 = ${transfer.raw_amount.toLocaleString()} Jade`
-          : `Raw payment: ${transfer.raw_amount.toLocaleString()} ${unit}`}
+          ? t("result.jadePerTai", {
+              stake: formatNumber(stakePerTai),
+              tai: transfer.effective_tai,
+              amount: formatNumber(transfer.raw_amount),
+            })
+          : t("result.rawPayment", { amount: formatNumber(transfer.raw_amount), unit })}
       </p>
       {capped && (
         <p className="hand-result-cap-note">
-          Debit cap applied: {transfer.raw_amount.toLocaleString()} → {transfer.amount.toLocaleString()} {unit}
+          {t("result.debitCap", {
+            raw: formatNumber(transfer.raw_amount),
+            amount: formatNumber(transfer.amount),
+            unit,
+          })}
         </p>
       )}
     </li>
@@ -493,28 +759,28 @@ function SettlementStory({
     return null;
   }
   const transfers = settlement.transfers ?? [];
-  const unit = practice ? "Practice points" : "Jade";
+  const unit = practice ? t("result.practicePoints") : t("common.jade");
   const balanced = settlement.total_credits === settlement.total_debits;
 
   return (
     <section className="hand-result-chapter hand-result-settlement" aria-labelledby="settlement-heading">
       <div className="hand-result-chapter-heading">
         <div>
-          <p className="hand-result-kicker">Settlement</p>
+          <p className="hand-result-kicker">{t("result.settlement")}</p>
           <h3 id="settlement-heading">
-            {practice ? "Practice score only" : "Jade moved between players"}
+            {practice ? t("result.practiceScore") : t("result.jadeMoved")}
           </h3>
         </div>
         <span className={`hand-result-balance-status${balanced ? " is-balanced" : ""}`}>
-          {balanced ? "Balances to zero" : "Review required"}
+          {balanced ? t("result.balanced") : t("result.reviewRequired")}
         </span>
       </div>
 
       {!practice && view.jade_account && (
         <p className="hand-result-stake">
-          Table stake: <strong>{view.jade_account.stake_per_tai.toLocaleString()} Jade per 台</strong>
+          <strong>{t("result.tableStake", { stake: formatNumber(view.jade_account.stake_per_tai) })}</strong>
           <span aria-hidden="true"> · </span>
-          Debit cap: <strong>{view.jade_account.debit_cap.toLocaleString()} Jade</strong>
+          <strong>{t("result.debitCapValue", { cap: formatNumber(view.jade_account.debit_cap) })}</strong>
         </p>
       )}
 
@@ -532,12 +798,12 @@ function SettlementStory({
         </ol>
       ) : (
         <p className="hand-result-no-transfers">
-          {practice ? "No Practice points changed." : "No Jade changed hands."}
+          {practice ? t("result.noPracticeChange") : t("result.noJadeChange")}
         </p>
       )}
 
-      <div className="hand-result-net" aria-label={`Net ${unit} changes`}>
-        <p>Net change</p>
+      <div className="hand-result-net" aria-label={t("result.netChangesLabel", { unit })}>
+        <p>{t("result.netChange")}</p>
         <ul>
           {SEAT_ORDER.map((seat) => {
             const amount = settlement.net[seat] ?? 0;
@@ -555,9 +821,18 @@ function SettlementStory({
         <span aria-hidden="true">{balanced ? "✓" : "!"}</span>
         {balanced
           ? practice
-            ? `${settlement.total_debits.toLocaleString()} Practice points paid = ${settlement.total_credits.toLocaleString()} received. Practice points do not persist.`
-            : `${settlement.total_debits.toLocaleString()} Jade paid = ${settlement.total_credits.toLocaleString()} received. No Jade was created or removed.`
-          : `${settlement.total_debits.toLocaleString()} paid does not match ${settlement.total_credits.toLocaleString()} received. This settlement needs review.`}
+            ? t("result.practiceReconciled", {
+                paid: formatNumber(settlement.total_debits),
+                received: formatNumber(settlement.total_credits),
+              })
+            : t("result.jadeReconciled", {
+                paid: formatNumber(settlement.total_debits),
+                received: formatNumber(settlement.total_credits),
+              })
+          : t("result.unbalanced", {
+              paid: formatNumber(settlement.total_debits),
+              received: formatNumber(settlement.total_credits),
+            })}
       </p>
     </section>
   );
@@ -573,9 +848,9 @@ function AchievementUnlocks({ awards }: { awards: HandXPAward[] }) {
     >
       <div className="result-achievements-heading">
         <div>
-          <p className="hand-result-kicker">Milestone reached</p>
+          <p className="hand-result-kicker">{t("result.milestone")}</p>
           <h3 id="result-achievements-title">
-            {awards.length === 1 ? "Achievement unlocked" : "Achievements unlocked"}
+            {awards.length === 1 ? t("result.achievementUnlocked") : t("result.achievementsUnlocked")}
           </h3>
         </div>
         <span>{awards.length}</span>
@@ -583,7 +858,7 @@ function AchievementUnlocks({ awards }: { awards: HandXPAward[] }) {
       <ul className="result-achievement-list">
         {awards.map((award, index) => {
           const component = award.components?.[0];
-          const name = component?.label ?? "Achievement unlocked";
+          const name = component?.label ? translateSource(component.label) : t("result.achievementUnlocked");
           return (
             <li
               key={award.award_id ?? component?.code ?? `${name}-${index}`}
@@ -592,10 +867,10 @@ function AchievementUnlocks({ awards }: { awards: HandXPAward[] }) {
               <span aria-hidden="true" className="result-achievement-mark">✓</span>
               <span>
                 <strong>{name}</strong>
-                <small>Completed on this public hand</small>
+                <small>{t("result.completedPublic")}</small>
               </span>
               <strong className="result-achievement-xp">
-                +{(award.total ?? component?.amount ?? 0).toLocaleString()} XP
+                +{formatNumber(award.total ?? component?.amount ?? 0)} XP
               </strong>
             </li>
           );
@@ -615,6 +890,7 @@ export interface HandResultScreenProps {
   // discovered after it.
   playAgainNote?: string;
   onReturn?: () => void;
+  returnLabel?: string;
   // §10.2: the end-of-match slot where a guest is offered a full account.
   // Passed in rather than built here so this screen stays presentational and
   // knows nothing about IAM.
@@ -634,6 +910,7 @@ export function HandResultScreen({
   onPlayAgain,
   playAgainNote,
   onReturn,
+  returnLabel,
   accountUpgrade,
   resultFriends,
   onAddResultFriend,
@@ -658,13 +935,13 @@ export function HandResultScreen({
   const walletStatus = walletSyncPresentation(walletSyncStatus, walletSyncError);
 
   return (
-    <div className="hand-result-screen" role="region" aria-label="Hand result">
+    <div className="hand-result-screen" role="region" aria-label={t("result.screenLabel")}>
       <WinTypeBanner result={result} winners={winners} localSeat={view.seat} />
 
       {practice && (
         <p className="hand-result-practice-note">
-          <strong>Practice result</strong>
-          <span>No Jade, rating, level, or achievement progress changed.</span>
+          <strong>{t("result.practiceResult")}</strong>
+          <span>{t("result.practiceNote")}</span>
         </p>
       )}
 
@@ -672,12 +949,12 @@ export function HandResultScreen({
         <section className="hand-result-chapter hand-result-scoring" aria-labelledby="scoring-heading">
           <div className="hand-result-chapter-heading">
             <div>
-              <p className="hand-result-kicker">Hand</p>
-              <h3 id="scoring-heading">Scoring Breakdown <span lang="zh-Hant">台</span> (Tai)</h3>
+              <p className="hand-result-kicker">{t("result.hand")}</p>
+              <h3 id="scoring-heading">{t("result.scoringBreakdown")} <span lang="zh-Hant">台</span> (Tai)</h3>
             </div>
           </div>
           {winners.length === 0 ? (
-            <p className="hand-result-no-winner">No winner this hand.</p>
+            <p className="hand-result-no-winner">{t("result.noWinner")}</p>
           ) : (
             winners.map((winner) => (
               <WinnerBreakdown
@@ -693,9 +970,9 @@ export function HandResultScreen({
 
           {dealerTaiBonus > 0 && dealer && (
             <p className="hand-result-dealer-tai">
-              <strong>Dealer <span lang="zh-Hant">台</span>: +{dealerTaiBonus}</strong>
+              <strong>{t("table.dealer")} <span lang="zh-Hant">台</span>: +{dealerTaiBonus}</strong>
               <span>
-                Applied when {seatLabel(dealer, view.seat)} is the winner or payer.
+                {t("result.dealerTaiApplied", { dealer: seatLabel(dealer, view.seat) })}
               </span>
             </p>
           )}
@@ -703,6 +980,8 @@ export function HandResultScreen({
 
         <SettlementStory view={view} practice={practice} />
       </div>
+
+      <ResultAnalysis view={view} />
 
       {!practice && view.jade_settlement && (
         <div
@@ -715,22 +994,25 @@ export function HandResultScreen({
           data-wallet-sync-status={walletSyncStatus ?? "unknown"}
           data-wallet-sync-error={walletSyncError ?? ""}
         >
-          <p className="hand-result-kicker">Your balance</p>
+          <p className="hand-result-kicker">{t("result.yourBalance")}</p>
           <p className="hand-result-jade-delta">
             {view.jade_settlement.delta > 0
-              ? `You received ${view.jade_settlement.delta.toLocaleString()} Jade`
+              ? t("result.receivedJade", { amount: formatNumber(view.jade_settlement.delta) })
               : view.jade_settlement.delta < 0
-                ? `You paid ${Math.abs(view.jade_settlement.delta).toLocaleString()} Jade`
-                : "Your Jade did not change"}
+                ? t("result.paidJade", { amount: formatNumber(Math.abs(view.jade_settlement.delta)) })
+                : t("result.yourJadeUnchanged")}
           </p>
-          <div className="hand-result-balance-equation" aria-label={`Balance changed from ${view.jade_settlement.balance_before} to ${view.jade_settlement.balance_after} Jade`}>
-            <span><small>Before</small>{view.jade_settlement.balance_before.toLocaleString()}</span>
+          <div className="hand-result-balance-equation" aria-label={t("result.balanceChangedLabel", {
+            before: formatNumber(view.jade_settlement.balance_before),
+            after: formatNumber(view.jade_settlement.balance_after),
+          })}>
+            <span><small>{t("result.before")}</small>{formatNumber(view.jade_settlement.balance_before)}</span>
             <span className="hand-result-balance-operator" aria-hidden="true">
               {view.jade_settlement.delta < 0 ? "−" : "+"}
             </span>
-            <span><small>Change</small>{Math.abs(view.jade_settlement.delta).toLocaleString()}</span>
+            <span><small>{t("result.change")}</small>{formatNumber(Math.abs(view.jade_settlement.delta))}</span>
             <span className="hand-result-balance-operator" aria-hidden="true">=</span>
-            <strong><small>New balance</small>{view.jade_settlement.balance_after.toLocaleString()} Jade</strong>
+            <strong><small>{t("result.newBalance")}</small>{formatNumber(view.jade_settlement.balance_after)} {t("common.jade")}</strong>
           </div>
           <p className="hand-result-wallet-status" role="status" aria-live="polite">
             <span aria-hidden="true">{walletStatus.icon}</span>
@@ -741,17 +1023,20 @@ export function HandResultScreen({
 
       {!practice && view.jade_account && !view.jade_settlement && (
         <p className="hand-result-continuation" role="status" aria-live="polite">
-          Posting Jade settlement…
+          {t("result.postingJade")}
         </p>
       )}
 
       {!practice && view.next_dealer && (
         <div className="hand-result-next">
-          <p className="hand-result-kicker">Next hand</p>
+          <p className="hand-result-kicker">{t("result.nextHand")}</p>
           <p className="hand-result-continuation">
             {view.next_dealer.dealer_retains
-              ? `${seatLabel(view.next_dealer.next_dealer, view.seat)} remains dealer · continuation ${view.next_dealer.next_continuations}`
-              : `Dealer rotates to ${seatLabel(view.next_dealer.next_dealer, view.seat)}`}
+              ? t("result.dealerRetains", {
+                  dealer: seatLabel(view.next_dealer.next_dealer, view.seat),
+                  count: view.next_dealer.next_continuations,
+                })
+              : t("result.dealerRotates", { dealer: seatLabel(view.next_dealer.next_dealer, view.seat) })}
           </p>
         </div>
       )}
@@ -775,7 +1060,7 @@ export function HandResultScreen({
       )}
 
       <p className="hand-result-match-id">
-        <span>Match ID</span>
+        <span>{t("result.matchId")}</span>
         <code>{view.match_id}</code>
       </p>
 
@@ -791,7 +1076,7 @@ export function HandResultScreen({
                 onClick={onPlayAgain}
                 aria-describedby={playAgainNote ? "play-again-note" : undefined}
               >
-                Play Again
+                {t("result.playAgain")}
               </button>
               {playAgainNote && (
                 <p className="hand-result-play-again-note" id="play-again-note">
@@ -802,12 +1087,12 @@ export function HandResultScreen({
           )}
           {onReturn && (
             <button type="button" className="secondary-action hand-result-return" onClick={onReturn}>
-              Return to Lobby
+              {returnLabel ?? t("result.returnLobby")}
             </button>
           )}
           {onReportIssue && (
             <button type="button" className="text-action hand-result-report" onClick={onReportIssue}>
-              Report Issues
+              {t("result.reportIssues")}
             </button>
           )}
         </div>

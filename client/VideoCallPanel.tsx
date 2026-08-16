@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import type { SeatId } from "./matchTableTypes";
 import { windName } from "./matchTableTypes";
 import type { RemotePeerState, VideoCallController } from "./useVideoCall";
+import { t } from "./i18n";
 import "./video-call.css";
 
 // Binds a MediaStream to a <video> imperatively — srcObject is not a
@@ -46,7 +47,7 @@ function VideoTile({
         muted={muted}
         aria-label={label}
       />
-      {!stream ? <span className="video-tile-placeholder">{placeholder ?? "Connecting…"}</span> : null}
+      {!stream ? <span className="video-tile-placeholder">{placeholder ?? t("video.connecting")}</span> : null}
       <span className="video-tile-label">{label}</span>
     </div>
   );
@@ -71,16 +72,16 @@ export function VideoCallPanel({
     return (
       <div className="video-call video-call-collapsed">
         <button type="button" className="video-call-start" onClick={controller.start}>
-          <span aria-hidden="true">📹</span> Video chat
+          <span aria-hidden="true">📹</span> {t("video.title")}
         </button>
       </div>
     );
   }
 
   return (
-    <div className="video-call" role="region" aria-label="Video chat">
+    <div className="video-call" role="region" aria-label={t("video.title")}>
       <div className="video-call-tiles">
-        <VideoTile stream={localStream} label="You" muted mirror placeholder="Starting camera…" />
+        <VideoTile stream={localStream} label={t("common.you")} muted mirror placeholder={t("video.startingCamera")} />
         {humanSeats.map((seat) => {
           const remote: RemotePeerState | undefined = remotes[seat];
           return (
@@ -88,7 +89,7 @@ export function VideoCallPanel({
               key={seat}
               stream={remote?.stream ?? null}
               label={`${seatName(seat)} · ${windName(seat)}`}
-              placeholder={status === "live" ? "Ringing…" : "Connecting…"}
+              placeholder={status === "live" ? t("video.ringing") : t("video.connecting")}
             />
           );
         })}
@@ -100,8 +101,8 @@ export function VideoCallPanel({
           className={`video-call-control${micEnabled ? "" : " video-call-control-off"}`}
           onClick={controller.toggleMic}
           aria-pressed={!micEnabled}
-          aria-label={micEnabled ? "Mute microphone" : "Unmute microphone"}
-          title={micEnabled ? "Mute" : "Unmute"}
+          aria-label={micEnabled ? t("video.muteMicrophone") : t("video.unmuteMicrophone")}
+          title={micEnabled ? t("video.mute") : t("video.unmute")}
         >
           {micEnabled ? "🎙️" : "🔇"}
         </button>
@@ -110,8 +111,8 @@ export function VideoCallPanel({
           className={`video-call-control${camEnabled ? "" : " video-call-control-off"}`}
           onClick={controller.toggleCam}
           aria-pressed={!camEnabled}
-          aria-label={camEnabled ? "Turn camera off" : "Turn camera on"}
-          title={camEnabled ? "Camera off" : "Camera on"}
+          aria-label={camEnabled ? t("video.cameraOff") : t("video.cameraOn")}
+          title={camEnabled ? t("video.cameraOffShort") : t("video.cameraOnShort")}
         >
           {camEnabled ? "🎥" : "🚫"}
         </button>
@@ -119,8 +120,8 @@ export function VideoCallPanel({
           type="button"
           className="video-call-control video-call-control-leave"
           onClick={controller.stop}
-          aria-label="Leave video chat"
-          title="Leave video chat"
+          aria-label={t("video.leave")}
+          title={t("video.leave")}
         >
           📴
         </button>
@@ -128,9 +129,9 @@ export function VideoCallPanel({
 
       {status === "error" ? (
         <p className="video-call-error" role="alert">
-          {errorMessage || "Video chat error."}{" "}
+          {errorMessage || t("video.error")}{" "}
           <button type="button" className="video-call-retry" onClick={controller.start}>
-            Retry
+            {t("common.retry")}
           </button>
         </p>
       ) : null}

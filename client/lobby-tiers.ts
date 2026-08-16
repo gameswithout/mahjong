@@ -61,9 +61,25 @@ export function lockedTiers(): LobbyTier[] {
 }
 
 export function tierSummary(tier: LobbyTier): string {
-  return (
-    `${tier.minimumBalance.toLocaleString()} Jade minimum · ` +
-    `${tier.stakePerTai.toLocaleString()} per Tai · ` +
-    `${tier.debitCap.toLocaleString()} maximum loss`
-  );
+  return t("tier.summary", {
+    minimum: formatNumber(tier.minimumBalance),
+    stake: formatNumber(tier.stakePerTai),
+    cap: formatNumber(tier.debitCap),
+  });
 }
+
+export function tierName(tier: LobbyTier): string {
+  switch (tier.id) {
+    case "bamboo":
+      return t("tier.bamboo");
+    case "sparrow":
+      return t("tier.sparrow");
+    case "wind-and-cloud":
+      return t("tier.windCloud");
+    case "dragons-den":
+      return t("tier.dragon");
+    default:
+      return tier.name;
+  }
+}
+import { formatNumber, t } from "./i18n";

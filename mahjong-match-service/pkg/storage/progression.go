@@ -20,6 +20,25 @@ func (p *PostgreSQLStorage) progressionNow() time.Time {
 	return time.Now()
 }
 
+func (p *PostgreSQLStorage) PracticeXPToday(ctx context.Context, userID string) (int, error) {
+	userID = strings.TrimSpace(userID)
+	if p == nil || p.pool == nil || userID == "" {
+		return 0, fmt.Errorf("%w: practice XP repository is not initialized", progression.ErrNotInitialized)
+	}
+	var total int
+	if err := p.pool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(amount), 0)
+		FROM xp_awards
+		WHERE user_id = $1 AND utc_day = $2 AND source = $3`,
+		userID,
+		p.progressionNow().UTC().Format("2006-01-02"),
+		progression.SourcePractice,
+	).Scan(&total); err != nil {
+		return 0, fmt.Errorf("read today's practice XP: %w", err)
+	}
+	return total, nil
+}
+
 // PlayerDashboardStatistics derives the core Match History totals from the
 // append-only XP ledger. A public hand and its win component are recorded in
 // the same transaction as its XP, so these values remain correct even when
@@ -188,6 +207,55 @@ func validateAward(award progression.HandAward) error {
 func cloneAward(award progression.HandAward) progression.HandAward {
 	award.Components = append([]progression.XPComponent(nil), award.Components...)
 	return award
+}
+
+func capPracticeAwardTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID string,
+	day time.Time,
+	requested progression.HandAward,
+) (progression.HandAward, error) {
+	if requested.Source != progression.SourcePractice {
+		return requested, nil
+	}
+	practiceComponent := false
+	for _, component := range requested.Components {
+		practiceComponent = practiceComponent || component.Code == progression.ComponentPracticeHand
+	}
+	if !practiceComponent {
+		return requested, nil
+	}
+
+	var awardedToday int
+	if err := tx.QueryRow(ctx, `
+		SELECT COALESCE(SUM(amount), 0)
+		FROM xp_awards
+		WHERE user_id = $1 AND utc_day = $2 AND source = $3`,
+		userID,
+		day,
+		progression.SourcePractice,
+	).Scan(&awardedToday); err != nil {
+		return progression.HandAward{}, fmt.Errorf("lock today's practice XP: %w", err)
+	}
+
+	award := cloneAward(requested)
+	masteryXP := min(
+		progression.PracticeHandXP,
+		max(0, progression.PracticeDailyXPCap-awardedToday),
+	)
+	masteryAssigned := false
+	for index := range award.Components {
+		if award.Components[index].Code == progression.ComponentPracticeHand && !masteryAssigned {
+			award.Components[index].Amount = masteryXP
+			masteryAssigned = true
+		} else {
+			award.Components[index].Amount = 0
+		}
+	}
+	award.Total = masteryXP
+	award.CappedByDaily = masteryXP < progression.PracticeHandXP
+	return award, nil
 }
 
 func ensureAndLockPlayerXP(
@@ -434,6 +502,10 @@ func (p *PostgreSQLStorage) AwardXP(
 		return progression.Player{}, progression.HandAward{}, false, err
 	}
 	day := progression.UTCDay(p.progressionNow())
+	requested, err = capPracticeAwardTx(ctx, tx, userID, day, requested)
+	if err != nil {
+		return progression.Player{}, progression.HandAward{}, false, err
+	}
 	persisted, lifetime, applied, err := applyXPAwardTx(
 		ctx, tx, userID, runtimeID, day, lifetime, requested)
 	if err != nil {

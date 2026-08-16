@@ -177,11 +177,18 @@ export interface HandWinner {
   score: ScoreResult;
 }
 
+export interface DrawSeatAnalysis {
+  seat: MahjongSeat;
+  tenpai: boolean;
+  waits?: WaitTileView[];
+}
+
 export interface HandResult {
   kind: WinKind;
   winners?: HandWinner[];
   payer?: MahjongSeat;
   winning_tile_id?: string;
+  draw_analysis?: DrawSeatAnalysis[];
 }
 
 // Transfer/Settlement mirror rulesengine's settlement.go — §9.7 item 6.

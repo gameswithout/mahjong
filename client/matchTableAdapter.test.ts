@@ -563,6 +563,8 @@ describe("seatViewToMatchTableState", () => {
       const dispatch = vi.fn();
       const state = seatViewToMatchTableState(view, { now: Date.now(), onClaimAction: dispatch });
       expect(state.legalActions.map((a) => a.id)).toEqual(["pong", "pass"]);
+      expect(state.legalActions.find((a) => a.id === "pong")?.impact).toContain("three-of-a-kind");
+      expect(state.legalActions.find((a) => a.id === "pass")?.impact).toContain("concealed");
       state.legalActions.find((a) => a.id === "pong")!.onClick!();
       expect(dispatch).toHaveBeenCalledWith("pong");
     });

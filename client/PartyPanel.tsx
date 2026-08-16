@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { activeMembers, partyIsFull, seatedCount, type Party } from "./party";
+import { t } from "./i18n";
 
 // §8.6 party surface. A party exists for one reason here: to enter matchmaking
 // as a group. Everything on this panel serves that — who is in, how to get
@@ -52,12 +53,12 @@ export function PartyPanel({
 
   return (
     <section className="party-panel" aria-labelledby="party-title">
-      <p className="status-label">Party</p>
-      <h2 id="party-title">Play together</h2>
+      <p className="status-label">{t("party.eyebrow")}</p>
+      <h2 id="party-title">{t("party.title")}</h2>
 
       {state.status === "loading" && (
         <p className="session-detail" role="status" aria-live="polite">
-          Loading party…
+          {t("party.loading")}
         </p>
       )}
 
@@ -65,29 +66,26 @@ export function PartyPanel({
         <div className="session-error" role="alert">
           <p>{state.message}</p>
           <button className="secondary-action session-action" type="button" onClick={onRetry}>
-            Retry
+            {t("common.retry")}
           </button>
         </div>
       )}
 
       {(state.status === "none" || state.status === "idle") && (
         <>
-          <p className="practice-description">
-            Start a party and invite friends, and you will all be seated at the
-            same table. A party of four fills a table on its own.
-          </p>
+          <p className="practice-description">{t("party.description")}</p>
           <button
             className="secondary-action session-action"
             type="button"
             onClick={onCreate}
             disabled={busy}
           >
-            {busy ? "Starting…" : "Start a party"}
+            {busy ? t("party.starting") : t("party.start")}
           </button>
 
           <form className="party-join" onSubmit={submitCode}>
             <label className="session-input-label" htmlFor="party-code">
-              Or join with an invite code
+              {t("party.joinCode")}
             </label>
             <div className="session-join-row">
               <input
@@ -96,12 +94,12 @@ export function PartyPanel({
                 type="text"
                 value={codeValue}
                 onChange={(event) => setCodeValue(event.target.value)}
-                placeholder="Enter code"
+                placeholder={t("party.enterCode")}
                 autoComplete="off"
                 maxLength={12}
               />
               <button className="secondary-action session-join-action" type="submit">
-                Join
+                {t("common.join")}
               </button>
             </div>
           </form>
@@ -111,8 +109,10 @@ export function PartyPanel({
       {state.status === "ready" && (
         <>
           <p className="session-detail">
-            {seatedCount(state.party)} of 4 seats taken
-            {partyIsFull(state.party) ? " · full" : ""}
+            {t("party.seats", {
+              count: seatedCount(state.party),
+              full: partyIsFull(state.party) ? t("party.full") : "",
+            })}
           </p>
 
           <ul className="party-members">
@@ -125,11 +125,11 @@ export function PartyPanel({
                 return (
                   <li key={member.userId} className="party-member">
                     <span className="party-member-name">
-                      {isSelf ? "You" : shortId(member.userId)}
-                      {isLeader && <span className="party-role">Leader</span>}
+                      {isSelf ? t("common.you") : shortId(member.userId)}
+                      {isLeader && <span className="party-role">{t("party.leader")}</span>}
                       {/* An unanswered invite still holds a seat, so it has to
                           be visible or the seat count looks wrong. */}
-                      {pending && <span className="party-role">Invited</span>}
+                      {pending && <span className="party-role">{t("party.invited")}</span>}
                     </span>
                     {ownUserId === state.party.leaderId && !isSelf && (
                       <button
@@ -137,7 +137,7 @@ export function PartyPanel({
                         type="button"
                         onClick={() => onKick(member.userId)}
                       >
-                        Remove
+                        {t("common.remove")}
                       </button>
                     )}
                   </li>
@@ -146,15 +146,13 @@ export function PartyPanel({
           </ul>
 
           {activeMembers(state.party).length < 4 && (
-            <p className="session-detail">
-              Invite friends from the list below, or share the code.
-            </p>
+            <p className="session-detail">{t("party.inviteHelp")}</p>
           )}
 
           <div className="party-actions">
             {state.party.code ? (
               <p className="party-code">
-                Invite code: <code>{state.party.code}</code>
+                {t("party.inviteCode", { code: state.party.code })}
               </p>
             ) : (
               <button
@@ -163,7 +161,7 @@ export function PartyPanel({
                 onClick={onGenerateCode}
                 disabled={busy}
               >
-                Get an invite code
+                {t("party.getCode")}
               </button>
             )}
             <button
@@ -172,7 +170,7 @@ export function PartyPanel({
               onClick={onLeave}
               disabled={busy}
             >
-              Leave party
+              {t("party.leave")}
             </button>
           </div>
         </>

@@ -41,8 +41,19 @@ const SCENARIO_EXPECTATIONS = {
   "jade-standard": ["10 Jade per 台 × 3 台 = 30 Jade", "Balances to zero"],
   practice: [
     "Practice score only",
-    "No Jade or rating changed. Completed hands still earn capped XP.",
+    "Jade, rating, and achievements stay unchanged. Mastery XP and this hand's history are saved.",
+    "+25 XP",
     "Practice points do not persist.",
+  ],
+  "exhaustive-draw": [
+    "Ready hands at the draw",
+    "3 live copies total",
+    "Not tenpai",
+  ],
+  "deal-in-review": [
+    "Your decisive discard",
+    "No matching copy was public before the discard",
+    "visibility comparisons, not guaranteed-safe discards",
   ],
 };
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { Friend, FriendRequest, PresenceState } from "./friends";
+import { t, type MessageKey } from "./i18n";
 
 // §10.6 friends surface. Deliberately small: a list, the two request queues,
 // and one way to add someone. There is no player search — §10.6's rate limits
@@ -19,11 +20,11 @@ export type FriendsState =
     }
   | { status: "error"; code: string; message: string };
 
-const PRESENCE_LABEL: Record<PresenceState, string> = {
-  online: "Online",
-  busy: "In a match",
-  invisible: "Offline",
-  offline: "Offline",
+const PRESENCE_LABEL: Record<PresenceState, MessageKey> = {
+  online: "friends.online",
+  busy: "friends.inMatch",
+  invisible: "friends.offline",
+  offline: "friends.offline",
 };
 
 // Short enough to read aloud, long enough to be unambiguous in a list.
@@ -66,7 +67,7 @@ export function FriendsPanel({
     // Catching this here rather than letting AGS answer it keeps a confusing
     // server error off a mistake the player can see for themselves.
     if (ownUserId && target === ownUserId) {
-      setAddError("That is your own player ID.");
+      setAddError(t("friends.ownIdError"));
       return;
     }
     setAddError(null);
@@ -76,12 +77,12 @@ export function FriendsPanel({
 
   return (
     <section className="friends-panel" aria-labelledby="friends-title">
-      <p className="status-label">Friends</p>
-      <h2 id="friends-title">Friends</h2>
+      <p className="status-label">{t("friends.title")}</p>
+      <h2 id="friends-title">{t("friends.title")}</h2>
 
       {state.status === "loading" && (
         <p className="session-detail" role="status" aria-live="polite">
-          Loading friends…
+          {t("friends.loading")}
         </p>
       )}
 
@@ -89,7 +90,7 @@ export function FriendsPanel({
         <div className="session-error" role="alert">
           <p>{state.message}</p>
           <button className="secondary-action session-action" type="button" onClick={onRetry}>
-            Retry
+            {t("common.retry")}
           </button>
         </div>
       )}
@@ -99,7 +100,7 @@ export function FriendsPanel({
           {state.incoming.length > 0 && (
             <div className="friends-group">
               <h3 className="friends-group-title">
-                Friend requests ({state.incoming.length})
+                {t("friends.requests", { count: state.incoming.length })}
               </h3>
               <ul className="friends-list">
                 {state.incoming.map((request) => (
@@ -111,14 +112,14 @@ export function FriendsPanel({
                         type="button"
                         onClick={() => onAccept(request.userId)}
                       >
-                        Accept
+                        {t("friends.accept")}
                       </button>
                       <button
                         className="secondary-action friend-action"
                         type="button"
                         onClick={() => onReject(request.userId)}
                       >
-                        Decline
+                        {t("friends.decline")}
                       </button>
                     </span>
                   </li>
@@ -129,11 +130,11 @@ export function FriendsPanel({
 
           <div className="friends-group">
             <h3 className="friends-group-title">
-              Your friends ({state.friends.length})
+              {t("friends.yours", { count: state.friends.length })}
             </h3>
             {state.friends.length === 0 ? (
               <p className="session-detail">
-                No friends yet. Share your player ID below and add theirs.
+                {t("friends.empty")}
               </p>
             ) : (
               <ul className="friends-list">
@@ -143,7 +144,7 @@ export function FriendsPanel({
                       {shortId(friend.userId)}
                       {/* Presence is text, never a coloured dot alone. */}
                       <span className={`friend-presence friend-presence-${friend.presence}`}>
-                        {PRESENCE_LABEL[friend.presence]}
+                        {t(PRESENCE_LABEL[friend.presence])}
                       </span>
                     </span>
                     <span className="friend-actions">
@@ -154,14 +155,14 @@ export function FriendsPanel({
                           disabled={!canInviteToParty || friend.presence === "offline"}
                           title={
                             friend.presence === "offline"
-                              ? "They are offline"
+                              ? t("friends.offlineTitle")
                               : !canInviteToParty
-                                ? "Your party is full"
+                                ? t("friends.partyFullTitle")
                                 : undefined
                           }
                           onClick={() => onInviteToParty(friend.userId)}
                         >
-                          Invite
+                          {t("friends.invite")}
                         </button>
                       )}
                       <button
@@ -169,7 +170,7 @@ export function FriendsPanel({
                         type="button"
                         onClick={() => onUnfriend(friend.userId)}
                       >
-                        Remove
+                        {t("common.remove")}
                       </button>
                     </span>
                   </li>
@@ -180,7 +181,9 @@ export function FriendsPanel({
 
           {state.outgoing.length > 0 && (
             <div className="friends-group">
-              <h3 className="friends-group-title">Sent ({state.outgoing.length})</h3>
+              <h3 className="friends-group-title">
+                {t("friends.sent", { count: state.outgoing.length })}
+              </h3>
               <ul className="friends-list">
                 {state.outgoing.map((request) => (
                   <li key={request.userId} className="friend-row">
@@ -190,7 +193,7 @@ export function FriendsPanel({
                       type="button"
                       onClick={() => onCancel(request.userId)}
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   </li>
                 ))}
@@ -200,7 +203,7 @@ export function FriendsPanel({
 
           <form className="friends-add" onSubmit={submitAdd}>
             <label className="session-input-label" htmlFor="friend-add">
-              Add a friend by player ID
+              {t("friends.addById")}
             </label>
             <div className="session-join-row">
               <input
@@ -209,11 +212,11 @@ export function FriendsPanel({
                 type="text"
                 value={addValue}
                 onChange={(event) => setAddValue(event.target.value)}
-                placeholder="Paste their player ID"
+                placeholder={t("friends.pasteId")}
                 autoComplete="off"
               />
               <button className="secondary-action session-join-action" type="submit">
-                Add
+                {t("friends.add")}
               </button>
             </div>
             {addError && (
@@ -224,9 +227,7 @@ export function FriendsPanel({
           </form>
 
           {ownUserId && (
-            <p className="friends-own-id">
-              Your player ID: <code>{ownUserId}</code>
-            </p>
+            <p className="friends-own-id">{t("friends.yourId", { id: ownUserId })}</p>
           )}
         </>
       )}

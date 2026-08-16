@@ -3,6 +3,7 @@ import { OAuth20Api, OAuth20V4Api, UsersApi, UsersV4Api } from "@accelbyte/sdk-i
 
 import { accelByteConfig, assertAccelByteConfig, type AccelByteWebConfig } from "./config";
 import { browserDeviceIdStore, type DeviceIdStore } from "./device-id";
+import { getAgsLanguageTag } from "./i18n";
 
 export type IamAuthErrorCode =
   | "configuration"
@@ -91,10 +92,10 @@ export interface IamTransport {
   getCurrentUser(accessToken: string): Promise<UserResponse>;
   refreshAccessToken?(refreshToken: string): Promise<TokenResponse>;
   createAuthenticatedSdk?(accessToken: string): AccelByteWebSdk;
-  requestEmailVerificationCode?(email: string): Promise<void>;
+  requestEmailVerificationCode?(email: string, languageTag: string): Promise<void>;
   registerWithEmailPassword?(input: EmailRegistrationInput): Promise<void>;
   loginWithEmailPassword?(email: string, password: string): Promise<TokenResponse>;
-  requestGuestUpgradeCode?(accessToken: string, email: string): Promise<void>;
+  requestGuestUpgradeCode?(accessToken: string, email: string, languageTag: string): Promise<void>;
   upgradeGuestAccount?(accessToken: string, input: GuestUpgradeInput): Promise<void>;
 }
 
@@ -374,10 +375,10 @@ export function createSdkIamTransport(config: AccelByteWebConfig = accelByteConf
       return sdk;
     },
 
-    async requestEmailVerificationCode(email) {
+    async requestEmailVerificationCode(email, languageTag) {
       try {
         const sdk = createSdk(config);
-        await UsersApi(sdk).createUserCodeRequest_v3({ emailAddress: email });
+        await UsersApi(sdk).createUserCodeRequest_v3({ emailAddress: email, languageTag });
       } catch (error) {
         throw mapAuthError(error, "request_code");
       }
@@ -428,13 +429,14 @@ export function createSdkIamTransport(config: AccelByteWebConfig = accelByteConf
     // Unlike the registration code request, this one is authenticated as the
     // guest and carries the "upgradeHeadlessAccount" context, so AGS issues a
     // code that only the headless/code/verify endpoint below will accept.
-    async requestGuestUpgradeCode(accessToken, email) {
+    async requestGuestUpgradeCode(accessToken, email, languageTag) {
       try {
         const sdk = createSdk(config);
         sdk.setToken({ accessToken });
         await UsersApi(sdk).createUserMeCodeRequest_v3({
           emailAddress: email,
           context: "upgradeHeadlessAccount",
+          languageTag,
         });
       } catch (error) {
         throw mapAuthError(error, "request_upgrade_code");
@@ -512,7 +514,9 @@ export class BrowserIam {
     if (!this.transport.requestEmailVerificationCode) {
       throw new IamAuthError("configuration", "Email registration is not available.");
     }
-    await this.transport.requestEmailVerificationCode(email);
+    // AGS IAM localizes the verification email from this language tag. Keep
+    // it aligned with the in-game selection rather than the browser default.
+    await this.transport.requestEmailVerificationCode(email, getAgsLanguageTag());
   }
 
   async registerWithEmail(input: EmailRegistrationInput): Promise<void> {
@@ -601,7 +605,11 @@ export class BrowserIam {
     if (!this.isGuest()) {
       throw new IamAuthError("not_a_guest", "This account already has email sign-in.");
     }
-    await this.transport.requestGuestUpgradeCode(this.getAccessToken(), email);
+    await this.transport.requestGuestUpgradeCode(
+      this.getAccessToken(),
+      email,
+      getAgsLanguageTag(),
+    );
   }
 
   // The guest's access token stays valid across the upgrade — AGS attaches

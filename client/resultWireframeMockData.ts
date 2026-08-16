@@ -1,13 +1,18 @@
 // Fixtures for the P0.3 result-comprehension evidence harness
 // (result-wireframe.html). These mirror the shapes the component tests
 // already assert against, so a rendered capture and the component suite are
-// describing the same three scenarios rather than drifting apart.
+// describing the same result scenarios rather than drifting apart.
 //
 // Every field here is authoritative server output in production: the result
 // screen recomputes no legality, scoring, transfer, cap, or balance.
 import type { SeatView } from "../protocol/envelope";
 
-export type ResultScenarioId = "jade-capped" | "jade-standard" | "practice";
+export type ResultScenarioId =
+  | "jade-capped"
+  | "jade-standard"
+  | "practice"
+  | "exhaustive-draw"
+  | "deal-in-review";
 
 function baseCompletedView(): SeatView {
   return {
@@ -206,15 +211,16 @@ function jadeStandardView(): SeatView {
   return view;
 }
 
-// Practice never implies a persistent reward: no Jade, rating, XP, level, or
-// achievement progress.
+// Practice saves a small, capped mastery award and history while leaving Jade,
+// rating, and achievements untouched.
 function practiceView(): SeatView {
   const view = baseCompletedView();
   view.match_id = "practice-1";
   view.xp_award = {
     award_id: "hand:practice-1:player-east",
     source: "practice_hand",
-    total: 0,
+    total: 25,
+    components: [{ code: "practice_hand", label: "Practice mastery", amount: 25 }],
   };
   view.progression = {
     level: 2,
@@ -239,6 +245,96 @@ function practiceView(): SeatView {
   return view;
 }
 
+function exhaustiveDrawView(): SeatView {
+  const view = baseCompletedView();
+  view.phase = "exhaustive_draw";
+  view.hand_result = {
+    kind: "exhaustive_draw",
+    draw_analysis: [
+      {
+        seat: "E",
+        tenpai: true,
+        waits: [
+          {
+            tile: { id: "dots-5-2", kind: "dots", rank: 5, copy: 2 },
+            visible_remaining: 2,
+          },
+          {
+            tile: { id: "dragon-red-4", kind: "dragon", copy: 4 },
+            visible_remaining: 1,
+          },
+        ],
+      },
+      { seat: "S", tenpai: false },
+      {
+        seat: "W",
+        tenpai: true,
+        waits: [{
+          tile: { id: "characters-7-3", kind: "characters", rank: 7, copy: 3 },
+          visible_remaining: 3,
+        }],
+      },
+      { seat: "N", tenpai: false },
+    ],
+  };
+  view.settlement = {
+    net: { E: 0, S: 0, W: 0, N: 0 },
+    total_credits: 0,
+    total_debits: 0,
+  };
+  view.xp_award = {
+    award_id: "hand:draw:player-east",
+    source: "public_hand",
+    total: 100,
+    components: [{ code: "hand_completed", label: "Hand completed", amount: 100 }],
+  };
+  return view;
+}
+
+function dealInReviewView(): SeatView {
+  const view = jadeStandardView();
+  view.achievements = [];
+  const winner = view.hand_result?.winners?.[0];
+  if (!view.hand_result || !winner) return view;
+  view.hand_result.payer = "E";
+  winner.seat = "S";
+  winner.context.seat = "S";
+  view.own_hand = [
+    { id: "wind-east-4", kind: "wind", copy: 4 },
+    { id: "characters-9-4", kind: "characters", rank: 9, copy: 4 },
+    { id: "dragon-white-3", kind: "dragon", copy: 3 },
+  ];
+  view.discards = [
+    { seat: "W", tile: { id: "wind-east-1", kind: "wind", copy: 1 }, sequence: 1 },
+    { seat: "N", tile: { id: "wind-east-2", kind: "wind", copy: 2 }, sequence: 2 },
+    {
+      seat: "E",
+      tile: { id: "dots-1-1", kind: "dots", rank: 1, copy: 1 },
+      sequence: 3,
+    },
+  ];
+  view.settlement = {
+    transfers: [{ from: "E", to: "S", effective_tai: 3, raw_amount: 30, amount: 30 }],
+    net: { E: -30, S: 30, W: 0, N: 0 },
+    total_credits: 30,
+    total_debits: 30,
+  };
+  view.jade_settlement = {
+    seat: "E",
+    delta: -30,
+    balance_before: 5_000,
+    balance_after: 4_970,
+    journal_id: "settlement:deal-in-review",
+  };
+  view.xp_award = {
+    award_id: "hand:deal-in:player-east",
+    source: "public_hand",
+    total: 100,
+    components: [{ code: "hand_completed", label: "Hand completed", amount: 100 }],
+  };
+  return view;
+}
+
 export const RESULT_SCENARIOS: {
   id: ResultScenarioId;
   label: string;
@@ -247,5 +343,7 @@ export const RESULT_SCENARIOS: {
 }[] = [
   { id: "jade-capped", label: "Jade — debit cap applied", practice: false, view: jadeCappedView() },
   { id: "jade-standard", label: "Jade — standard hand", practice: false, view: jadeStandardView() },
-  { id: "practice", label: "Practice — no progression", practice: true, view: practiceView() },
+  { id: "practice", label: "Practice — Mastery XP", practice: true, view: practiceView() },
+  { id: "exhaustive-draw", label: "Draw — four-seat waits", practice: false, view: exhaustiveDrawView() },
+  { id: "deal-in-review", label: "Loss — discard review", practice: false, view: dealInReviewView() },
 ];

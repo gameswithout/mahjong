@@ -13,6 +13,7 @@ import {
   seatName,
   standingsForDisplay,
 } from "./rotation";
+import { formatNumber, t, translateSource } from "./i18n";
 
 export interface RotationPanelProps {
   rotation: RotationState;
@@ -40,28 +41,28 @@ export function RotationPanel({ rotation, viewerUserId, nameOf = noName }: Rotat
     <section className="rotation-panel" aria-labelledby="rotation-panel-title">
       <div className="rotation-panel-heading">
         <h2 id="rotation-panel-title" className="status-label">
-          Full Rotation
+          {t("rotation.title")}
         </h2>
-        <p className="rotation-hand">{handHeadline(rotation, dealer)}</p>
+        <p className="rotation-hand">{translateSource(handHeadline(rotation, dealer))}</p>
       </div>
 
       {/* Progress is measured in players who have dealt, not hands played.
           §5.11 lets a winning dealer hold the deal, so a hand counter would
           claim the match was nearly over while it had barely started. */}
-      <p className="rotation-progress" aria-label={progress.label}>
-        {progress.label}
+      <p className="rotation-progress" aria-label={translateSource(progress.label)}>
+        {translateSource(progress.label)}
       </p>
 
       <table className="rotation-standings">
         <caption className="visually-hidden">
-          Table points for each player. Points may be negative and are not Jade.
+          {t("rotation.caption")}
         </caption>
         <thead>
           <tr>
             <th scope="col">#</th>
-            <th scope="col">Player</th>
-            <th scope="col">Seat</th>
-            <th scope="col">Table points</th>
+            <th scope="col">{t("rotation.player")}</th>
+            <th scope="col">{t("rotation.seat")}</th>
+            <th scope="col">{t("rotation.tablePoints")}</th>
           </tr>
         </thead>
         <tbody>
@@ -73,8 +74,8 @@ export function RotationPanel({ rotation, viewerUserId, nameOf = noName }: Rotat
               <td>{row.rank}</td>
               <td>
                 {nameOf(row.user_id) ?? seatName(row.position)}
-                {row.isSelf ? <span className="rotation-you"> (you)</span> : null}
-                {row.dealing ? <span className="rotation-dealing"> · dealing</span> : null}
+                {row.isSelf ? <span className="rotation-you"> {t("rotation.you")}</span> : null}
+                {row.dealing ? <span className="rotation-dealing"> · {t("rotation.dealing")}</span> : null}
               </td>
               {/* The wind, which is what this hand calls them, next to the
                   fixed position they keep for the whole match. */}
@@ -86,9 +87,7 @@ export function RotationPanel({ rotation, viewerUserId, nameOf = noName }: Rotat
       </table>
 
       {/* Table points are not a currency and must not be mistaken for one. */}
-      <p className="rotation-footnote">
-        Table points decide the ranking. Full Rotation stakes no Jade.
-      </p>
+      <p className="rotation-footnote">{t("rotation.footnote")}</p>
     </section>
   );
 }
@@ -116,8 +115,8 @@ export function InterHandCountdown({ rotation }: { rotation: RotationState }) {
   return (
     <p className="rotation-countdown" role="status">
       {remaining > 0
-        ? `Next hand in ${remaining}s`
-        : "Dealing the next hand…"}
+        ? t("rotation.nextHand", { seconds: remaining })
+        : t("rotation.dealingNext")}
     </p>
   );
 }
@@ -142,8 +141,8 @@ export function RotationPodium({
 
   return (
     <section className="rotation-podium" aria-labelledby="rotation-podium-title">
-      <h2 id="rotation-podium-title">Final standings</h2>
-      {summary ? <p className="rotation-podium-summary">{summary}</p> : null}
+      <h2 id="rotation-podium-title">{t("rotation.finalStandings")}</h2>
+      {summary ? <p className="rotation-podium-summary">{translateSource(summary)}</p> : null}
       <ol className="rotation-podium-list">
         {placements.map((placement) => {
           const note = placementNote(placement);
@@ -157,23 +156,23 @@ export function RotationPodium({
                 {placementLabel(placement.position)}
               </span>
               <span className="rotation-placement-name">
-                {nameOf(placement.user_id) ?? "Player"}
-                {isSelf ? <span className="rotation-you"> (you)</span> : null}
+                {nameOf(placement.user_id) ?? t("game.player")}
+                {isSelf ? <span className="rotation-you"> {t("rotation.you")}</span> : null}
               </span>
               <span className="rotation-placement-points">
                 {formatTablePoints(placement.table_points)}
               </span>
               {/* A tie is disclosed rather than hidden behind the displayed
                   order: §8.4 makes equal points a genuine tie for rating. */}
-              {note ? <span className="rotation-placement-note">{note}</span> : null}
+              {note ? <span className="rotation-placement-note">{translateSource(note)}</span> : null}
             </li>
           );
         })}
       </ol>
       {award && (award.total ?? 0) > 0 ? (
         <p className="rotation-placement-xp">
-          Placement XP: +{award.total}
-          {award.components?.[0]?.label ? ` · ${award.components[0].label}` : null}
+          {t("rotation.placementXp", { xp: formatNumber(award.total ?? 0) })}
+          {award.components?.[0]?.label ? ` · ${translateSource(award.components[0].label)}` : null}
         </p>
       ) : null}
     </section>

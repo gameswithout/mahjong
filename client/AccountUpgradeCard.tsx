@@ -12,6 +12,7 @@ import { useState } from "react";
 import { CLOSED_BETA_COUNTRIES, DEFAULT_COUNTRY_CODE } from "./countries";
 import { IamAuthError, type GuestUpgradeInput } from "./iam";
 import { MINIMUM_ACCOUNT_AGE, ageInYears } from "./age-gate";
+import { displayCountryName, t } from "./i18n";
 
 export interface AccountUpgradeCardProps {
   onRequestCode(email: string): Promise<void>;
@@ -72,17 +73,17 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
     const birthMonth = Number(form.birthMonth);
 
     if (!form.ageConfirmed) {
-      setStatus({ status: "error", message: "Confirm your age to continue." });
+      setStatus({ status: "error", message: t("upgrade.confirmAge") });
       return;
     }
     if (!Number.isInteger(birthYear) || !Number.isInteger(birthMonth)) {
-      setStatus({ status: "error", message: "Enter your birth month and year." });
+      setStatus({ status: "error", message: t("upgrade.enterBirth") });
       return;
     }
     if (ageInYears(birthYear, birthMonth) < MINIMUM_ACCOUNT_AGE) {
       setStatus({
         status: "error",
-        message: `You must be at least ${MINIMUM_ACCOUNT_AGE} years old to create an account.`,
+        message: t("upgrade.minimumAge", { age: MINIMUM_ACCOUNT_AGE }),
       });
       return;
     }
@@ -108,11 +109,10 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
 
   if (step === "done") {
     return (
-      <section className="account-upgrade-card" aria-label="Account created" role="status">
-        <p className="status-label">Account created</p>
+      <section className="account-upgrade-card" aria-label={t("upgrade.created")} role="status">
+        <p className="status-label">{t("upgrade.created")}</p>
         <p className="account-upgrade-intro">
-          You can now sign in with {form.email.trim()} on any device. Your Jade, rating, and
-          progression stayed with this account.
+          {t("upgrade.createdDetail", { email: form.email.trim() })}
         </p>
       </section>
     );
@@ -120,13 +120,9 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
 
   return (
     <section className="account-upgrade-card" aria-labelledby="account-upgrade-title">
-      <p className="status-label">Playing as a guest</p>
-      <h3 id="account-upgrade-title">Keep this progress</h3>
-      <p className="account-upgrade-intro">
-        Add an email and password to this account. Your Jade, rating, and progression stay exactly
-        as they are — a full account just means you can sign back in from another device, or after
-        clearing this browser's storage.
-      </p>
+      <p className="status-label">{t("upgrade.guest")}</p>
+      <h3 id="account-upgrade-title">{t("upgrade.keepProgress")}</h3>
+      <p className="account-upgrade-intro">{t("upgrade.detail")}</p>
 
       {step === "cta" && (
         <button
@@ -137,7 +133,7 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
             setStatus({ status: "idle" });
           }}
         >
-          Create a full account
+          {t("upgrade.fullAccount")}
         </button>
       )}
 
@@ -154,7 +150,7 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
           }}
         >
           <label className="session-input-label" htmlFor="upgrade-email">
-            Email
+            {t("auth.email")}
           </label>
           <input
             id="upgrade-email"
@@ -173,12 +169,12 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
               className="secondary-action session-action"
               disabled={working || !form.email}
             >
-              {working ? "Sending code…" : "Send verification code"}
+              {working ? t("auth.sendingCode") : t("auth.sendCode")}
             </button>
           ) : (
             <>
               <label className="session-input-label" htmlFor="upgrade-code">
-                Verification code
+                {t("auth.verificationCode")}
               </label>
               <input
                 id="upgrade-code"
@@ -192,7 +188,7 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
               />
 
               <label className="session-input-label" htmlFor="upgrade-username">
-                Username
+                {t("auth.username")}
               </label>
               <input
                 id="upgrade-username"
@@ -205,7 +201,7 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
               />
 
               <label className="session-input-label" htmlFor="upgrade-password">
-                Password
+                {t("auth.password")}
               </label>
               <input
                 id="upgrade-password"
@@ -218,7 +214,7 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
               />
 
               <label className="session-input-label" htmlFor="upgrade-country">
-                Country
+                {t("auth.country")}
               </label>
               <select
                 id="upgrade-country"
@@ -228,22 +224,22 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
               >
                 {CLOSED_BETA_COUNTRIES.map((country) => (
                   <option key={country.code} value={country.code}>
-                    {country.name}
+                    {displayCountryName(country.code, country.name)}
                   </option>
                 ))}
               </select>
 
-              <span className="session-input-label">Birth month and year</span>
+              <span className="session-input-label">{t("auth.birthMonthYear")}</span>
               <div className="email-auth-row">
                 <select
-                  aria-label="Birth month"
+                  aria-label={t("auth.birthMonthLabel")}
                   className="session-input"
                   required
                   value={form.birthMonth}
                   onChange={(event) => update({ birthMonth: event.target.value })}
                 >
                   <option value="" disabled>
-                    Month
+                    {t("auth.month")}
                   </option>
                   {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
                     <option key={month} value={month}>
@@ -252,14 +248,14 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
                   ))}
                 </select>
                 <select
-                  aria-label="Birth year"
+                  aria-label={t("auth.birthYearLabel")}
                   className="session-input"
                   required
                   value={form.birthYear}
                   onChange={(event) => update({ birthYear: event.target.value })}
                 >
                   <option value="" disabled>
-                    Year
+                    {t("auth.year")}
                   </option>
                   {birthYearOptions.map((year) => (
                     <option key={year} value={year}>
@@ -275,11 +271,11 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
                   checked={form.ageConfirmed}
                   onChange={(event) => update({ ageConfirmed: event.target.checked })}
                 />
-                I confirm this birth month and year are accurate.
+                {t("auth.ageConfirm")}
               </label>
 
               <button type="submit" className="primary-action session-action" disabled={working}>
-                {working ? "Creating account…" : "Create account"}
+                {working ? t("auth.creatingAccount") : t("auth.createAccount")}
               </button>
             </>
           )}
@@ -293,7 +289,7 @@ export function AccountUpgradeCard({ onRequestCode, onUpgrade, onUpgraded }: Acc
               setStatus({ status: "idle" });
             }}
           >
-            Not now
+            {t("upgrade.notNow")}
           </button>
         </form>
       )}

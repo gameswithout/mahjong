@@ -7,6 +7,7 @@ import {
   type ResultFriendsState,
 } from "./HandResultScreen";
 import { InterHandCountdown, RotationPanel, RotationPodium } from "./RotationPanel";
+import { t } from "./i18n";
 
 export const WINNING_HAND_REVEAL_MS = 5000;
 
@@ -62,7 +63,7 @@ export function CompletedHandFlow({
 
   if (revealing) {
     return (
-      <div className="winning-table-reveal" role="status" aria-label="Winning hand revealed">
+      <div className="winning-table-reveal" role="status" aria-label={t("result.winningReveal")}>
         {revealTable}
       </div>
     );

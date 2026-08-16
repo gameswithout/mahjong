@@ -69,7 +69,7 @@ function completedView(): SeatView {
 }
 
 describe("HandResultScreen", () => {
-  it("presents Practice scoring as non-persistent and offers a fresh hand", () => {
+  it("presents saved Practice mastery separately from non-persistent table points", () => {
     const markup = renderToStaticMarkup(
       <HandResultScreen
         view={completedView()}
@@ -80,7 +80,8 @@ describe("HandResultScreen", () => {
     );
 
     expect(markup).toContain("Practice result");
-    expect(markup).toContain("No Jade, rating, level, or achievement progress changed");
+    expect(markup).toContain("Jade, rating, and achievements stay unchanged");
+    expect(markup).toContain("Mastery XP and this hand&#x27;s history are saved");
     expect(markup).toContain('aria-label="1 of dots"');
     expect(markup).toContain("3 Practice points");
     expect(markup).not.toContain("3 Jade");
@@ -89,6 +90,100 @@ describe("HandResultScreen", () => {
     expect(markup).not.toContain("Dealer rotates");
     expect(markup).toContain("Play Again");
     expect(markup).toContain("Return to Lobby");
+  });
+
+  it("reveals every seat's Tenpai state and live waits after an exhaustive draw", () => {
+    const view = completedView();
+    view.hand_result = {
+      kind: "exhaustive_draw",
+      draw_analysis: [
+        {
+          seat: "E",
+          tenpai: true,
+          waits: [{
+            tile: { id: "dots-5-2", kind: "dots", rank: 5, copy: 2 },
+            visible_remaining: 2,
+          }],
+        },
+        { seat: "S", tenpai: false },
+        { seat: "W", tenpai: true, waits: [] },
+        { seat: "N", tenpai: false },
+      ],
+    };
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain("Ready hands at the draw");
+    expect(markup).toContain("You (East)");
+    expect(markup).toContain("South");
+    expect(markup).toContain("West");
+    expect(markup).toContain("North");
+    expect(markup).toContain("2 live copies total");
+    expect(markup).toContain("Ready; detailed waits were not recorded");
+    expect(markup.match(/Not tenpai/g)).toHaveLength(2);
+  });
+
+  it("explains how close the learner's final draw shape was", () => {
+    const view = completedView();
+    view.phase = "exhaustive_draw";
+    view.own_hand = [
+      ...[1, 2, 3].map((rank) => ({ id: `characters-${rank}-1`, kind: "characters" as const, rank, copy: 1 })),
+      ...[2, 3, 4].map((rank) => ({ id: `bamboo-${rank}-1`, kind: "bamboo" as const, rank, copy: 1 })),
+      ...[6, 7, 8].map((rank) => ({ id: `dots-${rank}-1`, kind: "dots" as const, rank, copy: 1 })),
+      ...[1, 2, 3].map((copy) => ({ id: `dragon-red-${copy}`, kind: "dragon" as const, copy })),
+      { id: "wind-east-1", kind: "wind", copy: 1 },
+      { id: "wind-east-2", kind: "wind", copy: 2 },
+      { id: "wind-south-1", kind: "wind", copy: 1 },
+      { id: "wind-west-1", kind: "wind", copy: 1 },
+    ];
+    view.hand_result = {
+      kind: "exhaustive_draw",
+      draw_analysis: [
+        { seat: "E", tenpai: false },
+        { seat: "S", tenpai: false },
+        { seat: "W", tenpai: false },
+        { seat: "N", tenpai: false },
+      ],
+    };
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain("Your final shape had 4 of 5 groups and a pair");
+    expect(markup).toContain('aria-label="Your final tiles"');
+    expect(markup).toContain("Next focus: keep the pair");
+  });
+
+  it("reviews a deal-in using public visibility and the revealed winning group", () => {
+    const view = completedView();
+    if (!view.hand_result?.winners?.[0]) throw new Error("invalid result fixture");
+    view.hand_result.payer = "E";
+    view.hand_result.winners[0].seat = "S";
+    view.own_hand = [
+      { id: "wind-east-4", kind: "wind", copy: 4 },
+      { id: "characters-9-4", kind: "characters", rank: 9, copy: 4 },
+    ];
+    view.discards = [
+      {
+        seat: "W",
+        tile: { id: "wind-east-1", kind: "wind", copy: 1 },
+        sequence: 1,
+      },
+      {
+        seat: "E",
+        tile: { id: "dots-1-1", kind: "dots", rank: 1, copy: 1 },
+        sequence: 2,
+      },
+    ];
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain("Your decisive discard");
+    expect(markup).toContain("1 of dots dealt into the winning hand");
+    expect(markup).toContain("No matching copy was public before the discard");
+    expect(markup).toContain("completed the winner&#x27;s pair");
+    expect(markup).toContain("Lower-uncertainty tiles you held");
+    expect(markup).toContain("visibility comparisons, not guaranteed-safe discards");
+    expect(markup).toContain("only your hand, public tiles, and the revealed winning shape");
   });
 
   it("preserves standard settlement and continuation copy outside Practice", () => {

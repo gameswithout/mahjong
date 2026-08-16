@@ -1084,7 +1084,7 @@ func TestRuntimeAIPractice_BotsPlaySoloMatchAutomatically(t *testing.T) {
 		}
 
 		seq++
-		if _, _, err := runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
+		if _, view, err = runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
 			RequestID:       fmt.Sprintf("discard-%d", seq),
 			Type:            rulesengine.CommandDiscard,
 			ExpectedVersion: discardVersion,
@@ -1092,6 +1092,7 @@ func TestRuntimeAIPractice_BotsPlaySoloMatchAutomatically(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("round %d: Discard() error = %v", roundsPlayed, err)
 		}
+		previousDiscardCount := len(view.Discards)
 
 		// From here to the human's next decision point, every seat other
 		// than East is bot-controlled: South/West/North's draws, discards,
@@ -1104,6 +1105,10 @@ func TestRuntimeAIPractice_BotsPlaySoloMatchAutomatically(t *testing.T) {
 			if err != nil {
 				t.Fatalf("round %d: View() while draining bot turns error = %v", roundsPlayed, err)
 			}
+			if advanced := len(view.Discards) - previousDiscardCount; advanced > 1 {
+				t.Fatalf("round %d: one View() skipped %d public bot discards", roundsPlayed, advanced)
+			}
+			previousDiscardCount = len(view.Discards)
 			if view.Phase == rulesengine.PhaseHandComplete || view.Phase == rulesengine.PhaseExhaustiveDraw {
 				break
 			}
@@ -1113,7 +1118,8 @@ func TestRuntimeAIPractice_BotsPlaySoloMatchAutomatically(t *testing.T) {
 			if view.Phase == rulesengine.PhaseClaimWindow && view.Claim != nil && view.Claim.OwnResponse == nil &&
 				seatIn(view.Claim.Eligible, rulesengine.East) {
 				seq++
-				if _, _, err := runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
+				previous := len(view.Discards)
+				if _, view, err = runtime.Apply(ctx, key, "human", rulesengine.MatchCommand{
 					RequestID:       fmt.Sprintf("human-pass-%d", seq),
 					Type:            rulesengine.CommandSubmitClaim,
 					ExpectedVersion: view.StateVersion,
@@ -1121,6 +1127,10 @@ func TestRuntimeAIPractice_BotsPlaySoloMatchAutomatically(t *testing.T) {
 				}); err != nil {
 					t.Fatalf("round %d: human Pass() error = %v", roundsPlayed, err)
 				}
+				if advanced := len(view.Discards) - previous; advanced > 1 {
+					t.Fatalf("round %d: one Pass() skipped %d public bot discards", roundsPlayed, advanced)
+				}
+				previousDiscardCount = len(view.Discards)
 			}
 		}
 		roundsPlayed++

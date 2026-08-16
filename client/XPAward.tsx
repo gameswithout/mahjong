@@ -1,4 +1,5 @@
 import type { HandXPAward, PlayerProgression } from "../protocol/envelope";
+import { formatNumber, t, translateSource } from "./i18n";
 
 // §12.1/§12.2 post-match progress: what this hand earned, where it left the
 // player on the curve, and what the next level is actually worth.
@@ -10,13 +11,13 @@ import type { HandXPAward, PlayerProgression } from "../protocol/envelope";
 function rewardLabel(kind: string): string {
   switch (kind) {
     case "title":
-      return "title";
+      return t("xp.kindTitle");
     case "table_theme":
-      return "table theme";
+      return t("xp.kindTableTheme");
     case "tile_skin":
-      return "tile skin";
+      return t("xp.kindTileSkin");
     case "avatar_frame":
-      return "avatar frame";
+      return t("xp.kindAvatarFrame");
     default:
       return kind.replace(/_/g, " ");
   }
@@ -47,10 +48,10 @@ export function XPAward({
     <section className="xp-award" aria-labelledby="xp-award-title">
       <div className="xp-award-header">
         <h3 id="xp-award-title" className="status-label">
-          Progress
+          {t("xp.progress")}
         </h3>
         <p className="xp-award-total">
-          {total > 0 ? `+${total.toLocaleString()} XP` : "No XP from this hand"}
+          {total > 0 ? `+${formatNumber(total)} XP` : t("xp.none")}
         </p>
       </div>
 
@@ -58,29 +59,28 @@ export function XPAward({
         <ul className="xp-award-components">
           {award.components.map((component) => (
             <li key={component.code ?? component.label}>
-              <span>{component.label}</span>
-              <strong>+{component.amount.toLocaleString()}</strong>
+              <span>{translateSource(component.label)}</span>
+              <strong>+{formatNumber(component.amount)}</strong>
             </li>
           ))}
         </ul>
       )}
 
       {award.capped_by_daily && (
-        <p className="xp-award-capped">
-          Solo Practice is progression-neutral. Levels and achievements are earned
-          through Online Play.
-        </p>
+        <p className="xp-award-capped">{t("xp.practiceCap")}</p>
       )}
 
       <div className="xp-award-level">
         <p className="xp-award-level-line">
-          <strong>Level {level}</strong>
+          <strong>{t("progression.level", { level })}</strong>
           {atCap ? (
-            <span>Maximum level reached</span>
+            <span>{t("xp.maximumLevelReached")}</span>
           ) : (
-            <span>
-              {into.toLocaleString()} / {needed.toLocaleString()} XP to level {level + 1}
-            </span>
+            <span>{t("xp.toLevel", {
+              current: formatNumber(into),
+              needed: formatNumber(needed),
+              level: level + 1,
+            })}</span>
           )}
         </p>
 
@@ -91,7 +91,7 @@ export function XPAward({
             aria-valuemin={0}
             aria-valuemax={needed}
             aria-valuenow={into}
-            aria-label={`Level ${level} progress`}
+            aria-label={t("progression.levelProgress", { level })}
           >
             <span className="xp-award-bar-fill" style={{ width: `${percent}%` }} />
           </div>
@@ -100,10 +100,11 @@ export function XPAward({
         {/* Naming the next reward is the point: "12% to level 8" means
             nothing on its own, but "the Jade tile skin at level 10" does. */}
         {progression.next && (
-          <p className="xp-award-next">
-            Next reward: {progression.next.name} {rewardLabel(progression.next.kind)} at level{" "}
-            {progression.next.level}
-          </p>
+          <p className="xp-award-next">{t("xp.nextReward", {
+            name: translateSource(progression.next.name),
+            kind: rewardLabel(progression.next.kind),
+            level: progression.next.level,
+          })}</p>
         )}
       </div>
     </section>

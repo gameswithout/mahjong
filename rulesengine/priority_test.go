@@ -232,6 +232,19 @@ func TestTimeoutNeverLocksWin(t *testing.T) {
 // context (§5.2, §5.11).
 func TestExhaustiveDrawFromPlainWallExhaustion(t *testing.T) {
 	state := turnFixture(t)
+	state.Players[0].Hand = append(
+		append(
+			append(
+				append(concealedPongTiles(Characters, 1), concealedPongTiles(Characters, 2)...),
+				concealedPongTiles(Characters, 3)...,
+			),
+			concealedPongTiles(Characters, 4)...,
+		),
+		tile("dots-1-1", Dots, 1, 1),
+		tile("dots-2-1", Dots, 2, 1),
+		tile("dots-3-1", Dots, 3, 1),
+		tile("dots-5-1", Dots, 5, 1),
+	)
 	for state.Wall.DrawableRemaining() > 0 {
 		if _, err := state.Wall.DrawFront(); err != nil {
 			t.Fatalf("draining wall error = %v", err)
@@ -246,8 +259,17 @@ func TestExhaustiveDrawFromPlainWallExhaustion(t *testing.T) {
 	if !result.Completed || engine.Phase != PhaseExhaustiveDraw {
 		t.Fatalf("result = %#v, phase = %s", result, engine.Phase)
 	}
-	if handResult := engine.Result(); handResult == nil || handResult.Kind != KindExhaustiveDraw {
+	handResult := engine.Result()
+	if handResult == nil || handResult.Kind != KindExhaustiveDraw {
 		t.Fatalf("hand result = %#v", handResult)
+	}
+	if len(handResult.DrawAnalysis) != 4 {
+		t.Fatalf("draw analysis seats = %d, want all four", len(handResult.DrawAnalysis))
+	}
+	east := handResult.DrawAnalysis[0]
+	if east.Seat != East || !east.Tenpai || len(east.Waits) != 1 ||
+		tileBaseID(east.Waits[0].Tile.ID) != "dots-5" {
+		t.Fatalf("East draw analysis = %#v, want dots-5 Tenpai", east)
 	}
 }
 

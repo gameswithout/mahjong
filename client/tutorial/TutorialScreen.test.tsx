@@ -230,6 +230,17 @@ describe("TutorialScreen", () => {
     expect(skipped?.scriptVersion).toBe(TUTORIAL_SCRIPT_VERSION);
   });
 
+  it("exits reliably after the table lesson has started", () => {
+    render();
+    begin();
+    click("Exit tutorial");
+
+    expect(onExit).toHaveBeenCalledOnce();
+    expect(onExit).toHaveBeenCalledWith("skipped");
+    expect(container.textContent).toContain("Never played Mahjong? Start here.");
+    expect(container.querySelector('[data-testid="match-table"]')).toBeNull();
+  });
+
   it("runs end to end, reporting every chapter and completion", () => {
     render();
     begin();

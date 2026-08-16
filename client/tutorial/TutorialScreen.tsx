@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MatchTable } from "../MatchTable";
 import type { MatchTableState } from "../matchTableTypes";
+import { t, translateSource } from "../i18n";
 import {
   noopTutorialAnalytics,
   tutorialEvent,
@@ -178,6 +179,14 @@ export function TutorialScreen({
         fromStepId: step.id,
       }),
     );
+    // Reset locally before notifying the parent. Besides making the control
+    // resilient to a delayed parent transition, this removes the busy table
+    // immediately so the exit always has visible feedback.
+    setStarted(false);
+    setLocation(START);
+    setAttempted(false);
+    setConfirmed(false);
+    setFinished(false);
     onExit("skipped");
   }
 
@@ -217,31 +226,25 @@ export function TutorialScreen({
         aria-labelledby="tutorial-welcome-title"
       >
         <section className="tutorial-welcome-card">
-          <p className="tutorial-eyebrow">Beginner tutorial · about 6 minutes</p>
-          <h1 id="tutorial-welcome-title">Never played Mahjong? Start here.</h1>
-          <p className="tutorial-welcome-lead">
-            No terminology or scoring knowledge is assumed. You will use the
-            real table, but every step is untimed and every mistake is safe.
-          </p>
+          <p className="tutorial-eyebrow">{t("tutorial.welcomeEyebrow")}</p>
+          <h1 id="tutorial-welcome-title">{t("tutorial.welcomeTitle")}</h1>
+          <p className="tutorial-welcome-lead">{t("tutorial.welcomeLead")}</p>
 
-          <ol className="tutorial-roadmap" aria-label="What you will learn">
+          <ol className="tutorial-roadmap" aria-label={t("tutorial.learnLabel")}>
             {TUTORIAL_CHAPTERS.map((item, index) => (
               <li key={item.id}>
                 <span>{index + 1}</span>
                 <div>
-                  <strong>{item.title}</strong>
-                  <p>{item.summary}</p>
+                  <strong>{translateSource(item.title)}</strong>
+                  <p>{translateSource(item.summary)}</p>
                 </div>
               </li>
             ))}
           </ol>
 
           <div className="tutorial-welcome-note">
-            <strong>Your whole first-hand recipe</strong>
-            <span>
-              Draw one, discard one, build five groups and a pair, then choose
-              Win when the game offers it.
-            </span>
+            <strong>{t("tutorial.recipeTitle")}</strong>
+            <span>{t("tutorial.recipe")}</span>
           </div>
 
           <div className="tutorial-welcome-actions">
@@ -250,14 +253,14 @@ export function TutorialScreen({
               className="primary-action"
               onClick={beginTutorial}
             >
-              Start with the basics
+              {t("tutorial.start")}
             </button>
             <button
               type="button"
               className="secondary-action"
               onClick={skipTutorial}
             >
-              Skip the tutorial
+              {t("tutorial.skip")}
             </button>
           </div>
         </section>
@@ -272,38 +275,30 @@ export function TutorialScreen({
         aria-labelledby="tutorial-complete-title"
       >
         <section className="tutorial-complete">
-          <p className="tutorial-eyebrow">Tutorial complete</p>
-          <h1 id="tutorial-complete-title">
-            You are ready for your first hand.
-          </h1>
-          <p>
-            You do not need to memorise the full rulebook. Keep this small
-            checklist beside you and let the table show the legal actions.
-          </p>
+          <p className="tutorial-eyebrow">{t("tutorial.complete")}</p>
+          <h1 id="tutorial-complete-title">{t("tutorial.ready")}</h1>
+          <p>{t("tutorial.completeLead")}</p>
 
           <ol className="tutorial-finish-checklist">
             <li>
-              <strong>Take a turn</strong>
-              <span>Draw one tile, then discard one tile.</span>
+              <strong>{t("tutorial.takeTurn")}</strong>
+              <span>{t("tutorial.takeTurnDetail")}</span>
             </li>
             <li>
-              <strong>Build the shape</strong>
-              <span>Five groups plus one matching pair.</span>
+              <strong>{t("tutorial.buildShape")}</strong>
+              <span>{t("tutorial.buildShapeDetail")}</span>
             </li>
             <li>
-              <strong>Watch the Ready panel</strong>
-              <span>It lists the tiles that can complete your hand.</span>
+              <strong>{t("tutorial.watchReady")}</strong>
+              <span>{t("tutorial.watchReadyDetail")}</span>
             </li>
             <li>
-              <strong>Count Tai</strong>
-              <span>Add the pattern lines shown by the game; every win starts at 1.</span>
+              <strong>{t("tutorial.countTai")}</strong>
+              <span>{t("tutorial.countTaiDetail")}</span>
             </li>
           </ol>
 
-          <p className="tutorial-practice-next">
-            Next, choose <strong>Practice vs Bots</strong> in the lobby. It is
-            untimed by default and does not affect Jade or rating.
-          </p>
+          <p className="tutorial-practice-next">{t("tutorial.practiceNext")}</p>
 
           <div className="tutorial-complete-actions">
             <button
@@ -311,14 +306,14 @@ export function TutorialScreen({
               className="primary-action"
               onClick={() => onExit("completed")}
             >
-              Finish and return to lobby
+              {t("tutorial.finish")}
             </button>
             <button
               type="button"
               className="secondary-action"
               onClick={restart}
             >
-              Replay the tutorial
+              {t("lobby.replayTutorial")}
             </button>
           </div>
         </section>
@@ -332,13 +327,13 @@ export function TutorialScreen({
     !confirmed;
   const waitingPrompt =
     step.expect.kind === "draw"
-      ? "Use Draw now in the action bar."
+      ? t("tutorial.waitDraw")
       : step.expect.kind === "discard"
-        ? "Use the tiles in your hand below."
-        : "Use the claim buttons in the action bar.";
+        ? t("tutorial.waitDiscard")
+        : t("tutorial.waitClaim");
 
   return (
-    <main className="tutorial-screen" aria-label="Mahjong tutorial">
+    <main className="tutorial-screen" aria-label={t("tutorial.screenLabel")}>
       <div className="tutorial-table" key={tableEpoch}>
         <MatchTable
           state={tableState}
@@ -356,12 +351,15 @@ export function TutorialScreen({
         />
       </div>
 
-      <aside className="tutorial-panel" aria-label="Tutorial instruction">
+      <aside className="tutorial-panel" aria-label={t("tutorial.instructionLabel")}>
         <div className="tutorial-progress-header">
           <p className="tutorial-progress">
-            Lesson {location.chapterIndex + 1} of {TUTORIAL_CHAPTERS.length}
+            {t("tutorial.lessonProgress", {
+              lesson: location.chapterIndex + 1,
+              lessons: TUTORIAL_CHAPTERS.length,
+            })}
             <span>
-              Step {currentStep} of {totalSteps}
+              {t("tutorial.stepProgress", { step: currentStep, steps: totalSteps })}
             </span>
           </p>
           <button
@@ -369,13 +367,13 @@ export function TutorialScreen({
             className="tutorial-text-button tutorial-exit"
             onClick={skipTutorial}
           >
-            Exit tutorial
+            {t("tutorial.exit")}
           </button>
         </div>
         <div
           className="tutorial-progress-track"
           role="progressbar"
-          aria-label="Tutorial progress"
+          aria-label={t("tutorial.progressLabel")}
           aria-valuemin={1}
           aria-valuemax={totalSteps}
           aria-valuenow={currentStep}
@@ -384,33 +382,33 @@ export function TutorialScreen({
         </div>
 
         <div className="tutorial-chapter-heading">
-          <h1 className="tutorial-chapter-title">{chapter.title}</h1>
-          <p>{chapter.summary}</p>
+          <h1 className="tutorial-chapter-title">{translateSource(chapter.title)}</h1>
+          <p>{translateSource(chapter.summary)}</p>
         </div>
 
         <section className="tutorial-task" aria-labelledby="tutorial-task-title">
-          <p className="tutorial-task-label">Your task</p>
+          <p className="tutorial-task-label">{t("tutorial.task")}</p>
           <h3 id="tutorial-task-title" className="tutorial-instruction">
-            {step.instruction}
+            {translateSource(step.instruction)}
           </h3>
-          {step.detail && <p className="tutorial-detail">{step.detail}</p>}
+          {step.detail && <p className="tutorial-detail">{translateSource(step.detail)}</p>}
         </section>
 
         {step.keyPoint && (
           <p className="tutorial-key-point">
-            <span>Remember</span>
-            {step.keyPoint}
+            <span>{t("tutorial.remember")}</span>
+            {translateSource(step.keyPoint)}
           </p>
         )}
 
         {step.terms && (
-          <section className="tutorial-glossary" aria-label="New words">
-            <h3>New words, in plain language</h3>
+          <section className="tutorial-glossary" aria-label={t("tutorial.wordsLabel")}>
+            <h3>{t("tutorial.wordsTitle")}</h3>
             <dl>
               {step.terms.map((item) => (
                 <div key={item.term}>
-                  <dt>{item.term}</dt>
-                  <dd>{item.meaning}</dd>
+                  <dt>{translateSource(item.term)}</dt>
+                  <dd>{translateSource(item.meaning)}</dd>
                 </div>
               ))}
             </dl>
@@ -418,19 +416,19 @@ export function TutorialScreen({
         )}
 
         {step.score && (
-          <section className="tutorial-score" aria-label={step.score.title}>
-            <h3>{step.score.title}</h3>
+          <section className="tutorial-score" aria-label={translateSource(step.score.title)}>
+            <h3>{translateSource(step.score.title)}</h3>
             <ul>
               {step.score.lines.map((line) => (
                 <li key={line.label}>
-                  <span>{line.label}</span>
+                  <span>{translateSource(line.label)}</span>
                   <strong>+{line.tai}</strong>
                 </li>
               ))}
             </ul>
             <p>
-              <span>Total</span>
-              <strong>{step.score.total} Tai</strong>
+              <span>{t("tutorial.total")}</span>
+              <strong>{t("tutorial.taiValue", { count: step.score.total })}</strong>
             </p>
           </section>
         )}
@@ -439,7 +437,7 @@ export function TutorialScreen({
           <div
             className="tutorial-answer-grid"
             role="group"
-            aria-label="Choose the Tai total"
+            aria-label={t("tutorial.chooseTai")}
           >
             {step.answers.map((answer) => (
               <button
@@ -453,7 +451,7 @@ export function TutorialScreen({
                   )
                 }
               >
-                {answer.label}
+                {translateSource(answer.label)}
               </button>
             ))}
           </div>
@@ -461,20 +459,20 @@ export function TutorialScreen({
 
         {confirmed && step.confirmation && (
           <p className="tutorial-confirmation" role="status">
-            <strong>That’s it.</strong> {step.confirmation}
+            <strong>{t("tutorial.correctPrefix")}</strong> {translateSource(step.confirmation)}
           </p>
         )}
 
         {attempted && !confirmed && step.hint && (
           <p className="tutorial-hint" role="status">
-            <strong>Try this.</strong> {step.hint}
+            <strong>{t("tutorial.hintPrefix")}</strong> {translateSource(step.hint)}
           </p>
         )}
 
         <div className="tutorial-actions">
           {(step.expect.kind === "read" || confirmed) && (
             <button type="button" className="primary-action" onClick={advance}>
-              Continue
+              {t("tutorial.continue")}
             </button>
           )}
 
@@ -490,14 +488,14 @@ export function TutorialScreen({
               className="tutorial-text-button"
               onClick={replayStep}
             >
-              Reset step
+              {t("tutorial.resetStep")}
             </button>
             <button
               type="button"
               className="tutorial-text-button"
               onClick={skipStep}
             >
-              Skip step
+              {t("tutorial.skipStep")}
             </button>
           </div>
         </div>

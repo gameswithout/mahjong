@@ -4608,19 +4608,80 @@ func (x *HandWinner) GetScore() *ScoreResult {
 	return nil
 }
 
+type DrawSeatAnalysis struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Seat          string                 `protobuf:"bytes,1,opt,name=seat,proto3" json:"seat,omitempty"`
+	Tenpai        bool                   `protobuf:"varint,2,opt,name=tenpai,proto3" json:"tenpai,omitempty"`
+	Waits         []*WaitTileView        `protobuf:"bytes,3,rep,name=waits,proto3" json:"waits,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DrawSeatAnalysis) Reset() {
+	*x = DrawSeatAnalysis{}
+	mi := &file_service_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DrawSeatAnalysis) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DrawSeatAnalysis) ProtoMessage() {}
+
+func (x *DrawSeatAnalysis) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DrawSeatAnalysis.ProtoReflect.Descriptor instead.
+func (*DrawSeatAnalysis) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *DrawSeatAnalysis) GetSeat() string {
+	if x != nil {
+		return x.Seat
+	}
+	return ""
+}
+
+func (x *DrawSeatAnalysis) GetTenpai() bool {
+	if x != nil {
+		return x.Tenpai
+	}
+	return false
+}
+
+func (x *DrawSeatAnalysis) GetWaits() []*WaitTileView {
+	if x != nil {
+		return x.Waits
+	}
+	return nil
+}
+
 type HandResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	Winners       []*HandWinner          `protobuf:"bytes,2,rep,name=winners,proto3" json:"winners,omitempty"`
 	Payer         string                 `protobuf:"bytes,3,opt,name=payer,proto3" json:"payer,omitempty"`
 	WinningTileId string                 `protobuf:"bytes,4,opt,name=winning_tile_id,json=winningTileId,proto3" json:"winning_tile_id,omitempty"`
+	DrawAnalysis  []*DrawSeatAnalysis    `protobuf:"bytes,5,rep,name=draw_analysis,json=drawAnalysis,proto3" json:"draw_analysis,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HandResult) Reset() {
 	*x = HandResult{}
-	mi := &file_service_proto_msgTypes[63]
+	mi := &file_service_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4632,7 +4693,7 @@ func (x *HandResult) String() string {
 func (*HandResult) ProtoMessage() {}
 
 func (x *HandResult) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[63]
+	mi := &file_service_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4645,7 +4706,7 @@ func (x *HandResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandResult.ProtoReflect.Descriptor instead.
 func (*HandResult) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{63}
+	return file_service_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *HandResult) GetKind() string {
@@ -4676,6 +4737,13 @@ func (x *HandResult) GetWinningTileId() string {
 	return ""
 }
 
+func (x *HandResult) GetDrawAnalysis() []*DrawSeatAnalysis {
+	if x != nil {
+		return x.DrawAnalysis
+	}
+	return nil
+}
+
 type Transfer struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	From          string                 `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
@@ -4690,7 +4758,7 @@ type Transfer struct {
 
 func (x *Transfer) Reset() {
 	*x = Transfer{}
-	mi := &file_service_proto_msgTypes[64]
+	mi := &file_service_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4702,7 +4770,7 @@ func (x *Transfer) String() string {
 func (*Transfer) ProtoMessage() {}
 
 func (x *Transfer) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[64]
+	mi := &file_service_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4715,7 +4783,7 @@ func (x *Transfer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Transfer.ProtoReflect.Descriptor instead.
 func (*Transfer) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{64}
+	return file_service_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *Transfer) GetFrom() string {
@@ -4772,7 +4840,7 @@ type Settlement struct {
 
 func (x *Settlement) Reset() {
 	*x = Settlement{}
-	mi := &file_service_proto_msgTypes[65]
+	mi := &file_service_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4784,7 +4852,7 @@ func (x *Settlement) String() string {
 func (*Settlement) ProtoMessage() {}
 
 func (x *Settlement) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[65]
+	mi := &file_service_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4797,7 +4865,7 @@ func (x *Settlement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Settlement.ProtoReflect.Descriptor instead.
 func (*Settlement) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{65}
+	return file_service_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *Settlement) GetTransfers() []*Transfer {
@@ -4839,7 +4907,7 @@ type ContinuationOutcome struct {
 
 func (x *ContinuationOutcome) Reset() {
 	*x = ContinuationOutcome{}
-	mi := &file_service_proto_msgTypes[66]
+	mi := &file_service_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4851,7 +4919,7 @@ func (x *ContinuationOutcome) String() string {
 func (*ContinuationOutcome) ProtoMessage() {}
 
 func (x *ContinuationOutcome) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[66]
+	mi := &file_service_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4864,7 +4932,7 @@ func (x *ContinuationOutcome) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContinuationOutcome.ProtoReflect.Descriptor instead.
 func (*ContinuationOutcome) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{66}
+	return file_service_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ContinuationOutcome) GetNextDealer() string {
@@ -5267,13 +5335,18 @@ const file_service_proto_rawDesc = "" +
 	"HandWinner\x12\x12\n" +
 	"\x04seat\x18\x01 \x01(\tR\x04seat\x12/\n" +
 	"\acontext\x18\x02 \x01(\v2\x15.service.ScoreContextR\acontext\x12*\n" +
-	"\x05score\x18\x03 \x01(\v2\x14.service.ScoreResultR\x05score\"\x8d\x01\n" +
+	"\x05score\x18\x03 \x01(\v2\x14.service.ScoreResultR\x05score\"k\n" +
+	"\x10DrawSeatAnalysis\x12\x12\n" +
+	"\x04seat\x18\x01 \x01(\tR\x04seat\x12\x16\n" +
+	"\x06tenpai\x18\x02 \x01(\bR\x06tenpai\x12+\n" +
+	"\x05waits\x18\x03 \x03(\v2\x15.service.WaitTileViewR\x05waits\"\xcd\x01\n" +
 	"\n" +
 	"HandResult\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12-\n" +
 	"\awinners\x18\x02 \x03(\v2\x13.service.HandWinnerR\awinners\x12\x14\n" +
 	"\x05payer\x18\x03 \x01(\tR\x05payer\x12&\n" +
-	"\x0fwinning_tile_id\x18\x04 \x01(\tR\rwinningTileId\"\xa2\x01\n" +
+	"\x0fwinning_tile_id\x18\x04 \x01(\tR\rwinningTileId\x12>\n" +
+	"\rdraw_analysis\x18\x05 \x03(\v2\x19.service.DrawSeatAnalysisR\fdrawAnalysis\"\xa2\x01\n" +
 	"\bTransfer\x12\x12\n" +
 	"\x04from\x18\x01 \x01(\tR\x04from\x12\x0e\n" +
 	"\x02to\x18\x02 \x01(\tR\x02to\x12#\n" +
@@ -5379,7 +5452,7 @@ func file_service_proto_rawDescGZIP() []byte {
 }
 
 var file_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
+var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
 var file_service_proto_goTypes = []any{
 	(OnboardingOutcome)(0),                // 0: service.OnboardingOutcome
 	(MatchCommandType)(0),                 // 1: service.MatchCommandType
@@ -5446,11 +5519,12 @@ var file_service_proto_goTypes = []any{
 	(*HandShape)(nil),                     // 62: service.HandShape
 	(*ScoreResult)(nil),                   // 63: service.ScoreResult
 	(*HandWinner)(nil),                    // 64: service.HandWinner
-	(*HandResult)(nil),                    // 65: service.HandResult
-	(*Transfer)(nil),                      // 66: service.Transfer
-	(*Settlement)(nil),                    // 67: service.Settlement
-	(*ContinuationOutcome)(nil),           // 68: service.ContinuationOutcome
-	nil,                                   // 69: service.Settlement.NetEntry
+	(*DrawSeatAnalysis)(nil),              // 65: service.DrawSeatAnalysis
+	(*HandResult)(nil),                    // 66: service.HandResult
+	(*Transfer)(nil),                      // 67: service.Transfer
+	(*Settlement)(nil),                    // 68: service.Settlement
+	(*ContinuationOutcome)(nil),           // 69: service.ContinuationOutcome
+	nil,                                   // 70: service.Settlement.NetEntry
 }
 var file_service_proto_depIdxs = []int32{
 	3,  // 0: service.GetPlayerStatisticsResponse.statistics:type_name -> service.PlayerStatistic
@@ -5482,9 +5556,9 @@ var file_service_proto_depIdxs = []int32{
 	53, // 26: service.MatchState.waits:type_name -> service.WaitTileView
 	51, // 27: service.MatchState.own_melds:type_name -> service.Meld
 	55, // 28: service.MatchState.discards:type_name -> service.Discard
-	65, // 29: service.MatchState.hand_result:type_name -> service.HandResult
-	67, // 30: service.MatchState.settlement:type_name -> service.Settlement
-	68, // 31: service.MatchState.next_dealer:type_name -> service.ContinuationOutcome
+	66, // 29: service.MatchState.hand_result:type_name -> service.HandResult
+	68, // 30: service.MatchState.settlement:type_name -> service.Settlement
+	69, // 31: service.MatchState.next_dealer:type_name -> service.ContinuationOutcome
 	46, // 32: service.MatchState.jade_account:type_name -> service.JadeAccount
 	48, // 33: service.MatchState.jade_settlement:type_name -> service.JadeSettlement
 	45, // 34: service.MatchState.self_turn_options:type_name -> service.SelfTurnOptions
@@ -5520,40 +5594,42 @@ var file_service_proto_depIdxs = []int32{
 	62, // 64: service.ScoreResult.shape:type_name -> service.HandShape
 	60, // 65: service.HandWinner.context:type_name -> service.ScoreContext
 	63, // 66: service.HandWinner.score:type_name -> service.ScoreResult
-	64, // 67: service.HandResult.winners:type_name -> service.HandWinner
-	66, // 68: service.Settlement.transfers:type_name -> service.Transfer
-	69, // 69: service.Settlement.net:type_name -> service.Settlement.NetEntry
-	17, // 70: service.Service.GetJadeAccount:input_type -> service.GetJadeAccountRequest
-	19, // 71: service.Service.ReserveJade:input_type -> service.ReserveJadeRequest
-	21, // 72: service.Service.ReleaseJade:input_type -> service.ReleaseJadeRequest
-	27, // 73: service.Service.ClaimJadeWelfare:input_type -> service.ClaimJadeWelfareRequest
-	23, // 74: service.Service.GetProgression:input_type -> service.GetProgressionRequest
-	25, // 75: service.Service.AwardOnboardingXP:input_type -> service.AwardOnboardingXPRequest
-	2,  // 76: service.Service.GetPlayerStatistics:input_type -> service.GetPlayerStatisticsRequest
-	5,  // 77: service.Service.GetMatchHistory:input_type -> service.GetMatchHistoryRequest
-	8,  // 78: service.Service.GetPlayerAchievements:input_type -> service.GetPlayerAchievementsRequest
-	11, // 79: service.Service.ListBotPersonas:input_type -> service.ListBotPersonasRequest
-	15, // 80: service.Service.JoinMatch:input_type -> service.JoinMatchRequest
-	29, // 81: service.Service.GetMatchState:input_type -> service.GetMatchStateRequest
-	31, // 82: service.Service.SubmitMatchCommand:input_type -> service.SubmitMatchCommandRequest
-	18, // 83: service.Service.GetJadeAccount:output_type -> service.GetJadeAccountResponse
-	20, // 84: service.Service.ReserveJade:output_type -> service.ReserveJadeResponse
-	22, // 85: service.Service.ReleaseJade:output_type -> service.ReleaseJadeResponse
-	28, // 86: service.Service.ClaimJadeWelfare:output_type -> service.ClaimJadeWelfareResponse
-	24, // 87: service.Service.GetProgression:output_type -> service.GetProgressionResponse
-	26, // 88: service.Service.AwardOnboardingXP:output_type -> service.AwardOnboardingXPResponse
-	4,  // 89: service.Service.GetPlayerStatistics:output_type -> service.GetPlayerStatisticsResponse
-	7,  // 90: service.Service.GetMatchHistory:output_type -> service.GetMatchHistoryResponse
-	10, // 91: service.Service.GetPlayerAchievements:output_type -> service.GetPlayerAchievementsResponse
-	14, // 92: service.Service.ListBotPersonas:output_type -> service.ListBotPersonasResponse
-	16, // 93: service.Service.JoinMatch:output_type -> service.JoinMatchResponse
-	30, // 94: service.Service.GetMatchState:output_type -> service.GetMatchStateResponse
-	33, // 95: service.Service.SubmitMatchCommand:output_type -> service.SubmitMatchCommandResponse
-	83, // [83:96] is the sub-list for method output_type
-	70, // [70:83] is the sub-list for method input_type
-	70, // [70:70] is the sub-list for extension type_name
-	70, // [70:70] is the sub-list for extension extendee
-	0,  // [0:70] is the sub-list for field type_name
+	53, // 67: service.DrawSeatAnalysis.waits:type_name -> service.WaitTileView
+	64, // 68: service.HandResult.winners:type_name -> service.HandWinner
+	65, // 69: service.HandResult.draw_analysis:type_name -> service.DrawSeatAnalysis
+	67, // 70: service.Settlement.transfers:type_name -> service.Transfer
+	70, // 71: service.Settlement.net:type_name -> service.Settlement.NetEntry
+	17, // 72: service.Service.GetJadeAccount:input_type -> service.GetJadeAccountRequest
+	19, // 73: service.Service.ReserveJade:input_type -> service.ReserveJadeRequest
+	21, // 74: service.Service.ReleaseJade:input_type -> service.ReleaseJadeRequest
+	27, // 75: service.Service.ClaimJadeWelfare:input_type -> service.ClaimJadeWelfareRequest
+	23, // 76: service.Service.GetProgression:input_type -> service.GetProgressionRequest
+	25, // 77: service.Service.AwardOnboardingXP:input_type -> service.AwardOnboardingXPRequest
+	2,  // 78: service.Service.GetPlayerStatistics:input_type -> service.GetPlayerStatisticsRequest
+	5,  // 79: service.Service.GetMatchHistory:input_type -> service.GetMatchHistoryRequest
+	8,  // 80: service.Service.GetPlayerAchievements:input_type -> service.GetPlayerAchievementsRequest
+	11, // 81: service.Service.ListBotPersonas:input_type -> service.ListBotPersonasRequest
+	15, // 82: service.Service.JoinMatch:input_type -> service.JoinMatchRequest
+	29, // 83: service.Service.GetMatchState:input_type -> service.GetMatchStateRequest
+	31, // 84: service.Service.SubmitMatchCommand:input_type -> service.SubmitMatchCommandRequest
+	18, // 85: service.Service.GetJadeAccount:output_type -> service.GetJadeAccountResponse
+	20, // 86: service.Service.ReserveJade:output_type -> service.ReserveJadeResponse
+	22, // 87: service.Service.ReleaseJade:output_type -> service.ReleaseJadeResponse
+	28, // 88: service.Service.ClaimJadeWelfare:output_type -> service.ClaimJadeWelfareResponse
+	24, // 89: service.Service.GetProgression:output_type -> service.GetProgressionResponse
+	26, // 90: service.Service.AwardOnboardingXP:output_type -> service.AwardOnboardingXPResponse
+	4,  // 91: service.Service.GetPlayerStatistics:output_type -> service.GetPlayerStatisticsResponse
+	7,  // 92: service.Service.GetMatchHistory:output_type -> service.GetMatchHistoryResponse
+	10, // 93: service.Service.GetPlayerAchievements:output_type -> service.GetPlayerAchievementsResponse
+	14, // 94: service.Service.ListBotPersonas:output_type -> service.ListBotPersonasResponse
+	16, // 95: service.Service.JoinMatch:output_type -> service.JoinMatchResponse
+	30, // 96: service.Service.GetMatchState:output_type -> service.GetMatchStateResponse
+	33, // 97: service.Service.SubmitMatchCommand:output_type -> service.SubmitMatchCommandResponse
+	85, // [85:98] is the sub-list for method output_type
+	72, // [72:85] is the sub-list for method input_type
+	72, // [72:72] is the sub-list for extension type_name
+	72, // [72:72] is the sub-list for extension extendee
+	0,  // [0:72] is the sub-list for field type_name
 }
 
 func init() { file_service_proto_init() }
@@ -5567,7 +5643,7 @@ func file_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_proto_rawDesc), len(file_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   68,
+			NumMessages:   69,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

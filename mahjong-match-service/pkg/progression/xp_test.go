@@ -9,9 +9,11 @@ func TestHandXP_Practice(t *testing.T) {
 		wantTotal  int
 		wantCapped bool
 	}{
-		{name: "first Practice hand of the day", xpToday: 0, wantTotal: 0},
-		{name: "later Practice hands remain neutral", xpToday: 150, wantTotal: 0},
-		{name: "prior totals do not matter", xpToday: 10_000, wantTotal: 0},
+		{name: "first Practice hand of the day", xpToday: 0, wantTotal: 25},
+		{name: "last full Practice hand before cap", xpToday: 75, wantTotal: 25},
+		{name: "partial award reaches cap", xpToday: 90, wantTotal: 10, wantCapped: true},
+		{name: "cap reached", xpToday: 100, wantTotal: 0, wantCapped: true},
+		{name: "defensive clamp above cap", xpToday: 10_000, wantTotal: 0, wantCapped: true},
 	}
 
 	for _, test := range tests {
@@ -31,8 +33,8 @@ func TestHandXP_Practice(t *testing.T) {
 }
 
 func TestHandXP_PracticeIgnoresPlayOutcome(t *testing.T) {
-	// Practice never pays XP. A monster winning hand against bots must not pay
-	// completion, win, Zimo, Tai, or Kong bonuses.
+	// Practice pays only the same flat mastery award. A monster winning hand
+	// against bots must not add completion, win, Zimo, Tai, or Kong bonuses.
 	award := HandXP(HandOutcome{
 		Practice: true,
 		Won:      true,
@@ -44,9 +46,11 @@ func TestHandXP_PracticeIgnoresPlayOutcome(t *testing.T) {
 	if award.Total != PracticeHandXP {
 		t.Fatalf("Total = %d, want the flat %d", award.Total, PracticeHandXP)
 	}
-	if len(award.Components) != 1 ||
-		award.Components[0].Code != ComponentHandWon ||
-		award.Components[0].Amount != 0 {
+	if len(award.Components) != 2 ||
+		award.Components[0].Code != ComponentPracticeHand ||
+		award.Components[0].Amount != PracticeHandXP ||
+		award.Components[1].Code != ComponentHandWon ||
+		award.Components[1].Amount != 0 {
 		t.Fatalf("practice win marker = %+v", award.Components)
 	}
 }

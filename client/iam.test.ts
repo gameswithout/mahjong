@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { BrowserIam, IamAuthError, mapAuthError, type IamTransport } from "./iam";
 import { DEVICE_ID_STORAGE_KEY } from "./device-id";
+import { setLocale } from "./i18n";
 
 describe("BrowserIam", () => {
   beforeEach(() => {
+    setLocale("en");
     window.localStorage.clear();
   });
 
@@ -138,6 +140,7 @@ describe("BrowserIam", () => {
     };
 
     it("requests a verification code, registers, and logs in with email/password", async () => {
+      setLocale("zh-CN");
       const calls: string[] = [];
       const transport: IamTransport = {
         async loginWithDeviceId() {
@@ -147,8 +150,8 @@ describe("BrowserIam", () => {
           calls.push(`current-user:${accessToken}`);
           return { userId: "email-user-123" };
         },
-        async requestEmailVerificationCode(email) {
-          calls.push(`request-code:${email}`);
+        async requestEmailVerificationCode(email, languageTag) {
+          calls.push(`request-code:${email}:${languageTag}`);
         },
         async registerWithEmailPassword(input) {
           calls.push(`register:${input.email}:${input.code}`);
@@ -167,7 +170,7 @@ describe("BrowserIam", () => {
       });
 
       expect(calls).toEqual([
-        "request-code:player@example.com",
+        "request-code:player@example.com:zh-CN",
         "register:player@example.com:123456",
         "login:player@example.com:correct horse battery staple",
         "current-user:email-access-token",
@@ -204,8 +207,8 @@ describe("BrowserIam", () => {
         async getCurrentUser() {
           return { userId: "guest-user-123" };
         },
-        async requestGuestUpgradeCode(accessToken, email) {
-          calls.push(`upgrade-code:${accessToken}:${email}`);
+        async requestGuestUpgradeCode(accessToken, email, languageTag) {
+          calls.push(`upgrade-code:${accessToken}:${email}:${languageTag}`);
         },
         async upgradeGuestAccount(accessToken, input) {
           calls.push(`upgrade:${accessToken}:${input.email}:${input.code}`);
@@ -220,7 +223,7 @@ describe("BrowserIam", () => {
       await iam.upgradeGuestAccount(emailInput);
 
       expect(calls).toEqual([
-        "upgrade-code:guest-access-token:player@example.com",
+        "upgrade-code:guest-access-token:player@example.com:en",
         "upgrade:guest-access-token:player@example.com:123456",
       ]);
       // No re-login: the same token stays live so the Lobby connection and

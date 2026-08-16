@@ -6,6 +6,7 @@ import {
   PROFILE_TILE_OPTIONS,
   type PlayerProfileConfig,
 } from "./player-profile";
+import { t } from "./i18n";
 
 export function PlayerProfileBadge({
   profile,
@@ -21,7 +22,7 @@ export function PlayerProfileBadge({
           <span
             className="profile-tile-icon"
             key={`${tileId}-${index}`}
-            aria-label={`Profile slot ${index + 1}`}
+            aria-label={t("profile.badgeSlot", { slot: index + 1 })}
           >
             <TileFace id={tileId} size="sm" />
           </span>
@@ -59,22 +60,22 @@ export function PlayerProfileEditor({
 }) {
   const [activeSlot, setActiveSlot] = useState<ProfileSlot>(0);
   const slots: { id: ProfileSlot; label: string }[] = [
-    { id: 0, label: "Slot 1" },
-    { id: 1, label: "Slot 2" },
-    { id: 2, label: "Slot 3" },
+    { id: 0, label: t("profile.slot", { slot: 1 }) },
+    { id: 1, label: t("profile.slot", { slot: 2 }) },
+    { id: 2, label: t("profile.slot", { slot: 3 }) },
   ];
 
   return (
     <section className="profile-editor" aria-labelledby="profile-editor-title">
       <div className="profile-editor-heading">
         <div>
-          <p className="status-label">Player profile</p>
-          <h2 id="profile-editor-title">Personalize your player profile</h2>
+          <p className="status-label">{t("profile.eyebrow")}</p>
+          <h2 id="profile-editor-title">{t("profile.title")}</h2>
         </div>
       </div>
 
       <label className="profile-nickname-field">
-        Nickname
+        {t("profile.nickname")}
         <input
           type="text"
           maxLength={MAX_PROFILE_NICKNAME_LENGTH}
@@ -84,7 +85,7 @@ export function PlayerProfileEditor({
         />
       </label>
 
-      <div className="profile-slot-picker" role="tablist" aria-label="Profile icon slot">
+      <div className="profile-slot-picker" role="tablist" aria-label={t("profile.slotPicker")}>
         {slots.map((slot) => (
           <button
             key={slot.id}
@@ -102,7 +103,7 @@ export function PlayerProfileEditor({
         ))}
       </div>
 
-      <div className="profile-tile-picker" aria-label={`Choose slot ${activeSlot + 1} tile`}>
+      <div className="profile-tile-picker" aria-label={t("profile.chooseTile", { slot: activeSlot + 1 })}>
         {PROFILE_TILE_OPTIONS.map((option) => {
           const selected = tileForSlot(profile, activeSlot) === option.id;
           return (
@@ -110,7 +111,7 @@ export function PlayerProfileEditor({
               type="button"
               key={option.id}
               className={selected ? "profile-tile-option-selected" : ""}
-              aria-label={`Use ${option.label} for slot ${activeSlot + 1}`}
+              aria-label={t("profile.useTile", { tile: option.label, slot: activeSlot + 1 })}
               aria-pressed={selected}
               title={option.label}
               onClick={() => onChange(updateSlot(profile, activeSlot, option.id))}

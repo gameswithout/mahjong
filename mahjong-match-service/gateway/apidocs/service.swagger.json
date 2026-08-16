@@ -869,6 +869,24 @@
         }
       }
     },
+    "serviceDrawSeatAnalysis": {
+      "type": "object",
+      "properties": {
+        "seat": {
+          "type": "string"
+        },
+        "tenpai": {
+          "type": "boolean"
+        },
+        "waits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceWaitTileView"
+          }
+        }
+      }
+    },
     "serviceGetJadeAccountResponse": {
       "type": "object",
       "properties": {
@@ -955,6 +973,13 @@
         },
         "winningTileId": {
           "type": "string"
+        },
+        "drawAnalysis": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceDrawSeatAnalysis"
+          }
         }
       }
     },
