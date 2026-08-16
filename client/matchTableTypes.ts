@@ -73,6 +73,9 @@ export interface MatchAction {
   // preview is the §9.4 "score preview before Win" assist, set only on the
   // Win action when the server computed one.
   preview?: WinPreview;
+  // Public, non-prescriptive explanation of what accepting the action changes.
+  // It never claims a shanten improvement the server has not projected.
+  impact?: string;
 }
 
 export interface WinPreview {

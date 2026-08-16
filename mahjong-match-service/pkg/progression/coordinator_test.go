@@ -3,6 +3,7 @@ package progression
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/gameswithout/mahjong/rulesengine"
@@ -92,6 +93,19 @@ func (r *memoryProgressionRepository) TakenOverMajority(
 ) (bool, error) {
 	r.takeoverRead++
 	return r.majority, nil
+}
+
+func (r *memoryProgressionRepository) PracticeXPToday(
+	_ context.Context,
+	_ string,
+) (int, error) {
+	total := 0
+	for _, award := range r.awards {
+		if award.Source == SourcePractice {
+			total += award.Total
+		}
+	}
+	return total, nil
 }
 
 func cloneTestAward(award HandAward) HandAward {
@@ -292,6 +306,35 @@ func TestCoordinator_PracticeProjectsNoAchievementStats(t *testing.T) {
 	}
 	if stats.calls != 0 {
 		t.Fatalf("Practice projected achievement stats: %+v", stats.updates)
+	}
+}
+
+func TestCoordinator_PracticeMasteryStopsAtDailyCap(t *testing.T) {
+	repository := newMemoryProgressionRepository()
+	coordinator := NewCoordinator(repository)
+	view := rulesengine.SeatView{
+		Seat:       rulesengine.East,
+		Players:    []rulesengine.PlayerView{{Seat: rulesengine.South, IsBot: true}},
+		HandResult: &rulesengine.HandResult{Kind: rulesengine.KindExhaustiveDraw},
+	}
+
+	for hand := 1; hand <= 5; hand++ {
+		result, err := coordinator.RecordHand(
+			context.Background(), "user-east", fmt.Sprintf("runtime-practice-%d", hand), view, true,
+		)
+		if err != nil {
+			t.Fatalf("RecordHand(%d) error = %v", hand, err)
+		}
+		want := PracticeHandXP
+		if hand == 5 {
+			want = 0
+		}
+		if result.Award.Total != want {
+			t.Fatalf("hand %d award = %+v, want %d XP", hand, result.Award, want)
+		}
+	}
+	if repository.lifetime != PracticeDailyXPCap {
+		t.Fatalf("lifetime XP = %d, want capped %d", repository.lifetime, PracticeDailyXPCap)
 	}
 }
 

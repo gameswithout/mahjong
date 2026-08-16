@@ -50,6 +50,35 @@ describe("StatisticsScreen", () => {
     expect(container.textContent).toContain("match-1");
   });
 
+  it("reopens a full review when that hand is saved on this device", () => {
+    const onReview = vi.fn();
+    const entry: MatchHistoryEntry = {
+      matchId: "match-review",
+      completedAt: "2026-08-15T18:00:00Z",
+      mode: "Practice",
+      result: "Draw",
+      winKind: "",
+      winningTileId: "",
+      rawTai: 0,
+      xpAwarded: 25,
+    };
+    act(() => root.render(
+      <StatisticsScreen
+        summary={summarisePlayerStats({ [STAT_HANDS]: 1 })}
+        history={[entry]}
+        reviewMatchIds={new Set([entry.matchId])}
+        onReview={onReview}
+        onClose={() => {}}
+      />,
+    ));
+
+    const review = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Review hand",
+    );
+    act(() => review?.click());
+    expect(onReview).toHaveBeenCalledWith(entry);
+  });
+
   it("labels uninvolved discard wins as Neutral", () => {
     render({ [STAT_HANDS]: 1 }, undefined, [{
       matchId: "match-neutral",

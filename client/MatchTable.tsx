@@ -7,7 +7,7 @@ import {
   type PlayerProfileConfig,
 } from "./player-profile";
 import type { MatchAction, MatchTableState, SeatId, SeatState, WaitEntry, WireMeld, WireTile } from "./matchTableTypes";
-import { windName } from "./matchTableTypes";
+import { tileTypeKey, windName } from "./matchTableTypes";
 import { applySort, SORT_MODES, sortModeLabel, type SortMode } from "./matchTableSort";
 import { isMatchingFlower } from "./flowerTai";
 import { t, translateSource } from "./i18n";
@@ -121,12 +121,12 @@ function BonusTiles({
 function DiscardGrid({
   discards,
   highlightId,
-  claimed,
+  inPlay,
   label = t("table.discards"),
 }: {
   discards: WireTile[];
   highlightId?: string;
-  claimed?: boolean;
+  inPlay?: boolean;
   label?: string;
 }) {
   return (
@@ -140,9 +140,9 @@ function DiscardGrid({
           <Tile t={item} size="sm" />
         </span>
       ))}
-      {claimed && highlightId ? (
+      {inPlay && highlightId ? (
         <span className="discard-slot discard-slot-claimed" role="listitem">
-          {t("table.claimed")}
+          {t("table.claimWindow")}
         </span>
       ) : null}
     </div>
@@ -206,6 +206,212 @@ function WaitPanel({ waits }: { waits: WaitEntry[] }) {
         ))}
       </span>
     </div>
+  );
+}
+
+function tileLearningSignal(tile: WireTile, hand: WireTile[]): string {
+  const key = tileTypeKey(tile.id);
+  const copies = hand.filter((candidate) => tileTypeKey(candidate.id) === key).length;
+  if (copies > 1) {
+    return t("table.learningPair", { count: copies });
+  }
+  const [suit, rankText] = key.split("-");
+  const rank = Number(rankText);
+  if (["characters", "bamboo", "dots"].includes(suit) && Number.isFinite(rank)) {
+    const connected = hand.some((candidate) => {
+      const candidateKey = tileTypeKey(candidate.id);
+      return candidateKey === `${suit}-${rank - 1}` || candidateKey === `${suit}-${rank + 1}`;
+    });
+    if (connected) {
+      return t("table.learningConnected");
+    }
+  }
+  return t("table.learningIsolated");
+}
+
+function LearningHud({
+  state,
+  selectedTile,
+  enabled,
+  guided,
+  onEnabledChange,
+}: {
+  state: MatchTableState;
+  selectedTile?: WireTile;
+  enabled: boolean;
+  guided: boolean;
+  onEnabledChange?: (enabled: boolean) => void;
+}) {
+  const [expanded, setExpanded] = useState(guided);
+  const localHand = state.seats[state.localSeat].hand ?? [];
+  const seats = Object.values(state.seats) as SeatState[];
+  const exposedStandardTiles = Array.from(
+    new Map(
+      seats
+        .flatMap((seat) => [
+          ...seat.discards,
+          ...seat.melds.flatMap((meld) => meld.tiles),
+        ])
+        .filter((item) => !item.id.startsWith("flower-"))
+        .map((item) => [item.id, item]),
+    ).values(),
+  );
+  const visibleStandardCount = localHand.filter((item) => !item.id.startsWith("flower-")).length +
+    exposedStandardTiles.length;
+  const selectedPublicCount = selectedTile
+    ? exposedStandardTiles.filter((item) => tileTypeKey(item.id) === tileTypeKey(selectedTile.id)).length
+    : 0;
+  const liveOuts = state.waits.reduce((sum, entry) => sum + entry.visibleRemaining, 0);
+  const openThreats = seats.filter(
+    (seat) => seat.seat !== state.localSeat && seat.melds.filter((meld) => !meld.concealed).length >= 2,
+  ).length;
+  const selectionSignal = selectedTile ? tileLearningSignal(selectedTile, localHand) : null;
+
+  useEffect(() => {
+    if (guided) setExpanded(true);
+  }, [guided]);
+
+  if (!enabled) {
+    return (
+      <aside className="expert-hud expert-hud-disabled" aria-label={t("table.expertHudDisabled")}>
+        <button
+          type="button"
+          className="expert-hud-toggle"
+          onClick={() => onEnabledChange?.(true)}
+        >
+          <strong>{t("table.expertHud")}</strong>
+          <span>{t("table.expertShow")}</span>
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside
+      className={`expert-hud${expanded ? " is-expanded" : ""}`}
+      aria-label={t("table.expertHud")}
+    >
+      <button
+        type="button"
+        className="expert-hud-toggle"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        aria-label={expanded ? t("table.expertCollapse") : t("table.expertExpand")}
+      >
+        <strong>{t("table.expertHud")}</strong>
+        <span>
+          {state.waits.length > 0
+            ? t("table.expertReady", { outs: liveOuts })
+            : t("table.expertDeveloping")}
+        </span>
+        <span>{t("table.expertVisible", { count: visibleStandardCount })}</span>
+        {openThreats > 0 ? <span>{t("table.expertThreats", { count: openThreats })}</span> : null}
+        <span aria-hidden="true">{expanded ? "−" : "+"}</span>
+      </button>
+      {expanded ? (
+        <div className="expert-hud-details">
+          <p className={`expert-hud-selection${selectedPublicCount === 0 ? " is-live" : ""}`}>
+            {selectedTile
+              ? selectedPublicCount === 0
+                ? t("table.expertTileUnseen", { tile: selectedTile.label })
+                : t("table.expertTileSeen", { tile: selectedTile.label, count: selectedPublicCount })
+              : t("table.expertSelectTile")}
+          </p>
+          {selectionSignal ? <p className="expert-hud-shape">{selectionSignal}</p> : null}
+        </div>
+      ) : null}
+      <div className="expert-hud-footer">
+        <small>{t("table.expertPublicOnly")}</small>
+        {!guided && onEnabledChange ? (
+          <button type="button" onClick={() => onEnabledChange(false)}>{t("table.expertHide")}</button>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
+interface RecentAction {
+  id: string;
+  text: string;
+}
+
+function publicDiscardEntries(state: MatchTableState) {
+  return (Object.values(state.seats) as SeatState[]).flatMap((seat) =>
+    seat.discards.map((item) => ({ seat, item })),
+  );
+}
+
+function publicMeldEntries(state: MatchTableState) {
+  return (Object.values(state.seats) as SeatState[]).flatMap((seat) =>
+    seat.melds.map((meld) => ({ seat, meld })),
+  );
+}
+
+function RecentActions({ state }: { state: MatchTableState }) {
+  const initialDiscard = state.lastDiscard;
+  const [actions, setActions] = useState<RecentAction[]>(() =>
+    initialDiscard
+      ? [{
+          id: `discard:${initialDiscard.tile.id}`,
+          text: t("table.actionDiscarded", {
+            player: initialDiscard.seat === state.localSeat
+              ? t("common.you")
+              : state.seats[initialDiscard.seat].displayName,
+            tile: initialDiscard.tile.label,
+          }),
+        }]
+      : [],
+  );
+  const initialDiscards = publicDiscardEntries(state);
+  const initialMelds = publicMeldEntries(state);
+  const knownDiscards = useRef(new Set(initialDiscards.map(({ item }) => item.id)));
+  const knownMelds = useRef(new Set(initialMelds.map(({ meld }) => meld.id)));
+  const discardSignature = initialDiscards.map(({ item }) => item.id).join(",");
+  const meldSignature = initialMelds.map(({ meld }) => meld.id).join(",");
+
+  useEffect(() => {
+    const next: RecentAction[] = [];
+    const currentMelds = publicMeldEntries(state);
+    const currentDiscards = publicDiscardEntries(state);
+    for (const { seat, meld } of currentMelds) {
+      if (knownMelds.current.has(meld.id)) continue;
+      next.push({
+        id: `meld:${meld.id}`,
+        text: t("table.actionClaimed", {
+          player: seat.seat === state.localSeat ? t("common.you") : seat.displayName,
+          action: translateSource(meld.type === "pong" ? "Pong" : meld.type === "kong" ? "Gang" : "Chow"),
+        }),
+      });
+    }
+    for (const { seat, item } of currentDiscards) {
+      if (knownDiscards.current.has(item.id)) continue;
+      next.push({
+        id: `discard:${item.id}`,
+        text: t("table.actionDiscarded", {
+          player: seat.seat === state.localSeat ? t("common.you") : seat.displayName,
+          tile: item.label,
+        }),
+      });
+    }
+    knownDiscards.current = new Set(currentDiscards.map(({ item }) => item.id));
+    knownMelds.current = new Set(currentMelds.map(({ meld }) => meld.id));
+    if (next.length > 0) {
+      setActions((current) => {
+        const refreshedIds = new Set(next.map((action) => action.id));
+        return [...current.filter((action) => !refreshedIds.has(action.id)), ...next].slice(-5);
+      });
+    }
+  }, [discardSignature, meldSignature, state]);
+
+  return (
+    <aside className="recent-actions" aria-label={t("table.recentActions")}>
+      <strong>{t("table.recentActions")}</strong>
+      {actions.length > 0 ? (
+        <ol aria-live="polite">
+          {[...actions].reverse().map((action) => <li key={action.id}>{action.text}</li>)}
+        </ol>
+      ) : <p>{t("table.waitingFirstAction")}</p>}
+    </aside>
   );
 }
 
@@ -334,7 +540,7 @@ function DiscardRiver({
       <DiscardGrid
         discards={state.discards}
         highlightId={lastDiscardTileId}
-        claimed={claimSource === seat}
+        inPlay={claimSource === seat}
         label={label}
       />
     </section>
@@ -370,6 +576,9 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
     : undefined;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  // This is a hand clock, not a move clock. Resetting it whenever the active
+  // seat changed made the label say "elapsed" while repeatedly jumping back
+  // to zero during the bot cascade.
   useEffect(() => {
     setElapsedSeconds(0);
     if (!state.untimed) {
@@ -380,7 +589,7 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
       setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [activeSeat, state.untimed]);
+  }, [state.untimed]);
 
   const elapsedLabel = `${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
 
@@ -848,13 +1057,20 @@ function winButtonTitle(preview: NonNullable<MatchAction["preview"]>): string {
   return preview.patterns.map((p) => `${p.name} (${p.tai})`).join(", ");
 }
 
-function ClaimButtons({ actions }: { actions: MatchAction[] }) {
+function ClaimButtons({ actions, compact }: { actions: MatchAction[]; compact: boolean }) {
   const disabledReasonId = useId();
   const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
   const disabledReason = actions.find((action) => action.disabledReason)?.disabledReason;
   const isConsequential = (action: MatchAction) => {
     const id = action.id.toLowerCase();
-    return id === "kong" || id.startsWith("kong-") || id === "gang" || id.startsWith("gang-");
+    return id === "kong" || id.startsWith("kong-") || id === "gang" || id.startsWith("gang-") ||
+      id === "pong" || id.startsWith("pong-") || id === "chow" || id.startsWith("chow-");
+  };
+  const actionName = (action: MatchAction) => {
+    const id = action.id.toLowerCase();
+    if (id === "pong" || id.startsWith("pong-")) return "Pong";
+    if (id === "chow" || id.startsWith("chow-")) return "Chow";
+    return "Gang";
   };
   const localizedAction = (action: MatchAction) => {
     const key = action.id.toLowerCase();
@@ -877,6 +1093,7 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
       </span>
     );
   };
+  const confirmingAction = actions.find((action) => action.id === confirmingActionId);
   return (
     <div className="action-choice-stack">
       <div className="action-row" role="group" aria-label={t("table.legalActions")}>
@@ -905,14 +1122,16 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
               aria-describedby={action.disabledReason ? disabledReasonId : undefined}
               aria-label={
                 confirming
-                  ? t("table.confirmGangLabel")
+                  ? t("table.confirmActionLabel", { action: actionName(action) })
                   : action.chowPreview
                     ? `${action.label}: ${action.chowPreview.tiles.map((item) => item.label).join(", ")}`
                     : undefined
               }
             >
               {confirming ? (
-                <span className="action-label-single">{t("table.confirmGang")}</span>
+                <span className="action-label-single">
+                  {t("table.confirmAction", { action: actionName(action) })}
+                </span>
               ) : (
                 localizedAction(action)
               )}
@@ -935,13 +1154,21 @@ function ClaimButtons({ actions }: { actions: MatchAction[] }) {
                   {action.preview.rawTai} <span lang="zh-Hant">台</span> <small>(Tai)</small>
                 </span>
               ) : null}
+              {!compact && action.impact ? (
+                <span className="claim-impact">
+                  <small>{t("table.claimImpact")}</small>
+                  {translateSource(action.impact)}
+                </span>
+              ) : null}
             </button>
           );
         })}
       </div>
-      {confirmingActionId ? (
+      {confirmingAction ? (
         <p className="action-explanation" role="status">
-          {t("table.gangWarning")}
+          {t("table.claimWarning", {
+            action: actionName(confirmingAction),
+          })}
         </p>
       ) : null}
       {disabledReason ? (
@@ -965,12 +1192,16 @@ function ActionBar({
   onDraw,
   drawPending,
   manualDrawOnly,
+  compactClaims,
+  autoPassClaims,
 }: {
   legalActions: MatchAction[];
   canDraw?: boolean;
   onDraw?: () => void;
   drawPending?: boolean;
   manualDrawOnly?: boolean;
+  compactClaims: boolean;
+  autoPassClaims: boolean;
 }) {
   const winningClaimAvailable = legalActions.some((action) => {
     const id = action.id.toLowerCase();
@@ -995,7 +1226,9 @@ function ActionBar({
     (left, right) => actionPriority(left) - actionPriority(right),
   );
   const passOnly =
-    orderedActions.length === 1 && orderedActions[0]?.id.toLowerCase() === "pass";
+    autoPassClaims &&
+    orderedActions.length === 1 &&
+    orderedActions[0]?.id.toLowerCase() === "pass";
   if (orderedActions.length > 0 && !passOnly) {
     const selfTurnActions = orderedActions.some(
       (action) => action.id === "win-self" || action.id.startsWith("kong-"),
@@ -1005,7 +1238,7 @@ function ActionBar({
         className={`action-bar ${selfTurnActions ? "action-bar-self-turn" : "action-bar-claim"}`}
         aria-label={selfTurnActions ? t("table.selfTurnActions") : t("table.respondTile")}
       >
-        <ClaimButtons actions={orderedActions} />
+        <ClaimButtons actions={orderedActions} compact={compactClaims} />
       </div>
     );
   }
@@ -1047,14 +1280,24 @@ export interface MatchTableInteraction {
   manualDrawOnly?: boolean;
 }
 
+export interface MatchTablePreferences {
+  expertHud: boolean;
+  autoPassClaims: boolean;
+  compactClaimPrompts: boolean;
+  guided?: boolean;
+  onExpertHudChange?: (enabled: boolean) => void;
+}
+
 export function MatchTable({
   state,
   interaction,
   playerProfile,
+  preferences,
 }: {
   state: MatchTableState;
   interaction?: MatchTableInteraction;
   playerProfile?: PlayerProfileConfig;
+  preferences?: MatchTablePreferences;
 }) {
   const slots = remapSeats(state.localSeat);
   const local = state.seats[state.localSeat];
@@ -1067,7 +1310,7 @@ export function MatchTable({
       ? state.legalActions[0]
       : null;
   const automaticPassKey =
-    passOnlyAction && state.lastDiscard
+    (preferences?.autoPassClaims ?? true) && passOnlyAction && state.lastDiscard
       ? `${state.lastDiscard.tile.id}:${state.claimSource ?? state.lastDiscard.seat}`
       : null;
 
@@ -1075,6 +1318,9 @@ export function MatchTable({
   const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const selectedTile = localHand.find((item) => item.id === selectedTileId);
+  const [learningHudEnabled, setLearningHudEnabled] = useState(
+    preferences?.expertHud ?? true,
+  );
   const [drawnTileId, setDrawnTileId] = useState<string | null>(() =>
     interaction?.canDiscard ? (localHand.at(-1)?.id ?? null) : null,
   );
@@ -1094,6 +1340,15 @@ export function MatchTable({
   );
   const previousClaimCountRef = useRef(state.legalActions.length);
   const automaticPassRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setLearningHudEnabled(preferences?.expertHud ?? true);
+  }, [preferences?.expertHud]);
+
+  function setLearningHud(enabled: boolean) {
+    setLearningHudEnabled(enabled);
+    preferences?.onExpertHudChange?.(enabled);
+  }
 
   function ensureAudioContext(): AudioContext | null {
     if (audioContextRef.current) {
@@ -1348,7 +1603,17 @@ export function MatchTable({
         onDraw={interaction?.onDraw}
         drawPending={interaction?.drawPending}
         manualDrawOnly={interaction?.manualDrawOnly}
+        compactClaims={preferences?.compactClaimPrompts ?? false}
+        autoPassClaims={preferences?.autoPassClaims ?? true}
       />
+      <LearningHud
+        state={state}
+        selectedTile={selectedTile}
+        enabled={learningHudEnabled}
+        guided={preferences?.guided ?? false}
+        onEnabledChange={setLearningHud}
+      />
+      <RecentActions state={state} />
       <LocalSeat
         state={local}
         displayedHand={displayedHand}

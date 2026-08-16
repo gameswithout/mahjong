@@ -6,6 +6,7 @@ export interface PracticeLaunchCardProps {
   cleanupRequired?: boolean;
   matchServiceAvailable: boolean;
   onStart: () => void;
+  onStartGuided?: () => void;
   onLeaveSelectedSession?: () => void;
 }
 
@@ -15,6 +16,7 @@ export function PracticeLaunchCard({
   cleanupRequired = false,
   matchServiceAvailable,
   onStart,
+  onStartGuided,
   onLeaveSelectedSession,
 }: PracticeLaunchCardProps) {
   return (
@@ -22,14 +24,27 @@ export function PracticeLaunchCard({
       <p className="status-label">{t("practice.eyebrow")}</p>
       <h2 id="practice-title">{t("practice.title")}</h2>
       <p className="practice-description">{t("practice.description")}</p>
-      <button
-        className="primary-action practice-action"
-        type="button"
-        onClick={onStart}
-        disabled={busy || hasSelectedSession || !matchServiceAvailable}
-      >
-        {t("practice.action")}
-      </button>
+      <div className="practice-actions">
+        {onStartGuided ? (
+          <button
+            className="primary-action practice-action"
+            type="button"
+            onClick={onStartGuided}
+            disabled={busy || hasSelectedSession || !matchServiceAvailable}
+          >
+            {t("practice.guidedAction")}
+          </button>
+        ) : null}
+        <button
+          className={onStartGuided ? "secondary-action practice-action" : "primary-action practice-action"}
+          type="button"
+          onClick={onStart}
+          disabled={busy || hasSelectedSession || !matchServiceAvailable}
+        >
+          {t("practice.action")}
+        </button>
+      </div>
+      {onStartGuided ? <p className="practice-guided-help">{t("practice.guidedHelp")}</p> : null}
       {!matchServiceAvailable && (
         <p className="practice-unavailable" role="alert">
           {t("practice.unconfigured")}

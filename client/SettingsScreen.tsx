@@ -58,6 +58,73 @@ export function SettingsScreen({
           </label>
         </section>
 
+        <section className="settings-card" aria-labelledby="settings-table-title">
+          <p className="status-label">{t("settings.gameplay")}</p>
+          <h3 id="settings-table-title">{t("settings.tablePreferences")}</h3>
+          <label className="settings-toggle">
+            <span>
+              <strong>{t("settings.expertHud")}</strong>
+              <small>{t("settings.expertHudHelp")}</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.expertHud}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, expertHud: event.target.checked })
+              }
+            />
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>{t("settings.autoPass")}</strong>
+              <small>{t("settings.autoPassHelp")}</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.autoPassClaims}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, autoPassClaims: event.target.checked })
+              }
+            />
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>{t("settings.compactClaims")}</strong>
+              <small>{t("settings.compactClaimsHelp")}</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.compactClaimPrompts}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, compactClaimPrompts: event.target.checked })
+              }
+            />
+          </label>
+          <label className="settings-select-label" htmlFor="practice-bot-speed">
+            <span>
+              <strong>{t("settings.botSpeed")}</strong>
+              <small>{t("settings.botSpeedHelp")}</small>
+            </span>
+            <select
+              id="practice-bot-speed"
+              value={settings.practiceBotSpeed}
+              onChange={(event) =>
+                onSettingsChange({
+                  ...settings,
+                  practiceBotSpeed:
+                    event.target.value === "fast" || event.target.value === "normal"
+                      ? event.target.value
+                      : "learning",
+                })
+              }
+            >
+              <option value="learning">{t("settings.botSpeedLearning")}</option>
+              <option value="normal">{t("settings.botSpeedNormal")}</option>
+              <option value="fast">{t("settings.botSpeedFast")}</option>
+            </select>
+          </label>
+        </section>
+
         <section className="settings-card" aria-labelledby="settings-privacy-title">
           <p className="status-label">{t("settings.privacy")}</p>
           <h3 id="settings-privacy-title">{t("settings.analytics")}</h3>

@@ -87,7 +87,7 @@ describe("browser telemetry", () => {
       ClientTimestamp: "2026-07-28T12:00:00.000Z",
       Payload: {
         privacy_class: "optional",
-        schema_version: 1,
+        schema_version: 2,
         dimensions: {
           client_version: "beta-1",
           mode: "bamboo_quick_play",
@@ -110,6 +110,68 @@ describe("browser telemetry", () => {
     ).toBe(false);
     await telemetry.flush();
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("keeps the growth events on the right side of the consent line", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const telemetry = createBrowserTelemetry(telemetryOptions(fetchImpl, false));
+
+    // Without consent: the lifecycle of the app and of the account still
+    // reports, because those are not analysis of how anybody played.
+    expect(telemetry.track("app_session_ended", { dimensions: { end_reason: "pagehide" } })).toBe(
+      true,
+    );
+    expect(
+      telemetry.track("analytics_consent_changed", { dimensions: { outcome: "declined" } }),
+    ).toBe(true);
+    expect(
+      telemetry.track("account_upgrade_step", { dimensions: { step: "offer_shown" } }),
+    ).toBe(true);
+
+    // Everything describing behaviour waits for an opt-in, exactly as the
+    // tutorial and queue journeys already do.
+    for (const event of [
+      "activation_milestone",
+      "match_abandoned",
+      "economy_checkpoint",
+      "economy_recovery",
+      "progression_level_up",
+      "social_action",
+      "feature_engaged",
+    ] as const) {
+      expect(telemetry.track(event)).toBe(false);
+    }
+
+    await telemetry.flush();
+    const body = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body)) as Array<
+      Record<string, unknown>
+    >;
+    expect(body.map((event) => event.EventName)).toEqual([
+      "app_session_ended",
+      "analytics_consent_changed",
+      "account_upgrade_step",
+    ]);
+    expect(body[0].Payload).toMatchObject({ schema_version: 2 });
+  });
+
+  it("rejects a Jade balance sent as a dimension instead of a band", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const telemetry = createBrowserTelemetry(telemetryOptions(fetchImpl, true));
+
+    // The banding in growth.ts is the privacy control, not a formatting
+    // preference. An exact balance arriving as a dimension would be a
+    // per-player number in a table meant to hold cohorts.
+    expect(
+      telemetry.track("economy_checkpoint", {
+        dimensions: { balance_band: "low", balance: "1274" },
+      }),
+    ).toBe(false);
+    expect(
+      telemetry.track("economy_checkpoint", {
+        dimensions: { balance_band: "low", trigger: "balance_changed" },
+        measurements: { available: 1_274 },
+      }),
+    ).toBe(true);
   });
 
   it("records result-friend outcomes without accepting opponent identity", async () => {

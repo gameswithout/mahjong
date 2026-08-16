@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/progression"
 )
@@ -262,6 +263,42 @@ func TestPostgreSQLStorage_ZeroAwardStillMarksTheHandPriced(t *testing.T) {
 		t.Fatalf("repeat zero award error = %v", err)
 	} else if repeatApplied {
 		t.Fatal("zero award was not recorded, so the hand would be priced again")
+	}
+}
+
+func TestPostgreSQLStorage_PracticeMasteryCapIsAtomicAndResetsOnUTCDate(t *testing.T) {
+	store := progressionStore(t)
+	ctx := context.Background()
+	user := "xp-practice-cap-" + randomSuffix(t)
+	day := time.Date(2026, time.August, 15, 23, 59, 0, 0, time.UTC)
+	store.now = func() time.Time { return day }
+
+	for hand := 1; hand <= 5; hand++ {
+		award := progression.HandXP(progression.HandOutcome{Practice: true}, 0)
+		award.AwardID = fmt.Sprintf("hand:practice:%s:%d", user, hand)
+		_, persisted, _, err := store.AwardXP(ctx, user, "", award)
+		if err != nil {
+			t.Fatalf("AwardXP(%d) error = %v", hand, err)
+		}
+		want := progression.PracticeHandXP
+		if hand == 5 {
+			want = 0
+		}
+		if persisted.Total != want {
+			t.Fatalf("hand %d = %+v, want %d XP", hand, persisted, want)
+		}
+	}
+	today, err := store.PracticeXPToday(ctx, user)
+	if err != nil || today != progression.PracticeDailyXPCap {
+		t.Fatalf("PracticeXPToday() = %d, %v", today, err)
+	}
+
+	day = day.Add(2 * time.Minute)
+	award := progression.HandXP(progression.HandOutcome{Practice: true}, 0)
+	award.AwardID = "hand:practice:next-day:" + user
+	_, persisted, _, err := store.AwardXP(ctx, user, "", award)
+	if err != nil || persisted.Total != progression.PracticeHandXP {
+		t.Fatalf("next UTC day award = %+v, %v", persisted, err)
 	}
 }
 

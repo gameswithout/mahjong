@@ -50,7 +50,7 @@ describe("XPAward", () => {
     expect(markup).toContain("300 / 700 XP to level 4");
   });
 
-  it("explains that Practice is progression-neutral", () => {
+  it("explains when the daily Practice mastery cap is reached", () => {
     const capped = renderToStaticMarkup(
       <XPAward
         award={{ source: "practice_hand", total: 0, capped_by_daily: true }}
@@ -59,8 +59,8 @@ describe("XPAward", () => {
     );
 
     expect(capped).toContain("No XP from this hand");
-    expect(capped).toContain("Solo Practice is progression-neutral");
-    expect(capped).toContain("Online Play");
+    expect(capped).toContain("Today&#x27;s 100 XP Practice mastery limit has been reached");
+    expect(capped).toContain("Online Play remains uncapped");
   });
 
   it("does not show a progress bar or next reward at the level cap", () => {

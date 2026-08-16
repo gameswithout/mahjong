@@ -48,6 +48,10 @@ button:focus-visible {
   width: 100%;
 }
 
+.bootstrap-card-lobby {
+  max-width: 72rem;
+}
+
 .eyebrow,
 .status-label {
   color: #f2c66d;
@@ -680,6 +684,30 @@ h1 {
   opacity: 0.65;
 }
 
+.practice-actions {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.practice-actions .practice-action {
+  margin: 0;
+  width: 100%;
+}
+
+.practice-guided-help {
+  color: #bcd9cd;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0.55rem 0 0;
+}
+
+@media (max-width: 32rem) {
+  .practice-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .practice-unavailable {
   color: #d8dcef;
   font-size: 0.8rem;
@@ -896,6 +924,35 @@ h1 {
   flex: 0 0 auto;
   height: 1.35rem;
   width: 1.35rem;
+}
+
+.settings-select-label {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-top: 0.9rem;
+}
+
+.settings-select-label > span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-select-label small {
+  color: #cbd0e3;
+  line-height: 1.4;
+}
+
+.settings-select-label select {
+  background: #151a2b;
+  border: 1px solid rgb(216 220 239 / 28%);
+  border-radius: 0.55rem;
+  color: #f4f6ff;
+  font: inherit;
+  min-width: 7rem;
+  padding: 0.55rem 0.7rem;
 }
 
 .settings-rule-version {
@@ -1322,6 +1379,126 @@ h1 {
   display: grid;
   gap: 0.85rem;
   grid-template-columns: minmax(0, 1.05fr) minmax(19rem, 0.95fr);
+}
+
+.hand-result-analysis {
+  background: linear-gradient(135deg, rgb(38 48 72 / 96%), rgb(27 34 55 / 96%));
+  border: 1px solid rgb(229 189 96 / 32%);
+  border-radius: 0.9rem;
+  margin-top: 0.85rem;
+  padding: 0.85rem;
+}
+
+.hand-result-analysis h3 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.hand-result-analysis-lead,
+.hand-result-analysis-source,
+.hand-result-deal-in p,
+.hand-result-alternatives p {
+  color: #bec5dc;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin: 0.35rem 0 0;
+}
+
+.hand-result-draw-rows {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.hand-result-draw-rows > li {
+  align-items: center;
+  background: rgb(12 17 30 / 58%);
+  border-left: 3px solid #737b97;
+  border-radius: 0.55rem;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: minmax(8rem, 0.32fr) 1fr;
+  padding: 0.55rem 0.65rem;
+}
+
+.hand-result-draw-rows > li.is-tenpai {
+  border-left-color: #72c899;
+}
+
+.hand-result-draw-seat {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.78rem;
+  gap: 0.12rem;
+}
+
+.hand-result-draw-seat span,
+.hand-result-draw-rows small {
+  color: #abb3cd;
+  font-size: 0.68rem;
+}
+
+.hand-result-draw-waits,
+.hand-result-alternatives > div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.hand-result-draw-shape {
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+.hand-result-final-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+.hand-result-draw-wait,
+.hand-result-alternative {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.hand-result-live-total {
+  color: #d8e5d9;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.hand-result-deal-in {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.7rem;
+}
+
+.hand-result-deal-in strong,
+.hand-result-alternatives > strong {
+  font-size: 0.82rem;
+}
+
+.hand-result-alternatives {
+  border-top: 1px solid rgb(216 220 239 / 14%);
+  margin-top: 0.7rem;
+  padding-top: 0.65rem;
+}
+
+.hand-result-alternatives > div {
+  margin-top: 0.45rem;
+}
+
+.hand-result-analysis-source {
+  border-top: 1px solid rgb(216 220 239 / 14%);
+  font-style: italic;
+  padding-top: 0.55rem;
 }
 
 .hand-result-chapter {
@@ -1971,6 +2148,11 @@ h1 {
 }
 
 @media (max-width: 34rem) {
+  .hand-result-draw-rows > li {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
+  }
+
   .hand-result-balance-equation {
     grid-template-columns: 1fr;
   }
@@ -2624,7 +2806,35 @@ h1 {
 }
 
 .online-play-card {
+  margin-top: 0;
+}
+
+.match-format-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 1rem;
+}
+
+.rotation-launch-card {
+  background:
+    radial-gradient(circle at 90% 0%, rgb(127 156 255 / 18%), transparent 42%),
+    #1d2742;
+  border-color: rgb(153 171 255 / 46%);
+}
+
+.rotation-launch-rewards {
+  color: #f2c66d;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: -0.35rem 0 1rem;
+}
+
+@media (max-width: 48rem) {
+  .match-format-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .locked-tiers h2 {
@@ -2790,9 +3000,10 @@ h1 {
   gap: 0.75rem;
   max-height: calc(100svh - 2rem);
   overflow-y: auto;
-  padding: 1rem;
+  padding: 4rem 1rem 1rem;
   position: sticky;
   top: 1rem;
+  z-index: 10;
 }
 
 .tutorial-progress-header {
@@ -3909,6 +4120,24 @@ h1 {
   text-overflow: ellipsis;
 }
 
+.match-history-review {
+  background: transparent;
+  border: 1px solid rgb(216 220 239 / 35%);
+  border-radius: 0.45rem;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  margin-top: 0.25rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.match-history-review:hover,
+.match-history-review:focus-visible {
+  border-color: var(--gold, #e7bd62);
+  color: var(--gold, #e7bd62);
+}
+
 @media (width <= 40rem) {
   .match-history-entry {
     align-items: flex-start;
@@ -4502,4 +4731,58 @@ h1 {
   inset: auto;
   position: static;
   width: fit-content;
+}
+
+/* On full-screen game surfaces the persistent selector becomes compact. It
+   stays keyboard-accessible without covering Leave, tutorial Exit, or the
+   recent-action feed. */
+#root:has(.game-screen) > .language-selector {
+  padding: 0.25rem 0.4rem;
+}
+
+#root:has(.game-screen) > .language-selector > span {
+  display: none;
+}
+
+#root:has(.game-screen) > .language-selector select {
+  max-width: 6rem;
+  min-height: 1.75rem;
+}
+
+.game-screen-topbar {
+  right: max(7.5rem, env(safe-area-inset-right));
+}
+
+/* The lobby's one-time optional-analytics ask. Both answers get the same
+   button treatment on purpose: the card is a question, not a funnel. */
+.analytics-consent-card {
+  background: #20263b;
+  border: 1px solid rgb(216 220 239 / 18%);
+  border-radius: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.analytics-consent-card h3 {
+  font-size: 1.05rem;
+  margin: 0.15rem 0 0.6rem;
+}
+
+.analytics-consent-body {
+  line-height: 1.45;
+  margin: 0 0 0.5rem;
+}
+
+.analytics-consent-detail {
+  color: #cbd0e3;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.analytics-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.9rem 0;
 }

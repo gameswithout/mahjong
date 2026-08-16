@@ -28,11 +28,15 @@ export function StatisticsScreen({
   history = [],
   onClose,
   onPlay,
+  reviewMatchIds,
+  onReview,
 }: {
   summary: PlayerStatSummary;
   history?: MatchHistoryEntry[];
   onClose: () => void;
   onPlay?: () => void;
+  reviewMatchIds?: ReadonlySet<string>;
+  onReview?: (entry: MatchHistoryEntry) => void;
 }) {
   return (
     <section className="statistics-screen" aria-labelledby="statistics-title">
@@ -72,6 +76,11 @@ export function StatisticsScreen({
                 </time>
                 <span>{formatNumber(entry.xpAwarded)} XP</span>
                 <code>{entry.matchId}</code>
+                {onReview && reviewMatchIds?.has(entry.matchId) ? (
+                  <button type="button" className="match-history-review" onClick={() => onReview(entry)}>
+                    {t("statistics.review")}
+                  </button>
+                ) : null}
               </div>
             </li>
           ))}

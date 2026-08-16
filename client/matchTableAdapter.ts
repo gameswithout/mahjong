@@ -103,10 +103,16 @@ function claimLegalActions(
     return [];
   }
   const chosenId = ownResponseActionId(claim);
-  const action = (id: string, label: string, onClick: () => void): MatchAction => ({
+  const action = (
+    id: string,
+    label: string,
+    onClick: () => void,
+    impact?: string,
+  ): MatchAction => ({
     id,
     label: id === chosenId ? `${label} ✓` : label,
     onClick,
+    impact,
     disabled: pending,
     disabledReason: pending ? "Waiting for the table to confirm your last choice." : undefined,
   });
@@ -122,15 +128,26 @@ function claimLegalActions(
     actions.push(winAction);
   }
   if (claim.options.can_kong) {
-    actions.push(action("kong", "Kong", () => dispatch("kong")));
+    actions.push(action(
+      "kong",
+      "Kong",
+      () => dispatch("kong"),
+      "Completes an open Kong, gives you the turn, and takes a replacement draw. Opponents can see more of your plan.",
+    ));
   }
   if (claim.options.can_pong) {
-    actions.push(action("pong", "Pong", () => dispatch("pong")));
+    actions.push(action(
+      "pong",
+      "Pong",
+      () => dispatch("pong"),
+      "Completes a three-of-a-kind, gives you the turn, and makes you discard next. Opening can give up concealed-hand bonuses.",
+    ));
   }
   (claim.options.chow_sets ?? []).forEach(([first, second], index) => {
     const id = `chow-${index}`;
     const label = claim.options.chow_sets!.length > 1 ? `Chow ${index + 1}` : "Chow";
     const chowAction = action(id, label, () => dispatch("chow", [first, second]));
+    chowAction.impact = "Completes the shown sequence, gives you the turn, and makes you discard next. Opening can give up concealed-hand bonuses.";
     chowAction.chowPreview = {
       tiles: [first, second, claim.discard.tile.id]
         .map(tile)
@@ -139,7 +156,12 @@ function claimLegalActions(
     };
     actions.push(chowAction);
   });
-  actions.push(action("pass", "Pass", () => dispatch("pass")));
+  actions.push(action(
+    "pass",
+    "Pass",
+    () => dispatch("pass"),
+    "Play continues without changing your tiles. Your hand stays concealed and keeps its current shape.",
+  ));
   return actions;
 }
 
@@ -265,6 +287,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       legalActions.push({
         id: `kong-concealed-${index}`,
         label: "Gang",
+        impact: "Completes a concealed Kong and takes a replacement draw while preserving a concealed hand.",
         onClick: () => options.onSelfTurnAction?.("kong-concealed", choice.tile_ids),
         disabled: options.claimActionPending,
         disabledReason: options.claimActionPending
@@ -276,6 +299,7 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       legalActions.push({
         id: `kong-added-${index}`,
         label: "Gang",
+        impact: "Upgrades your open Pong, takes a replacement draw, and briefly lets opponents rob the Kong to win.",
         onClick: () => options.onSelfTurnAction?.("kong-added", [tileId]),
         disabled: options.claimActionPending,
         disabledReason: options.claimActionPending
@@ -294,7 +318,12 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
     prevailingWind: HARDCODED_PREVAILING_WIND,
     continuation: HARDCODED_CONTINUATION,
     wall: {
-      drawableRemaining: view.wall.drawable_remaining,
+      // Older deployed projections only carried `remaining`; tolerate them
+      // so the critical-wall UI never renders an undefined count during a
+      // mixed-version rollout.
+      drawableRemaining: Number.isFinite(view.wall.drawable_remaining)
+        ? view.wall.drawable_remaining
+        : view.wall.remaining,
       reserveRemaining: view.wall.reserve_remaining,
     },
     seats,

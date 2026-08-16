@@ -6,11 +6,26 @@ const PLAYER_SETTINGS_CACHE_PREFIX = `${PLAYER_SETTINGS_RECORD_KEY}:`;
 export interface PlayerSettings {
   showTutorial: boolean;
   optionalAnalyticsConsent: boolean;
+  // Whether the player has been asked about optional analytics and answered.
+  // Distinct from the consent itself, because "declined" and "never asked"
+  // are both `optionalAnalyticsConsent: false` and only one of them should
+  // produce a prompt. Stored with the settings so answering on one device
+  // does not mean being asked again on the next.
+  analyticsConsentDecided: boolean;
+  expertHud: boolean;
+  autoPassClaims: boolean;
+  compactClaimPrompts: boolean;
+  practiceBotSpeed: "learning" | "normal" | "fast";
 }
 
 export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   showTutorial: true,
   optionalAnalyticsConsent: false,
+  analyticsConsentDecided: false,
+  expertHud: false,
+  autoPassClaims: false,
+  compactClaimPrompts: false,
+  practiceBotSpeed: "learning",
 };
 
 interface AxiosLike {
@@ -36,6 +51,30 @@ export function normalizePlayerSettings(value: unknown): PlayerSettings {
       typeof envelope.optionalAnalyticsConsent === "boolean"
         ? envelope.optionalAnalyticsConsent
         : DEFAULT_PLAYER_SETTINGS.optionalAnalyticsConsent,
+    // A record written before this field existed has no answer in it, so it
+    // normalizes to "not yet asked" and the player gets the prompt once.
+    analyticsConsentDecided:
+      typeof envelope.analyticsConsentDecided === "boolean"
+        ? envelope.analyticsConsentDecided
+        : DEFAULT_PLAYER_SETTINGS.analyticsConsentDecided,
+    expertHud:
+      typeof envelope.expertHud === "boolean"
+        ? envelope.expertHud
+        : DEFAULT_PLAYER_SETTINGS.expertHud,
+    autoPassClaims:
+      typeof envelope.autoPassClaims === "boolean"
+        ? envelope.autoPassClaims
+        : DEFAULT_PLAYER_SETTINGS.autoPassClaims,
+    compactClaimPrompts:
+      typeof envelope.compactClaimPrompts === "boolean"
+        ? envelope.compactClaimPrompts
+        : DEFAULT_PLAYER_SETTINGS.compactClaimPrompts,
+    practiceBotSpeed:
+      envelope.practiceBotSpeed === "learning" ||
+      envelope.practiceBotSpeed === "fast" ||
+      envelope.practiceBotSpeed === "normal"
+        ? envelope.practiceBotSpeed
+        : DEFAULT_PLAYER_SETTINGS.practiceBotSpeed,
   };
 }
 

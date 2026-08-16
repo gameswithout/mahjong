@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { BrowserIam, IamAuthError, createBrowserIam, type GuestIdentity } from "./iam";
+import {
+  BrowserIam,
+  IamAuthError,
+  createBrowserIam,
+  type GuestIdentity,
+  type GuestUpgradeInput,
+} from "./iam";
 import { CLOSED_BETA_COUNTRIES, DEFAULT_COUNTRY_CODE } from "./countries";
 import { accelByteConfig } from "./config";
 import {
@@ -51,6 +57,7 @@ import {
   type PlayerStatSummary,
 } from "./player-stats";
 import { getMatchHistory, MatchHistoryError, type MatchHistoryEntry } from "./match-history";
+import { loadMatchReview, saveMatchReview, savedMatchReviewIds } from "./match-reviews";
 import { StatisticsScreen } from "./StatisticsScreen";
 import {
   createFreshPracticeSession,
@@ -74,18 +81,27 @@ import { useVideoCall } from "./useVideoCall";
 import type { SeatId } from "./matchTableTypes";
 import { CompletedHandFlow } from "./CompletedHandFlow";
 import { RotationPanel } from "./RotationPanel";
-import type {
-  FriendRequestOutcome,
-  ResultFriendOpponent,
-  ResultFriendRelationship,
-  ResultFriendsState,
+import {
+  HandResultScreen,
+  type FriendRequestOutcome,
+  type ResultFriendOpponent,
+  type ResultFriendRelationship,
+  type ResultFriendsState,
 } from "./HandResultScreen";
 import { AccountUpgradeCard } from "./AccountUpgradeCard";
+import { AnalyticsConsentCard } from "./AnalyticsConsentCard";
 import { MINIMUM_ACCOUNT_AGE, ageInYears } from "./age-gate";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
 import { MATCH_LOADING_SCREEN_MS, MatchLoadingScreen } from "./MatchLoadingScreen";
 import { createBrowserTelemetry, type GameTelemetry } from "./telemetry";
+import {
+  createGrowthStore,
+  jadeBalanceBand,
+  levelBand,
+  sessionDepth,
+  type GrowthMilestone,
+} from "./growth";
 import {
   defaultPlayerProfile,
   loadPlayerProfile,
@@ -120,6 +136,9 @@ const MATCH_RUNTIME_RETRYABLE_CODES = new Set(["closed", "network", "not_found",
 // LTE/5G handover — without the player noticing; short enough that a
 // genuinely dead match does not leave them staring at a frozen board.
 export const STALLED_TABLE_GRACE_MS = 60_000;
+const PRACTICE_LEARNING_POLL_MS = 2_400;
+const PRACTICE_NORMAL_POLL_MS = 1_200;
+const PRACTICE_FAST_POLL_MS = 500;
 // The lobby-side polls are cheaper and shorter-lived than the match poll, and
 // both are waiting on another person to act, so they stay at three seconds
 // when healthy and back off from there.
@@ -131,6 +150,16 @@ const TICKET_POLL_INTERVAL_MS = 3_000;
 // their place in it.
 const TICKET_POLL_FAILURE_TOLERANCE = 3;
 const HUMAN_MATCH_SIZE = 4;
+// The settings whose adoption is a product question. optionalAnalyticsConsent
+// is deliberately absent: it has its own event, and reporting it here as well
+// would double-count the one decision the growth data most depends on.
+const PLAYER_SETTING_FEATURES = [
+  "showTutorial",
+  "expertHud",
+  "autoPassClaims",
+  "compactClaimPrompts",
+  "practiceBotSpeed",
+] as const satisfies ReadonlyArray<keyof PlayerSettings>;
 const AUTO_DRAW_DELAY_MS = 320;
 
 export function shouldAutomaticallyRetryMatchRuntime(code: string, attempt: number): boolean {
@@ -414,7 +443,7 @@ export function App(
 ) {
   // One subscription at the application boundary refreshes every translated
   // child when the global language selector changes.
-  useLocale();
+  const locale = useLocale();
   const [stableIam] = useState(() => injectedIam ?? createBrowserIam());
   const [gameTelemetry] = useState<GameTelemetry>(() =>
     injectedTelemetry ??
@@ -455,6 +484,7 @@ export function App(
     defaultPlayerProfile(true),
   );
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [guidedPractice, setGuidedPractice] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
   const [accountUpgradeOpen, setAccountUpgradeOpen] = useState(false);
@@ -476,6 +506,7 @@ export function App(
   // they load on demand instead of riding the lobby's other traffic.
   const [statisticsOpen, setStatisticsOpen] = useState(false);
   const [statisticsState, setStatisticsState] = useState<StatisticsState>({ status: "idle" });
+  const [historyReview, setHistoryReview] = useState<SeatView | null>(null);
   const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
   const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
   // Tracks the registration wizard step independent of emailAuthState's
@@ -510,33 +541,112 @@ export function App(
   const handTelemetryKeyRef = useRef<string | null>(null);
   const rotationTelemetryKeyRef = useRef<string | null>(null);
   const resultFriendsTelemetryKeyRef = useRef<string | null>(null);
+  // --- growth signals ------------------------------------------------------
+  // Device-local, so the activation ladder survives a reload and a milestone
+  // fires once per player rather than once per tab.
+  const [growthStore] = useState(() => createGrowthStore());
+  // What this session did, for app_session_ended. Refs rather than state:
+  // the counters are read once at the end and must never cause a render.
+  const sessionCountersRef = useRef({
+    startedAt: Date.now(),
+    handsCompleted: 0,
+    matchesEntered: 0,
+    queueEntries: 0,
+  });
+  const sessionEndedRef = useRef(false);
+  const jadeBandRef = useRef<string | null>(null);
+  const levelRef = useRef<number | null>(null);
+  const upgradeOfferRef = useRef<string | null>(null);
+  const enteredMatchRef = useRef<string | null>(null);
+  const localeRef = useRef<string | null>(null);
+
+  // Fires a milestone the first time this device reaches it, and never again.
+  // The store owns the "first time ever" decision so callers can call freely
+  // from render-driven effects.
+  const reachMilestone = useCallback(
+    (milestone: GrowthMilestone, mode?: string) => {
+      const reached = growthStore.reach(milestone, Date.now());
+      if (!reached) return;
+      gameTelemetry.track("activation_milestone", {
+        dimensions: {
+          milestone: reached.milestone,
+          mode,
+          session_count_band: reached.sessionCountBand,
+        },
+        measurements: { minutes_since_first_session: reached.minutesSinceFirstSession },
+      });
+    },
+    [gameTelemetry, growthStore],
+  );
 
   useEffect(() => {
     const mountedAt = Date.now();
+    sessionCountersRef.current = {
+      startedAt: mountedAt,
+      handsCompleted: 0,
+      matchesEntered: 0,
+      queueEntries: 0,
+    };
+    sessionEndedRef.current = false;
     gameTelemetry.start();
+    const returning = growthStore.beginSession(mountedAt);
     gameTelemetry.track("app_session_started", {
-      dimensions: { entry_point: "web" },
+      dimensions: {
+        entry_point: "web",
+        return_band: returning.returnBand,
+        session_count_band: returning.sessionCountBand,
+      },
     });
     const interactiveTimer = window.setTimeout(() => {
       gameTelemetry.track("app_interactive", {
         measurements: { interactive_ms: Math.max(0, Date.now() - mountedAt) },
       });
     }, 0);
+    // A browser tab is never "closed" reliably: pagehide is the only event
+    // that fires on a real close, and on mobile a backgrounded tab may be
+    // discarded without firing anything else. So the session is ended on the
+    // first hide of either kind and latched, and a tab that comes back keeps
+    // reporting under the session it already ended rather than inventing a
+    // second one.
+    const endSession = (endReason: string) => {
+      if (sessionEndedRef.current) return;
+      sessionEndedRef.current = true;
+      const counters = sessionCountersRef.current;
+      gameTelemetry.track("app_session_ended", {
+        dimensions: {
+          end_reason: endReason,
+          session_depth: sessionDepth(counters),
+        },
+        measurements: {
+          session_seconds: Math.max(0, Math.round((Date.now() - counters.startedAt) / 1000)),
+          hands_completed: counters.handsCompleted,
+          matches_entered: counters.matchesEntered,
+          queue_entries: counters.queueEntries,
+        },
+      });
+      void gameTelemetry.flush();
+    };
     const onVisibilityChange = () => {
       gameTelemetry.track("app_visibility_changed", {
         dimensions: { visibility_state: document.visibilityState },
       });
+      if (document.visibilityState === "hidden") {
+        endSession("hidden");
+      }
     };
-    const onPageHide = () => void gameTelemetry.flush();
+    const onPageHide = () => {
+      endSession("pagehide");
+    };
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
     return () => {
       window.clearTimeout(interactiveTimer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
+      endSession("unmount");
       gameTelemetry.stop();
     };
-  }, [gameTelemetry]);
+  }, [gameTelemetry, growthStore]);
 
   useEffect(() => {
     if (state.status !== "signed_in") return;
@@ -552,7 +662,7 @@ export function App(
     const cached = loadCachedPlayerSettings(state.userId);
     if (cached) {
       setPlayerSettings(cached);
-      updateOptionalAnalyticsConsent(cached.optionalAnalyticsConsent);
+      updateOptionalAnalyticsConsent(cached.optionalAnalyticsConsent, "restore");
     }
     setSettingsSyncStatus("loading");
     try {
@@ -565,7 +675,7 @@ export function App(
       const settings = stored ?? cached ?? DEFAULT_PLAYER_SETTINGS;
       setPlayerSettings(settings);
       saveCachedPlayerSettings(state.userId, settings);
-      updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent);
+      updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent, "restore");
       setSettingsSyncStatus("ready");
     } catch {
       if (requestId !== settingsRequestRef.current) return;
@@ -573,12 +683,97 @@ export function App(
     }
   }
 
-  async function updatePlayerSettings(settings: PlayerSettings) {
+  // The lobby's one-time optional-analytics ask. Recording the answer and the
+  // consent itself in the same save keeps them from drifting apart: a player
+  // who declined must not be asked again, and the only way to be sure of that
+  // is for "was asked" to travel with the settings rather than living in a
+  // second store that can be cleared on its own.
+  function answerAnalyticsConsent(enabled: boolean) {
+    void updatePlayerSettings(
+      {
+        ...playerSettings,
+        optionalAnalyticsConsent: enabled,
+        analyticsConsentDecided: true,
+      },
+      "first_run",
+    );
+  }
+
+  // Ask only once the player's real settings are in hand. Prompting against
+  // the defaults would show the card to somebody who already answered on
+  // another device, and answering it would overwrite what they chose there.
+  const analyticsConsentPending =
+    state.status === "signed_in" &&
+    (settingsSyncStatus === "ready" || settingsSyncStatus === "error") &&
+    !playerSettings.analyticsConsentDecided;
+
+  // §10.2 guest→account conversion, instrumented as a funnel.
+  //
+  // AGS IAM already records that an upgrade happened. What it cannot record is
+  // the offer nobody acted on, or which step lost the players who did act —
+  // and that is where the funnel actually leaks. The card is rendered in two
+  // places (the lobby and the end of a match), and which one converts better
+  // is the decision this is here to settle, so `surface` is on every step.
+  function upgradeFunnelHandlers(surface: string, afterUpgrade?: () => void): {
+    onRequestCode(email: string): Promise<void>;
+    onUpgrade(input: GuestUpgradeInput): Promise<void>;
+    onUpgraded(): void;
+  } {
+    const step = (name: string, reasonCode?: string) =>
+      gameTelemetry.track("account_upgrade_step", {
+        dimensions: { step: name, surface, reason_code: reasonCode },
+      });
+    return {
+      onRequestCode: async (email) => {
+        step("code_requested");
+        try {
+          await stableIam.requestGuestUpgradeCode(email);
+          step("code_sent");
+        } catch (error) {
+          step("code_failed", errorView(error).code);
+          throw error;
+        }
+      },
+      onUpgrade: async (input) => {
+        step("submitted");
+        try {
+          await stableIam.upgradeGuestAccount(input);
+        } catch (error) {
+          step("failed", errorView(error).code);
+          throw error;
+        }
+      },
+      onUpgraded: () => {
+        step("succeeded");
+        setIsGuestAccount(false);
+        afterUpgrade?.();
+      },
+    };
+  }
+
+  // `consentSurface` names where a change to optionalAnalyticsConsent was
+  // made, so the lobby ask and the Settings checkbox are distinguishable in
+  // the consent-rate data. It is ignored when consent did not change.
+  async function updatePlayerSettings(settings: PlayerSettings, consentSurface = "settings") {
     if (state.status !== "signed_in") return;
     const requestId = ++settingsRequestRef.current;
+    // Only what actually changed. Settings save as a whole object, so
+    // reporting the object would say every player uses every feature every
+    // time they change one of them.
+    for (const feature of PLAYER_SETTING_FEATURES) {
+      if (playerSettings[feature] !== settings[feature]) {
+        gameTelemetry.track("feature_engaged", {
+          dimensions: {
+            feature,
+            value: String(settings[feature]),
+            surface: "settings",
+          },
+        });
+      }
+    }
     setPlayerSettings(settings);
     saveCachedPlayerSettings(state.userId, settings);
-    updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent);
+    updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent, consentSurface);
     setSettingsSyncStatus("saving");
     try {
       const saved = await createPlayerSettingsClient(
@@ -629,7 +824,37 @@ export function App(
     }
   }
 
-  function updateOptionalAnalyticsConsent(enabled: boolean) {
+  // `surface` says where the player made the choice. "restore" means nobody
+  // chose anything — a saved preference is being applied on load — and is the
+  // one case that must not be reported as a decision, or the consent rate
+  // becomes a count of page loads.
+  function updateOptionalAnalyticsConsent(enabled: boolean, surface = "settings") {
+    // Two of the surfaces are piggybacked rather than deliberate, and each
+    // needs its own rule:
+    //
+    //   "restore"  — a saved preference being applied on load. Nobody decided
+    //                anything, so it never reports.
+    //   "settings" — rides along with every settings save, including saves
+    //                that changed the bot speed. It reports only when the
+    //                value actually moved.
+    //
+    // Every other surface is an answer to a question the game asked, and
+    // reports even when the answer matches the current value: declining an
+    // ask is a decision, and a consent rate needs both halves of it.
+    const reportable =
+      surface === "restore"
+        ? false
+        : surface === "settings"
+          ? enabled !== gameTelemetry.optionalConsent()
+          : true;
+    if (reportable) {
+      // Tracked before the change is applied. Withdrawal is the case that
+      // matters — after setOptionalConsent(false) the queue is purged, and an
+      // optional-class event recording the withdrawal would be purged with it.
+      gameTelemetry.track("analytics_consent_changed", {
+        dimensions: { outcome: enabled ? "granted" : "declined", surface },
+      });
+    }
     gameTelemetry.setOptionalConsent(enabled);
     setOptionalAnalyticsConsent(enabled);
   }
@@ -1113,14 +1338,24 @@ export function App(
           // onError already routes connection failures into matchRuntimeState.
         }
         schedule();
-      }, pollDelayMs(syncFailuresRef.current));
+      }, pollDelayMs(
+        syncFailuresRef.current,
+        Math.random,
+        matchRuntimeState.status === "joined" && isPracticeMatch(matchRuntimeState.view)
+          ? guidedPractice || playerSettings.practiceBotSpeed === "learning"
+            ? PRACTICE_LEARNING_POLL_MS
+            : playerSettings.practiceBotSpeed === "fast"
+              ? PRACTICE_FAST_POLL_MS
+              : PRACTICE_NORMAL_POLL_MS
+          : undefined,
+      ));
     };
     schedule();
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [matchRuntimeJoined]);
+  }, [guidedPractice, matchRuntimeJoined, playerSettings.practiceBotSpeed]);
 
   // A phone that regains its link — leaving a tunnel, or the player returning
   // to a backgrounded tab — should show a current board immediately. Waiting
@@ -1279,7 +1514,149 @@ export function App(
         wall_remaining: view.wall?.remaining ?? 0,
       },
     });
-  }, [matchRuntimeState]);
+    // Activation. A Practice hand is a completed hand and counts as reaching
+    // the game; only a staked hand counts as reaching the mode with the
+    // business on it, which is why the two rungs are separate.
+    sessionCountersRef.current.handsCompleted += 1;
+    const handMode = isPracticeMatch(view)
+      ? "practice"
+      : view.rotation
+        ? "full_rotation"
+        : "quick_play";
+    reachMilestone("first_hand_completed", handMode);
+    if (handMode === "quick_play") {
+      reachMilestone("first_staked_hand", handMode);
+    }
+    if (state.status === "signed_in") {
+      saveMatchReview(state.userId, view);
+    }
+    // XP/history have been committed before they appear on the completed
+    // seat view. Refresh now so Return to Lobby immediately reflects a
+    // Practice hand instead of waiting for another login or manual reload.
+    void loadStatistics();
+  }, [gameTelemetry, matchRuntimeState, reachMilestone, state]);
+
+  // Being seated is its own rung: the drop between "entered a match" and
+  // "finished a hand" is a different product problem (the table is too hard to
+  // read, the wait is too long) from never being seated at all.
+  useEffect(() => {
+    if (matchRuntimeState.status !== "joined") {
+      return;
+    }
+    if (enteredMatchRef.current !== matchRuntimeState.matchId) {
+      enteredMatchRef.current = matchRuntimeState.matchId;
+      sessionCountersRef.current.matchesEntered += 1;
+    }
+    reachMilestone(
+      "first_match_entered",
+      isPracticeMatch(matchRuntimeState.view) ? "practice" : "online",
+    );
+  }, [matchRuntimeState, reachMilestone]);
+
+  // Levelling. The server owns the level; this only notices it going up, and
+  // only after a level has already been observed once — a first observation is
+  // the player's existing level, not a level-up.
+  useEffect(() => {
+    if (progressionState.status !== "ready") {
+      return;
+    }
+    const level = progressionState.snapshot.progression.level ?? 0;
+    const previous = levelRef.current;
+    levelRef.current = level;
+    if (previous === null || level <= previous) {
+      return;
+    }
+    gameTelemetry.track("progression_level_up", {
+      dimensions: {
+        level_band: levelBand(level),
+        source: matchRuntimeState.status === "joined" ? "match" : "lobby",
+      },
+      measurements: {
+        level,
+        lifetime_xp: progressionState.snapshot.progression.lifetime_xp ?? 0,
+      },
+    });
+  }, [gameTelemetry, matchRuntimeState.status, progressionState]);
+
+  // The top of the upgrade funnel: the offer being on screen at all. Without
+  // it every conversion rate below has no denominator, and "nobody upgrades"
+  // cannot be told apart from "nobody was asked".
+  useEffect(() => {
+    if (!isGuestAccount) {
+      upgradeOfferRef.current = null;
+      return;
+    }
+    const surface = accountUpgradeOpen
+      ? "lobby"
+      : matchRuntimeState.status === "joined" &&
+          (matchRuntimeState.view.phase === "hand_complete" ||
+            matchRuntimeState.view.phase === "exhaustive_draw")
+        ? "hand_result"
+        : null;
+    if (!surface || upgradeOfferRef.current === surface) {
+      return;
+    }
+    upgradeOfferRef.current = surface;
+    gameTelemetry.track("account_upgrade_step", {
+      dimensions: { step: "offer_shown", surface },
+    });
+  }, [accountUpgradeOpen, gameTelemetry, isGuestAccount, matchRuntimeState]);
+
+  // Locale. The selector lives above this component and outside its telemetry,
+  // so adoption is observed here instead of instrumented there. The first
+  // observation is reported too: which language players arrive in is the
+  // market question, and switching away from it is a different one.
+  useEffect(() => {
+    const first = localeRef.current === null;
+    if (localeRef.current === locale) {
+      return;
+    }
+    localeRef.current = locale;
+    gameTelemetry.track("feature_engaged", {
+      dimensions: {
+        feature: "locale",
+        value: locale,
+        surface: first ? "startup" : "selector",
+      },
+    });
+  }, [gameTelemetry, locale]);
+
+  // Jade at the thresholds that gate play. Emitted on a band change rather
+  // than on every refresh: the balance moves after every hand, but only a
+  // crossing changes what the player can do next.
+  useEffect(() => {
+    if (jadeState.status !== "ready") {
+      return;
+    }
+    const account = jadeState.account;
+    const band = jadeBalanceBand(account);
+    if (jadeBandRef.current === band) {
+      return;
+    }
+    const trigger = jadeBandRef.current === null ? "first_load" : "balance_changed";
+    jadeBandRef.current = band;
+    gameTelemetry.track("economy_checkpoint", {
+      dimensions: {
+        balance_band: band,
+        eligible: String(Boolean(account.eligible)),
+        trigger,
+      },
+      measurements: {
+        available: account.available ?? 0,
+        minimum_balance: account.minimum_balance ?? 0,
+      },
+    });
+    if (account.welfare_eligible) {
+      gameTelemetry.track("economy_recovery", {
+        dimensions: {
+          outcome: "offered",
+          reason: account.welfare_reason ?? "unknown",
+          balance_band: band,
+        },
+        measurements: { amount: account.welfare_amount ?? 0 },
+      });
+    }
+  }, [gameTelemetry, jadeState]);
 
   // One completion event per rotation, separate from the final hand event.
   // Counts and ending reason are enough to measure time-limit asymmetry while
@@ -1416,6 +1793,10 @@ export function App(
               account_type: authMethodRef.current === "guest" ? "guest" : "full",
             },
           });
+          reachMilestone(
+            "first_lobby",
+            authMethodRef.current === "guest" ? "guest" : "full",
+          );
         },
         onMessage: () => {
           // Lobby frames are intentionally not rendered or logged.
@@ -1937,6 +2318,19 @@ export function App(
         ...(!outcome.ok ? { reason_code: outcome.code } : {}),
       },
     });
+    gameTelemetry.track("social_action", {
+      dimensions: {
+        action: "friend_request",
+        outcome: outcome.ok ? "succeeded" : "failed",
+        surface: "hand_result",
+      },
+    });
+    if (outcome.ok) {
+      // The request being sent, not accepted — the client cannot see the other
+      // player's answer. It is still the rung that matters: reaching out at
+      // all is the step most players never take.
+      reachMilestone("first_friend");
+    }
     return outcome;
   }
 
@@ -1963,8 +2357,13 @@ export function App(
     }
   }
 
+  // `socialAction` labels the mutation for growth analytics. The party client
+  // takes a closure rather than a verb, so the verb has to be passed in — an
+  // unlabelled mutation is still allowed and simply goes unreported rather
+  // than being guessed at from the closure.
   async function mutateParty(
     action: (client: ReturnType<typeof createAuthenticatedPartyClient>) => Promise<void>,
+    socialAction?: string,
   ) {
     if (isGuestAccount) {
       return;
@@ -1974,7 +2373,17 @@ export function App(
     setPartyBusy(true);
     try {
       await action(createAuthenticatedPartyClient());
+      if (socialAction) {
+        gameTelemetry.track("social_action", {
+          dimensions: { action: socialAction, outcome: "succeeded", surface: "lobby_party" },
+        });
+      }
     } catch (error) {
+      if (socialAction) {
+        gameTelemetry.track("social_action", {
+          dimensions: { action: socialAction, outcome: "failed", surface: "lobby_party" },
+        });
+      }
       if (mutationId !== partyMutationRef.current) {
         return;
       }
@@ -2040,6 +2449,14 @@ export function App(
     try {
       const claim = await createAuthenticatedJadeClient().claimWelfare();
       jadeRequestRef.current += 1;
+      gameTelemetry.track("economy_recovery", {
+        dimensions: {
+          outcome: claim.granted ? "claimed" : "not_granted",
+          reason: claim.reason ?? "unknown",
+          balance_band: jadeBalanceBand(claim.account),
+        },
+        measurements: { amount: claim.amount ?? 0 },
+      });
       setJadeState({ status: "ready", account: claim.account });
       setJadeRecoveryState(
         claim.granted
@@ -2053,6 +2470,9 @@ export function App(
       );
     } catch (error) {
       const safeError = jadeErrorView(error);
+      gameTelemetry.track("economy_recovery", {
+        dimensions: { outcome: "failed", reason: safeError.code },
+      });
       setJadeRecoveryState({
         status: "error",
         message: `${safeError.message} Your balance was not changed.`,
@@ -2136,6 +2556,7 @@ export function App(
     setQueueStartedAt(startedAt);
     setNowTick(startedAt);
     queueTelemetryRef.current.clear();
+    sessionCountersRef.current.queueEntries += 1;
     gameTelemetry.track("mode_selected", {
       dimensions: {
         entry_point: "lobby_quick_play",
@@ -2231,6 +2652,7 @@ export function App(
     setQueueStartedAt(startedAt);
     setNowTick(startedAt);
     queueTelemetryRef.current.clear();
+    sessionCountersRef.current.queueEntries += 1;
     gameTelemetry.track("mode_selected", {
       dimensions: { entry_point: "lobby_full_rotation", mode: "full_rotation" },
     });
@@ -2562,6 +2984,31 @@ export function App(
     // Leaving the table ends the match for this player: drop the resume pointer
     // so a later reload does not try to rejoin a match they left.
     browserMatchResumeStore.clear();
+    // Leaving a live hand is the clearest voluntary churn signal the client
+    // can see. Leaving a finished one is just the Return to Lobby button, so
+    // the completed phases are excluded rather than counted as abandonment.
+    if (
+      matchRuntimeState.status === "joined" &&
+      matchRuntimeState.view.phase !== "hand_complete" &&
+      matchRuntimeState.view.phase !== "exhaustive_draw"
+    ) {
+      const view = matchRuntimeState.view;
+      const own = view.players.find((player) => player.seat === view.seat);
+      gameTelemetry.track("match_abandoned", {
+        dimensions: {
+          mode: isPracticeMatch(view)
+            ? "practice"
+            : view.rotation
+              ? "full_rotation"
+              : "quick_play",
+          phase: view.phase,
+          taken_over: String(Boolean(own?.taken_over)),
+        },
+        measurements: {
+          wall_remaining: view.wall?.remaining ?? 0,
+        },
+      });
+    }
     const sessionId =
       sessionIdOverride ??
       (sessionState.status === "loaded"
@@ -2784,10 +3231,11 @@ export function App(
     }
   }
 
-  function practiceVsBots() {
+  function practiceVsBots(guided = false) {
+    setGuidedPractice(guided);
     gameTelemetry.track("mode_selected", {
       dimensions: {
-        entry_point: "lobby_practice",
+        entry_point: guided ? "lobby_guided_practice" : "lobby_practice",
         mode: "practice",
       },
     });
@@ -2816,6 +3264,12 @@ export function App(
     if (matchmakingState.status === "loading" || matchmakingState.status === "searching") {
       return;
     }
+    // Requeueing straight from the result screen is the retention loop closing
+    // on itself. It is the single highest-signal action on that screen, and it
+    // competes with the friend offer and Return to Lobby for the same click.
+    gameTelemetry.track("social_action", {
+      dimensions: { action: "play_again", outcome: "started", surface: "hand_result" },
+    });
 
     const previousSessionId =
       sessionState.status === "loaded" ? sessionState.session.sessionId : undefined;
@@ -3103,13 +3557,37 @@ export function App(
   }
 
   if (statisticsOpen) {
+    if (historyReview) {
+      return (
+        <div className="game-screen">
+          <HandResultScreen
+            view={historyReview}
+            practice={isPracticeMatch(historyReview)}
+            onReturn={() => setHistoryReview(null)}
+            returnLabel={t("statistics.backToHistory")}
+          />
+        </div>
+      );
+    }
+    const reviewMatchIds = state.status === "signed_in"
+      ? savedMatchReviewIds(state.userId)
+      : new Set<string>();
     return (
       <div className="game-screen">
         {statisticsState.status === "ready" ? (
           <StatisticsScreen
             summary={statisticsState.summary}
             history={statisticsState.history}
-            onClose={() => setStatisticsOpen(false)}
+            reviewMatchIds={reviewMatchIds}
+            onReview={(entry) => {
+              if (state.status !== "signed_in") return;
+              const review = loadMatchReview(state.userId, entry.matchId);
+              if (review) setHistoryReview(review);
+            }}
+            onClose={() => {
+              setHistoryReview(null);
+              setStatisticsOpen(false);
+            }}
             onPlay={() => {
               setStatisticsOpen(false);
               void findTable();
@@ -3263,6 +3741,11 @@ export function App(
                         revealWinningHands: true,
                       })}
                       playerProfile={playerProfile}
+                      preferences={{
+                        expertHud: false,
+                        autoPassClaims: playerSettings.autoPassClaims,
+                        compactClaimPrompts: true,
+                      }}
                     />
                   </div>
                 }
@@ -3291,11 +3774,7 @@ export function App(
                 onReturn={() => void leaveTable()}
                 accountUpgrade={
                   isGuestAccount ? (
-                    <AccountUpgradeCard
-                      onRequestCode={(email) => stableIam.requestGuestUpgradeCode(email)}
-                      onUpgrade={(input) => stableIam.upgradeGuestAccount(input)}
-                      onUpgraded={() => setIsGuestAccount(false)}
-                    />
+                    <AccountUpgradeCard {...upgradeFunnelHandlers("hand_result")} />
                   ) : undefined
                 }
                 resultFriends={resultFriendsForCurrentMatch}
@@ -3377,6 +3856,22 @@ export function App(
                     claimActionPending: matchRuntimeState.commandPending,
                   })}
                   playerProfile={playerProfile}
+                  preferences={{
+                    expertHud:
+                      (guidedPractice && isPracticeMatch(matchRuntimeState.view)) || playerSettings.expertHud,
+                    autoPassClaims:
+                      guidedPractice && isPracticeMatch(matchRuntimeState.view)
+                        ? false
+                        : playerSettings.autoPassClaims,
+                    compactClaimPrompts:
+                      guidedPractice && isPracticeMatch(matchRuntimeState.view)
+                        ? false
+                        : playerSettings.compactClaimPrompts,
+                    guided: guidedPractice && isPracticeMatch(matchRuntimeState.view),
+                    onExpertHudChange: guidedPractice
+                      ? undefined
+                      : (expertHud) => void updatePlayerSettings({ ...playerSettings, expertHud }),
+                  }}
                   interaction={{
                     canDraw:
                       matchRuntimeState.view.active_seat === matchRuntimeState.view.seat &&
@@ -3434,7 +3929,10 @@ export function App(
 
   return (
     <main className="bootstrap-shell">
-      <section className="bootstrap-card" aria-labelledby="bootstrap-title">
+      <section
+        className={`bootstrap-card${state.status === "signed_in" ? " bootstrap-card-lobby" : ""}`}
+        aria-labelledby="bootstrap-title"
+      >
         <h1 id="bootstrap-title" className="mahjong-online-title">
           {t("auth.title")} <small>{t("auth.alpha")}</small>
         </h1>
@@ -3730,15 +4228,14 @@ export function App(
               onCreateAccount={() => setAccountUpgradeOpen(true)}
             />
 
+            {analyticsConsentPending ? (
+              <AnalyticsConsentCard onAnswer={answerAnalyticsConsent} />
+            ) : null}
+
             {isGuestAccount && accountUpgradeOpen ? (
               <div className="lobby-account-upgrade">
                 <AccountUpgradeCard
-                  onRequestCode={(email) => stableIam.requestGuestUpgradeCode(email)}
-                  onUpgrade={(input) => stableIam.upgradeGuestAccount(input)}
-                  onUpgraded={() => {
-                    setIsGuestAccount(false);
-                    setAccountUpgradeOpen(false);
-                  }}
+                  {...upgradeFunnelHandlers("lobby", () => setAccountUpgradeOpen(false))}
                 />
               </div>
             ) : null}
@@ -3823,9 +4320,11 @@ export function App(
                   }
                   matchServiceAvailable={Boolean(accelByteConfig.matchServiceURL)}
                   onStart={() => void practiceVsBots()}
+                  onStartGuided={() => void practiceVsBots(true)}
                   onLeaveSelectedSession={() => void leaveTable()}
                 />
 
+                <div className="match-format-grid" aria-label={t("lobby.matchFormats")}>
                 <section className="practice-card online-play-card" aria-labelledby="online-title">
                   <p className="status-label">{t("lobby.playOnline")}</p>
                   <h2 id="online-title">
@@ -3899,6 +4398,44 @@ export function App(
                     </button>
                   )}
                 </section>
+
+                <section className="practice-card rotation-launch-card" aria-labelledby="rotation-launch-title">
+                  <p className="status-label">{t("lobby.competitiveFormat")}</p>
+                  <h2 id="rotation-launch-title">{t("lobby.fullRotation")}</h2>
+                  <p className="practice-description">{t("lobby.rotationDescription")}</p>
+                  <p className="rotation-launch-rewards">{t("lobby.rotationRewards")}</p>
+
+                  {!accelByteConfig.rotationMatchPool ? (
+                    <p className="practice-unavailable" role="status">
+                      {t("lobby.rotationUnavailable")}
+                    </p>
+                  ) : isGuestAccount ? (
+                    <>
+                      <p className="practice-unavailable">{t("lobby.rotationAccountRequired")}</p>
+                      <button
+                        className="secondary-action session-action"
+                        type="button"
+                        onClick={() => setAccountUpgradeOpen(true)}
+                      >
+                        {t("lobby.unlockRotation")}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="primary-action session-action"
+                      type="button"
+                      onClick={() => void findRotationTable()}
+                      disabled={
+                        sessionState.status === "loading" ||
+                        hasActiveOrStrandedSession ||
+                        matchmakingState.status !== "idle"
+                      }
+                    >
+                      {t("lobby.findRotation")}
+                    </button>
+                  )}
+                </section>
+                </div>
 
                 {matchmakingState.status !== "idle" && (
                   <section
@@ -4046,23 +4583,23 @@ export function App(
                       state={partyState}
                       ownUserId={state.userId}
                       busy={partyBusy}
-                      onCreate={() => void mutateParty(async (c) => { await c.create(); })}
+                      onCreate={() => void mutateParty(async (c) => { await c.create(); }, "party_create")}
                       onLeave={() =>
                         void mutateParty(async (c) => {
                           if (partyState.status === "ready") {
                             await c.leave(partyState.party.partyId);
                           }
-                        })
+                        }, "party_leave")
                       }
                       onJoinByCode={(code) =>
-                        void mutateParty(async (c) => { await c.joinByCode(code); })
+                        void mutateParty(async (c) => { await c.joinByCode(code); }, "party_join_code")
                       }
                       onGenerateCode={() =>
                         void mutateParty(async (c) => {
                           if (partyState.status === "ready") {
                             await c.generateCode(partyState.party.partyId);
                           }
-                        })
+                        }, "party_share_code")
                       }
                       onKick={(userId) =>
                         void mutateParty(async (c) => {
@@ -4087,7 +4624,7 @@ export function App(
                                 if (partyState.status === "ready") {
                                   await c.invite(partyState.party.partyId, userId);
                                 }
-                              })
+                              }, "party_invite")
                           : undefined
                       }
                       onAdd={(userId) => void mutateFriends((c) => c.sendRequest(userId))}

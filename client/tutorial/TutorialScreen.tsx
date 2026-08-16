@@ -179,6 +179,14 @@ export function TutorialScreen({
         fromStepId: step.id,
       }),
     );
+    // Reset locally before notifying the parent. Besides making the control
+    // resilient to a delayed parent transition, this removes the busy table
+    // immediately so the exit always has visible feedback.
+    setStarted(false);
+    setLocation(START);
+    setAttempted(false);
+    setConfirmed(false);
+    setFinished(false);
     onExit("skipped");
   }
 

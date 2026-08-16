@@ -13,6 +13,7 @@ import type {
   HandResult,
   HandWinner,
   HandXPAward,
+  MahjongTile,
   MahjongSeat,
   PatternScore,
   SeatView,
@@ -22,7 +23,7 @@ import { TileFace } from "./TileFace";
 import { XPAward } from "./XPAward";
 import { formatNumber, getLocale, t, translateSource } from "./i18n";
 import type { SeatId } from "./matchTableTypes";
-import { tile, windName } from "./matchTableTypes";
+import { tile, tileTypeKey, windName } from "./matchTableTypes";
 
 const SEAT_ORDER: MahjongSeat[] = ["E", "S", "W", "N"];
 
@@ -197,6 +198,245 @@ function currentDealer(view: SeatView): MahjongSeat | null {
   }
   const nextIndex = SEAT_ORDER.indexOf(outcome.next_dealer);
   return nextIndex < 0 ? null : SEAT_ORDER[(nextIndex + SEAT_ORDER.length - 1) % SEAT_ORDER.length];
+}
+
+function publicTileCounts(view: SeatView): Map<string, number> {
+  const counts = new Map<string, number>();
+  const seenPhysicalTiles = new Set<string>();
+  const add = (candidate: MahjongTile) => {
+    if (seenPhysicalTiles.has(candidate.id)) return;
+    seenPhysicalTiles.add(candidate.id);
+    const key = tileTypeKey(candidate.id);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  };
+
+  for (const discard of view.discards ?? []) add(discard.tile);
+  for (const player of view.players) {
+    if (player.melds) {
+      for (const meld of player.melds) {
+        if (!meld.concealed) {
+          for (const candidate of meld.tiles ?? []) add(candidate);
+        }
+      }
+    } else {
+      for (const candidate of player.exposed ?? []) add(candidate);
+    }
+  }
+  return counts;
+}
+
+function completedGroup(view: SeatView): string | null {
+  const result = view.hand_result;
+  const winningType = result?.winning_tile_id ? tileTypeKey(result.winning_tile_id) : null;
+  if (!winningType) return null;
+  for (const winner of result?.winners ?? []) {
+    if (winner.score.shape.pair.some((candidate) => tileTypeKey(candidate.id) === winningType)) {
+      return t("result.completedPair");
+    }
+    const meld = winner.score.shape.melds.find((candidate) =>
+      candidate.tiles?.some((meldTile) => tileTypeKey(meldTile.id) === winningType),
+    );
+    if (meld) {
+      if (meld.type === "pong") return t("result.completedPong");
+      if (meld.type === "kong") return t("result.completedKong");
+      return t("result.completedChow");
+    }
+  }
+  return null;
+}
+
+function finalShapeProgress(view: SeatView): { groups: number; hasPair: boolean } {
+  const counts = new Map<string, number>();
+  for (const candidate of view.own_hand) {
+    if (candidate.kind === "flower") continue;
+    const key = `${candidate.kind}:${candidate.rank ?? candidate.id.split("-").slice(0, -1).join("-")}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const keys = Array.from(counts.keys()).sort();
+  const values = keys.map((key) => counts.get(key) ?? 0);
+  const indexByKey = new Map(keys.map((key, index) => [key, index]));
+  const memo = new Map<string, { groups: number; hasPair: boolean }>();
+
+  const best = (left: { groups: number; hasPair: boolean }, right: { groups: number; hasPair: boolean }) =>
+    right.groups > left.groups || (right.groups === left.groups && right.hasPair && !left.hasPair)
+      ? right
+      : left;
+  const search = (remaining: number[], pairUsed: boolean): { groups: number; hasPair: boolean } => {
+    const memoKey = `${pairUsed ? 1 : 0}:${remaining.join(",")}`;
+    const cached = memo.get(memoKey);
+    if (cached) return cached;
+    const index = remaining.findIndex((count) => count > 0);
+    if (index < 0) return { groups: 0, hasPair: pairUsed };
+
+    const skipped = [...remaining];
+    skipped[index] -= 1;
+    let result = search(skipped, pairUsed);
+
+    if (remaining[index] >= 3) {
+      const triplet = [...remaining];
+      triplet[index] -= 3;
+      const next = search(triplet, pairUsed);
+      result = best(result, { groups: next.groups + 1, hasPair: next.hasPair });
+    }
+    if (!pairUsed && remaining[index] >= 2) {
+      const pair = [...remaining];
+      pair[index] -= 2;
+      result = best(result, search(pair, true));
+    }
+
+    const [kind, rankText] = keys[index].split(":");
+    const rank = Number(rankText);
+    if ((kind === "characters" || kind === "bamboo" || kind === "dots") && rank <= 7) {
+      const second = indexByKey.get(`${kind}:${rank + 1}`);
+      const third = indexByKey.get(`${kind}:${rank + 2}`);
+      if (second !== undefined && third !== undefined && remaining[second] > 0 && remaining[third] > 0) {
+        const sequence = [...remaining];
+        sequence[index] -= 1;
+        sequence[second] -= 1;
+        sequence[third] -= 1;
+        const next = search(sequence, pairUsed);
+        result = best(result, { groups: next.groups + 1, hasPair: next.hasPair });
+      }
+    }
+    memo.set(memoKey, result);
+    return result;
+  };
+
+  const concealed = search(values, false);
+  return {
+    groups: concealed.groups + (view.own_melds?.length ?? 0),
+    hasPair: concealed.hasPair,
+  };
+}
+
+function ResultAnalysis({ view }: { view: SeatView }) {
+  const result = view.hand_result;
+  if (!result) return null;
+
+  if (result.kind === "exhaustive_draw") {
+    const rows = result.draw_analysis?.length
+      ? result.draw_analysis
+      : [{ seat: view.seat, tenpai: (view.waits?.length ?? 0) > 0, waits: view.waits }];
+    return (
+      <section className="hand-result-analysis" aria-labelledby="result-analysis-heading">
+        <p className="hand-result-kicker">{t("result.review")}</p>
+        <h3 id="result-analysis-heading">{t("result.drawAnalysis")}</h3>
+        <p className="hand-result-analysis-lead">{t("result.drawAnalysisLead")}</p>
+        <ul className="hand-result-draw-rows">
+          {rows.map((row) => {
+            const liveCopies = (row.waits ?? []).reduce(
+              (sum, wait) => sum + wait.visible_remaining,
+              0,
+            );
+            const localShape = row.seat === view.seat && !row.tenpai
+              ? finalShapeProgress(view)
+              : null;
+            return (
+              <li key={row.seat} className={row.tenpai ? "is-tenpai" : "is-not-tenpai"}>
+                <div className="hand-result-draw-seat">
+                  <strong>{seatLabel(row.seat, view.seat)}</strong>
+                  <span>{row.tenpai ? t("result.tenpai") : t("result.notTenpai")}</span>
+                </div>
+                {row.tenpai && (row.waits?.length ?? 0) > 0 ? (
+                  <div className="hand-result-draw-waits">
+                    {(row.waits ?? []).map((wait) => (
+                      <span key={`${row.seat}-${tileTypeKey(wait.tile.id)}`} className="hand-result-draw-wait">
+                        <span className="tile tile-sm" role="img" aria-label={tile(wait.tile.id).label}>
+                          <TileFace id={wait.tile.id} size="sm" />
+                        </span>
+                        <small>{t("result.liveCopies", { count: wait.visible_remaining })}</small>
+                      </span>
+                    ))}
+                    <span className="hand-result-live-total">
+                      {t("result.liveTotal", { count: liveCopies })}
+                    </span>
+                  </div>
+                ) : row.tenpai ? (
+                  <small>{t("result.waitsUnavailable")}</small>
+                ) : localShape ? (
+                  <div className="hand-result-draw-shape">
+                    <small>{t("result.finalShapeProgress", {
+                      groups: localShape.groups,
+                      pair: t(localShape.hasPair ? "result.withPair" : "result.withoutPair"),
+                    })}</small>
+                    <div className="hand-result-final-tiles" aria-label={t("result.yourFinalTiles")}>
+                      {view.own_hand.filter((candidate) => candidate.kind !== "flower").map((candidate) => (
+                        <span key={candidate.id} className="tile tile-sm" role="img" aria-label={tile(candidate.id).label}>
+                          <TileFace id={candidate.id} size="sm" />
+                        </span>
+                      ))}
+                    </div>
+                    <small>{t(localShape.hasPair ? "result.nextFocusGroups" : "result.nextFocusPair")}</small>
+                  </div>
+                ) : (
+                  <small>{t("result.finishedNotReady")}</small>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    );
+  }
+
+  if (result.kind !== "discard" || result.payer !== view.seat || !result.winning_tile_id) {
+    return null;
+  }
+
+  const winning = tile(result.winning_tile_id);
+  const winningType = tileTypeKey(result.winning_tile_id);
+  const publicCounts = publicTileCounts(view);
+  const visibleBefore = Math.max(0, (publicCounts.get(winningType) ?? 0) - 1);
+  const completed = completedGroup(view);
+  const alternatives = Array.from(
+    new Map(
+      view.own_hand
+        .filter((candidate) => candidate.kind !== "flower" && tileTypeKey(candidate.id) !== winningType)
+        .map((candidate) => [tileTypeKey(candidate.id), candidate]),
+    ).values(),
+  )
+    .map((candidate) => ({
+      candidate,
+      visible: publicCounts.get(tileTypeKey(candidate.id)) ?? 0,
+    }))
+    .sort((left, right) => right.visible - left.visible || left.candidate.id.localeCompare(right.candidate.id))
+    .slice(0, 3);
+
+  return (
+    <section className="hand-result-analysis" aria-labelledby="result-analysis-heading">
+      <p className="hand-result-kicker">{t("result.review")}</p>
+      <h3 id="result-analysis-heading">{t("result.decisionAnalysis")}</h3>
+      <div className="hand-result-deal-in">
+        <span className="tile tile-md" role="img" aria-label={winning.label}>
+          <TileFace id={winning.id} size="md" />
+        </span>
+        <div>
+          <strong>{t("result.dealInTitle", { tile: winning.label })}</strong>
+          <p>{visibleBefore === 0
+            ? t("result.dealInUnseen")
+            : t("result.dealInSeen", { count: visibleBefore })}</p>
+          {completed ? <p>{t("result.completedGroup", { group: completed })}</p> : null}
+        </div>
+      </div>
+      {alternatives.length > 0 ? (
+        <div className="hand-result-alternatives">
+          <strong>{t("result.visibilityAlternatives")}</strong>
+          <div>
+            {alternatives.map(({ candidate, visible }) => (
+              <span key={tileTypeKey(candidate.id)} className="hand-result-alternative">
+                <span className="tile tile-sm" role="img" aria-label={tile(candidate.id).label}>
+                  <TileFace id={candidate.id} size="sm" />
+                </span>
+                <small>{t("result.publicCopies", { count: visible })}</small>
+              </span>
+            ))}
+          </div>
+          <p>{t("result.alternativesCaveat")}</p>
+        </div>
+      ) : null}
+      <p className="hand-result-analysis-source">{t("result.publicOnlyReview")}</p>
+    </section>
+  );
 }
 
 function walletSyncPresentation(status: string | undefined, error: string | undefined): {
@@ -650,6 +890,7 @@ export interface HandResultScreenProps {
   // discovered after it.
   playAgainNote?: string;
   onReturn?: () => void;
+  returnLabel?: string;
   // §10.2: the end-of-match slot where a guest is offered a full account.
   // Passed in rather than built here so this screen stays presentational and
   // knows nothing about IAM.
@@ -669,6 +910,7 @@ export function HandResultScreen({
   onPlayAgain,
   playAgainNote,
   onReturn,
+  returnLabel,
   accountUpgrade,
   resultFriends,
   onAddResultFriend,
@@ -738,6 +980,8 @@ export function HandResultScreen({
 
         <SettlementStory view={view} practice={practice} />
       </div>
+
+      <ResultAnalysis view={view} />
 
       {!practice && view.jade_settlement && (
         <div
@@ -843,7 +1087,7 @@ export function HandResultScreen({
           )}
           {onReturn && (
             <button type="button" className="secondary-action hand-result-return" onClick={onReturn}>
-              {t("result.returnLobby")}
+              {returnLabel ?? t("result.returnLobby")}
             </button>
           )}
           {onReportIssue && (

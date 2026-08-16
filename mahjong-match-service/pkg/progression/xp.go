@@ -15,7 +15,8 @@ import "time"
 const (
 	OnboardingXP = 500
 
-	PracticeHandXP     = 0
+	PracticeHandXP     = 25
+	PracticeDailyXPCap = 100
 	PublicHandXP       = 100
 	PublicWinXP        = 75
 	ZimoXP             = 25
@@ -92,30 +93,33 @@ type HandAward struct {
 	Source     string
 	Total      int
 	Components []XPComponent
-	// Retained on the wire for compatibility with earlier clients. Alpha has
-	// no daily XP cap, so new awards leave this false.
+	// Practice awards set this when the UTC-day mastery allowance cannot pay
+	// the full hand value. Public play is never daily-capped.
 	CappedByDaily bool
 }
 
 // HandXP prices one completed hand.
-//
-// practiceXPToday is retained in the signature for storage/API compatibility.
-// Alpha progression has no daily XP cap.
 func HandXP(outcome HandOutcome, practiceXPToday int) HandAward {
 	if outcome.Practice {
-		return practiceAward(outcome)
+		return practiceAward(outcome, practiceXPToday)
 	}
 	return publicAward(outcome)
 }
 
-func practiceAward(outcome HandOutcome) HandAward {
+func practiceAward(outcome HandOutcome, practiceXPToday int) HandAward {
+	remaining := max(0, PracticeDailyXPCap-max(0, practiceXPToday))
+	masteryXP := min(PracticeHandXP, remaining)
 	award := HandAward{
 		Source: SourcePractice,
-		Total:  0,
+		Total:  masteryXP,
+		Components: []XPComponent{{
+			Code: ComponentPracticeHand, Label: "Practice mastery", Amount: masteryXP,
+		}},
+		CappedByDaily: masteryXP < PracticeHandXP,
 	}
-	// Match History includes every completed game, including Practice. Keep a
-	// zero-value outcome marker in the same immutable ledger row without
-	// changing XP or feeding the Online Play achievement projection.
+	// Match History includes every completed game, including Practice. The win
+	// marker stays zero-value so bots cannot inflate the mastery allowance and
+	// Practice still never feeds the Online Play achievement projection.
 	if outcome.Won {
 		award.Components = append(award.Components, XPComponent{
 			Code: ComponentHandWon, Label: "Won the hand", Amount: 0,

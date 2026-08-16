@@ -1000,6 +1000,13 @@ func projectHandResult(result rulesengine.HandResult) *pb.HandResult {
 			Score:   projectScoreResult(winner.Score),
 		})
 	}
+	for _, analysis := range result.DrawAnalysis {
+		handResult.DrawAnalysis = append(handResult.DrawAnalysis, &pb.DrawSeatAnalysis{
+			Seat:   string(analysis.Seat),
+			Tenpai: analysis.Tenpai,
+			Waits:  projectWaits(analysis.Waits),
+		})
+	}
 	return handResult
 }
 

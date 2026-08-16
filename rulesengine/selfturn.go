@@ -71,14 +71,24 @@ type HandWinner struct {
 	Score   ScoreResult  `json:"score"`
 }
 
+// DrawSeatAnalysis is revealed only after an exhaustive draw. It turns the
+// terminal table state into a useful review without leaking any concealed
+// information during live play.
+type DrawSeatAnalysis struct {
+	Seat   Seat           `json:"seat"`
+	Tenpai bool           `json:"tenpai"`
+	Waits  []WaitTileView `json:"waits,omitempty"`
+}
+
 // HandResult is the terminal record of a hand. Discard and rob wins name one
 // payer; Zimo, Heavenly, and Eight Flowers use the three-opponent model, and
 // an exhaustive draw transfers nothing (§7.3).
 type HandResult struct {
-	Kind          WinKind      `json:"kind"`
-	Winners       []HandWinner `json:"winners,omitempty"`
-	Payer         Seat         `json:"payer,omitempty"`
-	WinningTileID string       `json:"winning_tile_id,omitempty"`
+	Kind          WinKind            `json:"kind"`
+	Winners       []HandWinner       `json:"winners,omitempty"`
+	Payer         Seat               `json:"payer,omitempty"`
+	WinningTileID string             `json:"winning_tile_id,omitempty"`
+	DrawAnalysis  []DrawSeatAnalysis `json:"draw_analysis,omitempty"`
 }
 
 func (e *TurnEngine) Result() *HandResult {
@@ -87,6 +97,11 @@ func (e *TurnEngine) Result() *HandResult {
 	}
 	copied := *e.result
 	copied.Winners = append([]HandWinner(nil), e.result.Winners...)
+	copied.DrawAnalysis = make([]DrawSeatAnalysis, len(e.result.DrawAnalysis))
+	for index, analysis := range e.result.DrawAnalysis {
+		copied.DrawAnalysis[index] = analysis
+		copied.DrawAnalysis[index].Waits = append([]WaitTileView(nil), analysis.Waits...)
+	}
 	return &copied
 }
 
@@ -562,7 +577,21 @@ func (e *TurnEngine) finishHand(result *HandResult) {
 }
 
 func (e *TurnEngine) completeExhaustiveDraw() {
-	e.result = &HandResult{Kind: KindExhaustiveDraw}
+	result := &HandResult{Kind: KindExhaustiveDraw}
+	for _, player := range e.Deal.Players {
+		analysis := DrawSeatAnalysis{Seat: player.Seat}
+		if waits, err := WaitingTiles(player.Hand, player.Melds); err == nil {
+			analysis.Tenpai = len(waits) > 0
+			for _, candidate := range waits {
+				analysis.Waits = append(analysis.Waits, WaitTileView{
+					Tile:             candidate,
+					VisibleRemaining: e.visibleRemainingFor(candidate, player.Hand),
+				})
+			}
+		}
+		result.DrawAnalysis = append(result.DrawAnalysis, analysis)
+	}
+	e.result = result
 	e.Phase = PhaseExhaustiveDraw
 	e.Claim = nil
 	e.rob = nil
