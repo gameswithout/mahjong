@@ -217,10 +217,10 @@ image, event log, or public payload.
 ## Deployment record
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
-ahead of the append-latency benchmark. The current 2026-08-15 deployment gives
-AI Practice bot seats distinct playing styles, while retaining the Online-only
-progression, authoritative match-history, Full Rotation, and
-achievement-experience work.
+ahead of the append-latency benchmark. The current 2026-08-15 deployment lets
+a player pick their AI Practice opponents (or "select for me"), while
+retaining the AI-persona seating, Online-only progression, authoritative
+match-history, Full Rotation, and achievement-experience work.
 
 **Keep this block current.** Its staleness caused a 2026-07-25 mis-diagnosis:
 the record said 2026-07-20 while the live service already carried the Jade
@@ -236,7 +236,28 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      personas-02d2462 (deployment created
+Image tag:      picker-1802411 (deployment created
+                2026-08-16T00:31:29Z, healthy; deployment
+                abd64a70-f6c8-4fc0-adc4-41298ccaffc5). Lets a player choose
+                up to 3 of the 6 personas to guarantee at their AI Practice
+                table via a new bot_personas session attribute
+                (comma-separated persona IDs, baked into the synthetic bot
+                user IDs padWithBotSeats mints rather than a new storage
+                column), with the rest auto-filled from the recommended
+                mixed lineup, excluding whatever was explicitly picked. Adds
+                GET /v1/namespaces/{namespace}/bot-personas (ListBotPersonas)
+                so the client's picker renders real card content — name,
+                style tag, tagline, glyph, bars, one strength, one weakness
+                — without a second hand-authored copy that could drift from
+                bots/personas/<id>/persona.md. Never exposes the internal
+                PersonaProfile weights. Verified live against the deployed
+                service: the catalog returns all six personas with no leaked
+                weight fields, an explicit two-persona pick seats exactly
+                those two plus a correctly-excluded auto-fill, and an
+                untouched picker reproduces the exact prior default lineup
+                (Swift Sparrow/Stone Lion/Jade Dragon).
+
+Previous image: personas-02d2462 (deployment created
                 2026-08-15T07:23:48.075Z, healthy; deployment
                 f44f4304-f611-4324-a4aa-49adddc3d578). Gives each AI Practice
                 bot seat a playing style: the recommended mixed lineup of
@@ -249,7 +270,7 @@ Image tag:      personas-02d2462 (deployment created
                 travel with the AI version that §11.4 replays from; verified
                 present in the pushed image before deploying.
 
-Previous image: online-only-d56af2a (deployment created
+Earlier image:  online-only-d56af2a (deployment created
                 2026-08-04T03:44:17.568Z, healthy; deployment
                 17e04bb2-e1fb-4bb9-8fac-165f947a7919). Makes Online Play the
                 only source of levels and achievement progress, separates the
