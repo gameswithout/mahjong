@@ -217,8 +217,10 @@ image, event log, or public payload.
 ## Deployment record
 
 First deployed 2026-07-19 to AGS Extend, on explicit user direction to proceed
-ahead of the append-latency benchmark. The current 2026-08-15 deployment lets
-a player pick their AI Practice opponents (or "select for me"), while
+ahead of the append-latency benchmark. The current 2026-08-16 deployment
+merges `origin/main`'s growth telemetry / progression changes
+(`pkg/progression/coordinator.go`, `xp.go`, `pkg/storage/progression.go`)
+into the branch that already carried the AI Practice opponent picker, while
 retaining the AI-persona seating, Online-only progression, authoritative
 match-history, Full Rotation, and achievement-experience work.
 
@@ -236,7 +238,21 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      picker-1802411 (deployment created
+Image tag:      merge-ca2ca21 (deployment created
+                2026-08-16T15:37:20.505Z, healthy; deployment
+                70625f35-fd8f-468a-9f26-9654098a5f89). Rebuilds the picker
+                image on top of `main`'s merged-in progression/growth
+                telemetry changes (`ca2ca21`, merge of `worktree-bot-personas`
+                and `origin/main`, pushed as a fast-forward to `main`).
+                Server-side behavior of the picker itself is unchanged from
+                picker-1802411 below; this deploy exists to keep the live
+                service in sync with `main` after the merge. Verified live:
+                `get-app-info` reports `deploymentImageTag: merge-ca2ca21`
+                and `appStatus: deployment-running`; an unauthenticated GET
+                to `/v1/namespaces/gameswithout-mahjong/bot-personas` returns
+                401 (auth-gated, not a crash) confirming the route is live.
+
+Previous image: picker-1802411 (deployment created
                 2026-08-16T00:31:29Z, healthy; deployment
                 abd64a70-f6c8-4fc0-adc4-41298ccaffc5). Lets a player choose
                 up to 3 of the 6 personas to guarantee at their AI Practice
