@@ -39,6 +39,10 @@ export interface PlayerSettings {
   // read once and then never again by a player who knows the game.
   claimImpactAnalysis: boolean;
   practiceBotSpeed: "learning" | "normal" | "fast";
+  experimentalTableUi: boolean;
+  tableLayoutOutlines: boolean;
+  handSortMode: "off" | "suit-rank" | "sets";
+  tableFxEnabled: boolean;
 }
 
 export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
@@ -49,6 +53,10 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   autoPassDelay: "off",
   claimImpactAnalysis: false,
   practiceBotSpeed: "learning",
+  experimentalTableUi: false,
+  tableLayoutOutlines: true,
+  handSortMode: "suit-rank",
+  tableFxEnabled: false,
 };
 
 interface AxiosLike {
@@ -111,6 +119,22 @@ export function normalizePlayerSettings(value: unknown): PlayerSettings {
       envelope.practiceBotSpeed === "normal"
         ? envelope.practiceBotSpeed
         : DEFAULT_PLAYER_SETTINGS.practiceBotSpeed,
+    experimentalTableUi:
+      typeof envelope.experimentalTableUi === "boolean"
+        ? envelope.experimentalTableUi
+        : DEFAULT_PLAYER_SETTINGS.experimentalTableUi,
+    tableLayoutOutlines:
+      typeof envelope.tableLayoutOutlines === "boolean"
+        ? envelope.tableLayoutOutlines
+        : DEFAULT_PLAYER_SETTINGS.tableLayoutOutlines,
+    handSortMode:
+      envelope.handSortMode === "off" || envelope.handSortMode === "sets" || envelope.handSortMode === "suit-rank"
+        ? envelope.handSortMode
+        : DEFAULT_PLAYER_SETTINGS.handSortMode,
+    tableFxEnabled:
+      typeof envelope.tableFxEnabled === "boolean"
+        ? envelope.tableFxEnabled
+        : DEFAULT_PLAYER_SETTINGS.tableFxEnabled,
   };
 }
 

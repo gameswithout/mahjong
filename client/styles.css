@@ -4914,20 +4914,10 @@ h1 {
   width: fit-content;
 }
 
-/* On full-screen game surfaces the persistent selector becomes compact. It
-   stays keyboard-accessible without covering Leave, tutorial Exit, or the
-   recent-action feed. */
+/* Language is an account preference. Keep it in Settings rather than letting
+   it compete with gameplay controls or change copy in the middle of a hand. */
 #root:has(.game-screen) > .language-selector {
-  padding: 0.25rem 0.4rem;
-}
-
-#root:has(.game-screen) > .language-selector > span {
   display: none;
-}
-
-#root:has(.game-screen) > .language-selector select {
-  max-width: 6rem;
-  min-height: 1.75rem;
 }
 
 .game-screen-topbar {

@@ -63,11 +63,14 @@ body {
   box-shadow: 0 8px 20px rgb(0 0 0 / 32%);
   display: grid;
   gap: 3px;
-  left: 102px;
+  /* Keep learning controls below the top-seat chrome and inside the side-seat
+     rails. The old top:50/left:102 anchor sat directly on top of the left
+     player's profile at wide landscape ratios. */
+  left: 228px;
   max-width: min(390px, calc(100% - 204px));
   padding: 5px 7px;
   position: absolute;
-  top: 50px;
+  top: 116px;
   z-index: 12;
 }
 
@@ -158,8 +161,10 @@ body {
   max-width: min(250px, calc(100% - 204px));
   padding: 6px 8px;
   position: absolute;
-  right: 128px;
-  top: 50px;
+  /* Mirror the Learning Hub in reserved felt rather than sharing the
+     top-right profile/action strip. */
+  right: 228px;
+  top: 116px;
   z-index: 11;
 }
 
@@ -210,10 +215,10 @@ body {
 
 @media (max-width: 48rem), (max-height: 28rem) {
   .expert-hud {
-    left: 98px;
+    left: 106px;
     max-width: min(340px, calc(100% - 196px));
     padding: 5px 7px;
-    top: 45px;
+    top: 82px;
   }
 
   .expert-hud-toggle,
@@ -224,8 +229,8 @@ body {
 
   .recent-actions {
     max-width: min(220px, calc(100% - 196px));
-    right: 124px;
-    top: 45px;
+    right: 106px;
+    top: 82px;
   }
 
   .recent-actions li:nth-child(n + 4) {
@@ -2761,4 +2766,57 @@ body {
   .discard-river .discard-slot-recent .tile {
     animation: none;
   }
+}
+.essential-table {
+  --review-outline: transparent;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(9rem, 18%) minmax(0, 1fr) minmax(9rem, 18%);
+  grid-template-rows: minmax(7rem, 18%) minmax(0, 1fr) minmax(10rem, 24%);
+  grid-template-areas: "left top right" "left center right" "player player player";
+  gap: .5rem;
+  padding: .75rem;
+  color: #f8f5e9;
+}
+.essential-table--outlines { --review-outline: #ffd36a; }
+.essential-table section,.essential-table article { outline: 2px dashed var(--review-outline); outline-offset: -2px; }
+.essential-opponents { display: contents; }
+.essential-opponent { min-width: 0; display: flex; gap: .4rem; padding: .45rem; overflow: hidden; }
+.essential-opponent--top { grid-area: top; flex-direction: row; justify-content: center; }
+.essential-opponent--left { grid-area: left; flex-direction: column; }
+.essential-opponent--right { grid-area: right; flex-direction: column; }
+.essential-profile { display:flex; flex-direction:column; min-width:8rem; background:#071d18dd; border-radius:.7rem; padding:.4rem .55rem; }
+.essential-profile span { opacity:.72; font-size:.72rem; }
+.essential-concealed { display:flex; flex-wrap:wrap; align-content:flex-start; gap:2px; }
+.essential-tile-back { width:1.15rem; height:1.7rem; border-radius:.2rem; background:linear-gradient(#39a879,#176b4e); box-shadow:inset 0 0 0 1px #67c09a; }
+.essential-exposed,.essential-player-public { display:flex; flex-wrap:wrap; gap:2px; align-content:flex-start; }
+.essential-discards { grid-area:center; align-self:center; justify-self:center; width:min(46vw,42rem); padding:.5rem; display:grid; gap:.2rem; background:#0a211bd9; border-radius:.8rem; }
+.essential-discard-row { display:grid; grid-template-columns:1.5rem 1fr; align-items:center; min-height:2.3rem; }
+.essential-discard-row>div { display:flex; gap:2px; overflow:hidden; }
+.essential-last-discard { filter:drop-shadow(0 0 5px #ffd36a); }
+.essential-console { grid-area:center; align-self:start; justify-self:center; width:min(42vw,36rem); min-height:7.2rem; display:grid; grid-template-columns:1fr 1fr 1fr; grid-template-rows:1fr auto; gap:.35rem; padding:.55rem; background:#06130f; border-radius:.8rem; z-index:2; }
+.essential-console-stats { display:grid; grid-template-columns:auto 1fr; align-content:center; gap:.1rem .35rem; }
+.essential-console-stats strong { font-size:1.4rem; }
+.essential-compass { position:relative; display:grid; grid-template-columns:repeat(4,1fr); align-items:center; gap:.2rem; }
+.essential-compass span { display:grid; place-items:center; width:1.8rem; height:1.8rem; border-radius:50%; background:#21352e; }
+.essential-compass .is-active { background:#ffd36a; color:#16211d; transform:scale(1.15); }
+.essential-console-discard { display:flex; align-items:center; justify-content:center; gap:.35rem; }
+.essential-console-discard span { font-size:.72rem; }
+.essential-message { grid-column:1/-1; margin:0; padding:.35rem; text-align:center; background:#162b24; border-radius:.45rem; }
+.essential-actions { grid-area:center; align-self:end; justify-self:center; z-index:3; display:flex; gap:.4rem; padding:.35rem; }
+.essential-actions button { min-width:5rem; min-height:2.8rem; border:0; border-radius:1.4rem; font-weight:800; }
+.essential-player { grid-area:player; display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto 1fr; gap:.3rem .5rem; padding:.45rem; min-width:0; }
+.essential-profile--local { grid-column:1; align-self:start; }
+.essential-player-public { grid-column:1; align-self:end; }
+.essential-hand { grid-column:2; grid-row:1/-1; display:flex; align-items:end; justify-content:center; gap:3px; min-width:0; overflow:hidden; }
+.essential-hand button { border:0; padding:0; background:transparent; transition:transform .12s; }
+.essential-hand button.is-selected { transform:translateY(-.7rem); filter:drop-shadow(0 0 5px #ffd36a); }
+#root:has(.essential-table) > .language-selector { display:none; }
+@media (max-aspect-ratio: 4/3) {
+ .essential-table { grid-template-columns:7.5rem 1fr 7.5rem; grid-template-rows:6.5rem 1fr 11rem; padding:.35rem; gap:.25rem; }
+ .essential-console { width:min(54vw,30rem); transform:scale(.88); transform-origin:top center; }
+ .essential-discards { width:54vw; }
+ .essential-profile { min-width:0; font-size:.78rem; }
+ .essential-hand { gap:1px; }
 }

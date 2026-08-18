@@ -3838,6 +3838,10 @@ export function App(
                         expertHud: false,
                         autoPassDelay: playerSettings.autoPassDelay,
                         claimImpactAnalysis: playerSettings.claimImpactAnalysis,
+                        experimentalTableUi: playerSettings.experimentalTableUi,
+                        tableLayoutOutlines: playerSettings.tableLayoutOutlines,
+                        handSortMode: playerSettings.handSortMode,
+                        tableFxEnabled: playerSettings.tableFxEnabled,
                       }}
                     />
                   </div>
@@ -3889,7 +3893,7 @@ export function App(
             />
           ) : (
             <>
-              <div className="game-screen-fullscreen">
+              {!playerSettings.experimentalTableUi && <div className="game-screen-fullscreen">
                 {fullscreenHelp ? (
                   <p className="fullscreen-help" role="status">
                     {t("game.fullscreenHelp")}
@@ -3904,7 +3908,7 @@ export function App(
                   <span aria-hidden="true">⛶</span>
                   <span>{t("game.fullscreen")}</span>
                 </button>
-              </div>
+              </div>}
               <div className="game-screen-topbar">
                 {controlRestoredNotice && (
                   <p className="control-restored-toast" role="status" aria-live="polite">
@@ -3919,7 +3923,7 @@ export function App(
                   {t("game.leaveMatch")}
                 </button>
               </div>
-              {videoHumanSeats.length > 0 && (
+              {!playerSettings.experimentalTableUi && videoHumanSeats.length > 0 && (
                 <div className="video-call-dock">
                   <VideoCallPanel
                     controller={videoController}
@@ -3928,7 +3932,7 @@ export function App(
                   />
                 </div>
               )}
-              {matchRuntimeState.view.rotation ? (
+              {!playerSettings.experimentalTableUi && matchRuntimeState.view.rotation ? (
                 <RotationPanel
                   rotation={matchRuntimeState.view.rotation}
                   viewerUserId={rotationViewerUserId}
@@ -3964,6 +3968,10 @@ export function App(
                         ? true
                         : playerSettings.claimImpactAnalysis,
                     guided: guidedPractice && isPracticeMatch(matchRuntimeState.view),
+                    experimentalTableUi: playerSettings.experimentalTableUi,
+                    tableLayoutOutlines: playerSettings.tableLayoutOutlines,
+                    handSortMode: playerSettings.handSortMode,
+                    tableFxEnabled: playerSettings.tableFxEnabled,
                     onExpertHudChange: guidedPractice
                       ? undefined
                       : (expertHud) => void updatePlayerSettings({ ...playerSettings, expertHud }),

@@ -1251,7 +1251,6 @@ function ActionBar({
   drawPending,
   manualDrawOnly,
   showClaimImpact,
-  autoPassEnabled,
 }: {
   legalActions: MatchAction[];
   canDraw?: boolean;
@@ -1259,7 +1258,6 @@ function ActionBar({
   drawPending?: boolean;
   manualDrawOnly?: boolean;
   showClaimImpact: boolean;
-  autoPassEnabled: boolean;
 }) {
   const winningClaimAvailable = legalActions.some((action) => {
     const id = action.id.toLowerCase();
@@ -1284,7 +1282,6 @@ function ActionBar({
     (left, right) => actionPriority(left) - actionPriority(right),
   );
   const passOnly =
-    autoPassEnabled &&
     orderedActions.length === 1 &&
     orderedActions[0]?.id.toLowerCase() === "pass";
   if (orderedActions.length > 0 && !passOnly) {
@@ -1343,6 +1340,10 @@ export interface MatchTablePreferences {
   autoPassDelay: AutoPassDelay;
   claimImpactAnalysis: boolean;
   guided?: boolean;
+  experimentalTableUi?: boolean;
+  tableLayoutOutlines?: boolean;
+  handSortMode?: SortMode;
+  tableFxEnabled?: boolean;
   onExpertHudChange?: (enabled: boolean) => void;
   // The table owns these two while a hand is live, because they are pacing
   // and verbosity controls a player reaches for mid-hand rather than in a
@@ -1368,12 +1369,14 @@ export function MatchTable({
 
   const localHand = local.hand ?? [];
   const localHandIds = localHand.map((t) => t.id).join(",");
-  const passOnlyAction =
-    state.legalActions.length === 1 &&
-    state.legalActions[0]?.id.toLowerCase() === "pass"
-      ? state.legalActions[0]
-      : null;
-  const [sortMode, setSortMode] = useState<SortMode>("suit-rank");
+  const passAction = state.legalActions.find(
+    (action) => action.id.toLowerCase() === "pass",
+  ) ?? null;
+  const meaningfulClaimActions = state.legalActions.filter(
+    (action) => action.id.toLowerCase() !== "pass",
+  );
+  const passOnlyAction = meaningfulClaimActions.length === 0 ? passAction : null;
+  const [sortMode, setSortMode] = useState<SortMode>(preferences?.handSortMode ?? "suit-rank");
   const [handOrder, setHandOrder] = useState<string[]>(() => localHand.map((t) => t.id));
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const selectedTile = localHand.find((item) => item.id === selectedTileId);
@@ -1389,7 +1392,7 @@ export function MatchTable({
     preferences?.autoPassDelay ?? "off",
   );
   const automaticPassKey =
-    autoPassDelay !== "off" && passOnlyAction && state.lastDiscard
+    passAction && state.lastDiscard && (passOnlyAction || autoPassDelay !== "off")
       ? `${state.lastDiscard.tile.id}:${state.claimSource ?? state.lastDiscard.seat}`
       : null;
   const [drawnTileId, setDrawnTileId] = useState<string | null>(() =>
@@ -1398,6 +1401,7 @@ export function MatchTable({
   const previousHandIdsRef = useRef(localHand.map((tile) => tile.id));
   const previousCanDiscardRef = useRef(Boolean(interaction?.canDiscard));
   const [tableFxEnabled, setTableFxEnabled] = useState(() => {
+    if (preferences?.tableFxEnabled !== undefined) return preferences.tableFxEnabled;
     try {
       return window.localStorage.getItem("mahjong-table-fx") === "on";
     } catch {
@@ -1411,6 +1415,7 @@ export function MatchTable({
   );
   const previousClaimCountRef = useRef(state.legalActions.length);
   const automaticPassRef = useRef<string | null>(null);
+  const [essentialElapsedSeconds, setEssentialElapsedSeconds] = useState(0);
 
   useEffect(() => {
     setClaimImpactEnabled(preferences?.claimImpactAnalysis ?? false);
@@ -1423,6 +1428,23 @@ export function MatchTable({
   useEffect(() => {
     setLearningHudEnabled(preferences?.expertHud ?? true);
   }, [preferences?.expertHud]);
+
+  useEffect(() => setSortMode(preferences?.handSortMode ?? "suit-rank"), [preferences?.handSortMode]);
+  useEffect(() => {
+    if (preferences?.tableFxEnabled !== undefined) setTableFxEnabled(preferences.tableFxEnabled);
+  }, [preferences?.tableFxEnabled]);
+
+  useEffect(() => {
+    if (!preferences?.experimentalTableUi || !state.untimed) {
+      setEssentialElapsedSeconds(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setEssentialElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [preferences?.experimentalTableUi, state.untimed]);
 
   function setLearningHud(enabled: boolean) {
     setLearningHudEnabled(enabled);
@@ -1523,17 +1545,23 @@ export function MatchTable({
   useEffect(() => {
     if (
       !automaticPassKey ||
-      !passOnlyAction?.onClick ||
-      passOnlyAction.disabled ||
+      !passAction?.onClick ||
+      passAction.disabled ||
       automaticPassRef.current === automaticPassKey
     ) {
       return;
     }
-    const submit = passOnlyAction.onClick;
+    const submit = passAction.onClick;
     // The key is claimed before the timer fires, not inside it: a re-render
     // during the wait must not schedule a second pass for the same discard.
     automaticPassRef.current = automaticPassKey;
-    const timer = window.setTimeout(submit, autoPassDelayMs(autoPassDelay));
+    // A lone Pass is not a decision: the player has no legal claim. Resolve it
+    // immediately instead of presenting a false "Thinking" state. Configured
+    // auto-pass delays still apply when Pass accompanies a real claim choice.
+    const timer = window.setTimeout(
+      submit,
+      passOnlyAction ? 0 : autoPassDelayMs(autoPassDelay),
+    );
     // The wait is the whole feature — it is the window in which the player
     // reads the discard — so it has to survive a re-render and be cancelled
     // if the table moves on first.
@@ -1541,7 +1569,7 @@ export function MatchTable({
     // The stable discard/source key, rather than the callback identity,
     // prevents adapter re-renders from submitting the same pass twice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [automaticPassKey, passOnlyAction?.disabled, autoPassDelay]);
+  }, [automaticPassKey, passAction?.disabled, Boolean(passOnlyAction), autoPassDelay]);
 
   useEffect(() => {
     const nextIds = localHand.map((tile) => tile.id);
@@ -1669,6 +1697,51 @@ export function MatchTable({
     setSelectedTileId(tileId);
   }
 
+  if (preferences?.experimentalTableUi) {
+    const activeSeat = (Object.values(state.seats) as SeatState[]).find((seat) => seat.isActive)?.seat ?? state.localSeat;
+    const outlineClass = preferences.tableLayoutOutlines ? " essential-table--outlines" : "";
+    const essentialTimer = state.untimed
+      ? `${Math.floor(essentialElapsedSeconds / 60)}:${String(essentialElapsedSeconds % 60).padStart(2, "0")}`
+      : String(state.countdownSeconds);
+    const opponentSlots: Array<{ seatId: SeatId; slot: "top" | "left" | "right" }> = [
+      { seatId: slots.top, slot: "top" },
+      { seatId: slots.left, slot: "left" },
+      { seatId: slots.right, slot: "right" },
+    ];
+    return (
+      <div className={`essential-table${outlineClass}`} data-testid="essential-match-table">
+        <section className="essential-opponents" aria-label="Opponents">
+          {opponentSlots.map(({ seatId, slot }) => {
+            const seat = state.seats[seatId];
+            return <article className={`essential-opponent essential-opponent--${slot}`} key={seatId}>
+              <div className="essential-profile"><PlayerProfileBadge profile={{ ...defaultPlayerProfile(false), nickname: seat.displayName }} /><span>{seat.wind}{seat.isDealer ? " · Dealer" : ""}</span></div>
+              <div className="essential-concealed" aria-label={`${seat.handCount} concealed tiles`}>{Array.from({ length: seat.handCount }, (_, index) => <span className="essential-tile-back" key={index} />)}</div>
+              <div className="essential-exposed">{seat.melds.flatMap((meld) => meld.tiles).map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}{seat.bonusTiles.map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}</div>
+            </article>;
+          })}
+        </section>
+        <section className="essential-discards" aria-label="Discard pile">
+          {(["N", "S", "E", "W"] as SeatId[]).map((seatId) => <div className="essential-discard-row" key={seatId}><b>{seatId}</b><div>{state.seats[seatId].discards.map((tile) => <span className={state.lastDiscard?.tile.id === tile.id ? "essential-last-discard" : ""} key={tile.id}><Tile t={tile} size="sm" /></span>)}</div></div>)}
+        </section>
+        <section className="essential-console" aria-label="Information console">
+          <div className="essential-console-stats"><strong>{state.wall.drawableRemaining}</strong><span>tiles left</span><strong>{essentialTimer}</strong><span>{state.untimed ? "elapsed" : "turn timer"}</span></div>
+          <div className="essential-compass" aria-label={`${activeSeat}'s turn`}>{(["N", "E", "S", "W"] as SeatId[]).map((seatId) => <span className={seatId === activeSeat ? "is-active" : ""} key={seatId}>{seatId}</span>)}</div>
+          <div className="essential-console-discard">{state.lastDiscard ? <><Tile t={state.lastDiscard.tile} size="md" /><span>Last discard · {state.lastDiscard.seat}</span></> : <span>No discard yet</span>}</div>
+          <p className="essential-message">{meaningfulClaimActions.length ? "Choose a claim or pass" : interaction?.canDiscard ? selectedTile ? `${selectedTile.label} selected · select again to discard` : "Select a tile to discard" : `${state.seats[activeSeat].displayName}'s turn`}</p>
+        </section>
+        <section className="essential-actions" aria-label="Available actions">
+          {interaction?.manualDrawOnly && interaction.canDraw ? <button type="button" onClick={interaction.onDraw} disabled={interaction.drawPending}>Draw</button> : null}
+          {state.legalActions.map((action) => <button type="button" key={action.id} onClick={action.onClick} disabled={action.disabled}>{action.label}</button>)}
+        </section>
+        <section className="essential-player" aria-label="Your hand">
+          <div className="essential-profile essential-profile--local"><PlayerProfileBadge profile={playerProfile ?? defaultPlayerProfile(false)} /><span>{local.wind}{local.isDealer ? " · Dealer" : ""}</span></div>
+          <div className="essential-player-public">{local.melds.flatMap((meld) => meld.tiles).map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}{local.bonusTiles.map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}</div>
+          <div className="essential-hand">{displayedHand.map((tile) => <button type="button" className={selectedTileId === tile.id ? "is-selected" : ""} key={tile.id} onClick={() => activateTile(tile.id)} disabled={interaction?.discardPending}><Tile t={tile} size="lg" /></button>)}</div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className={`match-table${state.showdown ? " match-table-showdown" : ""}`} data-testid="match-table">
       <OpponentSeat
@@ -1706,7 +1779,6 @@ export function MatchTable({
         drawPending={interaction?.drawPending}
         manualDrawOnly={interaction?.manualDrawOnly}
         showClaimImpact={claimImpactEnabled}
-        autoPassEnabled={autoPassDelay !== "off"}
       />
       <LearningHud
         state={state}
@@ -1736,7 +1808,7 @@ export function MatchTable({
         onToggleClaimImpact={toggleClaimImpact}
         autoPassDelay={autoPassDelay}
         onCycleAutoPassDelay={cycleAutoPassDelay}
-        isClaimThinking={state.legalActions.length > 0}
+        isClaimThinking={meaningfulClaimActions.length > 0}
         prevailingWind={state.prevailingWind}
         profile={playerProfile}
       />

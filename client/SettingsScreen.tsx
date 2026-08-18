@@ -62,6 +62,24 @@ export function SettingsScreen({
           <p className="status-label">{t("settings.gameplay")}</p>
           <h3 id="settings-table-title">{t("settings.tablePreferences")}</h3>
           <label className="settings-toggle">
+            <span><strong>New table layout</strong><small>Preview the simplified gameplay UI. The classic table remains available.</small></span>
+            <input type="checkbox" checked={settings.experimentalTableUi} onChange={(event) => onSettingsChange({ ...settings, experimentalTableUi: event.target.checked })} />
+          </label>
+          <label className="settings-toggle">
+            <span><strong>Layout outlines</strong><small>Show review borders around each region of the new table.</small></span>
+            <input type="checkbox" checked={settings.tableLayoutOutlines} disabled={!settings.experimentalTableUi} onChange={(event) => onSettingsChange({ ...settings, tableLayoutOutlines: event.target.checked })} />
+          </label>
+          <label className="settings-select-label" htmlFor="hand-sort-mode">
+            <span><strong>Hand sorting</strong><small>Choose how your hand is arranged after discarding.</small></span>
+            <select id="hand-sort-mode" value={settings.handSortMode} onChange={(event) => onSettingsChange({ ...settings, handSortMode: event.target.value as PlayerSettings["handSortMode"] })}>
+              <option value="off">Off</option><option value="suit-rank">Suit + rank</option><option value="sets">Sets</option>
+            </select>
+          </label>
+          <label className="settings-toggle">
+            <span><strong>Table FX</strong><small>Sound and vibration feedback during play.</small></span>
+            <input type="checkbox" checked={settings.tableFxEnabled} onChange={(event) => onSettingsChange({ ...settings, tableFxEnabled: event.target.checked })} />
+          </label>
+          <label className="settings-toggle">
             <span>
               <strong>{t("settings.expertHud")}</strong>
               <small>{t("settings.expertHudHelp")}</small>

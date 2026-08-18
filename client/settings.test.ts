@@ -38,6 +38,19 @@ describe("player settings", () => {
     });
   });
 
+  it("keeps the experimental table opt-in with review outlines enabled by default", () => {
+    expect(DEFAULT_PLAYER_SETTINGS).toMatchObject({
+      experimentalTableUi: false,
+      tableLayoutOutlines: true,
+      handSortMode: "suit-rank",
+      tableFxEnabled: false,
+    });
+    expect(normalizePlayerSettings({ value: { experimentalTableUi: true } })).toMatchObject({
+      experimentalTableUi: true,
+      tableLayoutOutlines: true,
+    });
+  });
+
   it("migrates the old auto-pass switch to the shortest offered delay", () => {
     // The boolean meant "pass the instant the claim appears". Nothing that
     // fast is offered now, so it lands on 1s — off would silently take the

@@ -36,6 +36,30 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelector(".seat .discard-grid")).toBeNull();
   });
 
+  it("renders the simplified table as an isolated feature-flagged layout", () => {
+    act(() => root.render(
+      <MatchTable
+        state={mockMatchTableState}
+        preferences={{
+          expertHud: false,
+          autoPassDelay: "off",
+          claimImpactAnalysis: false,
+          experimentalTableUi: true,
+          tableLayoutOutlines: true,
+        }}
+      />,
+    ));
+
+    expect(container.querySelector('[data-testid="essential-match-table"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="match-table"]')).toBeNull();
+    expect(container.querySelector(".essential-table--outlines")).not.toBeNull();
+    expect(container.querySelectorAll(".essential-opponent")).toHaveLength(3);
+    expect(container.querySelectorAll(".essential-discard-row")).toHaveLength(4);
+    expect(container.querySelector(".essential-console")).not.toBeNull();
+    expect(container.querySelector(".learning-hud")).toBeNull();
+    expect(container.querySelector(".recent-actions")).toBeNull();
+  });
+
   it("keeps timer, wall, round, turn, discard, source, and message in one central dashboard", () => {
     act(() => root.render(<MatchTable state={mockMatchTableState} />));
 
@@ -550,7 +574,7 @@ describe("MatchTable table-first UX", () => {
     );
   });
 
-  it("waits the chosen delay before passing when Pass is the only legal response", () => {
+  it("immediately resolves Pass when there is no meaningful claim choice", () => {
     vi.useFakeTimers();
     const onPass = vi.fn();
     const passOnlyState = {
@@ -564,18 +588,15 @@ describe("MatchTable table-first UX", () => {
     };
 
     act(() => root.render(<MatchTable state={passOnlyState} preferences={preferences} />));
-    // The delay is the feature: the player gets those seconds to read the
-    // discard, so passing immediately would defeat the setting they chose.
-    expect(onPass).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(0));
+    expect(onPass).toHaveBeenCalledOnce();
     expect(container.querySelector(".action-bar")).toBeNull();
+    expect(container.querySelector(".seat-bottom .seat-activity-message")?.textContent).not.toContain(
+      "Thinking",
+    );
     expect(container.querySelector(".current-tile-focus")?.textContent).toContain(
       "No claim · passing",
     );
-
-    act(() => vi.advanceTimersByTime(2_999));
-    expect(onPass).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(1));
-    expect(onPass).toHaveBeenCalledOnce();
 
     // A re-render for the same discard must not queue a second pass.
     act(() => root.render(<MatchTable state={{ ...passOnlyState }} preferences={preferences} />));
@@ -643,7 +664,7 @@ describe("MatchTable table-first UX", () => {
     ]);
   });
 
-  it("does not pass on its own when the delay is off", () => {
+  it("does not present a false Pass decision when the delay is off", () => {
     vi.useFakeTimers();
     const onPass = vi.fn();
 
@@ -656,21 +677,22 @@ describe("MatchTable table-first UX", () => {
       />,
     ));
 
-    // Off is the default, including when no preferences are supplied at all —
-    // the table must not have a second, more eager default of its own.
-    act(() => vi.advanceTimersByTime(10_000));
-    expect(onPass).not.toHaveBeenCalled();
-    expect(container.querySelector(".action-pass")).not.toBeNull();
+    act(() => vi.advanceTimersByTime(0));
+    expect(onPass).toHaveBeenCalledOnce();
+    expect(container.querySelector(".action-pass")).toBeNull();
     vi.useRealTimers();
   });
 
-  it("keeps a Pass-only response visible when automatic passing is disabled", () => {
+  it("keeps real claim choices visible when automatic passing is disabled", () => {
     const onPass = vi.fn();
     act(() => root.render(
       <MatchTable
         state={{
           ...mockMatchTableState,
-          legalActions: [{ id: "pass", label: "Pass", onClick: onPass }],
+          legalActions: [
+            { id: "pong", label: "Pong", onClick: vi.fn() },
+            { id: "pass", label: "Pass", onClick: onPass },
+          ],
         }}
         preferences={{ expertHud: false, autoPassDelay: "off", claimImpactAnalysis: false }}
       />,
@@ -678,6 +700,9 @@ describe("MatchTable table-first UX", () => {
 
     expect(onPass).not.toHaveBeenCalled();
     expect(container.querySelector(".action-pass")).not.toBeNull();
+    expect(
+      (container.querySelector(".seat-bottom .seat-activity-message")?.textContent ?? "").toLowerCase(),
+    ).toContain("thinking");
   });
 
   it("shows the optional Learning HUD with an explicit public-information boundary", () => {
