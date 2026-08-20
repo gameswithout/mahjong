@@ -48,22 +48,27 @@ export function CompletedHandFlow({
   const hasWinningHand =
     view.hand_result?.kind !== "exhaustive_draw" &&
     (view.hand_result?.winners?.length ?? 0) > 0;
-  const [revealing, setRevealing] = useState(hasWinningHand);
+  const hasTableDeclaration = hasWinningHand || view.hand_result?.kind === "exhaustive_draw";
+  const [revealing, setRevealing] = useState(hasTableDeclaration);
   const resultKey = `${view.match_id}:${view.state_version}`;
 
   useEffect(() => {
-    if (!hasWinningHand) {
+    if (!hasTableDeclaration) {
       setRevealing(false);
       return;
     }
     setRevealing(true);
     const timer = window.setTimeout(() => setRevealing(false), WINNING_HAND_REVEAL_MS);
     return () => window.clearTimeout(timer);
-  }, [hasWinningHand, resultKey]);
+  }, [hasTableDeclaration, resultKey]);
 
   if (revealing) {
     return (
-      <div className="winning-table-reveal" role="status" aria-label={t("result.winningReveal")}>
+      <div
+        className="winning-table-reveal"
+        role="status"
+        aria-label={view.hand_result?.kind === "exhaustive_draw" ? t("result.exhaustiveDraw") : t("result.winningReveal")}
+      >
         {revealTable}
       </div>
     );

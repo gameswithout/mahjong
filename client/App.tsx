@@ -3893,7 +3893,7 @@ export function App(
             />
           ) : (
             <>
-              {!playerSettings.experimentalTableUi && <div className="game-screen-fullscreen">
+              <div className="game-screen-fullscreen">
                 {fullscreenHelp ? (
                   <p className="fullscreen-help" role="status">
                     {t("game.fullscreenHelp")}
@@ -3908,7 +3908,7 @@ export function App(
                   <span aria-hidden="true">⛶</span>
                   <span>{t("game.fullscreen")}</span>
                 </button>
-              </div>}
+              </div>
               <div className="game-screen-topbar">
                 {controlRestoredNotice && (
                   <p className="control-restored-toast" role="status" aria-live="polite">

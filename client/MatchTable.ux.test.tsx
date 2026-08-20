@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MatchTable } from "./MatchTable";
-import { mockMatchTableState } from "./matchTableMockData";
+import { mockMatchTableState, mockMatchTableUrgentState } from "./matchTableMockData";
 import { tile } from "./matchTableTypes";
 
 describe("MatchTable table-first UX", () => {
@@ -56,8 +56,68 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelectorAll(".essential-opponent")).toHaveLength(3);
     expect(container.querySelectorAll(".essential-discard-row")).toHaveLength(4);
     expect(container.querySelector(".essential-console")).not.toBeNull();
+    expect(container.querySelector(".essential-hand-track")).not.toBeNull();
+    expect(container.querySelector(".essential-hand-settled")).not.toBeNull();
+    expect(container.querySelector(".essential-draw-slot")).not.toBeNull();
+    expect(container.querySelector(".essential-profile-row--local")).not.toBeNull();
+    expect(container.querySelector(".essential-waits")).not.toBeNull();
+    expect(container.querySelectorAll(".essential-wait")).toHaveLength(mockMatchTableState.waits.length);
+    expect(container.querySelector(".essential-compass-top")).not.toBeNull();
+    expect(container.querySelector(".essential-compass-right")).not.toBeNull();
+    expect(container.querySelector(".essential-compass-bottom")).not.toBeNull();
+    expect(container.querySelector(".essential-compass-left")).not.toBeNull();
+    expect(Array.from(container.querySelectorAll(".essential-discard-row > b")).map((node) => node.textContent)).toEqual(["N", "W", "S", "E"]);
+    expect(container.querySelector(".essential-last-discard")).toBeNull();
+    expect(container.querySelector(".essential-console-discard .tile-lg")).not.toBeNull();
+    expect(container.querySelector(".essential-console-discard .tile-sm")).toBeNull();
+    expect(container.querySelector(".essential-compass-top")?.textContent).toBe("N");
+    expect(container.querySelector(".essential-compass-right")?.textContent).toBe("W");
+    expect(container.querySelector(".essential-compass-bottom")?.textContent).toBe("S");
+    expect(container.querySelector(".essential-compass-left")?.textContent).toBe("E");
+    expect(container.querySelectorAll(".essential-chow-preview .tile-sm")).toHaveLength(3);
+    expect(container.querySelectorAll(".essential-chow-preview .is-claimed")).toHaveLength(1);
     expect(container.querySelector(".learning-hud")).toBeNull();
     expect(container.querySelector(".recent-actions")).toBeNull();
+  });
+
+  it("hides a non-actionable Pass and overlays the compact win declaration on the discard pile", () => {
+    const winner = mockMatchTableUrgentState.localSeat;
+    const state = {
+      ...mockMatchTableUrgentState,
+      showdown: true,
+      showdownWinningTile: mockMatchTableState.lastDiscard?.tile,
+      showdownWinType: { chinese: "胡", romanized: "Hu" },
+      seats: {
+        ...mockMatchTableUrgentState.seats,
+        [winner]: {
+          ...mockMatchTableUrgentState.seats[winner],
+          revealedHand: [tile("dots-1-1")],
+        },
+      },
+    };
+
+    act(() => root.render(
+      <MatchTable
+        state={state}
+        preferences={{
+          expertHud: false,
+          autoPassDelay: "off",
+          claimImpactAnalysis: false,
+          experimentalTableUi: true,
+        }}
+      />,
+    ));
+
+    expect(container.querySelector(".essential-actions")?.textContent).not.toContain("Pass");
+    expect(container.querySelector(".essential-win-declaration")?.textContent).toContain("胡");
+    expect(container.querySelector(".essential-win-declaration")?.textContent).toContain("Hu");
+    expect(container.querySelector(".essential-win-declaration")?.textContent).toContain("You win");
+    expect(container.querySelector(".essential-win-declaration")?.textContent).not.toContain("You wins");
+    expect(container.querySelector(".essential-win-declaration .tile-lg")).not.toBeNull();
+    const discardPile = container.querySelector(".essential-discards");
+    const winDeclaration = container.querySelector(".essential-win-declaration");
+    expect(discardPile?.parentElement).toBe(winDeclaration?.parentElement);
+    expect(discardPile?.parentElement?.classList.contains("essential-discard-stage")).toBe(true);
   });
 
   it("keeps timer, wall, round, turn, discard, source, and message in one central dashboard", () => {

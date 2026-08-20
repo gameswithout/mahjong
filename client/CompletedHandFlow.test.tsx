@@ -101,15 +101,25 @@ describe("CompletedHandFlow", () => {
     expect(container.querySelector(".winning-table-win-type")).toBeNull();
   });
 
-  it("skips the reveal for an exhaustive draw", () => {
+  it("declares an exhaustive draw on the table before showing results", () => {
     const view = winningView();
     view.phase = "exhaustive_draw";
     view.hand_result = { kind: "exhaustive_draw", winners: [] };
     act(() => root.render(
-      <CompletedHandFlow view={view} practice onReturn={vi.fn()} />,
+      <CompletedHandFlow
+        view={view}
+        practice
+        revealTable={<div data-testid="draw-table-declaration">Exhaustive Draw</div>}
+        onReturn={vi.fn()}
+      />,
     ));
 
-    expect(container.querySelector(".winning-hand-reveal")).toBeNull();
+    expect(container.querySelector('[data-testid="draw-table-declaration"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
+
+    act(() => vi.advanceTimersByTime(WINNING_HAND_REVEAL_MS));
+
+    expect(container.querySelector(".winning-table-reveal")).toBeNull();
     expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull();
   });
 

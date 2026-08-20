@@ -916,6 +916,13 @@ function TablePlayfield({
             })}
         </div>
       ) : null}
+      {state.showdown && state.showdownDraw ? (
+        <div className="showdown-draw-declaration" role="status" aria-label={t("result.exhaustiveDraw")}>
+          <strong lang="zh-Hant">流局</strong>
+          <span>Liu Ju</span>
+          <b>{t("result.exhaustiveDraw")}</b>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1708,35 +1715,121 @@ export function MatchTable({
       { seatId: slots.left, slot: "left" },
       { seatId: slots.right, slot: "right" },
     ];
+    const compassSeats: Array<{ seatId: SeatId; position: "top" | "right" | "bottom" | "left" }> = [
+      { seatId: slots.top, position: "top" },
+      { seatId: slots.right, position: "right" },
+      { seatId: state.localSeat, position: "bottom" },
+      { seatId: slots.left, position: "left" },
+    ];
+    const essentialActions = state.legalActions.filter((action) => {
+      if (action.id.toLowerCase() !== "pass") return true;
+      return state.legalActions.some((candidate) =>
+        candidate.id.toLowerCase() !== "pass" && !candidate.disabled,
+      );
+    });
+    const showdownWinner = (Object.values(state.seats) as SeatState[]).find(
+      (seat) => (seat.revealedHand?.length ?? 0) > 0,
+    );
+    const drawnTile = drawnTileId
+      ? displayedHand.find((tile) => tile.id === drawnTileId) ?? null
+      : null;
+    const settledHand = drawnTile
+      ? displayedHand.filter((tile) => tile.id !== drawnTile.id)
+      : displayedHand;
+    const renderEssentialHandTile = (tile: WireTile) => (
+      <button
+        type="button"
+        className={selectedTileId === tile.id ? "is-selected" : ""}
+        key={tile.id}
+        onClick={() => activateTile(tile.id)}
+        disabled={interaction?.discardPending}
+      >
+        <Tile t={tile} size="lg" />
+      </button>
+    );
     return (
       <div className={`essential-table${outlineClass}`} data-testid="essential-match-table">
         <section className="essential-opponents" aria-label="Opponents">
           {opponentSlots.map(({ seatId, slot }) => {
             const seat = state.seats[seatId];
             return <article className={`essential-opponent essential-opponent--${slot}`} key={seatId}>
-              <div className="essential-profile"><PlayerProfileBadge profile={{ ...defaultPlayerProfile(false), nickname: seat.displayName }} /><span>{seat.wind}{seat.isDealer ? " · Dealer" : ""}</span></div>
+              <div className="essential-profile-row">
+                <div className="essential-seat-status"><strong>{seat.wind}</strong>{seat.isDealer ? <span>Dealer</span> : null}</div>
+                <div className="essential-profile"><PlayerProfileBadge profile={{ ...defaultPlayerProfile(false), nickname: seat.displayName }} /></div>
+              </div>
               <div className="essential-concealed" aria-label={`${seat.handCount} concealed tiles`}>{Array.from({ length: seat.handCount }, (_, index) => <span className="essential-tile-back" key={index} />)}</div>
               <div className="essential-exposed">{seat.melds.flatMap((meld) => meld.tiles).map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}{seat.bonusTiles.map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}</div>
             </article>;
           })}
         </section>
-        <section className="essential-discards" aria-label="Discard pile">
-          {(["N", "S", "E", "W"] as SeatId[]).map((seatId) => <div className="essential-discard-row" key={seatId}><b>{seatId}</b><div>{state.seats[seatId].discards.map((tile) => <span className={state.lastDiscard?.tile.id === tile.id ? "essential-last-discard" : ""} key={tile.id}><Tile t={tile} size="sm" /></span>)}</div></div>)}
-        </section>
+        <div className="essential-discard-stage">
+          <section className="essential-discards" aria-label="Discard pile">
+            {(["N", "W", "S", "E"] as SeatId[]).map((seatId) => <div className="essential-discard-row" key={seatId}><b>{seatId}</b><div>{state.seats[seatId].discards.map((tile) => <span key={tile.id}><Tile t={tile} size="sm" /></span>)}</div></div>)}
+          </section>
+          {state.showdown && (state.showdownWinningTile || state.showdownDraw) ? (
+            <section
+              className="essential-win-declaration"
+              aria-label={state.showdownDraw ? t("result.exhaustiveDraw") : "Winning declaration"}
+            >
+              {state.showdownDraw ? (
+                <div className="essential-win-copy essential-draw-copy">
+                  <strong lang="zh-Hant">流局</strong>
+                  <span>Liu Ju</span>
+                  <b>{t("result.exhaustiveDraw")}</b>
+                </div>
+              ) : (
+                <>
+                  <div className="essential-win-copy">
+                    <strong lang="zh-Hant">{state.showdownWinType?.chinese ?? "胡"}</strong>
+                    <span>{state.showdownWinType?.romanized ?? "Hu"}</span>
+                    {showdownWinner ? <b>{showdownWinner.seat === state.localSeat ? "You win" : `${showdownWinner.displayName} wins`}</b> : null}
+                  </div>
+                  {state.showdownWinningTile ? <Tile t={state.showdownWinningTile} size="lg" /> : null}
+                </>
+              )}
+            </section>
+          ) : null}
+        </div>
         <section className="essential-console" aria-label="Information console">
           <div className="essential-console-stats"><strong>{state.wall.drawableRemaining}</strong><span>tiles left</span><strong>{essentialTimer}</strong><span>{state.untimed ? "elapsed" : "turn timer"}</span></div>
-          <div className="essential-compass" aria-label={`${activeSeat}'s turn`}>{(["N", "E", "S", "W"] as SeatId[]).map((seatId) => <span className={seatId === activeSeat ? "is-active" : ""} key={seatId}>{seatId}</span>)}</div>
-          <div className="essential-console-discard">{state.lastDiscard ? <><Tile t={state.lastDiscard.tile} size="md" /><span>Last discard · {state.lastDiscard.seat}</span></> : <span>No discard yet</span>}</div>
+          <div className="essential-compass" aria-label={`${activeSeat}'s turn`}>{compassSeats.map(({ seatId, position }) => <span className={`essential-compass-${position}${seatId === activeSeat ? " is-active" : ""}`} key={seatId}>{seatId}</span>)}</div>
+          <div className="essential-console-discard">{state.lastDiscard ? <><Tile t={state.lastDiscard.tile} size="lg" /><span>Last discard · {state.lastDiscard.seat}</span></> : <span>No discard yet</span>}</div>
           <p className="essential-message">{meaningfulClaimActions.length ? "Choose a claim or pass" : interaction?.canDiscard ? selectedTile ? `${selectedTile.label} selected · select again to discard` : "Select a tile to discard" : `${state.seats[activeSeat].displayName}'s turn`}</p>
         </section>
         <section className="essential-actions" aria-label="Available actions">
           {interaction?.manualDrawOnly && interaction.canDraw ? <button type="button" onClick={interaction.onDraw} disabled={interaction.drawPending}>Draw</button> : null}
-          {state.legalActions.map((action) => <button type="button" key={action.id} onClick={action.onClick} disabled={action.disabled}>{action.label}</button>)}
+          {essentialActions.map((action) => <button type="button" key={action.id} onClick={action.onClick} disabled={action.disabled} aria-label={action.chowPreview ? `${action.label}: ${action.chowPreview.tiles.map((tile) => tile.label).join(", ")}` : undefined}>
+            <span>{action.label}</span>
+            {action.chowPreview ? <span className="essential-chow-preview" aria-hidden="true">{action.chowPreview.tiles.map((tile) => <span className={tile.id === action.chowPreview!.claimedTileId ? "is-claimed" : ""} key={tile.id}><Tile t={tile} size="sm" /></span>)}</span> : null}
+          </button>)}
         </section>
         <section className="essential-player" aria-label="Your hand">
-          <div className="essential-profile essential-profile--local"><PlayerProfileBadge profile={playerProfile ?? defaultPlayerProfile(false)} /><span>{local.wind}{local.isDealer ? " · Dealer" : ""}</span></div>
+          <div className="essential-profile-row essential-profile-row--local">
+            <div className="essential-seat-status"><strong>{local.wind}</strong>{local.isDealer ? <span>Dealer</span> : null}</div>
+            <div className="essential-profile essential-profile--local"><PlayerProfileBadge profile={playerProfile ?? defaultPlayerProfile(false)} /></div>
+          </div>
           <div className="essential-player-public">{local.melds.flatMap((meld) => meld.tiles).map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}{local.bonusTiles.map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}</div>
-          <div className="essential-hand">{displayedHand.map((tile) => <button type="button" className={selectedTileId === tile.id ? "is-selected" : ""} key={tile.id} onClick={() => activateTile(tile.id)} disabled={interaction?.discardPending}><Tile t={tile} size="lg" /></button>)}</div>
+          {state.waits.length > 0 ? (
+            <div className="essential-waits" role="group" aria-label={t("table.waitsLabel")}>
+              <strong>{t("table.ready")}</strong>
+              <div role="list" aria-label={t("table.winningTiles")}>
+                {state.waits.map((entry) => (
+                  <span className="essential-wait" role="listitem" key={entry.tile.id}>
+                    <Tile t={entry.tile} size="sm" />
+                    <small>{entry.visibleRemaining > 0 ? t("table.left", { count: entry.visibleRemaining }) : t("table.allVisible")}</small>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="essential-hand">
+            <div className="essential-hand-track">
+              <div className="essential-hand-settled">{settledHand.map(renderEssentialHandTile)}</div>
+              <div className={`essential-draw-slot${drawnTile ? " is-filled" : ""}`}>
+                {drawnTile ? renderEssentialHandTile(drawnTile) : null}
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     );

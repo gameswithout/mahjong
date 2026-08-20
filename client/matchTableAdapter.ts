@@ -346,6 +346,8 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
       visibleRemaining: entry.visible_remaining,
     })),
     showdown: options.revealWinningHands,
+    showdownDraw:
+      options.revealWinningHands && view.hand_result?.kind === "exhaustive_draw",
     showdownWinningDiscard:
       options.revealWinningHands && view.hand_result?.kind === "discard" && lastDiscard
         ? lastDiscard
