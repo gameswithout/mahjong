@@ -25,6 +25,7 @@ export function CompletedHandFlow({
   onReportIssue,
   viewerUserId,
   nameOf,
+  revealDurationMs = WINNING_HAND_REVEAL_MS,
 }: {
   view: SeatView;
   practice: boolean;
@@ -44,6 +45,7 @@ export function CompletedHandFlow({
   // which is the only place that knows who is at the table.
   viewerUserId?: string;
   nameOf?: (userId: string) => string | undefined;
+  revealDurationMs?: number;
 }) {
   const hasWinningHand =
     view.hand_result?.kind !== "exhaustive_draw" &&
@@ -58,9 +60,9 @@ export function CompletedHandFlow({
       return;
     }
     setRevealing(true);
-    const timer = window.setTimeout(() => setRevealing(false), WINNING_HAND_REVEAL_MS);
+    const timer = window.setTimeout(() => setRevealing(false), revealDurationMs);
     return () => window.clearTimeout(timer);
-  }, [hasTableDeclaration, resultKey]);
+  }, [hasTableDeclaration, resultKey, revealDurationMs]);
 
   if (revealing) {
     return (

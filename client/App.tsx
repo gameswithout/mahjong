@@ -3914,6 +3914,7 @@ export function App(
                 onReportIssue={() => setFeedbackSessionId(matchRuntimeState.matchId)}
                 viewerUserId={rotationViewerUserId}
                 nameOf={rotationNameOf}
+                revealDurationMs={import.meta.env.MODE === "test" ? 0 : undefined}
               />
             </div>
           ) : introducedMatchId !== matchRuntimeState.matchId ? (

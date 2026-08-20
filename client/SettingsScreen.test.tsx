@@ -9,7 +9,12 @@ describe("SettingsScreen", () => {
   it("holds language, rules, tutorial visibility, analytics, and account sync status", () => {
     const markup = renderToStaticMarkup(
       <SettingsScreen
-        settings={{ ...DEFAULT_PLAYER_SETTINGS, showTutorial: false, optionalAnalyticsConsent: false }}
+        settings={{
+          ...DEFAULT_PLAYER_SETTINGS,
+          showTutorial: false,
+          optionalAnalyticsConsent: false,
+          tableLayoutOutlines: false,
+        }}
         syncStatus="ready"
         onSettingsChange={vi.fn()}
         onClose={vi.fn()}
