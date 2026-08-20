@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { SeatView } from "../protocol/envelope";
 import { MatchLoadingScreen } from "./MatchLoadingScreen";
+
+const loadingScreenStyles = readFileSync(resolve(process.cwd(), "client/styles.css"), "utf8");
 
 function loadingView(): SeatView {
   return {
@@ -63,7 +67,13 @@ describe("MatchLoadingScreen", () => {
     expect(markup.match(/>Bot</g)).toHaveLength(3);
     expect(markup).toContain("East seat");
     expect(markup).toContain("Dealer");
-    expect(markup).toContain("Entering the Mahjong table");
+    expect(markup).toContain("Setting up the table");
+    expect(markup).not.toContain("Players ready");
+    expect(markup).not.toContain("Setting the table...");
+    expect(markup).toContain('data-seat="S" data-position="bottom"');
+    expect(markup).toContain('data-seat="W" data-position="right"');
+    expect(markup).toContain('data-seat="N" data-position="top"');
+    expect(markup).toContain('data-seat="E" data-position="left"');
     expect(markup.match(/match-loading-shared-profile/g)).toHaveLength(4);
     expect(markup.match(/profile-tile-icon/g)).toHaveLength(12);
   });
@@ -96,5 +106,14 @@ describe("MatchLoadingScreen", () => {
 
     expect(localBlock).toContain("You");
     expect(localBlock).not.toContain("match-loading-persona");
+  });
+
+  it("allows the shared profile badge to use the loading card width", () => {
+    expect(loadingScreenStyles).toMatch(
+      /\.match-loading-shared-profile\s*\{[^}]*--player-profile-width:\s*100%;[^}]*inline-size:\s*100%;[^}]*max-inline-size:\s*none;/s,
+    );
+    expect(loadingScreenStyles).toMatch(
+      /\.match-loading-shared-profile \.profile-nickname\s*\{[^}]*flex:\s*1 1 auto;[^}]*max-width:\s*none;[^}]*min-width:\s*0;/s,
+    );
   });
 });

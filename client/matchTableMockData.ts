@@ -109,7 +109,7 @@ export const mockMatchTableState: MatchTableState = {
       id: "Chow",
       label: "Chow",
       impact: "Opens the hand and completes the shown sequence.",
-      chowPreview: {
+      claimPreview: {
         tiles: ["dots-4-1", "dots-5-1", "dots-6-2"].map(tile),
         claimedTileId: "dots-6-2",
       },

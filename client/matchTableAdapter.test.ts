@@ -509,11 +509,42 @@ describe("seatViewToMatchTableState", () => {
       const state = seatViewToMatchTableState(view, { now: Date.now(), onClaimAction: vi.fn() });
       const chowActions = state.legalActions.filter((a) => a.id.startsWith("chow"));
       expect(chowActions.map((a) => a.label)).toEqual(["Chow 1", "Chow 2 ✓"]);
-      expect(chowActions.map((a) => a.chowPreview?.tiles.map((item) => item.id))).toEqual([
+      expect(chowActions.map((a) => a.claimPreview?.tiles.map((item) => item.id))).toEqual([
         ["characters-1-1", "characters-2-1", "characters-3-2"],
         ["characters-2-1", "characters-3-2", "characters-4-1"],
       ]);
-      expect(chowActions.every((a) => a.chowPreview?.claimedTileId === "characters-3-2")).toBe(true);
+      expect(chowActions.every((a) => a.claimPreview?.claimedTileId === "characters-3-2")).toBe(true);
+    });
+
+    it("previews the complete exposed Pong and Kong with the claimed discard identified", () => {
+      const base = {
+        phase: "claim_window" as const,
+        own_hand: [
+          { id: "dots-1-2", kind: "dots" as const, rank: 1, copy: 2 },
+          { id: "dots-1-3", kind: "dots" as const, rank: 1, copy: 3 },
+          { id: "dots-1-4", kind: "dots" as const, rank: 1, copy: 4 },
+        ],
+        claim: {
+          action_id: "action-1",
+          state_version: 2,
+          discard: { seat: "S" as const, tile: { id: "dots-1-1", kind: "dots" as const, rank: 1, copy: 1 }, sequence: 1 },
+          deadline: "2026-07-19T10:00:04.000Z",
+          eligible: ["E" as const],
+          options: { can_pong: true, can_kong: true },
+        },
+      };
+      const state = seatViewToMatchTableState(seatView(base), { now: Date.now(), onClaimAction: vi.fn() });
+      const pong = state.legalActions.find((action) => action.id === "pong");
+      const kong = state.legalActions.find((action) => action.id === "kong");
+
+      expect(pong?.claimPreview?.tiles.map((item) => item.id)).toEqual([
+        "dots-1-2", "dots-1-1", "dots-1-3",
+      ]);
+      expect(pong?.claimPreview?.claimedTileId).toBe("dots-1-1");
+      expect(kong?.claimPreview?.tiles.map((item) => item.id)).toEqual([
+        "dots-1-2", "dots-1-3", "dots-1-1", "dots-1-4",
+      ]);
+      expect(kong?.claimPreview?.claimedTileId).toBe("dots-1-1");
     });
 
     it("disables every claim action while a previous one is still pending", () => {

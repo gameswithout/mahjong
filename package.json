@@ -16,6 +16,7 @@
     "evidence:bundle": "node scripts/check-bundle-budget.mjs",
     "i18n:export": "node scripts/export-translations.mjs",
     "capture:table": "node scripts/validate-match-table-wireframe.mjs",
+    "test:essential-layout": "node scripts/validate-essential-layout.mjs",
     "capture:results": "node scripts/capture-result-evidence.mjs",
     "capture:onboarding": "node scripts/capture-onboarding-evidence.mjs",
     "smoke:matchmaking": "node --env-file=.env scripts/smoke-matchmaking.mjs",

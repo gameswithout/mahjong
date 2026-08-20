@@ -604,15 +604,15 @@ function WallAndTurnCenter({ state }: { state: MatchTableState }) {
   // to zero during the bot cascade.
   useEffect(() => {
     setElapsedSeconds(0);
-    if (!state.untimed) {
-      return;
-    }
-    const startedAt = Date.now();
+  }, [state.untimed]);
+
+  useEffect(() => {
+    if (!state.untimed || state.showdown) return;
     const timer = window.setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+      setElapsedSeconds((current) => current + 1);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [state.untimed]);
+  }, [state.untimed, state.showdown]);
 
   const elapsedLabel = `${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
 
@@ -1188,8 +1188,8 @@ function ClaimButtons({ actions, showImpact }: { actions: MatchAction[]; showImp
               aria-label={
                 confirming
                   ? t("table.confirmActionLabel", { action: actionName(action) })
-                  : action.chowPreview
-                    ? `${action.label}: ${action.chowPreview.tiles.map((item) => item.label).join(", ")}`
+                  : action.claimPreview
+                    ? `${action.label}: ${action.claimPreview.tiles.map((item) => item.label).join(", ")}`
                     : undefined
               }
             >
@@ -1200,13 +1200,13 @@ function ClaimButtons({ actions, showImpact }: { actions: MatchAction[]; showImp
               ) : (
                 localizedAction(action)
               )}
-              {action.chowPreview ? (
+              {action.claimPreview ? (
                 <span className="chow-option-preview" aria-hidden="true">
-                  {action.chowPreview.tiles.map((item) => (
+                  {action.claimPreview.tiles.map((item) => (
                     <span
                       key={item.id}
                       className={`chow-preview-tile${
-                        item.id === action.chowPreview!.claimedTileId ? " chow-preview-claimed" : ""
+                        item.id === action.claimPreview!.claimedTileId ? " chow-preview-claimed" : ""
                       }`}
                     >
                       <Tile t={item} size="sm" />
@@ -1423,6 +1423,12 @@ export function MatchTable({
   const previousClaimCountRef = useRef(state.legalActions.length);
   const automaticPassRef = useRef<string | null>(null);
   const [essentialElapsedSeconds, setEssentialElapsedSeconds] = useState(0);
+  const [essentialConfirmingActionId, setEssentialConfirmingActionId] = useState<string | null>(null);
+  const essentialActionSignature = state.legalActions.map((action) => action.id).join("|");
+
+  useEffect(() => {
+    setEssentialConfirmingActionId(null);
+  }, [essentialActionSignature, state.lastDiscard?.tile.id]);
 
   useEffect(() => {
     setClaimImpactEnabled(preferences?.claimImpactAnalysis ?? false);
@@ -1444,14 +1450,16 @@ export function MatchTable({
   useEffect(() => {
     if (!preferences?.experimentalTableUi || !state.untimed) {
       setEssentialElapsedSeconds(0);
-      return;
     }
-    const startedAt = Date.now();
+  }, [preferences?.experimentalTableUi, state.untimed]);
+
+  useEffect(() => {
+    if (!preferences?.experimentalTableUi || !state.untimed || state.showdown) return;
     const timer = window.setInterval(() => {
-      setEssentialElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+      setEssentialElapsedSeconds((current) => current + 1);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [preferences?.experimentalTableUi, state.untimed]);
+  }, [preferences?.experimentalTableUi, state.untimed, state.showdown]);
 
   function setLearningHud(enabled: boolean) {
     setLearningHudEnabled(enabled);
@@ -1727,6 +1735,14 @@ export function MatchTable({
         candidate.id.toLowerCase() !== "pass" && !candidate.disabled,
       );
     });
+    const reviewTemporaryUi = preferences.tableLayoutOutlines === true;
+    const hasManualDrawAction = Boolean(interaction?.manualDrawOnly && interaction.canDraw);
+    const showWinDeclaration = Boolean(state.showdown && (state.showdownWinningTile || state.showdownDraw));
+    const wallUrgency = state.wall.drawableRemaining <= WALL_CRITICAL_TILES
+      ? "critical"
+      : state.wall.drawableRemaining <= WALL_WARNING_TILES
+        ? "warning"
+        : null;
     const showdownWinner = (Object.values(state.seats) as SeatState[]).find(
       (seat) => (seat.revealedHand?.length ?? 0) > 0,
     );
@@ -1762,11 +1778,11 @@ export function MatchTable({
             </article>;
           })}
         </section>
-        <div className="essential-discard-stage">
+        <div className={`essential-discard-stage${showWinDeclaration ? " has-win-declaration" : ""}`}>
           <section className="essential-discards" aria-label="Discard pile">
             {(["N", "W", "S", "E"] as SeatId[]).map((seatId) => <div className="essential-discard-row" key={seatId}><b>{seatId}</b><div>{state.seats[seatId].discards.map((tile) => <span key={tile.id}><Tile t={tile} size="sm" /></span>)}</div></div>)}
           </section>
-          {state.showdown && (state.showdownWinningTile || state.showdownDraw) ? (
+          {showWinDeclaration ? (
             <section
               className="essential-win-declaration"
               aria-label={state.showdownDraw ? t("result.exhaustiveDraw") : "Winning declaration"}
@@ -1790,18 +1806,42 @@ export function MatchTable({
             </section>
           ) : null}
         </div>
-        <section className="essential-console" aria-label="Information console">
-          <div className="essential-console-stats"><strong>{state.wall.drawableRemaining}</strong><span>tiles left</span><strong>{essentialTimer}</strong><span>{state.untimed ? "elapsed" : "turn timer"}</span></div>
+        <section className={`essential-console${wallUrgency ? ` essential-console--wall-${wallUrgency}` : ""}`} aria-label="Information console">
+          <div className="essential-console-stats">
+            <strong>{state.wall.drawableRemaining}</strong><span>tiles left</span><strong>{essentialTimer}</strong><span>{state.untimed ? "elapsed" : "turn timer"}</span>
+            {wallUrgency ? <strong className="essential-wall-alert" role="status">{wallUrgency === "critical" ? "Final tiles · 8 or fewer" : "Low wall · 16 or fewer"}</strong> : null}
+          </div>
           <div className="essential-compass" aria-label={`${activeSeat}'s turn`}>{compassSeats.map(({ seatId, position }) => <span className={`essential-compass-${position}${seatId === activeSeat ? " is-active" : ""}`} key={seatId}>{seatId}</span>)}</div>
           <div className="essential-console-discard">{state.lastDiscard ? <><Tile t={state.lastDiscard.tile} size="lg" /><span>Last discard · {state.lastDiscard.seat}</span></> : <span>No discard yet</span>}</div>
           <p className="essential-message">{meaningfulClaimActions.length ? "Choose a claim or pass" : interaction?.canDiscard ? selectedTile ? `${selectedTile.label} selected · select again to discard` : "Select a tile to discard" : `${state.seats[activeSeat].displayName}'s turn`}</p>
         </section>
-        <section className="essential-actions" aria-label="Available actions">
+        <section className={`essential-actions${reviewTemporaryUi && essentialActions.length === 0 && !hasManualDrawAction ? " is-layout-placeholder" : ""}`} aria-label="Available actions">
           {interaction?.manualDrawOnly && interaction.canDraw ? <button type="button" onClick={interaction.onDraw} disabled={interaction.drawPending}>Draw</button> : null}
-          {essentialActions.map((action) => <button type="button" key={action.id} onClick={action.onClick} disabled={action.disabled} aria-label={action.chowPreview ? `${action.label}: ${action.chowPreview.tiles.map((tile) => tile.label).join(", ")}` : undefined}>
-            <span>{action.label}</span>
-            {action.chowPreview ? <span className="essential-chow-preview" aria-hidden="true">{action.chowPreview.tiles.map((tile) => <span className={tile.id === action.chowPreview!.claimedTileId ? "is-claimed" : ""} key={tile.id}><Tile t={tile} size="sm" /></span>)}</span> : null}
-          </button>)}
+          {essentialActions.map((action) => {
+            const id = action.id.toLowerCase();
+            const consequential = id === "pong" || id.startsWith("pong-") || id === "chow" || id.startsWith("chow-") || id === "kong" || id.startsWith("kong-") || id === "gang" || id.startsWith("gang-");
+            const confirming = action.id === essentialConfirmingActionId;
+            const claimName = id === "pong" || id.startsWith("pong-") ? "Pong" : id === "chow" || id.startsWith("chow-") ? "Chow" : "Gang";
+            return <button
+              type="button"
+              key={action.id}
+              className={confirming ? "is-confirming" : undefined}
+              onClick={() => {
+                if (consequential && !confirming) {
+                  setEssentialConfirmingActionId(action.id);
+                  return;
+                }
+                setEssentialConfirmingActionId(null);
+                action.onClick?.();
+              }}
+              disabled={action.disabled}
+              aria-label={action.claimPreview ? `${action.label}: ${action.claimPreview.tiles.map((tile) => tile.label).join(", ")}` : undefined}
+            >
+              <span>{confirming ? `Confirm ${claimName}` : action.label}</span>
+              {action.claimPreview ? <span className="essential-chow-preview" aria-hidden="true">{action.claimPreview.tiles.map((tile) => <span className={tile.id === action.claimPreview!.claimedTileId ? "is-claimed" : ""} key={tile.id}><Tile t={tile} size="sm" /></span>)}</span> : null}
+            </button>;
+          })}
+          {reviewTemporaryUi && essentialActions.length === 0 && !hasManualDrawAction ? <span className="essential-layout-label" aria-hidden="true">Claim actions</span> : null}
         </section>
         <section className="essential-player" aria-label="Your hand">
           <div className="essential-profile-row essential-profile-row--local">
@@ -1809,8 +1849,8 @@ export function MatchTable({
             <div className="essential-profile essential-profile--local"><PlayerProfileBadge profile={playerProfile ?? defaultPlayerProfile(false)} /></div>
           </div>
           <div className="essential-player-public">{local.melds.flatMap((meld) => meld.tiles).map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}{local.bonusTiles.map((tile) => <Tile key={tile.id} t={tile} size="sm" />)}</div>
-          {state.waits.length > 0 ? (
-            <div className="essential-waits" role="group" aria-label={t("table.waitsLabel")}>
+          {state.waits.length > 0 || reviewTemporaryUi ? (
+            <div className={`essential-waits${state.waits.length === 0 ? " is-layout-placeholder" : ""}`} role="group" aria-label={t("table.waitsLabel")}>
               <strong>{t("table.ready")}</strong>
               <div role="list" aria-label={t("table.winningTiles")}>
                 {state.waits.map((entry) => (
@@ -1820,6 +1860,7 @@ export function MatchTable({
                   </span>
                 ))}
               </div>
+              {state.waits.length === 0 ? <span className="essential-layout-label" aria-hidden="true">Winning-tile preview</span> : null}
             </div>
           ) : null}
           <div className="essential-hand">

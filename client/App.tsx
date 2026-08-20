@@ -451,6 +451,36 @@ function sessionIdFragment(sessionId: string): string {
   return `${sessionId.slice(0, 8)}…${sessionId.slice(-4)}`;
 }
 
+interface SystemAlertItem {
+  id: string;
+  message: string;
+  severity: "info" | "warning" | "error" | "success";
+}
+
+function SystemAlerts({ alerts, review = false }: { alerts: SystemAlertItem[]; review?: boolean }) {
+  if (alerts.length === 0 && !review) return null;
+  return (
+    <section
+      className={`system-alerts${alerts.length === 0 ? " is-layout-placeholder" : ""}`}
+      aria-label="System Alerts"
+      role={alerts.length > 0 ? "status" : undefined}
+      aria-live={alerts.length > 0 ? "polite" : undefined}
+      aria-hidden={alerts.length === 0 ? true : undefined}
+      data-testid="table-stalled-notice"
+    >
+      <strong className="system-alerts-title">System Alerts</strong>
+      {alerts.length > 0
+        ? alerts.map((alert) => <p className={`system-alert system-alert--${alert.severity}`} key={alert.id}>{alert.message}</p>)
+        : (
+          <>
+            <p className="system-alert">Disconnection and retry status</p>
+            <p className="system-alert system-alert--success">Connection restored status</p>
+          </>
+        )}
+    </section>
+  );
+}
+
 export function App(
   {
     iam: injectedIam,
@@ -3803,7 +3833,7 @@ export function App(
           </div>
         )}
 
-        {matchRuntimeState.status === "joined" && matchRuntimeState.stalled && (
+        {matchRuntimeState.status === "joined" && matchRuntimeState.stalled && !playerSettings.experimentalTableUi && (
           <div className="game-screen-stalled" role="status" aria-live="polite" data-testid="table-stalled-notice">
             <p className="game-screen-stalled-text">
               {t("game.reconnectingStalled")}
@@ -3898,6 +3928,8 @@ export function App(
                   <p className="fullscreen-help" role="status">
                     {t("game.fullscreenHelp")}
                   </p>
+                ) : playerSettings.experimentalTableUi && playerSettings.tableLayoutOutlines ? (
+                  <p className="fullscreen-help is-layout-placeholder" aria-hidden="true">Fullscreen help</p>
                 ) : null}
                 <button
                   className="fullscreen-match-button"
@@ -3910,11 +3942,6 @@ export function App(
                 </button>
               </div>
               <div className="game-screen-topbar">
-                {controlRestoredNotice && (
-                  <p className="control-restored-toast" role="status" aria-live="polite">
-                    {t("game.controlRestored")}
-                  </p>
-                )}
                 <button
                   className="leave-match-button"
                   type="button"
@@ -3922,6 +3949,20 @@ export function App(
                 >
                   {t("game.leaveMatch")}
                 </button>
+                {playerSettings.experimentalTableUi && (matchRuntimeState.stalled || controlRestoredNotice || playerSettings.tableLayoutOutlines) ? (
+                  <SystemAlerts
+                    alerts={[
+                      ...(matchRuntimeState.stalled ? [{ id: "connection-loss", severity: "error" as const, message: t("game.reconnectingStalled") }] : []),
+                      ...(controlRestoredNotice ? [{ id: "connection-restored", severity: "success" as const, message: t("game.controlRestored") }] : []),
+                    ]}
+                    review={playerSettings.tableLayoutOutlines}
+                  />
+                ) : null}
+                {!playerSettings.experimentalTableUi && controlRestoredNotice ? (
+                  <p className="control-restored-toast" role="status" aria-live="polite">
+                    {t("game.controlRestored")}
+                  </p>
+                ) : null}
               </div>
               {!playerSettings.experimentalTableUi && videoHumanSeats.length > 0 && (
                 <div className="video-call-dock">

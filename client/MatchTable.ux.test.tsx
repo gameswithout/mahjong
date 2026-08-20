@@ -78,6 +78,22 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelectorAll(".essential-chow-preview .is-claimed")).toHaveLength(1);
     expect(container.querySelector(".learning-hud")).toBeNull();
     expect(container.querySelector(".recent-actions")).toBeNull();
+    expect(container.querySelector(".essential-actions.is-layout-placeholder")).toBeNull();
+  });
+
+  it("shows review footprints for temporary table UI while layout outlines are enabled", () => {
+    const state = { ...mockMatchTableState, waits: [], legalActions: [] };
+    act(() => root.render(<MatchTable state={state} preferences={{
+      expertHud: false,
+      autoPassDelay: "off",
+      claimImpactAnalysis: false,
+      experimentalTableUi: true,
+      tableLayoutOutlines: true,
+    }} />));
+
+    expect(container.querySelector(".essential-actions.is-layout-placeholder")?.textContent).toContain("Claim actions");
+    expect(container.querySelector(".essential-waits.is-layout-placeholder")?.textContent).toContain("Winning-tile preview");
+    expect(container.querySelector(".essential-discard-stage.has-win-declaration")).toBeNull();
   });
 
   it("hides a non-actionable Pass and overlays the compact win declaration on the discard pile", () => {
@@ -118,6 +134,83 @@ describe("MatchTable table-first UX", () => {
     const winDeclaration = container.querySelector(".essential-win-declaration");
     expect(discardPile?.parentElement).toBe(winDeclaration?.parentElement);
     expect(discardPile?.parentElement?.classList.contains("essential-discard-stage")).toBe(true);
+  });
+
+  it("warns about a low wall in the simplified information console", () => {
+    const preferences = {
+      expertHud: false,
+      autoPassDelay: "off" as const,
+      claimImpactAnalysis: false,
+      experimentalTableUi: true,
+    };
+    const withWall = (drawableRemaining: number) => ({
+      ...mockMatchTableState,
+      wall: { ...mockMatchTableState.wall, drawableRemaining },
+    });
+
+    act(() => root.render(<MatchTable state={withWall(16)} preferences={preferences} />));
+    expect(container.querySelector(".essential-console--wall-warning")).not.toBeNull();
+    expect(container.querySelector(".essential-wall-alert")?.textContent).toContain("16 or fewer");
+
+    act(() => root.render(<MatchTable state={withWall(8)} preferences={preferences} />));
+    expect(container.querySelector(".essential-console--wall-critical")).not.toBeNull();
+    expect(container.querySelector(".essential-wall-alert")?.textContent).toContain("8 or fewer");
+  });
+
+  it("previews and confirms Pong and Kong claims before dispatching them", () => {
+    const onPong = vi.fn();
+    const claimed = tile("dots-4-1");
+    const pongState = {
+      ...mockMatchTableState,
+      legalActions: [
+        {
+          id: "pong",
+          label: "Pong",
+          onClick: onPong,
+          claimPreview: {
+            tiles: [tile("dots-4-2"), claimed, tile("dots-4-3")],
+            claimedTileId: claimed.id,
+          },
+        },
+      ],
+    };
+    const preferences = {
+      expertHud: false,
+      autoPassDelay: "off" as const,
+      claimImpactAnalysis: false,
+      experimentalTableUi: true,
+    };
+
+    act(() => root.render(<MatchTable state={pongState} preferences={preferences} />));
+    expect(container.querySelectorAll(".essential-chow-preview .tile-sm")).toHaveLength(3);
+    expect(container.querySelector(".essential-chow-preview > .is-claimed:nth-child(2)")).not.toBeNull();
+    const pongButton = container.querySelector<HTMLButtonElement>(".essential-actions button");
+    act(() => pongButton?.click());
+    expect(onPong).not.toHaveBeenCalled();
+    expect(pongButton?.textContent).toContain("Confirm Pong");
+    act(() => pongButton?.click());
+    expect(onPong).toHaveBeenCalledOnce();
+
+    const onKong = vi.fn();
+    act(() => root.render(<MatchTable state={{
+      ...pongState,
+      legalActions: [{
+        id: "kong-open",
+        label: "Gang",
+        onClick: onKong,
+        claimPreview: {
+          tiles: [tile("dots-4-2"), tile("dots-4-3"), claimed, tile("dots-4-4")],
+          claimedTileId: claimed.id,
+        },
+      }],
+    }} preferences={preferences} />));
+    expect(container.querySelectorAll(".essential-chow-preview .tile-sm")).toHaveLength(4);
+    const kongButton = container.querySelector<HTMLButtonElement>(".essential-actions button");
+    act(() => kongButton?.click());
+    expect(onKong).not.toHaveBeenCalled();
+    expect(kongButton?.textContent).toContain("Confirm Gang");
+    act(() => kongButton?.click());
+    expect(onKong).toHaveBeenCalledOnce();
   });
 
   it("keeps timer, wall, round, turn, discard, source, and message in one central dashboard", () => {
@@ -299,7 +392,7 @@ describe("MatchTable table-first UX", () => {
         {
           id: "chow-0",
           label: "Chow 1",
-          chowPreview: {
+          claimPreview: {
             tiles: ["characters-3-1", "characters-4-1", "characters-5-1"].map(tile),
             claimedTileId: "characters-4-1",
           },
@@ -307,7 +400,7 @@ describe("MatchTable table-first UX", () => {
         {
           id: "chow-1",
           label: "Chow 2",
-          chowPreview: {
+          claimPreview: {
             tiles: ["characters-4-2", "characters-5-2", "characters-6-1"].map(tile),
             claimedTileId: "characters-4-2",
           },

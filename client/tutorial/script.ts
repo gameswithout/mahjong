@@ -444,7 +444,7 @@ const CHAPTER_THREE: TutorialChapter = {
           {
             id: "Chow",
             label: "Chow",
-            chowPreview: {
+            claimPreview: {
               tiles: HAND_SORT([
                 "characters-1-1",
                 "characters-2-1",

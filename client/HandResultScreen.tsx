@@ -575,6 +575,7 @@ function PatternRow({
       <button
         type="button"
         className="hand-result-pattern-toggle"
+        title={t("result.whatIsThis")}
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls={panelId}
@@ -584,7 +585,7 @@ function PatternRow({
           {/* The affordance has to be visible without hover — this is a touch
               surface as much as a pointer one. */}
           <span className="hand-result-pattern-hint" aria-hidden="true">
-            {open ? t("common.hide") : t("result.whatIsThis")}
+            ?
           </span>
         </span>
         <strong>

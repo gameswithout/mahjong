@@ -70,12 +70,12 @@ export interface MatchAction {
   // Safe, public explanation for a disabled action. The adapter only supplies
   // this for client request state, never for server-private legality.
   disabledReason?: string;
-  // Chow options carry the complete proposed sequence so the player can
-  // compare overlapping choices without translating option numbers back
-  // to tile positions in their hand.
-  chowPreview?: {
+  // Claim options carry the complete proposed meld so the player can
+  // understand exactly which tiles Chow, Pong, or Kong will expose before
+  // confirming the irreversible action.
+  claimPreview?: {
     tiles: WireTile[];
-    claimedTileId: string;
+    claimedTileId?: string;
   };
   // preview is the §9.4 "score preview before Win" assist, set only on the
   // Win action when the server computed one.

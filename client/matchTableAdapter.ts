@@ -118,6 +118,14 @@ function claimLegalActions(
     disabledReason: pending ? "Waiting for the table to confirm your last choice." : undefined,
   });
   const actions: MatchAction[] = [];
+  const matchingOwnTiles = (count: number) => {
+    const claimedId = claim.discard.tile.id;
+    const matching = view.own_hand
+      .filter((item) => tileTypeKey(item.id) === tileTypeKey(claimedId))
+      .slice(0, count)
+      .map(wireTile);
+    return matching.length === count ? matching : [];
+  };
   if (claim.options.can_win) {
     const winAction = action("win", "Win", () => dispatch("win"));
     if (claim.options.win_preview) {
@@ -129,27 +137,43 @@ function claimLegalActions(
     actions.push(winAction);
   }
   if (claim.options.can_kong) {
-    actions.push(action(
+    const kongAction = action(
       "kong",
       "Kong",
       () => dispatch("kong"),
       "Completes an open Kong, gives you the turn, and takes a replacement draw. Opponents can see more of your plan.",
-    ));
+    );
+    const matching = matchingOwnTiles(3);
+    if (matching.length === 3) {
+      kongAction.claimPreview = {
+        tiles: [matching[0], matching[1], wireTile(claim.discard.tile), matching[2]],
+        claimedTileId: claim.discard.tile.id,
+      };
+    }
+    actions.push(kongAction);
   }
   if (claim.options.can_pong) {
-    actions.push(action(
+    const pongAction = action(
       "pong",
       "Pong",
       () => dispatch("pong"),
       "Completes a three-of-a-kind, gives you the turn, and makes you discard next. Opening can give up concealed-hand bonuses.",
-    ));
+    );
+    const matching = matchingOwnTiles(2);
+    if (matching.length === 2) {
+      pongAction.claimPreview = {
+        tiles: [matching[0], wireTile(claim.discard.tile), matching[1]],
+        claimedTileId: claim.discard.tile.id,
+      };
+    }
+    actions.push(pongAction);
   }
   (claim.options.chow_sets ?? []).forEach(([first, second], index) => {
     const id = `chow-${index}`;
     const label = claim.options.chow_sets!.length > 1 ? `Chow ${index + 1}` : "Chow";
     const chowAction = action(id, label, () => dispatch("chow", [first, second]));
     chowAction.impact = "Completes the shown sequence, gives you the turn, and makes you discard next. Opening can give up concealed-hand bonuses.";
-    chowAction.chowPreview = {
+    chowAction.claimPreview = {
       tiles: [first, second, claim.discard.tile.id]
         .map(tile)
         .sort((left, right) => tileTypeKey(left.id).localeCompare(tileTypeKey(right.id))),
@@ -301,9 +325,14 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         disabledReason: options.claimActionPending
           ? "Waiting for the table to confirm your last choice."
           : undefined,
+        claimPreview: { tiles: choice.tile_ids.map(tile) },
       });
     });
     (self.added_kong_tile_ids ?? []).forEach((tileId, index) => {
+      const matchingMeld = (view.own_melds ?? []).find((meld) =>
+        meld.type === "pong" && (meld.tiles ?? []).some((item) => tileTypeKey(item.id) === tileTypeKey(tileId)),
+      );
+      const matchingMeldTiles = matchingMeld?.tiles ?? [];
       legalActions.push({
         id: `kong-added-${index}`,
         label: "Gang",
@@ -312,6 +341,9 @@ export function seatViewToMatchTableState(view: SeatView, options: MatchTableAda
         disabled: options.claimActionPending,
         disabledReason: options.claimActionPending
           ? "Waiting for the table to confirm your last choice."
+          : undefined,
+        claimPreview: matchingMeldTiles.length > 0
+          ? { tiles: [...matchingMeldTiles.map(wireTile), tile(tileId)], claimedTileId: tileId }
           : undefined,
       });
     });

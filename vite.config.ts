@@ -63,6 +63,7 @@ export default defineConfig(({ mode, command }) => {
         input: {
           main: "index.html",
           wireframe: "wireframe.html",
+          essentialLayout: "essential-layout.html",
           resultWireframe: "result-wireframe.html",
           progressionWireframe: "progression-wireframe.html",
           onboardingEvidence: "onboarding-evidence.html",
