@@ -2855,12 +2855,21 @@ h1 {
 }
 
 .game-screen-result:has(.winning-table-reveal) {
+  align-items: stretch;
+  box-sizing: border-box;
+  height: 100vh;
+  height: 100dvh;
   max-width: none;
+  padding: 0;
+  width: 100vw;
+  width: 100dvw;
 }
 
 .winning-table-reveal {
   display: flex;
   flex: 1;
+  height: 100%;
+  min-height: 0;
   position: relative;
   width: 100%;
 }
@@ -4930,8 +4939,7 @@ h1 {
     transform: translateY(-2px);
   }
 }
-/* Language stays reachable on every screen, including sign-in and a live
-   match. Safe-area offsets keep it clear of iPhone notches in PWA mode. */
+/* The language selector now lives inside Settings. */
 .language-selector {
   align-items: center;
   background: rgb(247 242 232 / 96%);
@@ -4965,12 +4973,6 @@ h1 {
   inset: auto;
   position: static;
   width: fit-content;
-}
-
-/* Language is an account preference. Keep it in Settings rather than letting
-   it compete with gameplay controls or change copy in the middle of a hand. */
-#root:has(.game-screen) > .language-selector {
-  display: none;
 }
 
 .game-screen-topbar {

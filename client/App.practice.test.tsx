@@ -464,27 +464,7 @@ describe("App Practice journey", () => {
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
   });
 
-  it("starts Guided Practice with learning hints visible", async () => {
-    dependencies.createMatchRuntimeConnection.mockImplementation(
-      (_accessToken: string, options: MatchRuntimeConnectionOptions) => ({
-        ready: Promise.resolve({
-          protocol_version: "1",
-          server_time: "2026-08-15T00:00:00Z",
-          user_id: "guest-1",
-        }),
-        join: vi.fn((matchId: string) => {
-          queueMicrotask(() => options.onJoined?.({
-            match_id: matchId,
-            seat: "E",
-            view: discardPracticeView(matchId),
-          }));
-          return `join-${matchId}`;
-        }),
-        sync: vi.fn(() => "sync"),
-        command: vi.fn(() => "command"),
-        close: vi.fn(),
-      }),
-    );
+  it("reserves Guided Practice for a future mode and offers only Practice vs Bots", async () => {
     const iam = {
       loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
       getAuthenticatedSdk: vi.fn().mockReturnValue({}),
@@ -493,12 +473,8 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Guided Practice"));
-    await clickAndFlush(container, "Guided Practice");
-
-    await vi.waitFor(() => expect(container.querySelector('[aria-label="Learning HUD"]')).not.toBeNull());
-    expect(container.querySelector('[aria-label="Recent actions"]')).not.toBeNull();
-    expect(container.textContent).toContain("Public information only");
+    await vi.waitFor(() => expect(container.textContent).toContain("Practice vs Bots"));
+    expect(container.textContent).not.toContain("Guided Practice");
   });
 
   it("keeps a live table on screen when a poll fails, and recovers on the next good state", async () => {
@@ -525,7 +501,7 @@ describe("App Practice journey", () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-testid="table-stalled-notice"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="System Alerts"]')).not.toBeNull();
     expect(container.textContent).toContain("Practice result");
     expect(container.textContent).not.toContain("Match service request failed with HTTP 400.");
 
@@ -536,7 +512,7 @@ describe("App Practice journey", () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-testid="table-stalled-notice"]')).toBeNull();
+    expect(container.querySelector('[aria-label="System Alerts"]')).toBeNull();
     expect(container.textContent).toContain("Practice result");
   });
 
@@ -628,7 +604,7 @@ describe("App Practice journey", () => {
     await clickAndFlush(container, "Practice vs Bots");
     const discardTile = await vi.waitFor(() => {
       const candidate = container.querySelector<HTMLButtonElement>(
-        '.local-hand-tile-button[aria-label^="Inspect 1 of characters"]',
+        '.essential-hand button[aria-label^="Inspect 1 of characters"]',
       );
       expect(candidate).not.toBeNull();
       return candidate!;
@@ -749,7 +725,7 @@ describe("App Practice journey", () => {
     await clickAndFlush(container, "Continue as Guest");
     await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
     await clickAndFlush(container, "Practice vs Bots");
-    await vi.waitFor(() => expect(container.textContent).toContain("(Chow)"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Chow"));
     await clickAndFlush(container, "Pass");
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 360));

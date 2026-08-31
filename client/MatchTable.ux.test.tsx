@@ -74,11 +74,39 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelector(".essential-compass-right")?.textContent).toBe("W");
     expect(container.querySelector(".essential-compass-bottom")?.textContent).toBe("S");
     expect(container.querySelector(".essential-compass-left")?.textContent).toBe("E");
-    expect(container.querySelectorAll(".essential-chow-preview .tile-sm")).toHaveLength(3);
-    expect(container.querySelectorAll(".essential-chow-preview .is-claimed")).toHaveLength(1);
+    expect(container.querySelectorAll(".essential-chow-preview .tile-sm")).toHaveLength(0);
+    expect(container.querySelector(".essential-actions")?.textContent).toContain("Win");
     expect(container.querySelector(".learning-hud")).toBeNull();
     expect(container.querySelector(".recent-actions")).toBeNull();
     expect(container.querySelector(".essential-actions.is-layout-placeholder")).toBeNull();
+  });
+
+  it("shows the optional Guide and Actions Feed beside the simplified console", () => {
+    const state = {
+      ...mockMatchTableState,
+      legalActions: [{
+        id: "pong",
+        label: "Pong",
+        impact: "Reveals a triplet and commits the next discard.",
+      }],
+    };
+    act(() => root.render(
+      <MatchTable
+        state={state}
+        preferences={{
+          expertHud: false,
+          autoPassDelay: "1s",
+          claimImpactAnalysis: false,
+          experimentalTableUi: true,
+          showGuide: true,
+          showActionsFeed: true,
+        }}
+      />,
+    ));
+
+    expect(container.querySelector('[aria-label="Guide"]')?.textContent).toContain("Pong");
+    expect(container.querySelector('[aria-label="Actions Feed"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Information console"]')).not.toBeNull();
   });
 
   it("shows review footprints for temporary table UI while layout outlines are enabled", () => {
@@ -102,6 +130,7 @@ describe("MatchTable table-first UX", () => {
       ...mockMatchTableUrgentState,
       showdown: true,
       showdownWinningTile: mockMatchTableState.lastDiscard?.tile,
+      showdownWinningDiscard: mockMatchTableState.lastDiscard ?? undefined,
       showdownWinType: { chinese: "胡", romanized: "Hu" },
       seats: {
         ...mockMatchTableUrgentState.seats,
@@ -125,6 +154,8 @@ describe("MatchTable table-first UX", () => {
     ));
 
     expect(container.querySelector(".essential-actions")?.textContent).not.toContain("Pass");
+    expect(container.querySelector(".essential-win-details")?.textContent).toContain("Discard win");
+    expect(container.querySelectorAll(".essential-revealed-hand .tile-sm")).toHaveLength(1);
     expect(container.querySelector(".essential-win-declaration")?.textContent).toContain("胡");
     expect(container.querySelector(".essential-win-declaration")?.textContent).toContain("Hu");
     expect(container.querySelector(".essential-win-declaration")?.textContent).toContain("You win");
@@ -134,6 +165,28 @@ describe("MatchTable table-first UX", () => {
     const winDeclaration = container.querySelector(".essential-win-declaration");
     expect(discardPile?.parentElement).toBe(winDeclaration?.parentElement);
     expect(discardPile?.parentElement?.classList.contains("essential-discard-stage")).toBe(true);
+  });
+
+  it("orders simplified actions by priority and suppresses Chi beside Win", () => {
+    act(() => root.render(
+      <MatchTable
+        state={{
+          ...mockMatchTableState,
+          legalActions: [
+            { id: "pass", label: "Pass" },
+            { id: "chi-1", label: "Chi" },
+            { id: "pong", label: "Pong" },
+            { id: "kang", label: "Kang" },
+            { id: "win-discard", label: "Win" },
+          ],
+        }}
+        preferences={{ expertHud: false, autoPassDelay: "off", claimImpactAnalysis: false, experimentalTableUi: true }}
+      />,
+    ));
+
+    expect(Array.from(container.querySelectorAll(".essential-actions button")).map((button) => button.textContent)).toEqual([
+      "Win", "Kang", "Pong", "Pass",
+    ]);
   });
 
   it("warns about a low wall in the simplified information console", () => {
@@ -250,6 +303,26 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelector(".seat-activity .dealer-badge")).not.toBeNull();
     expect(container.querySelectorAll(".bot-badge")).toHaveLength(0);
     expect(container.querySelectorAll(".hand-count")).toHaveLength(0);
+  });
+
+  it("shows round, continuation, bot control, and claim-source information in the simplified table", () => {
+    const state = {
+      ...mockMatchTableState,
+      continuation: 2,
+      claimSource: "E" as const,
+      seats: {
+        ...mockMatchTableState.seats,
+        E: { ...mockMatchTableState.seats.E, takenOver: true, isBot: true, botStyleTag: "Guard" },
+      },
+    };
+    act(() => root.render(
+      <MatchTable state={state} preferences={{ expertHud: false, autoPassDelay: "off", claimImpactAnalysis: false, experimentalTableUi: true }} />,
+    ));
+
+    expect(container.querySelector(".essential-round-info")?.textContent).toContain("Dealer repeat ×2");
+    expect(container.querySelector(".essential-opponent.is-claim-source")?.textContent).toContain("Response pending");
+    expect(container.querySelector(".essential-opponent.is-claim-source")?.textContent).toContain("Bot · Guard");
+    expect(container.querySelector(".essential-discard-row.is-claim-source .is-claim-tile")).not.toBeNull();
   });
 
   it("centers the winning hand and marks the winner seat for celebration", () => {
@@ -450,10 +523,8 @@ describe("MatchTable table-first UX", () => {
     expect(container.querySelectorAll(".local-hand-tile-wrap")).toHaveLength(17);
     expect(container.querySelectorAll(".local-hand-tile-drawn")).toHaveLength(1);
     expect(container.querySelectorAll('.local-hand-tile-button[draggable="true"]')).toHaveLength(0);
-    expect(container.querySelector(".sort-toggle-button")?.textContent).toContain("Suit");
-    expect(
-      container.querySelector(".local-hand-tile-drawn")?.getAttribute("draggable"),
-    ).toBe("false");
+    expect(container.querySelector(".local-game-controls")?.textContent).not.toContain("Sort");
+    expect(container.querySelector(".local-hand-tile-drawn")?.hasAttribute("draggable")).toBe(false);
     expect(container.textContent).toContain("Ting · Ready");
     expect(container.textContent).toContain("All visible");
     expect(container.querySelector(".wait-explainer")).toBeNull();
@@ -510,7 +581,7 @@ describe("MatchTable table-first UX", () => {
     expect(sortedAfter.at(-1)).toContain("wind east");
   });
 
-  it("shows elapsed time for the whole untimed hand without resetting each turn", () => {
+  it("resets elapsed time when the active player's move changes", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-24T18:00:00Z"));
     act(() =>
@@ -532,16 +603,16 @@ describe("MatchTable table-first UX", () => {
           untimed: true,
           seats: {
             ...mockMatchTableState.seats,
-            E: { ...mockMatchTableState.seats.E, isActive: false },
-            S: { ...mockMatchTableState.seats.S, isActive: true },
+            E: { ...mockMatchTableState.seats.E, isActive: true },
+            S: { ...mockMatchTableState.seats.S, isActive: false },
           },
         }}
       />,
     ));
     expect(container.querySelector('[role="timer"]')?.getAttribute("aria-label")).toBe(
-      "3 seconds into this hand",
+      "0 seconds into this hand",
     );
-    expect(container.querySelector(".countdown-elapsed-time")?.textContent).toBe("0:03");
+    expect(container.querySelector(".countdown-elapsed-time")?.textContent).toBe("0:00");
     vi.useRealTimers();
   });
 
@@ -727,7 +798,7 @@ describe("MatchTable table-first UX", () => {
     );
   });
 
-  it("immediately resolves Pass when there is no meaningful claim choice", () => {
+  it("uses the configured delay before resolving a pass-only response", () => {
     vi.useFakeTimers();
     const onPass = vi.fn();
     const passOnlyState = {
@@ -741,21 +812,43 @@ describe("MatchTable table-first UX", () => {
     };
 
     act(() => root.render(<MatchTable state={passOnlyState} preferences={preferences} />));
-    act(() => vi.advanceTimersByTime(0));
-    expect(onPass).toHaveBeenCalledOnce();
+    act(() => vi.advanceTimersByTime(2_999));
+    expect(onPass).not.toHaveBeenCalled();
     expect(container.querySelector(".action-bar")).toBeNull();
     expect(container.querySelector(".seat-bottom .seat-activity-message")?.textContent).not.toContain(
       "Thinking",
     );
-    expect(container.querySelector(".current-tile-focus")?.textContent).toContain(
-      "No claim · passing",
-    );
+    expect(container.querySelector(".current-tile-focus")?.textContent).toContain("No claim · passing");
+    act(() => vi.advanceTimersByTime(1));
+    expect(onPass).toHaveBeenCalledOnce();
 
     // A re-render for the same discard must not queue a second pass.
     act(() => root.render(<MatchTable state={{ ...passOnlyState }} preferences={preferences} />));
     act(() => vi.advanceTimersByTime(5_000));
     expect(onPass).toHaveBeenCalledOnce();
     vi.useRealTimers();
+  });
+
+  it("shows the automatic Pass countdown in the preview slot", () => {
+    vi.useFakeTimers();
+    act(() => root.render(
+      <MatchTable
+        state={{
+          ...mockMatchTableState,
+          legalActions: [{ id: "pass", label: "Pass", onClick: vi.fn() }],
+        }}
+        preferences={{
+          expertHud: false,
+          autoPassDelay: "3s",
+          claimImpactAnalysis: false,
+          experimentalTableUi: true,
+        }}
+      />,
+    ));
+
+    expect(container.querySelector(".essential-pass-countdown")?.textContent).toContain("3s");
+    act(() => vi.advanceTimersByTime(1_100));
+    expect(container.querySelector(".essential-pass-countdown")?.textContent).toContain("2s");
   });
 
   it("puts the impact and auto-pass controls in the footer, both starting off", () => {
@@ -817,7 +910,30 @@ describe("MatchTable table-first UX", () => {
     ]);
   });
 
-  it("does not present a false Pass decision when the delay is off", () => {
+  it("keeps Pass visible and does not submit it when automatic passing is off", () => {
+    vi.useFakeTimers();
+    const onPass = vi.fn();
+
+    act(() => root.render(
+      <MatchTable
+        preferences={{ expertHud: false, autoPassDelay: "off", claimImpactAnalysis: false }}
+        state={{
+          ...mockMatchTableState,
+          legalActions: [{ id: "pass", label: "Pass", onClick: onPass }],
+        }}
+      />,
+    ));
+
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(onPass).not.toHaveBeenCalled();
+    expect(container.querySelector(".action-pass")).not.toBeNull();
+    expect(container.querySelector(".current-tile-focus")?.textContent).toContain(
+      "select Pass to continue",
+    );
+    vi.useRealTimers();
+  });
+
+  it("keeps pass-only responses visible in the simplified table when auto-pass is off", () => {
     vi.useFakeTimers();
     const onPass = vi.fn();
 
@@ -827,12 +943,21 @@ describe("MatchTable table-first UX", () => {
           ...mockMatchTableState,
           legalActions: [{ id: "pass", label: "Pass", onClick: onPass }],
         }}
+        preferences={{
+          expertHud: false,
+          autoPassDelay: "off",
+          claimImpactAnalysis: false,
+          experimentalTableUi: true,
+        }}
       />,
     ));
 
-    act(() => vi.advanceTimersByTime(0));
-    expect(onPass).toHaveBeenCalledOnce();
-    expect(container.querySelector(".action-pass")).toBeNull();
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(onPass).not.toHaveBeenCalled();
+    expect(container.querySelector(".essential-actions button")?.textContent).toContain("Pass");
+    expect(container.querySelector(".essential-message")?.textContent).toContain(
+      "select Pass to continue",
+    );
     vi.useRealTimers();
   });
 
@@ -929,6 +1054,7 @@ describe("MatchTable table-first UX", () => {
   });
 
   it("never auto-passes when another claim is available", () => {
+    vi.useFakeTimers();
     const onPass = vi.fn();
     act(() =>
       root.render(
@@ -944,50 +1070,25 @@ describe("MatchTable table-first UX", () => {
       ),
     );
 
+    act(() => vi.advanceTimersByTime(10_000));
     expect(onPass).not.toHaveBeenCalled();
     expect(container.querySelector(".action-bar-claim")).not.toBeNull();
+    expect(container.querySelector(".essential-pass-countdown")).toBeNull();
   });
 
-  it("reorders manual-sort tiles with drag and drop", () => {
-    const onDiscardTile = vi.fn();
+  it("does not expose manual drag or keyboard reordering", () => {
     act(() =>
       root.render(
         <MatchTable
           state={mockMatchTableState}
-          interaction={{ canDiscard: true, onDiscardTile }}
+          interaction={{ canDiscard: true }}
         />,
       ),
     );
-    const sortToggle = container.querySelector<HTMLButtonElement>(".sort-toggle-button");
-    act(() => sortToggle?.click()); // Sets
-    act(() => sortToggle?.click()); // Off / manual
-    const hand = container.querySelector(".local-hand");
-    const tiles = Array.from(hand?.querySelectorAll<HTMLButtonElement>("button") ?? []);
-    const firstLabel = tiles[0].getAttribute("aria-label");
-    const thirdLabel = tiles[2].getAttribute("aria-label");
-    const values = new Map<string, string>();
-    const dataTransfer = {
-      effectAllowed: "none",
-      dropEffect: "none",
-      setData: (type: string, value: string) => values.set(type, value),
-      getData: (type: string) => values.get(type) ?? "",
-    };
-    const dragStart = new Event("dragstart", { bubbles: true });
-    Object.defineProperty(dragStart, "dataTransfer", { value: dataTransfer });
-    const drop = new Event("drop", { bubbles: true });
-    Object.defineProperty(drop, "dataTransfer", { value: dataTransfer });
-
-    act(() => {
-      tiles[0].dispatchEvent(dragStart);
-      tiles[2].dispatchEvent(drop);
-    });
-
-    const reordered = Array.from(
-      hand?.querySelectorAll<HTMLButtonElement>("button") ?? [],
-    ).map((tile) => tile.getAttribute("aria-label"));
-    expect(reordered[0]).toBe(tiles[1].getAttribute("aria-label"));
-    expect(reordered[1]).toBe(firstLabel);
-    expect(reordered[2]).toBe(thirdLabel);
+    const tiles = container.querySelectorAll<HTMLButtonElement>(".local-hand button");
+    expect(tiles.length).toBeGreaterThan(0);
+    expect(Array.from(tiles).every((button) => !button.hasAttribute("draggable"))).toBe(true);
+    expect(container.querySelector(".sort-toggle-button")?.textContent).not.toContain("Sort");
   });
 
   it("presents automatic drawing as flow with a manual fallback", () => {

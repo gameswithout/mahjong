@@ -7,7 +7,6 @@ export interface PracticeLaunchCardProps {
   cleanupRequired?: boolean;
   matchServiceAvailable: boolean;
   onStart: () => void;
-  onStartGuided?: () => void;
   onLeaveSelectedSession?: () => void;
   // Optional: a caller that hasn't wired the picker (an older test fixture,
   // or a build without it configured) still gets a plain launch button —
@@ -21,7 +20,6 @@ export function PracticeLaunchCard({
   cleanupRequired = false,
   matchServiceAvailable,
   onStart,
-  onStartGuided,
   onLeaveSelectedSession,
   personaPicker,
 }: PracticeLaunchCardProps) {
@@ -32,18 +30,8 @@ export function PracticeLaunchCard({
       <p className="practice-description">{t("practice.description")}</p>
       {personaPicker && <BotPersonaPicker state={personaPicker} />}
       <div className="practice-actions">
-        {onStartGuided ? (
-          <button
-            className="primary-action practice-action"
-            type="button"
-            onClick={onStartGuided}
-            disabled={busy || hasSelectedSession || !matchServiceAvailable}
-          >
-            {t("practice.guidedAction")}
-          </button>
-        ) : null}
         <button
-          className={onStartGuided ? "secondary-action practice-action" : "primary-action practice-action"}
+          className="primary-action practice-action"
           type="button"
           onClick={onStart}
           disabled={busy || hasSelectedSession || !matchServiceAvailable}
@@ -51,7 +39,6 @@ export function PracticeLaunchCard({
           {t("practice.action")}
         </button>
       </div>
-      {onStartGuided ? <p className="practice-guided-help">{t("practice.guidedHelp")}</p> : null}
       {!matchServiceAvailable && (
         <p className="practice-unavailable" role="alert">
           {t("practice.unconfigured")}

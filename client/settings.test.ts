@@ -38,16 +38,28 @@ describe("player settings", () => {
     });
   });
 
-  it("keeps the experimental table opt-in with review outlines enabled by default", () => {
+  it("keeps the language-settings notice hidden after the player dismisses it", () => {
+    expect(normalizePlayerSettings({ value: { showLanguageNotice: false } })).toEqual({
+      ...DEFAULT_PLAYER_SETTINGS,
+      showLanguageNotice: false,
+    });
+    expect(normalizePlayerSettings({ value: {} }).showLanguageNotice).toBe(true);
+  });
+
+  it("uses the refreshed table with UI debug mode off by default", () => {
     expect(DEFAULT_PLAYER_SETTINGS).toMatchObject({
-      experimentalTableUi: false,
-      tableLayoutOutlines: true,
+      experimentalTableUi: true,
+      tableLayoutOutlines: false,
+      uiDebugMode: false,
       handSortMode: "suit-rank",
       tableFxEnabled: false,
+      showGuide: false,
+      showActionsFeed: false,
     });
-    expect(normalizePlayerSettings({ value: { experimentalTableUi: true } })).toMatchObject({
+    expect(normalizePlayerSettings({ value: { experimentalTableUi: false, tableLayoutOutlines: true } })).toMatchObject({
       experimentalTableUi: true,
       tableLayoutOutlines: true,
+      uiDebugMode: false,
     });
   });
 
@@ -59,6 +71,12 @@ describe("player settings", () => {
     expect(normalizePlayerSettings({ value: { autoPassClaims: false } }).autoPassDelay).toBe("off");
     expect(normalizePlayerSettings({ value: { autoPassDelay: "5s" } }).autoPassDelay).toBe("5s");
     expect(normalizePlayerSettings({ value: { autoPassDelay: "2s" } }).autoPassDelay).toBe("off");
+  });
+
+  it("enables auto-pass by default while preserving an explicit opt-out", () => {
+    expect(DEFAULT_PLAYER_SETTINGS.autoPassDelay).toBe("1s");
+    expect(normalizePlayerSettings({ value: {} }).autoPassDelay).toBe("1s");
+    expect(normalizePlayerSettings({ value: { autoPassDelay: "off" } }).autoPassDelay).toBe("off");
   });
 
   it("leaves claim impact analysis off regardless of the retired compact flag", () => {

@@ -62,12 +62,8 @@ export function SettingsScreen({
           <p className="status-label">{t("settings.gameplay")}</p>
           <h3 id="settings-table-title">{t("settings.tablePreferences")}</h3>
           <label className="settings-toggle">
-            <span><strong>New table layout</strong><small>Preview the simplified gameplay UI. The classic table remains available.</small></span>
-            <input type="checkbox" checked={settings.experimentalTableUi} onChange={(event) => onSettingsChange({ ...settings, experimentalTableUi: event.target.checked })} />
-          </label>
-          <label className="settings-toggle">
-            <span><strong>Layout outlines</strong><small>Show review borders around each region of the new table.</small></span>
-            <input type="checkbox" checked={settings.tableLayoutOutlines} disabled={!settings.experimentalTableUi} onChange={(event) => onSettingsChange({ ...settings, tableLayoutOutlines: event.target.checked })} />
+            <span><strong>UI debug mode</strong><small>Show dotted positioning boundaries around table UI components.</small></span>
+            <input type="checkbox" checked={settings.uiDebugMode} onChange={(event) => onSettingsChange({ ...settings, uiDebugMode: event.target.checked })} />
           </label>
           <label className="settings-select-label" htmlFor="hand-sort-mode">
             <span><strong>Hand sorting</strong><small>Choose how your hand is arranged after discarding.</small></span>
@@ -115,14 +111,27 @@ export function SettingsScreen({
           </label>
           <label className="settings-toggle">
             <span>
-              <strong>{t("settings.claimImpact")}</strong>
-              <small>{t("settings.claimImpactHelp")}</small>
+              <strong>Guide</strong>
+              <small>Show a running log of explanations beside the table console.</small>
             </span>
             <input
               type="checkbox"
-              checked={settings.claimImpactAnalysis}
+              checked={settings.showGuide}
               onChange={(event) =>
-                onSettingsChange({ ...settings, claimImpactAnalysis: event.target.checked })
+                onSettingsChange({ ...settings, showGuide: event.target.checked })
+              }
+            />
+          </label>
+          <label className="settings-toggle">
+            <span>
+              <strong>Actions Feed</strong>
+              <small>Show a running log of discards and claims beside the table console.</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.showActionsFeed}
+              onChange={(event) =>
+                onSettingsChange({ ...settings, showActionsFeed: event.target.checked })
               }
             />
           </label>

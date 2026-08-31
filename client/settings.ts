@@ -25,6 +25,9 @@ export function autoPassDelayMs(delay: AutoPassDelay): number {
 
 export interface PlayerSettings {
   showTutorial: boolean;
+  // The lobby points players to the relocated language control once. Hiding
+  // the notice is account-scoped so it stays gone on their other devices.
+  showLanguageNotice: boolean;
   optionalAnalyticsConsent: boolean;
   // Whether the player has been asked about optional analytics and answered.
   // Distinct from the consent itself, because "declined" and "never asked"
@@ -38,23 +41,30 @@ export interface PlayerSettings {
   // sentence. Off by default: it is the wordiest thing on the table and it is
   // read once and then never again by a player who knows the game.
   claimImpactAnalysis: boolean;
+  showGuide: boolean;
+  showActionsFeed: boolean;
   practiceBotSpeed: "learning" | "normal" | "fast";
   experimentalTableUi: boolean;
   tableLayoutOutlines: boolean;
+  uiDebugMode: boolean;
   handSortMode: "off" | "suit-rank" | "sets";
   tableFxEnabled: boolean;
 }
 
 export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   showTutorial: true,
+  showLanguageNotice: true,
   optionalAnalyticsConsent: false,
   analyticsConsentDecided: false,
   expertHud: false,
-  autoPassDelay: "off",
+  autoPassDelay: "1s",
   claimImpactAnalysis: false,
+  showGuide: false,
+  showActionsFeed: false,
   practiceBotSpeed: "learning",
-  experimentalTableUi: false,
-  tableLayoutOutlines: true,
+  experimentalTableUi: true,
+  tableLayoutOutlines: false,
+  uiDebugMode: false,
   handSortMode: "suit-rank",
   tableFxEnabled: false,
 };
@@ -82,6 +92,10 @@ export function normalizePlayerSettings(value: unknown): PlayerSettings {
       typeof envelope.showTutorial === "boolean"
         ? envelope.showTutorial
         : DEFAULT_PLAYER_SETTINGS.showTutorial,
+    showLanguageNotice:
+      typeof envelope.showLanguageNotice === "boolean"
+        ? envelope.showLanguageNotice
+        : DEFAULT_PLAYER_SETTINGS.showLanguageNotice,
     optionalAnalyticsConsent:
       typeof envelope.optionalAnalyticsConsent === "boolean"
         ? envelope.optionalAnalyticsConsent
@@ -104,7 +118,11 @@ export function normalizePlayerSettings(value: unknown): PlayerSettings {
       ? envelope.autoPassDelay
       : envelope.autoPassClaims === true
         ? "1s"
-        : DEFAULT_PLAYER_SETTINGS.autoPassDelay,
+        : envelope.autoPassClaims === false
+          ? "off"
+          : "autoPassDelay" in envelope
+            ? "off"
+            : DEFAULT_PLAYER_SETTINGS.autoPassDelay,
     // Deliberately not migrated from compactClaimPrompts. That flag defaulted
     // to "show the impact text", so carrying it across would leave the wordy
     // table switched on for everybody who never touched the setting — which is
@@ -113,20 +131,29 @@ export function normalizePlayerSettings(value: unknown): PlayerSettings {
       typeof envelope.claimImpactAnalysis === "boolean"
         ? envelope.claimImpactAnalysis
         : DEFAULT_PLAYER_SETTINGS.claimImpactAnalysis,
+    showGuide:
+      typeof envelope.showGuide === "boolean" ? envelope.showGuide : DEFAULT_PLAYER_SETTINGS.showGuide,
+    showActionsFeed:
+      typeof envelope.showActionsFeed === "boolean"
+        ? envelope.showActionsFeed
+        : DEFAULT_PLAYER_SETTINGS.showActionsFeed,
     practiceBotSpeed:
       envelope.practiceBotSpeed === "learning" ||
       envelope.practiceBotSpeed === "fast" ||
       envelope.practiceBotSpeed === "normal"
         ? envelope.practiceBotSpeed
         : DEFAULT_PLAYER_SETTINGS.practiceBotSpeed,
-    experimentalTableUi:
-      typeof envelope.experimentalTableUi === "boolean"
-        ? envelope.experimentalTableUi
-        : DEFAULT_PLAYER_SETTINGS.experimentalTableUi,
+    // The refreshed table is now the production table. The retired opt-in is
+    // accepted in stored records but can no longer restore the classic UI.
+    experimentalTableUi: true,
     tableLayoutOutlines:
       typeof envelope.tableLayoutOutlines === "boolean"
         ? envelope.tableLayoutOutlines
         : DEFAULT_PLAYER_SETTINGS.tableLayoutOutlines,
+    uiDebugMode:
+      typeof envelope.uiDebugMode === "boolean"
+        ? envelope.uiDebugMode
+        : DEFAULT_PLAYER_SETTINGS.uiDebugMode,
     handSortMode:
       envelope.handSortMode === "off" || envelope.handSortMode === "sets" || envelope.handSortMode === "suit-rank"
         ? envelope.handSortMode

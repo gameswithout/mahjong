@@ -164,6 +164,8 @@ const PLAYER_SETTING_FEATURES = [
   "expertHud",
   "autoPassDelay",
   "claimImpactAnalysis",
+  "showGuide",
+  "showActionsFeed",
   "practiceBotSpeed",
 ] as const satisfies ReadonlyArray<keyof PlayerSettings>;
 const AUTO_DRAW_DELAY_MS = 320;
@@ -3833,11 +3835,10 @@ export function App(
           </div>
         )}
 
-        {matchRuntimeState.status === "joined" && matchRuntimeState.stalled && !playerSettings.experimentalTableUi && (
-          <div className="game-screen-stalled" role="status" aria-live="polite" data-testid="table-stalled-notice">
-            <p className="game-screen-stalled-text">
-              {t("game.reconnectingStalled")}
-            </p>
+        {matchRuntimeState.status === "joined" && matchRuntimeState.stalled &&
+          (matchRuntimeState.view.phase === "hand_complete" || matchRuntimeState.view.phase === "exhaustive_draw") && (
+          <div className="game-screen-topbar">
+            <SystemAlerts alerts={[{ id: "connection-loss", severity: "error", message: t("game.reconnectingStalled") }]} />
           </div>
         )}
 
@@ -3868,8 +3869,10 @@ export function App(
                         expertHud: false,
                         autoPassDelay: playerSettings.autoPassDelay,
                         claimImpactAnalysis: playerSettings.claimImpactAnalysis,
-                        experimentalTableUi: playerSettings.experimentalTableUi,
-                        tableLayoutOutlines: playerSettings.tableLayoutOutlines,
+                        showGuide: playerSettings.showGuide,
+                        showActionsFeed: playerSettings.showActionsFeed,
+                        experimentalTableUi: true,
+                        tableLayoutOutlines: playerSettings.uiDebugMode,
                         handSortMode: playerSettings.handSortMode,
                         tableFxEnabled: playerSettings.tableFxEnabled,
                       }}
@@ -3929,7 +3932,7 @@ export function App(
                   <p className="fullscreen-help" role="status">
                     {t("game.fullscreenHelp")}
                   </p>
-                ) : playerSettings.experimentalTableUi && playerSettings.tableLayoutOutlines ? (
+                ) : playerSettings.uiDebugMode ? (
                   <p className="fullscreen-help is-layout-placeholder" aria-hidden="true">Fullscreen help</p>
                 ) : null}
                 <button
@@ -3950,13 +3953,13 @@ export function App(
                 >
                   {t("game.leaveMatch")}
                 </button>
-                {playerSettings.experimentalTableUi && (matchRuntimeState.stalled || controlRestoredNotice || playerSettings.tableLayoutOutlines) ? (
+                {matchRuntimeState.stalled || controlRestoredNotice || playerSettings.uiDebugMode ? (
                   <SystemAlerts
                     alerts={[
                       ...(matchRuntimeState.stalled ? [{ id: "connection-loss", severity: "error" as const, message: t("game.reconnectingStalled") }] : []),
                       ...(controlRestoredNotice ? [{ id: "connection-restored", severity: "success" as const, message: t("game.controlRestored") }] : []),
                     ]}
-                    review={playerSettings.tableLayoutOutlines}
+                    review={playerSettings.uiDebugMode}
                   />
                 ) : null}
                 {!playerSettings.experimentalTableUi && controlRestoredNotice ? (
@@ -4009,9 +4012,11 @@ export function App(
                       guidedPractice && isPracticeMatch(matchRuntimeState.view)
                         ? true
                         : playerSettings.claimImpactAnalysis,
+                    showGuide: playerSettings.showGuide,
+                    showActionsFeed: playerSettings.showActionsFeed,
                     guided: guidedPractice && isPracticeMatch(matchRuntimeState.view),
-                    experimentalTableUi: playerSettings.experimentalTableUi,
-                    tableLayoutOutlines: playerSettings.tableLayoutOutlines,
+                    experimentalTableUi: true,
+                    tableLayoutOutlines: playerSettings.uiDebugMode,
                     handSortMode: playerSettings.handSortMode,
                     tableFxEnabled: playerSettings.tableFxEnabled,
                     onExpertHudChange: guidedPractice
@@ -4420,6 +4425,40 @@ export function App(
 
             {state.lobbyStatus === "connected" && (
               <div className="session-panel">
+                {playerSettings.showLanguageNotice && (
+                  <section
+                    className="tutorial-card language-settings-notice"
+                    aria-labelledby="language-settings-notice-title"
+                  >
+                    <h2 id="language-settings-notice-title" className="tutorial-heading">
+                      {t("lobby.languageNoticeTitle")}
+                    </h2>
+                    <p className="practice-description">
+                      {t("lobby.languageNoticeBody")}
+                    </p>
+                    <button
+                      className="secondary-action session-action"
+                      type="button"
+                      onClick={() => setSettingsOpen(true)}
+                    >
+                      {t("lobby.openLanguageSettings")}
+                    </button>
+                    <button
+                      className="text-action tutorial-hide-action"
+                      type="button"
+                      aria-label={t("common.hide")}
+                      onClick={() =>
+                        void updatePlayerSettings({
+                          ...playerSettings,
+                          showLanguageNotice: false,
+                        })
+                      }
+                    >
+                      {t("common.hide")}
+                    </button>
+                  </section>
+                )}
+
                 {playerSettings.showTutorial && (
                 <section className="tutorial-card" aria-labelledby="tutorial-title">
                   <h2 id="tutorial-title" className="tutorial-heading">{t("lobby.learnTitle")}</h2>
@@ -4476,7 +4515,6 @@ export function App(
                   }
                   matchServiceAvailable={Boolean(accelByteConfig.matchServiceURL)}
                   onStart={() => void practiceVsBots()}
-                  onStartGuided={() => void practiceVsBots(true)}
                   onLeaveSelectedSession={() => void leaveTable()}
                   personaPicker={{
                     personas: botPersonaCatalogState.personas,

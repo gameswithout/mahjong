@@ -45,26 +45,19 @@ describe("PracticeLaunchCard", () => {
     expect(onStart).toHaveBeenCalledOnce();
   });
 
-  it("offers a clearly explained slower guided path", () => {
+  it("offers only Practice vs Bots", () => {
     const onStart = vi.fn();
-    const onStartGuided = vi.fn();
     act(() => root.render(
       <PracticeLaunchCard
         busy={false}
         hasSelectedSession={false}
         matchServiceAvailable
         onStart={onStart}
-        onStartGuided={onStartGuided}
       />,
     ));
 
-    expect(container.textContent).toContain("Slower bot actions");
-    const guided = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent === "Guided Practice",
-    );
-    act(() => guided?.click());
-    expect(onStartGuided).toHaveBeenCalledOnce();
-    expect(onStart).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("Guided Practice");
+    expect(container.querySelectorAll(".practice-actions button")).toHaveLength(1);
   });
 
   it("blocks a second launch while a Session is already selected", () => {
