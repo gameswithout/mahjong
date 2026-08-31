@@ -35,7 +35,8 @@ describe("SettingsScreen", () => {
     expect(markup).toContain(">1s</option>");
     expect(markup).toContain(">3s</option>");
     expect(markup).toContain(">5s</option>");
-    expect(markup).toContain("Show claim impact analysis");
+    expect(markup).toContain("Guide");
+    expect(markup).toContain("Actions Feed");
     expect(markup).toContain("Learning</option>");
     expect(markup).toContain(">Fast</option>");
     expect(markup).toContain(RULES_NAME);

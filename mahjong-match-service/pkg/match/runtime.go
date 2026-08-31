@@ -174,6 +174,7 @@ func enrichedView(
 	}
 	settlement, settleErr := rulesengine.SettleHand(rulesengine.SettlementInput{
 		Tier:          tier,
+		Policy:        rulesengine.Taiwanese16V11Ruleset.Settlement,
 		Dealer:        matchDealer,
 		Continuations: continuations,
 		Result:        view.HandResult,

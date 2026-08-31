@@ -1433,6 +1433,48 @@
         }
       }
     },
+    "servicePaymentCalculation": {
+      "type": "object",
+      "properties": {
+        "methodId": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "unitValue": {
+          "type": "string",
+          "format": "int64"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/servicePaymentComponent"
+          }
+        },
+        "multiplier": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "servicePaymentComponent": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "units": {
+          "type": "string",
+          "format": "int64"
+        },
+        "amount": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
     "servicePersonaBars": {
       "type": "object",
       "properties": {
@@ -1849,6 +1891,32 @@
         "totalDebits": {
           "type": "string",
           "format": "int64"
+        },
+        "method": {
+          "$ref": "#/definitions/serviceSettlementMethod"
+        }
+      }
+    },
+    "serviceSettlementMethod": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "baseUnits": {
+          "type": "string",
+          "format": "int64"
+        },
+        "taiCap": {
+          "type": "string",
+          "format": "int64"
+        },
+        "dealerMultiplier": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },
@@ -1923,6 +1991,9 @@
         },
         "capped": {
           "type": "boolean"
+        },
+        "calculation": {
+          "$ref": "#/definitions/servicePaymentCalculation"
         }
       }
     },

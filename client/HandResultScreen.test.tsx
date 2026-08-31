@@ -244,9 +244,9 @@ describe("HandResultScreen", () => {
     view.players = view.players.map((player) => ({ ...player, is_bot: false }));
     view.jade_account = {
       currency_code: "JADE",
-      balance: 5030,
+      balance: 5080,
       reserved: 0,
-      available: 5030,
+      available: 5080,
       eligible: true,
       minimum_balance: 1000,
       stake_per_tai: 10,
@@ -255,27 +255,40 @@ describe("HandResultScreen", () => {
     };
     view.jade_settlement = {
       seat: "E",
-      delta: 30,
+      delta: 80,
       balance_before: 5000,
-      balance_after: 5030,
+      balance_after: 5080,
       journal_id: "settlement:match-1",
     };
     if (!view.settlement?.transfers) {
       throw new Error("invalid settlement fixture");
     }
-    view.settlement.transfers[0].raw_amount = 30;
-    view.settlement.transfers[0].amount = 30;
-    view.settlement.net = { E: 30, S: -30 };
-    view.settlement.total_credits = 30;
-    view.settlement.total_debits = 30;
+    view.settlement.transfers[0].effective_tai = 8;
+    view.settlement.transfers[0].raw_amount = 80;
+    view.settlement.transfers[0].amount = 80;
+    view.settlement.transfers[0].calculation = {
+      method_id: "taiwanese-linear-base-tai-v1",
+      model: "linear_base_tai",
+      unit_value: 10,
+      components: [
+        { kind: "base", units: 1, amount: 10 },
+        { kind: "tai", units: 3, amount: 30 },
+      ],
+      multiplier: 2,
+    };
+    view.settlement.net = { E: 80, S: -80 };
+    view.settlement.total_credits = 80;
+    view.settlement.total_debits = 80;
 
     const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
 
-    expect(markup).toContain("You received 30 Jade");
+    expect(markup).toContain("You received 80 Jade");
     expect(markup).toContain("5,000");
-    expect(markup).toContain("5,030 Jade");
-    expect(markup).toContain("10 Jade per 台 × 3 台 = 30 Jade");
-    expect(markup).toContain("30 Jade paid = 30 received");
+    expect(markup).toContain("5,080 Jade");
+    expect(markup).toContain("Base: 1 × 10 = 10 Jade");
+    expect(markup).toContain("Tai: 3 × 10 = 30 Jade");
+    expect(markup).toContain("Payment multiplier ×2 = 80 Jade");
+    expect(markup).toContain("80 Jade paid = 80 received");
     expect(markup).toContain("No Jade was created or removed");
     expect(markup).toContain("Settlement posted");
     expect(markup).toContain("AGS Wallet synced");
@@ -349,7 +362,7 @@ describe("HandResultScreen", () => {
     expect(markup).not.toContain("discarded winning tile");
   });
 
-  it("attributes a payer-side Dealer Tai bonus to the actual dealer", () => {
+  it("attributes the payer-side dealer multiplier to the actual dealer", () => {
     const view = completedView();
     const winner = view.hand_result?.winners?.[0];
     if (!winner || !view.hand_result || !view.settlement) {
@@ -384,8 +397,8 @@ describe("HandResultScreen", () => {
 
     const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
 
-    expect(markup).toContain('Dealer <span lang="zh-Hant">台</span>: +5');
-    expect(markup).toContain("Applied when You (East) is the winner or payer");
+    expect(markup).toContain("Dealer: ×2");
+    expect(markup).toContain("Dealer involvement doubles this payment (You (East))");
     expect(markup).not.toContain("South is dealer");
   });
 
@@ -537,11 +550,25 @@ describe("HandResultScreen", () => {
     view.settlement.transfers = [{
       from: "S",
       to: "E",
-      effective_tai: 45,
-      raw_amount: 450000,
+      effective_tai: 34,
+      raw_amount: 340000,
       amount: 300000,
       capped: true,
+      calculation: {
+        method_id: "taiwanese-linear-base-tai-v1",
+        model: "linear_base_tai",
+        unit_value: 10000,
+        components: [
+          { kind: "base", units: 1, amount: 10000 },
+          { kind: "tai", units: 16, amount: 160000 },
+        ],
+        multiplier: 2,
+      },
     }];
+    const winner = view.hand_result?.winners?.[0];
+    if (winner) {
+      winner.score.raw_tai = 44;
+    }
     view.settlement.net = { E: 300000, S: -300000 };
     view.settlement.total_credits = 300000;
     view.settlement.total_debits = 300000;
@@ -551,8 +578,10 @@ describe("HandResultScreen", () => {
     expect(markup).toContain("Table stake:");
     expect(markup).toContain("10,000 Jade per 台");
     expect(markup).toContain("Debit cap:");
-    expect(markup).toContain("10,000 Jade per 台 × 45 台 = 450,000 Jade");
-    expect(markup).toContain("Debit cap applied: 450,000 → 300,000 Jade");
+    expect(markup).toContain("Base: 1 × 10,000 = 10,000 Jade");
+    expect(markup).toContain("Tai: 16 × 10,000 = 160,000 Jade");
+    expect(markup).toContain("Payment multiplier ×2 = 340,000 Jade");
+    expect(markup).toContain("Debit cap applied: 340,000 → 300,000 Jade");
     expect(markup).toContain("300,000 Jade paid = 300,000 received");
     expect(markup).toContain("Balances to zero");
   });

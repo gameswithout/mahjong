@@ -12,7 +12,7 @@ func rawWinner(seat Seat, rawTai int) HandWinner {
 
 func settle(t *testing.T, tier LobbyTier, dealer Seat, k int, result *HandResult) Settlement {
 	t.Helper()
-	settlement, err := SettleHand(SettlementInput{Tier: tier, Dealer: dealer, Continuations: k, Result: result})
+	settlement, err := SettleHand(SettlementInput{Tier: tier, Policy: Taiwanese16V11Ruleset.Settlement, Dealer: dealer, Continuations: k, Result: result})
 	if err != nil {
 		t.Fatalf("SettleHand() error = %v", err)
 	}
@@ -44,17 +44,53 @@ func assertConservation(t *testing.T, settlement Settlement, tier LobbyTier) {
 	}
 }
 
-func TestDealerTaiProgression(t *testing.T) {
-	for k, want := range map[int]int64{0: 1, 1: 3, 2: 5, 10: 21} {
-		got, err := DealerTai(k)
-		if err != nil || got != want {
-			t.Fatalf("DealerTai(%d) = %d, %v; want %d", k, got, err, want)
+func TestDealerMultiplierDoesNotEscalateWithContinuations(t *testing.T) {
+	for _, k := range []int{0, 1, 2, 10} {
+		got, err := DealerMultiplier(Taiwanese16V11Ruleset.Settlement, k)
+		if err != nil || got != 2 {
+			t.Fatalf("DealerMultiplier(%d) = %d, %v; want 2", k, got, err)
 		}
 	}
 	for _, k := range []int{-1, 11} {
-		if _, err := DealerTai(k); !errors.Is(err, ErrContinuations) {
-			t.Fatalf("DealerTai(%d) error = %v, want ErrContinuations", k, err)
+		if _, err := DealerMultiplier(Taiwanese16V11Ruleset.Settlement, k); !errors.Is(err, ErrContinuations) {
+			t.Fatalf("DealerMultiplier(%d) error = %v, want ErrContinuations", k, err)
 		}
+	}
+}
+
+func TestSettlementRequiresExplicitRulesetPolicy(t *testing.T) {
+	_, err := SettleHand(SettlementInput{
+		Tier:   TierBambooCourtyard,
+		Dealer: East,
+		Result: &HandResult{Kind: WinDiscard, Payer: South, Winners: []HandWinner{rawWinner(West, 5)}},
+	})
+	if !errors.Is(err, ErrSettlementInput) {
+		t.Fatalf("SettleHand() error = %v, want ErrSettlementInput", err)
+	}
+}
+
+func TestSettlementPolicyAndCalculationTravelWithResult(t *testing.T) {
+	policy := Taiwanese16V11Ruleset.Settlement
+	policy.ID = "test-base-two"
+	policy.BaseUnits = 2
+	result := &HandResult{Kind: WinDiscard, Payer: South, Winners: []HandWinner{rawWinner(West, 5)}}
+	settlement, err := SettleHand(SettlementInput{
+		Tier: TierBambooCourtyard, Policy: policy, Dealer: East, Result: result,
+	})
+	if err != nil {
+		t.Fatalf("SettleHand() error = %v", err)
+	}
+	if settlement.Method != policy {
+		t.Fatalf("method = %#v, want %#v", settlement.Method, policy)
+	}
+	transfer := settlement.Transfers[0]
+	if transfer.RawAmount != 70 || transfer.Calculation.MethodID != policy.ID ||
+		transfer.Calculation.Multiplier != 1 || len(transfer.Calculation.Components) != 2 {
+		t.Fatalf("transfer metadata = %#v", transfer)
+	}
+	if transfer.Calculation.Components[0].Kind != "base" || transfer.Calculation.Components[0].Amount != 20 ||
+		transfer.Calculation.Components[1].Kind != "tai" || transfer.Calculation.Components[1].Amount != 50 {
+		t.Fatalf("components = %#v", transfer.Calculation.Components)
 	}
 }
 
@@ -63,10 +99,10 @@ func TestDealerTaiProgression(t *testing.T) {
 func TestSettlementScalesByLobby(t *testing.T) {
 	result := &HandResult{Kind: WinDiscard, Payer: South, Winners: []HandWinner{rawWinner(West, 5)}}
 	for tier, want := range map[*LobbyTier]int64{
-		&TierBambooCourtyard:    50,
-		&TierSparrowPavilion:    500,
-		&TierWindAndCloudLounge: 5_000,
-		&TierDragonsDen:         50_000,
+		&TierBambooCourtyard:    60,
+		&TierSparrowPavilion:    600,
+		&TierWindAndCloudLounge: 6_000,
+		&TierDragonsDen:         60_000,
 	} {
 		settlement := settle(t, *tier, East, 0, result)
 		if len(settlement.Transfers) != 1 || settlement.Transfers[0].Amount != want {
@@ -79,17 +115,17 @@ func TestSettlementScalesByLobby(t *testing.T) {
 func TestSettlementDealerZimoWithContinuations(t *testing.T) {
 	result := &HandResult{Kind: WinZimo, Winners: []HandWinner{rawWinner(East, 5)}}
 	for tier, want := range map[*LobbyTier]int64{
-		&TierBambooCourtyard:    100,
-		&TierSparrowPavilion:    1_000,
-		&TierWindAndCloudLounge: 10_000,
-		&TierDragonsDen:         100_000,
+		&TierBambooCourtyard:    120,
+		&TierSparrowPavilion:    1_200,
+		&TierWindAndCloudLounge: 12_000,
+		&TierDragonsDen:         120_000,
 	} {
 		settlement := settle(t, *tier, East, 2, result)
 		if len(settlement.Transfers) != 3 {
 			t.Fatalf("transfers = %#v", settlement.Transfers)
 		}
 		for _, transfer := range settlement.Transfers {
-			if transfer.Amount != want || transfer.EffectiveTai != 10 {
+			if transfer.Amount != want || transfer.EffectiveTai != 12 {
 				t.Fatalf("%s transfer = %#v, want %d", tier.Name, transfer, want)
 			}
 		}
@@ -103,8 +139,8 @@ func TestSettlementDealerZimoWithContinuations(t *testing.T) {
 func TestSettlementNonDealerZimoDealerPaysMore(t *testing.T) {
 	result := &HandResult{Kind: WinZimo, Winners: []HandWinner{rawWinner(South, 5)}}
 	settlement := settle(t, TierBambooCourtyard, East, 2, result)
-	if settlement.Net[South] != 200 || settlement.Net[East] != -100 ||
-		settlement.Net[West] != -50 || settlement.Net[North] != -50 {
+	if settlement.Net[South] != 240 || settlement.Net[East] != -120 ||
+		settlement.Net[West] != -60 || settlement.Net[North] != -60 {
 		t.Fatalf("net = %#v", settlement.Net)
 	}
 }
@@ -113,8 +149,8 @@ func TestSettlementNonDealerZimoDealerPaysMore(t *testing.T) {
 func TestSettlementKongTaiSettlesOnlyAtHandEnd(t *testing.T) {
 	result := &HandResult{Kind: WinZimo, Winners: []HandWinner{rawWinner(South, 4)}}
 	settlement := settle(t, TierBambooCourtyard, East, 0, result)
-	if settlement.Net[South] != 130 || settlement.Net[East] != -50 ||
-		settlement.Net[West] != -40 || settlement.Net[North] != -40 {
+	if settlement.Net[South] != 200 || settlement.Net[East] != -100 ||
+		settlement.Net[West] != -50 || settlement.Net[North] != -50 {
 		t.Fatalf("net = %#v", settlement.Net)
 	}
 }
@@ -123,18 +159,18 @@ func TestSettlementKongTaiSettlesOnlyAtHandEnd(t *testing.T) {
 func TestSettlementEightFlowersThreePayerModel(t *testing.T) {
 	result := &HandResult{Kind: WinEightFlowers, Winners: []HandWinner{rawWinner(South, 15)}}
 	settlement := settle(t, TierBambooCourtyard, East, 0, result)
-	if settlement.Net[South] != 460 || settlement.Net[East] != -160 ||
-		settlement.Net[West] != -150 || settlement.Net[North] != -150 {
+	if settlement.Net[South] != 620 || settlement.Net[East] != -300 ||
+		settlement.Net[West] != -160 || settlement.Net[North] != -160 {
 		t.Fatalf("net = %#v", settlement.Net)
 	}
 }
 
-// §7.4 example 5: a single 450,000 obligation in Dragon's Den caps at 300,000.
+// A very high displayed Tai settles at the ordinary-hand 16-Tai cap.
 func TestSettlementSinglePayerCap(t *testing.T) {
 	result := &HandResult{Kind: WinDiscard, Payer: South, Winners: []HandWinner{rawWinner(West, 45)}}
 	settlement := settle(t, TierDragonsDen, East, 0, result)
 	transfer := settlement.Transfers[0]
-	if transfer.RawAmount != 450_000 || transfer.Amount != 300_000 || !transfer.Capped {
+	if transfer.RawAmount != 170_000 || transfer.Amount != 170_000 || transfer.Capped {
 		t.Fatalf("transfer = %#v", transfer)
 	}
 }
@@ -147,7 +183,7 @@ func TestSettlementMaximumHandCapsEachPayerIndependently(t *testing.T) {
 		t.Fatalf("transfers = %#v", settlement.Transfers)
 	}
 	for _, transfer := range settlement.Transfers {
-		if transfer.EffectiveTai != 90 || transfer.RawAmount != 900_000 ||
+		if transfer.EffectiveTai != 34 || transfer.RawAmount != 340_000 ||
 			transfer.Amount != 300_000 || !transfer.Capped {
 			t.Fatalf("transfer = %#v", transfer)
 		}
@@ -157,7 +193,8 @@ func TestSettlementMaximumHandCapsEachPayerIndependently(t *testing.T) {
 	}
 }
 
-// §7.4 example 7: two discard winners split the discarder's cap 171/129 by
+// Two discard winners split the discarder's cap proportionally after each
+// hand is capped to ordinary settlement Tai.
 // integer largest-remainder allocation.
 func TestSettlementLargestRemainderAllocation(t *testing.T) {
 	result := &HandResult{
@@ -169,7 +206,7 @@ func TestSettlementLargestRemainderAllocation(t *testing.T) {
 		},
 	}
 	settlement := settle(t, TierBambooCourtyard, East, 0, result)
-	if settlement.Net[South] != 171 || settlement.Net[West] != 129 || settlement.Net[North] != -300 {
+	if settlement.Net[South] != 155 || settlement.Net[West] != 145 || settlement.Net[North] != -300 {
 		t.Fatalf("net = %#v", settlement.Net)
 	}
 }
@@ -239,7 +276,7 @@ func TestSettlementConservationFuzz(t *testing.T) {
 			}
 			result = &HandResult{Kind: WinDiscard, Payer: payer, Winners: winners}
 		}
-		settlement, err := SettleHand(SettlementInput{Tier: tier, Dealer: dealer, Continuations: k, Result: result})
+		settlement, err := SettleHand(SettlementInput{Tier: tier, Policy: Taiwanese16V11Ruleset.Settlement, Dealer: dealer, Continuations: k, Result: result})
 		if err != nil {
 			t.Fatalf("round %d: SettleHand() error = %v", round, err)
 		}

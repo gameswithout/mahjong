@@ -815,6 +815,29 @@ message Transfer {
   int64 raw_amount = 4;
   int64 amount = 5;
   bool capped = 6;
+  PaymentCalculation calculation = 7;
+}
+
+message PaymentComponent {
+  string kind = 1;
+  int64 units = 2;
+  int64 amount = 3;
+}
+
+message PaymentCalculation {
+  string method_id = 1;
+  string model = 2;
+  int64 unit_value = 3;
+  repeated PaymentComponent components = 4;
+  int64 multiplier = 5;
+}
+
+message SettlementMethod {
+  string id = 1;
+  string model = 2;
+  int64 base_units = 3;
+  int64 tai_cap = 4;
+  int64 dealer_multiplier = 5;
 }
 
 message Settlement {
@@ -822,6 +845,7 @@ message Settlement {
   map<string, int64> net = 2;
   int64 total_credits = 3;
   int64 total_debits = 4;
+  SettlementMethod method = 5;
 }
 
 message ContinuationOutcome {

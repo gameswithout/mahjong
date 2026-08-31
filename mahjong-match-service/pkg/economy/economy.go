@@ -17,7 +17,7 @@ const (
 	DebitCap           = int64(300)
 	AccountGrant       = int64(3_000)
 	OnboardingGrant    = int64(2_000)
-	RulesVersion       = "taiwanese-16-v1.1"
+	RulesVersion       = rulesengine.Taiwanese16V11RulesetID
 	ReservationMinutes = 10
 	walletSyncTimeout  = 15 * time.Second
 )

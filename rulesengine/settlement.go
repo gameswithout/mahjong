@@ -29,39 +29,63 @@ var (
 	ErrContinuations   = errors.New("dealer continuation count out of range")
 )
 
-// DealerTai is the §5.12 settlement modifier: 1 + 2k, applied at most once
-// per winner-payer relationship when either side of it is the dealer.
-func DealerTai(continuations int) (int64, error) {
+// DealerMultiplier is applied once to a winner-payer relationship whenever
+// either participant is the dealer. Continuations still control rotation, but
+// do not inflate the payment multiplier.
+func DealerMultiplier(policy SettlementPolicy, continuations int) (int64, error) {
 	if continuations < 0 || continuations > MaxDealerContinuations {
 		return 0, ErrContinuations
 	}
-	return int64(1 + 2*continuations), nil
+	if policy.DealerMultiplier <= 0 {
+		return 0, ErrSettlementInput
+	}
+	return policy.DealerMultiplier, nil
 }
 
 type SettlementInput struct {
-	Tier          LobbyTier   `json:"tier"`
-	Dealer        Seat        `json:"dealer"`
-	Continuations int         `json:"continuations"`
-	Result        *HandResult `json:"result"`
+	Tier          LobbyTier        `json:"tier"`
+	Policy        SettlementPolicy `json:"policy"`
+	Dealer        Seat             `json:"dealer"`
+	Continuations int              `json:"continuations"`
+	Result        *HandResult      `json:"result"`
 }
 
 // Transfer is one winner-payer settlement. RawAmount is the uncapped §7.3
 // obligation; Amount is the Jade that actually moves after the payer's debit
 // cap is allocated.
 type Transfer struct {
-	From         Seat  `json:"from"`
-	To           Seat  `json:"to"`
-	EffectiveTai int64 `json:"effective_tai"`
-	RawAmount    int64 `json:"raw_amount"`
-	Amount       int64 `json:"amount"`
-	Capped       bool  `json:"capped"`
+	From         Seat               `json:"from"`
+	To           Seat               `json:"to"`
+	EffectiveTai int64              `json:"effective_tai"`
+	RawAmount    int64              `json:"raw_amount"`
+	Amount       int64              `json:"amount"`
+	Capped       bool               `json:"capped"`
+	Calculation  PaymentCalculation `json:"calculation"`
+}
+
+type PaymentComponent struct {
+	Kind   string `json:"kind"`
+	Units  int64  `json:"units"`
+	Amount int64  `json:"amount"`
+}
+
+// PaymentCalculation is deliberately method-neutral result metadata. A
+// result client renders its components without reconstructing settlement
+// rules from raw Tai or dealer state.
+type PaymentCalculation struct {
+	MethodID   string             `json:"method_id"`
+	Model      SettlementModel    `json:"model"`
+	UnitValue  int64              `json:"unit_value"`
+	Components []PaymentComponent `json:"components"`
+	Multiplier int64              `json:"multiplier"`
 }
 
 type Settlement struct {
-	Transfers    []Transfer     `json:"transfers,omitempty"`
-	Net          map[Seat]int64 `json:"net"`
-	TotalCredits int64          `json:"total_credits"`
-	TotalDebits  int64          `json:"total_debits"`
+	Method       SettlementPolicy `json:"method"`
+	Transfers    []Transfer       `json:"transfers,omitempty"`
+	Net          map[Seat]int64   `json:"net"`
+	TotalCredits int64            `json:"total_credits"`
+	TotalDebits  int64            `json:"total_debits"`
 }
 
 // SettleHand computes the §7.3 Jade transfers for a completed hand. Discard
@@ -71,17 +95,19 @@ type Settlement struct {
 // break by winner order, which for a shared payer follows §5.6 turn-order
 // proximity as recorded in Result.Winners. Credits equal debits exactly.
 func SettleHand(input SettlementInput) (Settlement, error) {
-	if input.Result == nil || input.Tier.StakePerTai <= 0 || input.Tier.DebitCap <= 0 {
+	if input.Result == nil || input.Tier.StakePerTai <= 0 || input.Tier.DebitCap <= 0 ||
+		input.Policy.ID == "" || input.Policy.Model != SettlementModelLinearBaseTai ||
+		input.Policy.BaseUnits < 0 || input.Policy.TaiCap <= 0 || input.Policy.DealerMultiplier <= 0 {
 		return Settlement{}, ErrSettlementInput
 	}
 	if !containsSeat(seats[:], input.Dealer) {
 		return Settlement{}, ErrSettlementInput
 	}
-	dealerTai, err := DealerTai(input.Continuations)
+	dealerMultiplier, err := DealerMultiplier(input.Policy, input.Continuations)
 	if err != nil {
 		return Settlement{}, err
 	}
-	settlement := Settlement{Net: map[Seat]int64{}}
+	settlement := Settlement{Method: input.Policy, Net: map[Seat]int64{}}
 	for _, seat := range seats {
 		settlement.Net[seat] = 0
 	}
@@ -99,15 +125,30 @@ func SettleHand(input SettlementInput) (Settlement, error) {
 			return Settlement{}, err
 		}
 		for _, payer := range payers {
-			effective := int64(winner.Score.RawTai)
-			if winner.Seat == input.Dealer || payer == input.Dealer {
-				effective += dealerTai
+			settledTai := int64(winner.Score.RawTai)
+			if settledTai > input.Policy.TaiCap {
+				settledTai = input.Policy.TaiCap
 			}
+			multiplier := int64(1)
+			if winner.Seat == input.Dealer || payer == input.Dealer {
+				multiplier = dealerMultiplier
+			}
+			effective := (input.Policy.BaseUnits + settledTai) * multiplier
 			claims = append(claims, settlementClaim{
 				payer:     payer,
 				winner:    winner.Seat,
 				effective: effective,
 				raw:       input.Tier.StakePerTai * effective,
+				calculation: PaymentCalculation{
+					MethodID:  input.Policy.ID,
+					Model:     input.Policy.Model,
+					UnitValue: input.Tier.StakePerTai,
+					Components: []PaymentComponent{
+						{Kind: "base", Units: input.Policy.BaseUnits, Amount: input.Tier.StakePerTai * input.Policy.BaseUnits},
+						{Kind: "tai", Units: settledTai, Amount: input.Tier.StakePerTai * settledTai},
+					},
+					Multiplier: multiplier,
+				},
 			})
 		}
 	}
@@ -144,6 +185,7 @@ func SettleHand(input SettlementInput) (Settlement, error) {
 				RawAmount:    item.raw,
 				Amount:       amounts[position],
 				Capped:       capped,
+				Calculation:  item.calculation,
 			}
 			settlement.Transfers = append(settlement.Transfers, transfer)
 			settlement.Net[item.winner] += transfer.Amount
@@ -176,10 +218,11 @@ func payersFor(result *HandResult, winner Seat) ([]Seat, error) {
 }
 
 type settlementClaim struct {
-	payer     Seat
-	winner    Seat
-	effective int64
-	raw       int64
+	payer       Seat
+	winner      Seat
+	effective   int64
+	raw         int64
+	calculation PaymentCalculation
 }
 
 // largestRemainderAllocation splits cap proportionally to the raw claims at

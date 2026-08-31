@@ -201,11 +201,25 @@ function normalizeSettlement(raw: unknown): unknown {
   const transfers = Array.isArray(settlement.transfers)
     ? settlement.transfers.map((transfer) => {
         const item = transfer as Record<string, unknown>;
+        const calculation = item.calculation && typeof item.calculation === "object"
+          ? item.calculation as Record<string, unknown>
+          : undefined;
         return {
           ...item,
           effective_tai: toNumber(item.effective_tai),
           raw_amount: toNumber(item.raw_amount),
           amount: toNumber(item.amount),
+          calculation: calculation ? {
+            ...calculation,
+            unit_value: toNumber(calculation.unit_value),
+            multiplier: toNumber(calculation.multiplier),
+            components: Array.isArray(calculation.components)
+              ? calculation.components.map((component) => {
+                  const value = component as Record<string, unknown>;
+                  return { ...value, units: toNumber(value.units), amount: toNumber(value.amount) };
+                })
+              : [],
+          } : undefined,
         };
       })
     : undefined;
@@ -213,6 +227,17 @@ function normalizeSettlement(raw: unknown): unknown {
     ...settlement,
     net,
     transfers,
+    method: settlement.method && typeof settlement.method === "object"
+      ? (() => {
+          const method = settlement.method as Record<string, unknown>;
+          return {
+            ...method,
+            base_units: toNumber(method.base_units),
+            tai_cap: toNumber(method.tai_cap),
+            dealer_multiplier: toNumber(method.dealer_multiplier),
+          };
+        })()
+      : undefined,
     total_credits: toNumber(settlement.total_credits),
     total_debits: toNumber(settlement.total_debits),
   };

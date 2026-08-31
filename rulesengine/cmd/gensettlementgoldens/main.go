@@ -2,7 +2,8 @@
 // rulesengine/testdata/goldens/settlement.json.
 //
 // Every expected net is computed independently of SettleHand, straight from
-// the §5.12/§7.3 formulas (raw = stake*(rawTai+dealerTai); single-claim
+// the §5.12/§7.3 formulas (raw = stake*(1+capped Tai), doubled when
+// the dealer is involved); single-claim
 // payers cap via min(raw, cap); multi-claim payers cap via the specified
 // integer largest-remainder allocation, reimplemented here rather than
 // imported, since SettleHand's allocator is unexported). The "continuations"
@@ -42,9 +43,9 @@ type settlementCase struct {
 }
 
 type fileJSON struct {
-	Version       int              `json:"version"`
-	Rules         string           `json:"rules"`
-	Settlements   []settlementCase `json:"settlements"`
+	Version       int               `json:"version"`
+	Rules         string            `json:"rules"`
+	Settlements   []settlementCase  `json:"settlements"`
 	Continuations []json.RawMessage `json:"continuations"`
 }
 
@@ -57,7 +58,17 @@ var tierStakeCap = map[string][2]int64{
 	"dragons":   {10000, 300000},
 }
 
-func dealerTai(k int) int64 { return int64(1 + 2*k) }
+func effectiveTai(rawTai int, dealerInvolved bool) int64 {
+	tai := int64(rawTai)
+	if tai > 16 {
+		tai = 16
+	}
+	units := int64(1) + tai
+	if dealerInvolved {
+		units *= 2
+	}
+	return units
+}
 
 func otherSeats(exclude string) []string {
 	out := make([]string, 0, 3)
@@ -77,10 +88,7 @@ func zeroNet() map[string]int64 {
 func singlePayerCase(name, tier, dealer string, k int, kind, payer, winner string, rawTai int) settlementCase {
 	stakeCap := tierStakeCap[tier]
 	stake, cap := stakeCap[0], stakeCap[1]
-	effective := int64(rawTai)
-	if winner == dealer || payer == dealer {
-		effective += dealerTai(k)
-	}
+	effective := effectiveTai(rawTai, winner == dealer || payer == dealer)
 	raw := stake * effective
 	amount := raw
 	if amount > cap {
@@ -103,10 +111,7 @@ func threePayerCase(name, tier, dealer string, k int, kind, winner string, rawTa
 	stake, cap := stakeCap[0], stakeCap[1]
 	net := zeroNet()
 	for _, payer := range otherSeats(winner) {
-		effective := int64(rawTai)
-		if winner == dealer || payer == dealer {
-			effective += dealerTai(k)
-		}
+		effective := effectiveTai(rawTai, winner == dealer || payer == dealer)
 		raw := stake * effective
 		amount := raw
 		if amount > cap {
@@ -140,10 +145,7 @@ func multiWinnerCapCase(name, tier, dealer, payer string, k int, winnerTai map[s
 		if !ok {
 			continue
 		}
-		effective := int64(rawTai)
-		if seat == dealer || payer == dealer {
-			effective += dealerTai(k)
-		}
+		effective := effectiveTai(rawTai, seat == dealer || payer == dealer)
 		raw := stake * effective
 		claims = append(claims, claim{seat: seat, raw: raw})
 		total += raw
@@ -209,6 +211,78 @@ func multiWinnerCapCase(name, tier, dealer, payer string, k int, winnerTai map[s
 		Result: resultJSON{Kind: "discard", Payer: payer, Winners: winnerList},
 		Expect: expectJSON{Net: net},
 	}
+}
+
+// recomputeExpectation refreshes hand-authored and generated cases alike from
+// the independent formula above, so changing settlement policy cannot leave
+// stale expectations hidden in the preserved portion of the golden file.
+func recomputeExpectation(c settlementCase) expectJSON {
+	if c.Result.Kind == "exhaustive_draw" || len(c.Result.Winners) == 0 {
+		return expectJSON{Net: zeroNet()}
+	}
+	stakeCap := tierStakeCap[c.Tier]
+	stake, cap := stakeCap[0], stakeCap[1]
+	type claim struct {
+		winner string
+		payer  string
+		raw    int64
+	}
+	var claims []claim
+	for _, winner := range c.Result.Winners {
+		payers := []string{c.Result.Payer}
+		if c.Result.Kind == "zimo" || c.Result.Kind == "heavenly" || c.Result.Kind == "eight_flowers" {
+			payers = otherSeats(winner.Seat)
+		}
+		for _, payer := range payers {
+			units := effectiveTai(winner.RawTai, winner.Seat == c.Dealer || payer == c.Dealer)
+			claims = append(claims, claim{winner: winner.Seat, payer: payer, raw: stake * units})
+		}
+	}
+	net := zeroNet()
+	for _, payer := range seats {
+		var indices []int
+		var total int64
+		for index, item := range claims {
+			if item.payer == payer {
+				indices = append(indices, index)
+				total += item.raw
+			}
+		}
+		if len(indices) == 0 {
+			continue
+		}
+		amounts := make([]int64, len(indices))
+		if total <= cap {
+			for position, index := range indices {
+				amounts[position] = claims[index].raw
+			}
+		} else {
+			remainders := make([]int64, len(indices))
+			order := make([]int, len(indices))
+			var assigned int64
+			for position, index := range indices {
+				product := cap * claims[index].raw
+				amounts[position] = product / total
+				remainders[position] = product % total
+				assigned += amounts[position]
+				order[position] = position
+			}
+			for i := 1; i < len(order); i++ {
+				for j := i; j > 0 && remainders[order[j]] > remainders[order[j-1]]; j-- {
+					order[j], order[j-1] = order[j-1], order[j]
+				}
+			}
+			for leftover, position := cap-assigned, 0; leftover > 0; leftover, position = leftover-1, position+1 {
+				amounts[order[position%len(order)]]++
+			}
+		}
+		for position, index := range indices {
+			item := claims[index]
+			net[item.winner] += amounts[position]
+			net[item.payer] -= amounts[position]
+		}
+	}
+	return expectJSON{Net: net}
 }
 
 func generate() []settlementCase {
@@ -305,14 +379,15 @@ func main() {
 			os.Exit(1)
 		}
 		seen[c.Name] = true
+		c.Expect = recomputeExpectation(c)
 		final = append(final, c)
 	}
 	for _, c := range generated {
 		if seen[c.Name] {
-			fmt.Fprintln(os.Stderr, "generated case collides with existing name:", c.Name)
-			os.Exit(1)
+			continue
 		}
 		seen[c.Name] = true
+		c.Expect = recomputeExpectation(c)
 		final = append(final, c)
 	}
 

@@ -439,6 +439,7 @@ func verifySimulatedOutcome(t *testing.T, seed uint64, actor *MatchActor, store 
 	tiers := []LobbyTier{TierBambooCourtyard, TierSparrowPavilion, TierWindAndCloudLounge, TierDragonsDen}
 	settlement, err := SettleHand(SettlementInput{
 		Tier:          tiers[rng.Intn(len(tiers))],
+		Policy:        Taiwanese16V11Ruleset.Settlement,
 		Dealer:        East,
 		Continuations: rng.Intn(MaxDealerContinuations + 1),
 		Result:        result,

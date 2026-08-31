@@ -1,5 +1,5 @@
 // §9.7 "Results and explanation": the end-of-hand tally. Covers items
-// 1-7 (winning hand/tile, decomposition, patterns, raw Tai, Dealer Tai,
+// 1-7 (winning hand/tile, decomposition, patterns, raw Tai, payout modifiers,
 // settlement transfers, dealer continuation) plus item 8's XP (§12.1),
 // item 9's post-match Add Friend action, and the Match ID and Practice
 // replay/return slice of item 10. Rating (the rest of item 8), result-card
@@ -708,14 +708,18 @@ function SettlementRow({
   transfer,
   localSeat,
   unit,
-  stakePerTai,
 }: {
   transfer: Transfer;
   localSeat: MahjongSeat;
   unit: string;
-  stakePerTai?: number;
 }) {
   const capped = transfer.capped || transfer.amount < transfer.raw_amount;
+  const calculation = transfer.calculation;
+  const componentLabel = (kind: string) => {
+    if (kind === "base") return t("result.paymentBase");
+    if (kind === "tai") return t("result.paymentTai");
+    return kind;
+  };
   return (
     <li className={`hand-result-transfer${capped ? " hand-result-transfer-capped" : ""}`}>
       <div className="hand-result-transfer-route">
@@ -726,15 +730,32 @@ function SettlementRow({
       <strong className="hand-result-transfer-amount">
         {formatNumber(transfer.amount)} {unit}
       </strong>
-      <p className="hand-result-transfer-formula">
-        {stakePerTai
-          ? t("result.jadePerTai", {
-              stake: formatNumber(stakePerTai),
-              tai: transfer.effective_tai,
-              amount: formatNumber(transfer.raw_amount),
-            })
-          : t("result.rawPayment", { amount: formatNumber(transfer.raw_amount), unit })}
-      </p>
+      {calculation ? (
+        <div className="hand-result-transfer-formula" data-settlement-method={calculation.method_id}>
+          <ul className="hand-result-payment-components">
+            {calculation.components.map((component, index) => (
+              <li key={`${component.kind}-${index}`}>
+                {t("result.paymentComponent", {
+                  label: componentLabel(component.kind),
+                  units: component.units,
+                  value: formatNumber(calculation.unit_value),
+                  amount: formatNumber(component.amount),
+                  unit,
+                })}
+              </li>
+            ))}
+          </ul>
+          <p>{t("result.paymentTotal", {
+            multiplier: calculation.multiplier,
+            amount: formatNumber(transfer.raw_amount),
+            unit,
+          })}</p>
+        </div>
+      ) : (
+        <p className="hand-result-transfer-formula">
+          {t("result.rawPayment", { amount: formatNumber(transfer.raw_amount), unit })}
+        </p>
+      )}
       {capped && (
         <p className="hand-result-cap-note">
           {t("result.debitCap", {
@@ -793,7 +814,6 @@ function SettlementStory({
               transfer={transfer}
               localSeat={view.seat}
               unit={unit}
-              stakePerTai={practice ? undefined : view.jade_account?.stake_per_tai}
             />
           ))}
         </ol>
@@ -924,12 +944,8 @@ export function HandResultScreen({
   }
   const winners = result.winners ?? [];
   const dealer = currentDealer(view);
-  const dealerTaiBonus = Math.max(
-    0,
-    ...(view.settlement?.transfers ?? []).map((transfer) => {
-      const winner = winners.find((candidate) => candidate.seat === transfer.to);
-      return winner ? transfer.effective_tai - winner.score.raw_tai : 0;
-    }),
+  const dealerMultiplierApplied = (view.settlement?.transfers ?? []).some(
+    (transfer) => transfer.from === dealer || transfer.to === dealer,
   );
   const walletSyncStatus = view.jade_account?.wallet_sync_status;
   const walletSyncError = view.jade_account?.wallet_sync_error;
@@ -969,11 +985,11 @@ export function HandResultScreen({
             ))
           )}
 
-          {dealerTaiBonus > 0 && dealer && (
+          {dealerMultiplierApplied && dealer && (
             <p className="hand-result-dealer-tai">
-              <strong>{t("table.dealer")} <span lang="zh-Hant">台</span>: +{dealerTaiBonus}</strong>
+              <strong>{t("table.dealer")}: ×2</strong>
               <span>
-                {t("result.dealerTaiApplied", { dealer: seatLabel(dealer, view.seat) })}
+                {t("result.dealerMultiplierApplied", { dealer: seatLabel(dealer, view.seat) })}
               </span>
             </p>
           )}

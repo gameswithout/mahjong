@@ -784,8 +784,16 @@ func TestProjectState_ProjectsHandResultSettlementAndNextDealer(t *testing.T) {
 		},
 	}
 	view.Settlement = &rulesengine.Settlement{
+		Method: rulesengine.Taiwanese16V11Ruleset.Settlement,
 		Transfers: []rulesengine.Transfer{
-			{From: rulesengine.South, To: rulesengine.East, EffectiveTai: 4, RawAmount: 40, Amount: 40},
+			{
+				From: rulesengine.South, To: rulesengine.East, EffectiveTai: 4, RawAmount: 40, Amount: 40,
+				Calculation: rulesengine.PaymentCalculation{
+					MethodID: "taiwanese-linear-base-tai-v1", Model: rulesengine.SettlementModelLinearBaseTai,
+					UnitValue: 10, Multiplier: 1,
+					Components: []rulesengine.PaymentComponent{{Kind: "base", Units: 1, Amount: 10}, {Kind: "tai", Units: 3, Amount: 30}},
+				},
+			},
 		},
 		Net:          map[rulesengine.Seat]int64{rulesengine.East: 40, rulesengine.South: -40},
 		TotalCredits: 40,
@@ -813,6 +821,10 @@ func TestProjectState_ProjectsHandResultSettlementAndNextDealer(t *testing.T) {
 	}
 	if len(settlement.GetTransfers()) != 1 || settlement.GetTransfers()[0].GetAmount() != 40 {
 		t.Fatalf("projected settlement transfers = %#v", settlement.GetTransfers())
+	}
+	if settlement.GetMethod().GetId() != "taiwanese-linear-base-tai-v1" ||
+		settlement.GetTransfers()[0].GetCalculation().GetComponents()[1].GetKind() != "tai" {
+		t.Fatalf("projected settlement method metadata = %#v", settlement)
 	}
 
 	nextDealer := state.GetNextDealer()

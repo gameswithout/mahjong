@@ -1093,6 +1093,13 @@ func projectSettlement(settlement rulesengine.Settlement) *pb.Settlement {
 		Net:          make(map[string]int64, len(settlement.Net)),
 		TotalCredits: settlement.TotalCredits,
 		TotalDebits:  settlement.TotalDebits,
+		Method: &pb.SettlementMethod{
+			Id:               settlement.Method.ID,
+			Model:            string(settlement.Method.Model),
+			BaseUnits:        settlement.Method.BaseUnits,
+			TaiCap:           settlement.Method.TaiCap,
+			DealerMultiplier: settlement.Method.DealerMultiplier,
+		},
 	}
 	for seat, amount := range settlement.Net {
 		result.Net[string(seat)] = amount
@@ -1105,7 +1112,21 @@ func projectSettlement(settlement rulesengine.Settlement) *pb.Settlement {
 			RawAmount:    transfer.RawAmount,
 			Amount:       transfer.Amount,
 			Capped:       transfer.Capped,
+			Calculation: &pb.PaymentCalculation{
+				MethodId:   transfer.Calculation.MethodID,
+				Model:      string(transfer.Calculation.Model),
+				UnitValue:  transfer.Calculation.UnitValue,
+				Multiplier: transfer.Calculation.Multiplier,
+			},
 		})
+		projected := result.Transfers[len(result.Transfers)-1]
+		for _, component := range transfer.Calculation.Components {
+			projected.Calculation.Components = append(projected.Calculation.Components, &pb.PaymentComponent{
+				Kind:   component.Kind,
+				Units:  component.Units,
+				Amount: component.Amount,
+			})
+		}
 	}
 	return result
 }

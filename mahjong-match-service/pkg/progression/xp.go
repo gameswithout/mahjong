@@ -47,7 +47,7 @@ const (
 	SourcePublicHand = "public_hand"
 )
 
-const RulesVersion = "taiwanese-16-v1.1"
+const RulesVersion = rulesengine.Taiwanese16V11RulesetID
 
 const (
 	ComponentTutorial      = "tutorial"

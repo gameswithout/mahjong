@@ -351,6 +351,7 @@ func enrichedView(actor *rulesengine.MatchActor, seat rulesengine.Seat) (rulesen
 	}
 	settlement, settleErr := rulesengine.SettleHand(rulesengine.SettlementInput{
 		Tier:          matchTier,
+		Policy:        rulesengine.Taiwanese16V11Ruleset.Settlement,
 		Dealer:        matchDealer,
 		Continuations: matchContinuations,
 		Result:        view.HandResult,

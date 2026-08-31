@@ -61,10 +61,9 @@ func TestRotationStartsWithEastDealingAndEveryoneOnZero(t *testing.T) {
 	}
 }
 
-func TestTablePointsAreUncappedAndUnmultiplied(t *testing.T) {
-	// §8.4: same payer and multiple-winner rules as Jade, but no cap and no
-	// stake multiplier. A hand that Bamboo would cap at 300 Jade must move its
-	// full raw value in table points.
+func TestTablePointsUseSettlementUnitsWithoutJadeDebitCap(t *testing.T) {
+	// Table points use the base-plus-capped-Tai payment units, but no Jade
+	// multiplier or currency debit cap.
 	state := NewRotationState(rotationStart)
 
 	outcome, err := state.ApplyHand(discardWin(South, West, 45), false, rotationStart)
@@ -72,12 +71,12 @@ func TestTablePointsAreUncappedAndUnmultiplied(t *testing.T) {
 		t.Fatalf("ApplyHand() error = %v", err)
 	}
 
-	// 45 raw Tai, no dealer involvement, at one point per Tai.
-	if got := outcome.State.Tallies[South].TablePoints; got != 45 {
-		t.Fatalf("winner table points = %d, want 45", got)
+	// 45 displayed Tai settles at the 16-Tai cap plus one base point.
+	if got := outcome.State.Tallies[South].TablePoints; got != 17 {
+		t.Fatalf("winner table points = %d, want 17", got)
 	}
-	if got := outcome.State.Tallies[West].TablePoints; got != -45 {
-		t.Fatalf("payer table points = %d, want -45", got)
+	if got := outcome.State.Tallies[West].TablePoints; got != -17 {
+		t.Fatalf("payer table points = %d, want -17", got)
 	}
 	for _, transfer := range outcome.Settlement.Transfers {
 		if transfer.Capped {
@@ -298,7 +297,7 @@ func TestApplyHandDoesNotMutateTheReceiver(t *testing.T) {
 	if state.HandsPlayed != 0 || state.Dealer != East {
 		t.Fatalf("ApplyHand mutated the receiver: %+v", state)
 	}
-	if outcome.State.Tallies[South].TablePoints != 9 {
+	if outcome.State.Tallies[South].TablePoints != 10 {
 		t.Fatal("the returned state did not record the hand")
 	}
 }

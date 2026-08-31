@@ -199,6 +199,29 @@ export interface Transfer {
   raw_amount: number;
   amount: number;
   capped?: boolean;
+  calculation?: PaymentCalculation;
+}
+
+export interface PaymentComponent {
+  kind: string;
+  units: number;
+  amount: number;
+}
+
+export interface PaymentCalculation {
+  method_id: string;
+  model: string;
+  unit_value: number;
+  components: PaymentComponent[];
+  multiplier: number;
+}
+
+export interface SettlementMethod {
+  id: string;
+  model: string;
+  base_units: number;
+  tai_cap: number;
+  dealer_multiplier: number;
 }
 
 export interface Settlement {
@@ -206,6 +229,7 @@ export interface Settlement {
   net: Partial<Record<MahjongSeat, number>>;
   total_credits: number;
   total_debits: number;
+  method?: SettlementMethod;
 }
 
 export type JadeWelfareReason =

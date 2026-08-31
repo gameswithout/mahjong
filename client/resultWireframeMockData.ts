@@ -119,11 +119,8 @@ function baseCompletedView(): SeatView {
 // 640x360 landscape minimum.
 function jadeCappedView(): SeatView {
   const view = baseCompletedView();
-  // A hand only reaches the cap by genuinely scoring near it, so the raw Tai
-  // and the effective Tai have to stay coherent: 44 raw + 1 Dealer Tai = 45
-  // effective. Pairing a large effective Tai with a small raw Tai would make
-  // the screen render an absurd "Dealer Tai: +42", since the component
-  // derives the dealer bonus as effective − raw.
+  // The displayed hand can exceed the ordinary 16-Tai payment cap. Dealer
+  // involvement doubles the base-plus-capped-Tai obligation to 34 units.
   const winner = view.hand_result?.winners?.[0];
   if (winner) {
     winner.score.raw_tai = 44;
@@ -149,7 +146,7 @@ function jadeCappedView(): SeatView {
   };
   view.settlement = {
     transfers: [
-      { from: "S", to: "E", effective_tai: 45, raw_amount: 450_000, amount: 300_000, capped: true },
+      { from: "S", to: "E", effective_tai: 34, raw_amount: 340_000, amount: 300_000, capped: true },
     ],
     net: { E: 300_000, S: -300_000, W: 0, N: 0 },
     total_credits: 300_000,

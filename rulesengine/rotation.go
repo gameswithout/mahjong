@@ -166,6 +166,7 @@ func (s RotationState) ApplyHand(
 
 	settlement, err := SettleHand(SettlementInput{
 		Tier:          TablePointTier,
+		Policy:        Taiwanese16V11Ruleset.Settlement,
 		Dealer:        s.Dealer,
 		Continuations: s.Continuations,
 		Result:        result,

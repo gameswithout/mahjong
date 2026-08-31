@@ -184,6 +184,7 @@ func TestGoldenSettlementCases(t *testing.T) {
 			}
 			settlement, err := SettleHand(SettlementInput{
 				Tier:          tier,
+				Policy:        Taiwanese16V11Ruleset.Settlement,
 				Dealer:        testCase.Dealer,
 				Continuations: testCase.Continuations,
 				Result:        testCase.Result.toHandResult(),

@@ -430,15 +430,13 @@ There are no rules-based abortive draws, Chombo continuations, or four-Kong abor
 
 The maximum continuation count is ten. After the hand played at k = 10, dealer rotates regardless of outcome.
 
-### 5.12 Dealer Tai
+### 5.12 Dealer multiplier
 
-The dealer relationship modifier is additive, not exponential:
+The dealer relationship modifier is a flat multiplier:
 
-**Dealer Tai = 1 + 2k**
+**Dealer multiplier = 2**
 
-k is the number of completed qualifying continuations before the current hand. Therefore, the initial dealer hand has 1 Dealer Tai, first continuation has 3, second has 5, and tenth has 21.
-
-Dealer Tai is applied to a payment whenever the winner or that specific payer is the dealer. It is not a pattern in the winner's displayed hand; the tally sheet shows it as a settlement modifier.
+It applies once whenever the winner or that specific payer is the dealer. Continuation count controls dealer rotation but does not compound or escalate payment. The multiplier is not a scoring pattern and does not change the winner's displayed Tai.
 
 ### 5.13 Fouls and impossible actions
 
@@ -516,11 +514,19 @@ All legal wins receive Base Win. Pattern values are additive subject to Section 
 - Eight Flowers ends the hand immediately and scores only Base Win, Eight Flowers, two Matching Flowers, Complete Seasons, and Complete Flowers, for 15 raw Tai. It does not score Zimo, Concealed, Concealed Zimo, Single Wait, Win After Replacement, or structural hand patterns.
 - Heavenly Hand does not stack with Zimo, Concealed Zimo, Single Wait, or Win After Replacement. It may stack with Concealed and valid structural, set, suit, and Flower patterns.
 - If a hand has multiple legal decompositions, the server chooses the decomposition producing the highest raw Tai. If tied, it chooses the lexicographically lowest canonical decomposition so replay is deterministic.
-- Raw Tai is never reduced by a lobby cap. The cap applies only to Jade transfer.
-- The maximum raw Tai under v1.1 is 69: Base Win 1 + Heavenly Hand 24 + Concealed 1 + Five Concealed Pongs 8 + All Pongs 4 + All Honors 8 + Big Four Winds 16 + one Dragon Set 1 + Seat Wind Set 1 + Prevailing Wind Set 1 + at most 4 Flower Tai. This maximum is a mandatory golden fixture. At k = 10, the maximum effective payment value is 90 Tai after the separate 21 Dealer Tai.
+- Raw Tai is never reduced on the scorecard. Ordinary settlement uses at most 16 of those Tai, then adds the base payment and applies any dealer multiplier.
+- The maximum raw Tai under v1.1 is 69: Base Win 1 + Heavenly Hand 24 + Concealed 1 + Five Concealed Pongs 8 + All Pongs 4 + All Honors 8 + Big Four Winds 16 + one Dragon Set 1 + Seat Wind Set 1 + Prevailing Wind Set 1 + at most 4 Flower Tai. This maximum remains a mandatory scoring fixture; its ordinary payment uses 17 base-plus-Tai units, or 34 when doubled for dealer involvement.
 - Tai and Jade calculations use signed 64-bit integer arithmetic. No floating point or currency fraction is used; only proportional cap allocation can round, using the stated largest-remainder rule.
 
 ## 7. Jade settlement and lobby economy
+
+Settlement is an explicit sub-selection of the ruleset, not a client or lobby
+preference. `taiwanese-16-v1.1` selects
+`taiwanese-linear-base-tai-v1`. The authoritative result records the selected
+method and a structured list of payment components, their unit values, and the
+applied multiplier. Result clients render that calculation metadata rather
+than reconstructing a formula from the hand score. A future ruleset may select
+a different settlement method without replacing the result-screen layout.
 
 Resolves: SCO-04 through SCO-15.
 
@@ -546,7 +552,9 @@ Full Rotation, AI Practice, Tutorial, and private rooms do not transfer Jade. Fu
 ### 7.2 Terminology
 
 - **Minimum balance:** an eligibility check; it is not deducted.
-- **Stake per Tai:** the integer Jade multiplier for raw Tai plus applicable Dealer Tai.
+- **Base payment:** one Stake-per-Tai unit paid by each payer when a hand has a winner.
+- **Stake per Tai:** the integer Jade value of both the base unit and each settled Tai.
+- **Ordinary-hand Tai cap:** at most 16 Tai enters the payment formula; the hand's displayed Tai is not changed.
 - **Debit cap:** the maximum Jade one player can lose across all settlements from one hand.
 - **Reserve:** a temporary lock equal to the debit cap.
 - There is no entry fee, rake, house cut, wager, or permanent system deduction.
@@ -555,9 +563,9 @@ Full Rotation, AI Practice, Tutorial, and private rooms do not transfer Jade. Fu
 
 For one winner-payer relationship:
 
-**Raw payment = Stake per Tai x (winner raw Tai + applicable Dealer Tai)**
+**Raw payment = Stake per Tai x (1 base + min(winner raw Tai, 16)) x Dealer multiplier**
 
-Dealer Tai applies if the winner is dealer or the payer is dealer. It is applied at most once per winner-payer relationship; because the winner and the payer of one relationship can never both be the dealer, no relationship ever applies it twice.
+The Dealer multiplier is 2 when either the winner or payer is dealer, and 1 otherwise. It applies at most once per winner-payer relationship. Dealer continuations affect rotation but do not escalate the payout multiplier.
 
 - On a discard Win, the discarder is the only payer.
 - On Zimo, each of the three opponents is a payer.
@@ -573,20 +581,20 @@ For a 5-Tai discard Win with no dealer relationship, the same formula scales by 
 
 | Lobby | Calculation | Transfer |
 | --- | --- | ---: |
-| Bamboo Courtyard | 10 x 5 | 50 Jade |
-| Sparrow Pavilion | 100 x 5 | 500 Jade |
-| Wind and Cloud Lounge | 1,000 x 5 | 5,000 Jade |
-| Dragon's Den | 10,000 x 5 | 50,000 Jade |
+| Bamboo Courtyard | 10 x (1 + 5) | 60 Jade |
+| Sparrow Pavilion | 100 x (1 + 5) | 600 Jade |
+| Wind and Cloud Lounge | 1,000 x (1 + 5) | 6,000 Jade |
+| Dragon's Den | 10,000 x (1 + 5) | 60,000 Jade |
 
 Additional mandatory examples are:
 
-1. Dealer at k = 2 wins by Zimo with 5 raw Tai. Dealer Tai is 5, so each opponent pays 10 effective Tai: 100/1,000/10,000/100,000 Jade by ascending lobby, and the winner receives three times that amount.
-2. Non-dealer wins by Zimo with 5 raw Tai while the dealer is at k = 2. The dealer pays 10 effective Tai and each other non-dealer pays 5. In Bamboo that is 100 + 50 + 50 = 200 Jade.
-3. A non-dealer Zimo hand has Base Win, Zimo, one Matching Flower, and one Exposed Kong: 4 raw Tai. At k = 0, the dealer pays 5 effective Tai and the other two opponents pay 4 each. Bamboo transfer is 50 + 40 + 40 = 130 Jade. Kongs never create a separate immediate payment.
-4. A non-dealer Eight Flowers win is 15 raw Tai. At k = 0, the dealer pays 16 effective Tai and the other two opponents pay 15 each. Bamboo transfer is 160 + 150 + 150 = 460 Jade.
-5. Dragon's Den, one payer's uncapped raw amount is 450,000 Jade: debit is capped at 300,000 and the winner receives 300,000 from that payer.
-6. Maximum v1.1 hand: a dealer at k = 10 has 69 raw Tai plus 21 Dealer Tai. In Dragon's Den each payer's raw 900,000-Jade obligation is capped to 300,000; the winner receives 900,000 total.
-7. Bamboo, two discard winners have uncapped claims of 200 and 150 against the discarder cap of 300: proportional largest-remainder allocation pays 171 and 129 Jade. Winner seat order breaks only an exactly equal remainder.
+1. Dealer wins by Zimo with 5 raw Tai. Each opponent pays `10 x (1 + 5) x 2 = 120` Jade in Bamboo, and the winner receives 360 Jade total. The result is the same at any continuation count.
+2. A non-dealer wins by Zimo with 5 raw Tai. The dealer pays 120 Jade and each other non-dealer pays 60. The Bamboo total is 240 Jade.
+3. A non-dealer Zimo hand has Base Win, Zimo, one Matching Flower, and one Exposed Kong: 4 raw Tai. The dealer pays 100 Jade and the other two opponents pay 50 each, for 200 Jade total. Kongs never create a separate immediate payment.
+4. A non-dealer Eight Flowers win is 15 raw Tai. In Bamboo the dealer's raw 320-Jade payment is capped to 300, while the other two opponents pay 160 each, for 620 Jade total.
+5. A 45-Tai non-dealer discard win with no dealer relationship settles as `10,000 x (1 + 16) = 170,000` Jade in Dragon's Den; the displayed hand remains 45 Tai.
+6. A dealer's 69-Tai Zimo settles as `10,000 x (1 + 16) x 2 = 340,000` per payer in Dragon's Den. Each payer is capped to 300,000 and the winner receives 900,000 total.
+7. Bamboo, two discard winners with 20 and 15 displayed Tai have capped claims of 170 and 160 against the discarder cap of 300: proportional largest-remainder allocation pays 155 and 145 Jade. Winner order breaks only an exactly equal remainder.
 8. A Zimo payer cap is independent for each opponent. A multiple-winner cap applies to the one discarder across all winning claims; no other player's reserve subsidizes that payer.
 9. Exhaustive draw, administrative void, Tutorial, AI Practice, private room, or Full Rotation produces zero Jade transfer. Full Rotation uses the separate table-point formula in Section 8.4.
 
@@ -671,7 +679,7 @@ Quick Play is exactly one hand:
 - profile hand statistics and eligible XP;
 - target duration of 8 to 15 minutes.
 
-Quick Play has no 1st-through-4th placement and no placement tie-breaker; a hand can have zero, one, two, or three winners. It contributes to the Quick Play seasonal ladder in Section 12.9 but never to Elo rating. The result screen shows winner(s), raw Tai, Dealer Tai, each ledger transfer, XP, applicable mission progress, ladder points, an Add Friend action for eligible opponents per Section 10.6, and the result-card export in Section 8.10. "Play Again" returns the player to a fresh queue; it does not preserve opponents or seats.
+Quick Play has no 1st-through-4th placement and no placement tie-breaker; a hand can have zero, one, two, or three winners. It contributes to the Quick Play seasonal ladder in Section 12.9 but never to Elo rating. The result screen shows winner(s), raw Tai, base payment, dealer multiplier, each ledger transfer, XP, applicable mission progress, ladder points, an Add Friend action for eligible opponents per Section 10.6, and the result-card export in Section 8.10. "Play Again" returns the player to a fresh queue; it does not preserve opponents or seats.
 
 Because dealer assignment in a one-hand mode is a pure variance injection, the dealer versus non-dealer net Jade delta is a mandatory telemetry dashboard; a sustained material imbalance triggers a product review of dealer assignment in Quick Play.
 
@@ -679,7 +687,7 @@ Because dealer assignment in a one-hand mode is a pure variance injection, the d
 
 Full Rotation is one East round in which every player is scheduled to become dealer once, subject to continuations and the 60-minute match limit. At 60 minutes, the current hand finishes and the match ends even if the base rotation is incomplete. Target duration is 30 to 45 minutes. A match ended by the limit before every player has dealt is structurally asymmetric; the share of ranked matches ended by the limit is a mandatory telemetry metric, and a season in which it exceeds 5% triggers a pacing review.
 
-All players start at 0 table points. For each winner-payer relationship, table-point transfer equals winner raw Tai plus applicable Dealer Tai, following the same payer and multiple-winner rules as Jade but with no cap and no stake multiplier. Table points may be negative and are not an account currency.
+All players start at 0 table points. For each winner-payer relationship, table-point transfer follows the same base-plus-capped-Tai and dealer-multiplier formula as Jade, but has no Jade debit cap or currency multiplier. Table points may be negative and are not an account currency.
 
 Final placement uses net table points. Equal table points are rating ties. For a displayed podium only, ties sort by:
 
@@ -852,7 +860,7 @@ The hand result presents, in order:
 2. canonical decomposition;
 3. every scoring pattern and Tai;
 4. raw Tai subtotal;
-5. Dealer Tai, if any;
+5. base payment, Tai settlement cap, and dealer multiplier, if any;
 6. stake, raw payments, caps, and final transfers for Quick Play, or table-point transfers for Full Rotation;
 7. dealer continuation/rotation;
 8. XP, achievements, missions, and rating where applicable;
@@ -1630,7 +1638,7 @@ Mandatory acceptance evidence before public release includes:
 | Broad live service versus web prototype | Beta and Version 1 matrix in Section 2.3; paid/live-service expansion deferred |
 | "Four rounds" terminology | Full Rotation is one East round with four base dealer seats |
 | No Taiwanese authority | Product-owned v1.1 rules, GameTower reference, Rules Lead, and golden suite |
-| Exponential dealer scaling | Additive Dealer Tai = 1 + 2k, maximum k = 10 |
+| Exponential dealer scaling | Flat ×2 dealer relationship multiplier; continuation count affects rotation only |
 | "Tilted draw" | Typo; exhaustive draw uses dealer Ting rule |
 | Flower automation toggle | Replacement mandatory; only animation speed is configurable |
 | "3.0s mask" | Removed; explicit turn/claim deadlines in Section 5.10 |

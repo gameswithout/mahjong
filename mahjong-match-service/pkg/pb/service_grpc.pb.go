@@ -54,6 +54,11 @@ type ServiceClient interface {
 	GetPlayerStatistics(ctx context.Context, in *GetPlayerStatisticsRequest, opts ...grpc.CallOption) (*GetPlayerStatisticsResponse, error)
 	GetMatchHistory(ctx context.Context, in *GetMatchHistoryRequest, opts ...grpc.CallOption) (*GetMatchHistoryResponse, error)
 	GetPlayerAchievements(ctx context.Context, in *GetPlayerAchievementsRequest, opts ...grpc.CallOption) (*GetPlayerAchievementsResponse, error)
+	// ListBotPersonas returns the AI Practice opponent catalog the client
+	// renders as picker cards. This is the single source of truth for persona
+	// display copy (bots/personas/<id>/persona.md + style.json) — the client
+	// does not hold a second hand-authored copy of the same six cards, which
+	// would drift the moment either side changed.
 	ListBotPersonas(ctx context.Context, in *ListBotPersonasRequest, opts ...grpc.CallOption) (*ListBotPersonasResponse, error)
 	JoinMatch(ctx context.Context, in *JoinMatchRequest, opts ...grpc.CallOption) (*JoinMatchResponse, error)
 	// GetMatchState returns a caller-specific projection. Concealed tiles and
@@ -218,6 +223,11 @@ type ServiceServer interface {
 	GetPlayerStatistics(context.Context, *GetPlayerStatisticsRequest) (*GetPlayerStatisticsResponse, error)
 	GetMatchHistory(context.Context, *GetMatchHistoryRequest) (*GetMatchHistoryResponse, error)
 	GetPlayerAchievements(context.Context, *GetPlayerAchievementsRequest) (*GetPlayerAchievementsResponse, error)
+	// ListBotPersonas returns the AI Practice opponent catalog the client
+	// renders as picker cards. This is the single source of truth for persona
+	// display copy (bots/personas/<id>/persona.md + style.json) — the client
+	// does not hold a second hand-authored copy of the same six cards, which
+	// would drift the moment either side changed.
 	ListBotPersonas(context.Context, *ListBotPersonasRequest) (*ListBotPersonasResponse, error)
 	JoinMatch(context.Context, *JoinMatchRequest) (*JoinMatchResponse, error)
 	// GetMatchState returns a caller-specific projection. Concealed tiles and
