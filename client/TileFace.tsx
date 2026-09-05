@@ -194,11 +194,22 @@ function Flower({ name }: { name: string }) {
   );
 }
 
+function FounderTile() {
+  return (
+    <g className="tile-face-founder">
+      <path d="M12 68V29l18-12 18 12v39" fill="none" stroke="#9b6a24" strokeWidth="3" />
+      <text x="30" y="54" textAnchor="middle" fill="#9b1f2e" fontSize="28" fontWeight="800">始</text>
+      <text x="30" y="78" textAnchor="middle" fill="#9b6a24" fontSize="8" fontWeight="700">OG</text>
+    </g>
+  );
+}
+
 /** Original vector face art for the project's canonical tile IDs. */
 export function TileFace({ id, size }: { id: string; size: TileFaceSize }) {
   const { suit, rank, name } = parsedTile(id);
   let face: React.ReactNode;
-  if (suit === "dots" && rank) face = <Dots rank={rank} />;
+  if (id === "founder-og") face = <FounderTile />;
+  else if (suit === "dots" && rank) face = <Dots rank={rank} />;
   else if (suit === "bamboo" && rank) face = <Bamboo rank={rank} />;
   else if (suit === "characters" && rank) face = <Characters rank={rank} />;
   else if ((suit === "wind" || suit === "dragon") && name) face = <Honor suit={suit} name={name} />;

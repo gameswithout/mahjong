@@ -124,6 +124,8 @@ import {
   type PlayerSettings,
 } from "./settings";
 import { FeedbackScreen } from "./FeedbackScreen";
+import { StoreScreen, type StoreScreenState } from "./StoreScreen";
+import { createStoreClient } from "./store";
 import { createFeedbackClient, type PlayerFeedback } from "./feedback";
 import { displayCountryName, formatNumber, t, translateSource } from "./i18n";
 import { useLocale } from "./i18n/useLocale";
@@ -535,6 +537,8 @@ export function App(
   const [guidedPractice, setGuidedPractice] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
+  const [storeState, setStoreState] = useState<StoreScreenState>({ status: "loading" });
+  const [storePurchasing, setStorePurchasing] = useState(false);
   const [accountUpgradeOpen, setAccountUpgradeOpen] = useState(false);
   // undefined = closed, null = general lobby feedback, string = result report.
   const [feedbackSessionId, setFeedbackSessionId] =
@@ -710,8 +714,9 @@ export function App(
 
   useEffect(() => {
     if (state.status !== "signed_in") return;
-    setPlayerProfile(loadPlayerProfile(state.userId, isGuestAccount));
-  }, [state.status, state.status === "signed_in" ? state.userId : null, isGuestAccount]);
+    const founderTileUnlocked = storeState.status === "ready" && storeState.pack.owned;
+    setPlayerProfile(loadPlayerProfile(state.userId, isGuestAccount, founderTileUnlocked));
+  }, [state.status, state.status === "signed_in" ? state.userId : null, isGuestAccount, storeState]);
 
   const settingsRequestRef = useRef(0);
   const statisticsRequestRef = useRef(0);
@@ -862,10 +867,45 @@ export function App(
     ).submit(feedback);
   }
 
+  async function loadStore() {
+    if (state.status !== "signed_in") return;
+    setStoreState({ status: "loading" });
+    try {
+      const client = createStoreClient(
+        stableIam.getAccessToken(),
+        accelByteConfig.matchServiceURL ?? "",
+        accelByteConfig.namespace,
+      );
+      setStoreState({ status: "ready", pack: await client.status() });
+    } catch (error) {
+      setStoreState({ status: "error", message: errorView(error).message });
+    }
+  }
+
+  async function purchaseFounderPack() {
+    if (state.status !== "signed_in") return;
+    setStorePurchasing(true);
+    try {
+      const client = createStoreClient(
+        stableIam.getAccessToken(),
+        accelByteConfig.matchServiceURL ?? "",
+        accelByteConfig.namespace,
+      );
+      const { checkout_url: checkoutURL } = await client.checkout();
+      const checkout = window.open(checkoutURL, "xsolla-checkout", "popup,width=920,height=760");
+      if (!checkout) window.location.assign(checkoutURL);
+    } catch (error) {
+      setStoreState({ status: "error", message: errorView(error).message });
+    } finally {
+      setStorePurchasing(false);
+    }
+  }
+
   useEffect(() => {
     if (state.status === "signed_in") {
       void loadPlayerSettings();
       void loadStatistics();
+      void loadStore();
     } else {
       settingsRequestRef.current += 1;
       setPlayerSettings(DEFAULT_PLAYER_SETTINGS);
@@ -3764,14 +3804,7 @@ export function App(
   if (storeOpen) {
     return (
       <div className="game-screen">
-        <section className="placeholder-screen" aria-labelledby="store-title">
-          <p className="status-label">{t("header.store")}</p>
-          <h1 id="store-title">{t("store.comingSoon")}</h1>
-          <p>{t("store.placeholder")}</p>
-          <button type="button" className="secondary-action" onClick={() => setStoreOpen(false)}>
-            {t("common.backToLobby")}
-          </button>
-        </section>
+        <StoreScreen state={storeState} purchasing={storePurchasing} onPurchase={() => void purchaseFounderPack()} onRefresh={() => void loadStore()} onClose={() => setStoreOpen(false)} />
       </div>
     );
   }
@@ -4385,8 +4418,9 @@ export function App(
               }}
               profile={playerProfile}
               onProfileChange={updatePlayerProfile}
-              onOpenStore={() => setStoreOpen(true)}
+              onOpenStore={() => { setStoreOpen(true); void loadStore(); }}
               onCreateAccount={() => setAccountUpgradeOpen(true)}
+              founderTileUnlocked={storeState.status === "ready" && storeState.pack.owned}
             />
 
             {analyticsConsentPending ? (

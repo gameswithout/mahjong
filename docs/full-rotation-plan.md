@@ -13,9 +13,9 @@ One East round in which every player is scheduled to deal once, subject to
 get wrong, and all three drove the design:
 
 **It uses no Jade.** "Public Full Rotation is ranked and uses no Jade." It
-scores in *table points*: everyone starts at 0, transfer is winner raw Tai plus
-applicable Dealer Tai, no cap and no stake multiplier, and totals may go
-negative. Table points are not an account currency, so none of the Jade
+scores in *table points*: everyone starts at 0, and transfers use the ruleset's
+base-plus-capped-Tai units with the flat dealer multiplier, no Jade debit cap,
+and no currency multiplier. Totals may go negative. Table points are not an account currency, so none of the Jade
 machinery — reservations, the debit cap, the ledger, welfare — applies. This
 removes a great deal of expected work rather than adding it.
 
@@ -47,7 +47,7 @@ Two deliberate reuses rather than reimplementations:
   §8.4 says they follow "the same payer and multiple-winner rules as Jade but
   with no cap and no stake multiplier" — that *is* `SettleHand`. A parallel
   implementation would drift on exactly the rules hardest to get right
-  (multiple winners, three-opponent Zimo, dealer Tai).
+  (multiple winners, three-opponent Zimo, and dealer relationships).
 - **Dealer sequencing goes through `NextDealerState`**, the §5.11 table Quick
   Play already uses.
 

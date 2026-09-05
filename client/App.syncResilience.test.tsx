@@ -259,7 +259,7 @@ describe("live-table resilience to failed match-state polls", () => {
     await enterLiveMatch();
 
     const firstActivation = container.querySelector<HTMLButtonElement>(
-      '.local-hand-tile-button[aria-label*="Activate twice to discard"]',
+      '.essential-hand-tile-button[aria-label*="Activate twice to discard"]',
     );
     await act(async () => {
       firstActivation?.click();
@@ -267,7 +267,7 @@ describe("live-table resilience to failed match-state polls", () => {
       await Promise.resolve();
     });
     const secondActivation = container.querySelector<HTMLButtonElement>(
-      '.local-hand-tile-button[aria-label*="Select again to discard"]',
+      '.essential-hand-tile-button[aria-label*="Select again to discard"]',
     );
     await act(async () => {
       secondActivation?.click();
@@ -277,7 +277,7 @@ describe("live-table resilience to failed match-state polls", () => {
 
     expect(runtimeCommand).toHaveBeenCalledOnce();
     expect(
-      container.querySelector<HTMLButtonElement>(".local-hand-tile-button")
+      container.querySelector<HTMLButtonElement>(".essential-hand-tile-button")
         ?.disabled,
     ).toBe(true);
 
@@ -290,7 +290,7 @@ describe("live-table resilience to failed match-state polls", () => {
     });
 
     expect(
-      container.querySelector<HTMLButtonElement>(".local-hand-tile-button")
+      container.querySelector<HTMLButtonElement>(".essential-hand-tile-button")
         ?.disabled,
     ).toBe(false);
     expect(container.querySelector('[data-testid="live-match"]')).not.toBeNull();

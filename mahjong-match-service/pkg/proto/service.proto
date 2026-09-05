@@ -509,7 +509,7 @@ message RotationState {
   // Which hand of the rotation is being played, numbered from 1.
   int32 hand_number = 1;
   int32 hands_played = 2;
-  // §5.11 continuations standing behind the current hand, which set Dealer Tai.
+  // §5.11 continuations standing behind the current hand; payout doubling remains flat.
   int32 continuations = 3;
   string dealer_user_id = 4;
   // How many of the four table positions have dealt. The rotation ends when

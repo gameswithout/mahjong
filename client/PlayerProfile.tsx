@@ -3,6 +3,7 @@ import { useState } from "react";
 import { TileFace } from "./TileFace";
 import {
   MAX_PROFILE_NICKNAME_LENGTH,
+  FOUNDER_PROFILE_TILE_OPTION,
   PROFILE_TILE_OPTIONS,
   type PlayerProfileConfig,
 } from "./player-profile";
@@ -53,10 +54,12 @@ export function PlayerProfileEditor({
   profile,
   guest,
   onChange,
+  founderTileUnlocked = false,
 }: {
   profile: PlayerProfileConfig;
   guest: boolean;
   onChange: (profile: PlayerProfileConfig) => void;
+  founderTileUnlocked?: boolean;
 }) {
   const [activeSlot, setActiveSlot] = useState<ProfileSlot>(0);
   const slots: { id: ProfileSlot; label: string }[] = [
@@ -104,7 +107,7 @@ export function PlayerProfileEditor({
       </div>
 
       <div className="profile-tile-picker" aria-label={t("profile.chooseTile", { slot: activeSlot + 1 })}>
-        {PROFILE_TILE_OPTIONS.map((option) => {
+        {(founderTileUnlocked ? [...PROFILE_TILE_OPTIONS, FOUNDER_PROFILE_TILE_OPTION] : PROFILE_TILE_OPTIONS).map((option) => {
           const selected = tileForSlot(profile, activeSlot) === option.id;
           return (
             <button

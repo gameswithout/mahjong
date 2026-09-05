@@ -340,7 +340,7 @@ func generate() []settlementCase {
 		cases = append(cases, threePayerCase("heavenly-dealer-winner-"+tier, tier, "E", 3, "heavenly", "E", 30))
 	}
 
-	// --- Dealer Tai progression at a fixed tier/raw Tai (k = 0..10) ---
+	// --- Dealer multiplier remains flat across continuation count k = 0..10. ---
 	for k := 0; k <= 10; k++ {
 		name := fmt.Sprintf("dealer-tai-progression-k%d", k)
 		cases = append(cases, singlePayerCase(name, "sparrow", "E", k, "discard", "S", "E", 5))

@@ -455,6 +455,19 @@ h1 {
   width: calc(100% - 2rem);
 }
 
+.store-screen { margin: 2rem auto; max-width: 58rem; padding: 0 1rem; width: 100%; }
+.store-heading { align-items: center; display: flex; justify-content: space-between; }
+.store-heading h1 { margin: .2rem 0 1rem; }
+.founder-pack-card { background: linear-gradient(135deg, #20263f, #30261e); border: 1px solid #f2c66d; border-radius: 1rem; display: grid; gap: 1.5rem; grid-template-columns: minmax(10rem, .7fr) 1.3fr; padding: 1.5rem; }
+.founder-pack-art { align-items: center; background: radial-gradient(circle, rgb(242 198 109 / 28%), transparent 65%); display: flex; justify-content: center; min-height: 18rem; }
+.founder-pack-art .tile-face { filter: drop-shadow(0 12px 18px rgb(0 0 0 / 45%)); height: 15rem; }
+.founder-pack-copy h2 { font-size: 2rem; margin: .2rem 0 .6rem; }
+.founder-pack-copy li { margin: .4rem 0; }
+.store-owned { background: rgb(52 170 115 / 18%); border: 1px solid #55bd8c; border-radius: .6rem; color: #a8f0cb; font-weight: 800; padding: .75rem; }
+.store-sandbox { color: #f2c66d; font-size: .85rem; }
+.store-refresh { background: transparent; border: 0; color: #d8dcef; cursor: pointer; display: block; margin-top: .8rem; text-decoration: underline; }
+@media (max-width: 640px) { .founder-pack-card { grid-template-columns: 1fr; } .founder-pack-art { min-height: 10rem; } .founder-pack-art .tile-face { height: 9rem; } }
+
 .profile-editor-heading h2 {
   font-size: 1.15rem;
   margin: 0.15rem 0 0;
@@ -1946,6 +1959,18 @@ h1 {
   grid-column: 1 / -1;
   line-height: 1.35;
   margin: 0;
+}
+
+.hand-result-payment-components {
+  display: grid;
+  gap: 0.15rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hand-result-transfer-formula p {
+  margin: 0.2rem 0 0;
 }
 
 .hand-result-cap-note {

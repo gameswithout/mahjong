@@ -205,6 +205,27 @@ but is no longer required to build and test the standalone image.
 
 ## Deployment
 
+### Xsolla Founder Pack test store
+
+The first store slice sells the single `og_founder_pack` SKU. Configure:
+
+```text
+XSOLLA_PROJECT_ID=
+XSOLLA_MERCHANT_ID=
+XSOLLA_API_KEY=
+XSOLLA_WEBHOOK_SECRET=
+XSOLLA_FOUNDER_PACK_SKU=og_founder_pack
+XSOLLA_SANDBOX=true
+XSOLLA_FULFILL_SANDBOX=true
+XSOLLA_RETURN_URL=https://your-game.example/
+```
+
+Set the Xsolla webhook URL to the deployed service base path followed by
+`/webhooks/xsolla`. `XSOLLA_FULFILL_SANDBOX` deliberately defaults to false;
+enable it only in a test deployment when the sandbox purchase should unlock
+the Founder tile. Production ownership is granted only by a signed
+`order_paid` webhook and is revoked by `order_canceled`.
+
 Deployed to AGS Extend (`gameswithout-mahjong` namespace, app
 `mahjong-match-service`, service-extension scenario) via `extend-helper-cli
 image-upload` + `deploy-app`, backed by an AGS Extend-provisioned SQL

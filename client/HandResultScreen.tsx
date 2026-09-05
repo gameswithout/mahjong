@@ -704,6 +704,14 @@ function formatSignedAmount(amount: number): string {
   return `${amount > 0 ? "+" : "−"}${formatNumber(Math.abs(amount))}`;
 }
 
+function settlementComponentLabel(kind: string): string {
+  if (kind === "base") return t("result.paymentBase");
+  if (kind === "tai") return t("result.paymentTai");
+  return kind
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function SettlementRow({
   transfer,
   localSeat,
@@ -715,11 +723,6 @@ function SettlementRow({
 }) {
   const capped = transfer.capped || transfer.amount < transfer.raw_amount;
   const calculation = transfer.calculation;
-  const componentLabel = (kind: string) => {
-    if (kind === "base") return t("result.paymentBase");
-    if (kind === "tai") return t("result.paymentTai");
-    return kind;
-  };
   return (
     <li className={`hand-result-transfer${capped ? " hand-result-transfer-capped" : ""}`}>
       <div className="hand-result-transfer-route">
@@ -736,7 +739,7 @@ function SettlementRow({
             {calculation.components.map((component, index) => (
               <li key={`${component.kind}-${index}`}>
                 {t("result.paymentComponent", {
-                  label: componentLabel(component.kind),
+                  label: settlementComponentLabel(component.kind),
                   units: component.units,
                   value: formatNumber(calculation.unit_value),
                   amount: formatNumber(component.amount),

@@ -97,7 +97,7 @@ What each line establishes that no earlier run could:
   totals are the sum of both hands rather than either alone.
 - **Both settlement shapes ran.** A discard win charges one payer; a Zimo
   charges all three opponents (§7.3), which hand 3 shows as +18 against three
-  −6s. The dealer won that hand, so Dealer Tai is in the numbers too.
+  −6s. The dealer won that hand, so the dealer multiplier is in the numbers too.
 - **The balance invariant now means something.** It had been passing on four
   zeroes; here it holds across +20 / −6 / −6 / −8.
 - **A continuation is not progress.** The dealer won hand 3 and retained the

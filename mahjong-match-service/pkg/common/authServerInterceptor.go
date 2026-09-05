@@ -235,6 +235,31 @@ func tokenSubject(token string) (string, error) {
 	return claims.Subject, nil
 }
 
+// AuthenticateHTTPRequest applies the same AGS bearer-token boundary to raw
+// HTTP integrations (such as payment checkout) that cannot travel through the
+// generated gRPC gateway.
+func AuthenticateHTTPRequest(r *http.Request, namespace string) (Principal, error) {
+	if Validator == nil {
+		return Principal{}, errors.New("authorization token validator is not set")
+	}
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	if !strings.HasPrefix(header, "Bearer ") {
+		return Principal{}, errors.New("authorization header is missing")
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
+	if token == "" {
+		return Principal{}, errors.New("authorization token is missing")
+	}
+	if err := Validator.Validate(token, nil, &namespace, nil); err != nil {
+		return Principal{}, err
+	}
+	userID, err := tokenSubject(token)
+	if err != nil {
+		return Principal{}, err
+	}
+	return Principal{UserID: userID}, nil
+}
+
 // extractTokenFromCookieMetadata parses the "cookie" metadata key and returns the access_token value if present.
 func extractTokenFromCookieMetadata(meta metadata.MD) string {
 	r := &http.Request{Header: http.Header{"Cookie": meta.Get("cookie")}}

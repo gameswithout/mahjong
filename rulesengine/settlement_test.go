@@ -240,8 +240,8 @@ func TestSettlementEqualRemaindersBreakByWinnerOrder(t *testing.T) {
 		},
 	}
 	settlement := settle(t, tier, East, 0, result)
-	// Dealer is the payer, so every claim is 10+1 = 11 effective Tai = 110.
-	// 200*110/330 = 66 remainder 220 for each; the two leftover units go to
+	// Dealer is the payer, so every claim is (1 base + 10 Tai) x 2 = 22 units.
+	// Three equal claims against the 200 cap floor to 66 each; the two leftover units go to
 	// South then West.
 	if settlement.Net[South] != 67 || settlement.Net[West] != 67 || settlement.Net[North] != 66 {
 		t.Fatalf("net = %#v", settlement.Net)

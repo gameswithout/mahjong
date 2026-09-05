@@ -7,7 +7,7 @@ describe("saved match reviews", () => {
   beforeEach(() => window.localStorage.clear());
 
   it("reopens the complete authoritative result for the same account", () => {
-    const view = structuredClone(RESULT_SCENARIOS[2].view);
+    const view = structuredClone(RESULT_SCENARIOS.find(({ id }) => id === "jade-standard")!.view);
     saveMatchReview("learner", view);
 
     expect(savedMatchReviewIds("learner")).toEqual(new Set([view.match_id]));
@@ -16,7 +16,7 @@ describe("saved match reviews", () => {
   });
 
   it("bounds local history without discarding the newest reviews", () => {
-    const fixture = RESULT_SCENARIOS[3].view;
+    const fixture = RESULT_SCENARIOS.find(({ id }) => id === "exhaustive-draw")!.view;
     for (let index = 0; index < 21; index += 1) {
       saveMatchReview("learner", { ...structuredClone(fixture), match_id: `match-${index}` });
     }

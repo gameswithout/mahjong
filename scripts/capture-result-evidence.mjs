@@ -33,12 +33,34 @@ const DESKTOP_VIEWPORT = { width: 1280, height: 720 };
 // browser actually rendered rather than against a server-side string.
 const SCENARIO_EXPECTATIONS = {
   "jade-capped": [
-    "10,000 Jade per 台 × 45 台 = 450,000 Jade",
-    "Debit cap applied: 450,000 → 300,000 Jade",
+    "Base: 1 × 10,000 = 10,000 Jade",
+    "Tai: 16 × 10,000 = 160,000 Jade",
+    "Payment multiplier ×2 = 340,000 Jade",
+    "Debit cap applied: 340,000 → 300,000 Jade",
     "300,000 Jade paid = 300,000 received",
     "Balances to zero",
   ],
-  "jade-standard": ["10 Jade per 台 × 3 台 = 30 Jade", "Balances to zero"],
+  "jade-standard": [
+    "Base: 1 × 10 = 10 Jade",
+    "Tai: 3 × 10 = 30 Jade",
+    "Payment multiplier ×2 = 80 Jade",
+    "Balances to zero",
+  ],
+  "self-draw": [
+    "SELF-DRAW",
+    "drew the winning tile",
+    "Payment multiplier ×2 = 80 Jade",
+    "240 Jade paid = 240 received",
+    "Balances to zero",
+  ],
+  "multi-winner": [
+    "discarded winning tile",
+    "South & West",
+    "Debit cap applied: 170 → 155 Jade",
+    "Debit cap applied: 160 → 145 Jade",
+    "300 Jade paid = 300 received",
+    "Balances to zero",
+  ],
   practice: [
     "Practice score only",
     "Jade, rating, and achievements stay unchanged. Mastery XP and this hand's history are saved.",
@@ -55,6 +77,17 @@ const SCENARIO_EXPECTATIONS = {
     "No matching copy was public before the discard",
     "visibility comparisons, not guaranteed-safe discards",
   ],
+  "alternate-settlement": [
+    "Hand Value: 10 × 5 = 50 Jade",
+    "Special Bonus: 5 × 5 = 25 Jade",
+    "Payment multiplier ×1 = 75 Jade",
+    "Balances to zero",
+  ],
+};
+
+const EXPECTED_TRANSFER_COUNTS = {
+  "self-draw": 3,
+  "multi-winner": 2,
 };
 
 const browser = await chromium.launch();
@@ -79,6 +112,12 @@ for (const [scenario, expectations] of Object.entries(SCENARIO_EXPECTATIONS)) {
   const netSeats = await page.locator('[aria-label^="Net "] li').count();
   if (netSeats !== 4) {
     failures.push(`${scenario}: expected four seats in the net summary`);
+  }
+
+  const transferCount = await page.locator(".hand-result-transfers > .hand-result-transfer").count();
+  const expectedTransferCount = EXPECTED_TRANSFER_COUNTS[scenario];
+  if (expectedTransferCount !== undefined && transferCount !== expectedTransferCount) {
+    failures.push(`${scenario}: expected ${expectedTransferCount} transfer rows, found ${transferCount}`);
   }
 
   await page.screenshot({
@@ -117,7 +156,7 @@ for (const [scenario, expectations] of Object.entries(SCENARIO_EXPECTATIONS)) {
   for (const failure of scenarioRuntimeFailures) {
     failures.push(`${scenario}: ${failure}`);
   }
-  report.scenarios.push({ scenario, netSeats, overflowsHorizontally, missing });
+  report.scenarios.push({ scenario, netSeats, transferCount, overflowsHorizontally, missing });
   await compact.close();
   await page.close();
 }

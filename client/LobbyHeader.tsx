@@ -18,6 +18,7 @@ export interface LobbyHeaderProps {
   onOpenStatistics?: () => void;
   onOpenStore?: () => void;
   onCreateAccount?: () => void;
+  founderTileUnlocked?: boolean;
 }
 
 // The first thing a player sees when signed in. It answers "who am I, what can
@@ -38,6 +39,7 @@ export function LobbyHeader({
   onOpenStatistics,
   onOpenStore = () => undefined,
   onCreateAccount = () => undefined,
+  founderTileUnlocked = false,
 }: LobbyHeaderProps) {
   const level = progression?.level ?? 1;
   const xpIntoLevel = progression?.xp_into_level ?? 0;
@@ -77,6 +79,7 @@ export function LobbyHeader({
             profile={profile}
             guest={guest}
             onChange={onProfileChange}
+            founderTileUnlocked={founderTileUnlocked}
           />
         </details>
         {guest && (

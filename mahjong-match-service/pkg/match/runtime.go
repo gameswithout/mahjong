@@ -287,8 +287,9 @@ func (t *table) tier() rulesengine.LobbyTier {
 	return matchTier
 }
 
-// continuations is the §5.11 count standing behind this hand, which sets the
-// Dealer Tai. Quick Play always plays the first hand of a notional round.
+// continuations is the §5.11 count standing behind this hand. It controls
+// dealer rotation but does not escalate the flat dealer payout multiplier.
+// Quick Play always plays the first hand of a notional round.
 func (t *table) continuations() int {
 	if t.rotation != nil {
 		return t.rotation.hand.Continuations

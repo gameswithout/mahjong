@@ -10,9 +10,33 @@ import type { SeatView } from "../protocol/envelope";
 export type ResultScenarioId =
   | "jade-capped"
   | "jade-standard"
+  | "self-draw"
+  | "multi-winner"
   | "practice"
   | "exhaustive-draw"
-  | "deal-in-review";
+  | "deal-in-review"
+  | "alternate-settlement";
+
+const TAIWANESE_SETTLEMENT_METHOD = {
+  id: "taiwanese-linear-base-tai-v1",
+  model: "linear_base_tai",
+  base_units: 1,
+  tai_cap: 16,
+  dealer_multiplier: 2,
+};
+
+function taiwaneseCalculation(unitValue: number, tai: number, multiplier: number) {
+  return {
+    method_id: TAIWANESE_SETTLEMENT_METHOD.id,
+    model: TAIWANESE_SETTLEMENT_METHOD.model,
+    unit_value: unitValue,
+    components: [
+      { kind: "base", units: 1, amount: unitValue },
+      { kind: "tai", units: tai, amount: unitValue * tai },
+    ],
+    multiplier,
+  };
+}
 
 function baseCompletedView(): SeatView {
   return {
@@ -75,10 +99,14 @@ function baseCompletedView(): SeatView {
       ],
     },
     settlement: {
-      transfers: [{ from: "S", to: "E", effective_tai: 3, raw_amount: 3, amount: 3 }],
-      net: { E: 3, S: -3 },
-      total_credits: 3,
-      total_debits: 3,
+      method: TAIWANESE_SETTLEMENT_METHOD,
+      transfers: [{
+        from: "S", to: "E", effective_tai: 8, raw_amount: 8, amount: 8,
+        calculation: taiwaneseCalculation(1, 3, 2),
+      }],
+      net: { E: 8, S: -8 },
+      total_credits: 8,
+      total_debits: 8,
     },
     next_dealer: { next_dealer: "S", next_continuations: 0, dealer_retains: false },
     xp_award: {
@@ -145,8 +173,12 @@ function jadeCappedView(): SeatView {
     wallet_sync_status: "synced",
   };
   view.settlement = {
+    method: TAIWANESE_SETTLEMENT_METHOD,
     transfers: [
-      { from: "S", to: "E", effective_tai: 34, raw_amount: 340_000, amount: 300_000, capped: true },
+      {
+        from: "S", to: "E", effective_tai: 34, raw_amount: 340_000, amount: 300_000, capped: true,
+        calculation: taiwaneseCalculation(10_000, 16, 2),
+      },
     ],
     net: { E: 300_000, S: -300_000, W: 0, N: 0 },
     total_credits: 300_000,
@@ -183,9 +215,9 @@ function jadeStandardView(): SeatView {
   ];
   view.jade_account = {
     currency_code: "JADE",
-    balance: 5_000,
+    balance: 5_080,
     reserved: 300,
-    available: 4_700,
+    available: 4_780,
     eligible: true,
     minimum_balance: 1_000,
     stake_per_tai: 10,
@@ -193,17 +225,101 @@ function jadeStandardView(): SeatView {
     wallet_sync_status: "synced",
   };
   view.settlement = {
-    transfers: [{ from: "S", to: "E", effective_tai: 3, raw_amount: 30, amount: 30 }],
-    net: { E: 30, S: -30, W: 0, N: 0 },
-    total_credits: 30,
-    total_debits: 30,
+    method: TAIWANESE_SETTLEMENT_METHOD,
+    transfers: [{
+      from: "S", to: "E", effective_tai: 8, raw_amount: 80, amount: 80,
+      calculation: taiwaneseCalculation(10, 3, 2),
+    }],
+    net: { E: 80, S: -80, W: 0, N: 0 },
+    total_credits: 80,
+    total_debits: 80,
   };
   view.jade_settlement = {
     seat: "E",
-    delta: 30,
+    delta: 80,
     balance_before: 5_000,
-    balance_after: 5_030,
+    balance_after: 5_080,
     journal_id: "settlement:8ccf9cf1baf43b96f46b3a819c69a74105c99e59b3d6984fd7fb68f3d0f5e60e",
+  };
+  return view;
+}
+
+// A dealer self-draw creates one independently calculated payment from every
+// opponent. Keeping this as rendered evidence protects both the three-row
+// settlement shape and the aggregate four-seat reconciliation.
+function selfDrawView(): SeatView {
+  const view = jadeStandardView();
+  if (view.hand_result) {
+    view.hand_result.kind = "zimo";
+    delete view.hand_result.payer;
+  }
+  view.settlement = {
+    method: TAIWANESE_SETTLEMENT_METHOD,
+    transfers: (["S", "W", "N"] as const).map((from) => ({
+      from,
+      to: "E" as const,
+      effective_tai: 8,
+      raw_amount: 80,
+      amount: 80,
+      calculation: taiwaneseCalculation(10, 3, 2),
+    })),
+    net: { E: 240, S: -80, W: -80, N: -80 },
+    total_credits: 240,
+    total_debits: 240,
+  };
+  view.jade_settlement = {
+    seat: "E",
+    delta: 240,
+    balance_before: 5_000,
+    balance_after: 5_240,
+    journal_id: "settlement:self-draw",
+  };
+  return view;
+}
+
+// Two winners share one discard payer's debit cap. The authoritative transfer
+// rows retain each uncapped calculation while showing the server allocation.
+function multiWinnerView(): SeatView {
+  const view = jadeStandardView();
+  const original = view.hand_result?.winners?.[0];
+  if (!view.hand_result || !original) return view;
+  view.hand_result.payer = "N";
+  view.hand_result.winners = [
+    {
+      ...original,
+      seat: "S",
+      context: { ...original.context, seat: "S" },
+      score: { ...original.score, raw_tai: 20 },
+    },
+    {
+      ...original,
+      seat: "W",
+      context: { ...original.context, seat: "W" },
+      score: { ...original.score, raw_tai: 15 },
+    },
+  ];
+  view.settlement = {
+    method: TAIWANESE_SETTLEMENT_METHOD,
+    transfers: [
+      {
+        from: "N", to: "S", effective_tai: 17, raw_amount: 170, amount: 155, capped: true,
+        calculation: taiwaneseCalculation(10, 16, 1),
+      },
+      {
+        from: "N", to: "W", effective_tai: 16, raw_amount: 160, amount: 145, capped: true,
+        calculation: taiwaneseCalculation(10, 15, 1),
+      },
+    ],
+    net: { E: 0, S: 155, W: 145, N: -300 },
+    total_credits: 300,
+    total_debits: 300,
+  };
+  view.jade_settlement = {
+    seat: "E",
+    delta: 0,
+    balance_before: 5_000,
+    balance_after: 5_000,
+    journal_id: "settlement:multi-winner",
   };
   return view;
 }
@@ -275,6 +391,7 @@ function exhaustiveDrawView(): SeatView {
     ],
   };
   view.settlement = {
+    method: TAIWANESE_SETTLEMENT_METHOD,
     net: { E: 0, S: 0, W: 0, N: 0 },
     total_credits: 0,
     total_debits: 0,
@@ -311,16 +428,20 @@ function dealInReviewView(): SeatView {
     },
   ];
   view.settlement = {
-    transfers: [{ from: "E", to: "S", effective_tai: 3, raw_amount: 30, amount: 30 }],
-    net: { E: -30, S: 30, W: 0, N: 0 },
-    total_credits: 30,
-    total_debits: 30,
+    method: TAIWANESE_SETTLEMENT_METHOD,
+    transfers: [{
+      from: "E", to: "S", effective_tai: 8, raw_amount: 80, amount: 80,
+      calculation: taiwaneseCalculation(10, 3, 2),
+    }],
+    net: { E: -80, S: 80, W: 0, N: 0 },
+    total_credits: 80,
+    total_debits: 80,
   };
   view.jade_settlement = {
     seat: "E",
-    delta: -30,
+    delta: -80,
     balance_before: 5_000,
-    balance_after: 4_970,
+    balance_after: 4_920,
     journal_id: "settlement:deal-in-review",
   };
   view.xp_award = {
@@ -328,6 +449,47 @@ function dealInReviewView(): SeatView {
     source: "public_hand",
     total: 100,
     components: [{ code: "hand_completed", label: "Hand completed", amount: 100 }],
+  };
+  return view;
+}
+
+function alternateSettlementView(): SeatView {
+  const view = jadeStandardView();
+  view.settlement = {
+    method: {
+      id: "future-fixed-components-v1",
+      model: "fixed_components",
+      base_units: 0,
+      tai_cap: 0,
+      dealer_multiplier: 1,
+    },
+    transfers: [{
+      from: "S",
+      to: "E",
+      effective_tai: 0,
+      raw_amount: 75,
+      amount: 75,
+      calculation: {
+        method_id: "future-fixed-components-v1",
+        model: "fixed_components",
+        unit_value: 5,
+        components: [
+          { kind: "hand_value", units: 10, amount: 50 },
+          { kind: "special_bonus", units: 5, amount: 25 },
+        ],
+        multiplier: 1,
+      },
+    }],
+    net: { E: 75, S: -75, W: 0, N: 0 },
+    total_credits: 75,
+    total_debits: 75,
+  };
+  view.jade_settlement = {
+    seat: "E",
+    delta: 75,
+    balance_before: 5_000,
+    balance_after: 5_075,
+    journal_id: "settlement:alternate-method",
   };
   return view;
 }
@@ -340,7 +502,10 @@ export const RESULT_SCENARIOS: {
 }[] = [
   { id: "jade-capped", label: "Jade — debit cap applied", practice: false, view: jadeCappedView() },
   { id: "jade-standard", label: "Jade — standard hand", practice: false, view: jadeStandardView() },
+  { id: "self-draw", label: "Jade — dealer self-draw", practice: false, view: selfDrawView() },
+  { id: "multi-winner", label: "Jade — multi-winner cap", practice: false, view: multiWinnerView() },
   { id: "practice", label: "Practice — Mastery XP", practice: true, view: practiceView() },
   { id: "exhaustive-draw", label: "Draw — four-seat waits", practice: false, view: exhaustiveDrawView() },
   { id: "deal-in-review", label: "Loss — discard review", practice: false, view: dealInReviewView() },
+  { id: "alternate-settlement", label: "Settlement — alternate method", practice: false, view: alternateSettlementView() },
 ];

@@ -25,7 +25,7 @@ import (
 //     table that already governs Quick Play.
 
 // TablePointTier is §8.4's "no cap and no stake multiplier": one table point
-// per effective Tai, and a cap high enough that allocation never binds.
+// per settlement unit, and a cap high enough that allocation never binds.
 //
 // The cap is not truly absent — SettleHand requires a positive one — but the
 // largest hand §7.3 can produce is far below this, so no real settlement can

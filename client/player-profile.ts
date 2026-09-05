@@ -49,6 +49,11 @@ export const PROFILE_TILE_OPTIONS: ProfileTileOption[] = [
   ].map(([id, label]) => ({ id: `flower-${id}`, label })),
 ];
 
+export const FOUNDER_PROFILE_TILE_OPTION: ProfileTileOption = {
+  id: "founder-og",
+  label: "OG Founder tile",
+};
+
 export const DEFAULT_PLAYER_PROFILE: PlayerProfileConfig = {
   nickname: "Player",
   tileSlotIds: ["dragon-red-1", "wind-east-1", "dots-1-1"],
@@ -56,10 +61,11 @@ export const DEFAULT_PLAYER_PROFILE: PlayerProfileConfig = {
 
 const STORAGE_PREFIX = "mahjong-player-profile:";
 
-function isTileOption(value: unknown): value is string {
+function isTileOption(value: unknown, founderTileUnlocked: boolean): value is string {
   return (
     typeof value === "string" &&
-    PROFILE_TILE_OPTIONS.some((option) => option.id === value)
+    (PROFILE_TILE_OPTIONS.some((option) => option.id === value) ||
+      (founderTileUnlocked && value === FOUNDER_PROFILE_TILE_OPTION.id))
   );
 }
 
@@ -77,7 +83,7 @@ export function defaultPlayerProfile(guest: boolean): PlayerProfileConfig {
   };
 }
 
-export function loadPlayerProfile(userId: string, guest: boolean): PlayerProfileConfig {
+export function loadPlayerProfile(userId: string, guest: boolean, founderTileUnlocked = false): PlayerProfileConfig {
   const fallback = defaultPlayerProfile(guest);
   try {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${userId}`);
@@ -97,9 +103,9 @@ export function loadPlayerProfile(userId: string, guest: boolean): PlayerProfile
     return {
       nickname: safeNickname(parsed.nickname, fallback.nickname),
       tileSlotIds: [
-        isTileOption(savedSlots[0]) ? savedSlots[0] : fallback.tileSlotIds[0],
-        isTileOption(savedSlots[1]) ? savedSlots[1] : fallback.tileSlotIds[1],
-        isTileOption(savedSlots[2]) ? savedSlots[2] : fallback.tileSlotIds[2],
+        isTileOption(savedSlots[0], founderTileUnlocked) ? savedSlots[0] : fallback.tileSlotIds[0],
+        isTileOption(savedSlots[1], founderTileUnlocked) ? savedSlots[1] : fallback.tileSlotIds[1],
+        isTileOption(savedSlots[2], founderTileUnlocked) ? savedSlots[2] : fallback.tileSlotIds[2],
       ],
     };
   } catch {

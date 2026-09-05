@@ -27,6 +27,7 @@ import (
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/service"
 	matchsession "github.com/gameswithout/mahjong/mahjong-match-service/pkg/session"
 	"github.com/gameswithout/mahjong/mahjong-match-service/pkg/storage"
+	storefront "github.com/gameswithout/mahjong/mahjong-match-service/pkg/store"
 
 	"github.com/go-openapi/loads"
 
@@ -352,7 +353,26 @@ func main() {
 	// Start the gRPC-Gateway HTTP server
 	go func() {
 		swaggerDir := "gateway/apidocs" // Path to swagger directory
-		grpcGatewayHTTPServer := newGRPCGatewayHTTPServer(fmt.Sprintf(":%d", grpcGatewayHTTPPort), grpcGateway, logger, swaggerDir)
+		storeConfig := storefront.Config{
+			ProjectID:      common.GetEnvInt("XSOLLA_PROJECT_ID", 0),
+			MerchantID:     common.GetEnvInt("XSOLLA_MERCHANT_ID", 0),
+			APIKey:         common.GetEnv("XSOLLA_API_KEY", ""),
+			WebhookSecret:  common.GetEnv("XSOLLA_WEBHOOK_SECRET", ""),
+			SKU:            common.GetEnv("XSOLLA_FOUNDER_PACK_SKU", storefront.FounderPackSKU),
+			Sandbox:        strings.EqualFold(common.GetEnv("XSOLLA_SANDBOX", "true"), "true"),
+			FulfillSandbox: strings.EqualFold(common.GetEnv("XSOLLA_FULFILL_SANDBOX", "false"), "true"),
+			ReturnURL:      common.GetEnv("XSOLLA_RETURN_URL", ""),
+		}
+		storeHandler := &storefront.Handler{Config: storeConfig, Repo: postgresStorage}
+		storeHandler.Client = storefront.XsollaClient{Config: storeConfig}
+		storeHandler.Authenticate = func(r *http.Request) (string, error) {
+			if testUserID != "" {
+				return testUserID, nil
+			}
+			principal, err := common.AuthenticateHTTPRequest(r, common.GetEnv("AB_NAMESPACE", ""))
+			return principal.UserID, err
+		}
+		grpcGatewayHTTPServer := newGRPCGatewayHTTPServer(fmt.Sprintf(":%d", grpcGatewayHTTPPort), grpcGateway, storeHandler, logger, swaggerDir)
 		logger.Info("starting gRPC-Gateway HTTP server", "port", grpcGatewayHTTPPort)
 		if err := grpcGatewayHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("failed to run gRPC-Gateway HTTP server", "error", err)
@@ -417,13 +437,19 @@ func postgresDSN(host, username, password, database, caCertFile string) string {
 }
 
 func newGRPCGatewayHTTPServer(
-	addr string, handler http.Handler, logger *slog.Logger, swaggerDir string,
+	addr string, handler http.Handler, storeHandler http.Handler, logger *slog.Logger, swaggerDir string,
 ) *http.Server {
 	// Create a new ServeMux
 	mux := http.NewServeMux()
 
 	// Add the gRPC-Gateway handler
-	mux.Handle("/", handler)
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/webhooks/xsolla") || strings.Contains(r.URL.Path, "/store/founder-pack") {
+			storeHandler.ServeHTTP(w, r)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
 
 	// Serve Swagger UI and JSON
 	serveSwaggerUI(mux)

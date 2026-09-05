@@ -147,7 +147,7 @@ Authorization preflight
   an active/stranded Session can be left without opening developer tools, while
   manual Session/runtime diagnostics remain under developer disclosure.
 - `client/HandResultScreen.tsx` labels bot-hand settlement as non-persistent
-  Practice points, shows the winning tile, attributes Dealer Tai to the actual
+  Practice points, shows the winning tile, attributes the dealer multiplier to the actual
   dealer, and exposes Play Again plus Return to Lobby.
 - `client/styles.css` removes game-shell padding at the certified 640×360
   landscape floor so the integrated table does not exceed the isolated

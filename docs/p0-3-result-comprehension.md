@@ -15,10 +15,10 @@ The result now reads in the same order as the decision the server made:
 3. **Why this scored** starts open and lists every authoritative pattern and
    its Tai value before the raw Tai subtotal. It can be collapsed without
    losing the summary.
-4. Dealer Tai is called out separately when it changes a relationship.
-5. The settlement names every payer and recipient, shows effective Tai and
-   raw payment, identifies an applied debit cap, and then shows the final
-   transfer.
+4. The ruleset-selected settlement method supplies structured base, Tai, and
+   multiplier components rather than asking the browser to infer them.
+5. The settlement names every payer and recipient, renders those authoritative
+   components, identifies an applied debit cap, and then shows the final transfer.
 6. A four-seat net-change summary proves that total debits equal total credits
    and explicitly states that no Jade was created or removed.
 7. The local balance is presented as a before/change/after equation alongside
@@ -45,8 +45,10 @@ settlement chapter is titled **Practice score only** and explicitly says:
 Component coverage includes the product specification's capped-payment shape:
 
 ```text
-10,000 Jade per 台 × 45 台 = 450,000 Jade
-Debit cap applied: 450,000 → 300,000 Jade
+Base: 1 × 10,000 = 10,000 Jade
+Tai: 16 × 10,000 = 160,000 Jade
+Payment multiplier ×2 = 340,000 Jade
+Debit cap applied: 340,000 → 300,000 Jade
 300,000 Jade paid = 300,000 received
 ```
 
@@ -98,10 +100,9 @@ width.
 
 The three scenarios live in `client/resultWireframeMockData.ts` and are
 rendered by `result-wireframe.html`. Each is internally coherent: the capped
-hand genuinely scores 44 raw Tai plus 1 Dealer Tai, because pairing a large
-effective Tai with a small raw Tai makes the screen derive an absurd dealer
-bonus (it computes the bonus as effective − raw, there being no separate
-server-sent breakdown). Worth knowing before reusing these numbers.
+hand scores 44 raw Tai, settles 16 Tai under the selected policy, adds one base
+unit, and applies the flat dealer multiplier. The server supplies this
+breakdown, so the screen never derives a modifier from effective Tai.
 
 What the captures show against the acceptance criteria:
 
@@ -110,9 +111,9 @@ What the captures show against the acceptance criteria:
   neither paid nor received, above the explicit "300,000 Jade paid = 300,000
   received. No Jade was created or removed."
 - **Capped settlements show both the uncapped calculation and the applied
-  cap.** `10,000 Jade per 台 × 45 台 = 450,000 Jade` sits directly above
-  `Debit cap applied: 450,000 → 300,000 Jade`, with the final 300,000 Jade
-  transfer beside them.
+  cap.** The base and 16 settled Tai total 170,000 Jade before the dealer
+  multiplier produces 340,000; `Debit cap applied: 340,000 → 300,000 Jade`
+  appears with the final transfer.
 - **Practice never implies persistent financial or score rewards.** The
   Practice capture carries the "No Jade, rating, or score is changed" banner,
   titles the chapter "Practice score only", denominates every amount in
@@ -141,7 +142,7 @@ Component coverage includes:
 - Practice/non-persistent wording and actions;
 - discard and self-draw result relationships;
 - winning decomposition, scoring-pattern disclosure, and raw Tai subtotal;
-- Dealer Tai attribution;
+- ruleset-selected settlement components and dealer-multiplier attribution;
 - Jade stake math, debit-cap disclosure, and zero-sum reconciliation;
 - local durable balance and Wallet sync state;
 - account-upgrade placement and result actions.

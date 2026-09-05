@@ -91,7 +91,7 @@ func TestTablePointsMayGoNegative(t *testing.T) {
 	state := NewRotationState(rotationStart)
 
 	// North pays every hand and never wins, so its total can only fall. The
-	// exact figure is left to the settlement rules — the dealer Tai that
+	// exact figure is left to the settlement rules — the dealer multiplier that
 	// applies once the winner inherits the dealership is genuinely part of it.
 	for hand := 0; hand < 3; hand++ {
 		outcome, err := state.ApplyHand(discardWin(South, North, 10), false, rotationStart)

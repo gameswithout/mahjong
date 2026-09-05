@@ -586,6 +586,33 @@ describe("HandResultScreen", () => {
     expect(markup).toContain("Balances to zero");
   });
 
+  it("renders an unfamiliar settlement method from authoritative components", () => {
+    const view = completedView();
+    const transfer = view.settlement?.transfers?.[0];
+    if (!transfer) {
+      throw new Error("invalid settlement fixture");
+    }
+    transfer.raw_amount = 75;
+    transfer.amount = 75;
+    transfer.calculation = {
+      method_id: "future-fixed-hand-v1",
+      model: "fixed_components",
+      unit_value: 5,
+      components: [
+        { kind: "hand_value", units: 10, amount: 50 },
+        { kind: "special_bonus", units: 5, amount: 25 },
+      ],
+      multiplier: 1,
+    };
+
+    const markup = renderToStaticMarkup(<HandResultScreen view={view} />);
+
+    expect(markup).toContain('data-settlement-method="future-fixed-hand-v1"');
+    expect(markup).toContain("Hand Value: 10 × 5 = 50 Jade");
+    expect(markup).toContain("Special Bonus: 5 × 5 = 25 Jade");
+    expect(markup).toContain("Payment multiplier ×1 = 75 Jade");
+  });
+
   it("lets the player collapse and reopen the score explanation", () => {
     const container = document.createElement("div");
     const root = createRoot(container);

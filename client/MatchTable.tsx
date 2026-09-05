@@ -1719,12 +1719,20 @@ export function MatchTable({
     const renderEssentialHandTile = (tile: WireTile) => (
       <button
         type="button"
-        className={selectedTileId === tile.id ? "is-selected" : ""}
+        className={`essential-hand-tile-button${selectedTileId === tile.id ? " is-selected" : ""}`}
         key={tile.id}
         onClick={() => activateTile(tile.id)}
         disabled={interaction?.discardPending}
         aria-pressed={selectedTileId === tile.id}
-        aria-label={`${selectedTileId === tile.id ? "Selected" : "Inspect"} ${tile.label}${tile.id === drawnTileId ? ", newly drawn" : ""}`}
+        aria-label={`${
+          selectedTileId === tile.id
+            ? interaction?.canDiscard
+              ? t("table.selectedDiscard", { tile: tile.label })
+              : t("table.selected", { tile: tile.label })
+            : interaction?.canDiscard
+              ? t("table.inspectDiscard", { tile: tile.label })
+              : t("table.inspect", { tile: tile.label })
+        }${tile.id === drawnTileId ? t("table.newlyDrawn") : ""}`}
       >
         <Tile t={tile} size="lg" />
       </button>
