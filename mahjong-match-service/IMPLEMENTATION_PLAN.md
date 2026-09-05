@@ -238,7 +238,19 @@ Base path:      /ext-gameswithout-mahjong-mahjong-match-service
                 at this service must use the real base path, not the local
                 dev value from README/.env.template)
 Service URL:    .../ext-gameswithout-mahjong-mahjong-match-service
-Image tag:      merge-ca2ca21 (deployment created
+Image tag:      founder-store-0694b50 (deployment created
+                2026-09-05T00:37:45.139Z, healthy; deployment
+                ec40ef7f-b72a-4fbd-9aed-ed1273d0b269). Adds the Xsolla
+                OG Founder's Pack checkout, signed webhook fulfillment and
+                cancellation, durable store entitlements, and the owned
+                founder tile personalization. Verified live: `get-app-info`
+                reports this image with `appStatus: deployment-running` and
+                one ready replica; the generated OpenAPI document returns
+                HTTP 200; and an unsigned POST to `/webhooks/xsolla` returns
+                HTTP 400 `Invalid signature.`, proving the public webhook
+                route is deployed and signature-gated.
+
+Previous image: merge-ca2ca21 (deployment created
                 2026-08-16T15:37:20.505Z, healthy; deployment
                 70625f35-fd8f-468a-9f26-9654098a5f89). Rebuilds the picker
                 image on top of `main`'s merged-in progression/growth
