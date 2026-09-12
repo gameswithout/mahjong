@@ -22,12 +22,12 @@
 //
 // Usage:  node scripts/verify-live-party-hand.mjs
 
-const baseURL = process.env.ACCELBYTE_BASE_URL ?? "https://gameswithout-mahjong.prod.gamingservices.accelbyte.io";
-const ns = process.env.ACCELBYTE_NAMESPACE ?? "gameswithout-mahjong";
-const clientId = process.env.ACCELBYTE_CLIENT_ID ?? "dc7a13b683c44822905797a8d1df39e7";
+const baseURL = process.env.ACCELBYTE_BASE_URL ?? "https://936895-314916.gamingservices.xsolla.com";
+const ns = process.env.ACCELBYTE_NAMESPACE ?? "936895-314916";
+const clientId = process.env.ACCELBYTE_CLIENT_ID ?? "291237b16de94414b4ee07760af794d9";
 const matchServiceURL =
   process.env.ACCELBYTE_MATCH_SERVICE_URL ??
-  `${baseURL}/ext-gameswithout-mahjong-mahjong-match-service`;
+  `${baseURL}/ext-936895-314916-mahjong-match-service`;
 const matchPool = process.env.ACCELBYTE_MATCH_POOL ?? "mahjong-test-pool";
 const partyTemplate = process.env.ACCELBYTE_PARTY_TEMPLATE ?? "mahjong-party";
 

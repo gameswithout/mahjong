@@ -25,12 +25,12 @@
 // obtainable by discarding at random in a reasonable number of attempts, and
 // this script does not pretend otherwise. See the summary it prints.
 
-const baseURL = process.env.ACCELBYTE_BASE_URL ?? "https://gameswithout-mahjong.prod.gamingservices.accelbyte.io";
-const namespace = process.env.ACCELBYTE_NAMESPACE ?? "gameswithout-mahjong";
-const clientId = process.env.ACCELBYTE_CLIENT_ID ?? "dc7a13b683c44822905797a8d1df39e7";
+const baseURL = process.env.ACCELBYTE_BASE_URL ?? "https://936895-314916.gamingservices.xsolla.com";
+const namespace = process.env.ACCELBYTE_NAMESPACE ?? "936895-314916";
+const clientId = process.env.ACCELBYTE_CLIENT_ID ?? "291237b16de94414b4ee07760af794d9";
 const matchServiceURL =
   process.env.ACCELBYTE_MATCH_SERVICE_URL ??
-  "https://gameswithout-mahjong.prod.gamingservices.accelbyte.io/ext-gameswithout-mahjong-mahjong-match-service";
+  "https://936895-314916.gamingservices.xsolla.com/ext-936895-314916-mahjong-match-service";
 const sessionTemplate = process.env.ACCELBYTE_SESSION_TEMPLATE ?? "mahjong-test-none";
 const sessionClientVersion = process.env.ACCELBYTE_SESSION_CLIENT_VERSION ?? "web-0.0.0";
 

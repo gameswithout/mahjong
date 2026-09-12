@@ -41,13 +41,13 @@ base path (see `mahjong-match-service/IMPLEMENTATION_PLAN.md`'s "Deployment
 record" for the current base URL if this ever changes):
 
 ```text
-ACCELBYTE_MATCH_SERVICE_URL=https://gameswithout-mahjong.prod.gamingservices.accelbyte.io/ext-gameswithout-mahjong-mahjong-match-service
+ACCELBYTE_MATCH_SERVICE_URL=https://936895-314916.gamingservices.xsolla.com/ext-936895-314916-mahjong-match-service
 ```
 
 Leave the rest of `.env.example`'s defaults as-is (`ACCELBYTE_BASE_URL`,
 `ACCELBYTE_NAMESPACE`, `ACCELBYTE_CLIENT_ID`, `ACCELBYTE_SESSION_TEMPLATE`,
 `ACCELBYTE_SESSION_CLIENT_VERSION`) — those already point at the
-`gameswithout-mahjong` AGS namespace this deployment lives in.
+`936895-314916` Xsolla-hosted AGS namespace this deployment lives in.
 
 ```bash
 npm run dev
