@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AccelByteSDK } from "@accelbyte/sdk";
 
@@ -207,6 +207,38 @@ describe("createSessionClient", () => {
     });
     expect(calls).toHaveLength(1);
     expect((calls[0].body as { attributes: unknown }).attributes).toEqual({ ai_practice: "true" });
+  });
+
+  it("uses the configured Session relay with the current player token", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ gameSessionId: "session-relayed", status: "JOINED", members: [] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = createSessionClient(
+      fakeSdk(async () => {
+        throw new Error("SDK transport should not be used");
+      }),
+      "mahjong test",
+      undefined,
+      {
+        baseURL: "https://match.example.test/ags/",
+        getAccessToken: () => "player-token",
+        fetchImpl,
+      },
+    );
+
+    await expect(client.getSession("session 1")).resolves.toMatchObject({
+      sessionId: "session-relayed",
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://match.example.test/ags/session/v1/public/namespaces/mahjong%20test/gamesessions/session%201",
+      expect.objectContaining({
+        method: "GET",
+        headers: { Authorization: "Bearer player-token" },
+      }),
+    );
   });
 });
 

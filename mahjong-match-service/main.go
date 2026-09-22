@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"net"
@@ -372,7 +373,19 @@ func main() {
 			principal, err := common.AuthenticateHTTPRequest(r, common.GetEnv("AB_NAMESPACE", ""))
 			return principal.UserID, err
 		}
-		grpcGatewayHTTPServer := newGRPCGatewayHTTPServer(fmt.Sprintf(":%d", grpcGatewayHTTPPort), grpcGateway, storeHandler, logger, swaggerDir)
+		sessionProxy := newAGSSessionProxy(
+			basePath,
+			common.GetEnv("AB_BASE_URL", ""),
+			http.DefaultClient,
+		)
+		grpcGatewayHTTPServer := newGRPCGatewayHTTPServer(
+			fmt.Sprintf(":%d", grpcGatewayHTTPPort),
+			grpcGateway,
+			storeHandler,
+			sessionProxy,
+			logger,
+			swaggerDir,
+		)
 		logger.Info("starting gRPC-Gateway HTTP server", "port", grpcGatewayHTTPPort)
 		if err := grpcGatewayHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("failed to run gRPC-Gateway HTTP server", "error", err)
@@ -437,13 +450,22 @@ func postgresDSN(host, username, password, database, caCertFile string) string {
 }
 
 func newGRPCGatewayHTTPServer(
-	addr string, handler http.Handler, storeHandler http.Handler, logger *slog.Logger, swaggerDir string,
+	addr string,
+	handler http.Handler,
+	storeHandler http.Handler,
+	sessionProxy *agsSessionProxy,
+	logger *slog.Logger,
+	swaggerDir string,
 ) *http.Server {
 	// Create a new ServeMux
 	mux := http.NewServeMux()
 
 	// Add the gRPC-Gateway handler
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if sessionProxy != nil && sessionProxy.matches(r.URL.Path) {
+			sessionProxy.ServeHTTP(w, r)
+			return
+		}
 		if strings.HasSuffix(r.URL.Path, "/webhooks/xsolla") || strings.Contains(r.URL.Path, "/store/founder-pack") {
 			storeHandler.ServeHTTP(w, r)
 			return
@@ -492,6 +514,70 @@ func newGRPCGatewayHTTPServer(
 		IdleTimeout: 120 * time.Second,
 		ErrorLog:    log.New(os.Stderr, "httpSrv: ", log.LstdFlags), // Configure the logger for the HTTP server
 	}
+}
+
+// agsSessionProxy is the static-hosting bridge for the browser Session API.
+// AGS's Session edge does not accept browser OPTIONS requests, so a GitHub
+// Pages client cannot call it directly. This relay is intentionally limited
+// to /session/v1/public: it forwards the player's bearer token but exposes no
+// admin or confidential-client surface.
+type agsSessionProxy struct {
+	prefix  string
+	baseURL string
+	client  *http.Client
+}
+
+func newAGSSessionProxy(basePath, baseURL string, client *http.Client) *agsSessionProxy {
+	prefix := strings.TrimSuffix(basePath, "/") + "/ags/session/"
+	return &agsSessionProxy{
+		prefix:  prefix,
+		baseURL: strings.TrimSuffix(baseURL, "/"),
+		client:  client,
+	}
+}
+
+func (p *agsSessionProxy) matches(path string) bool {
+	return p != nil && strings.HasPrefix(path, p.prefix+"v1/public/")
+}
+
+func (p *agsSessionProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if p == nil || p.client == nil || p.baseURL == "" || !p.matches(r.URL.Path) {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	suffix := strings.TrimPrefix(r.URL.Path, p.prefix)
+	target := p.baseURL + "/session/" + suffix
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+	body := http.MaxBytesReader(w, r.Body, 1<<20)
+	request, err := http.NewRequestWithContext(r.Context(), r.Method, target, body)
+	if err != nil {
+		http.Error(w, "invalid Session request", http.StatusBadRequest)
+		return
+	}
+	for _, name := range []string{"Authorization", "Content-Type", "Accept"} {
+		if value := r.Header.Get(name); value != "" {
+			request.Header.Set(name, value)
+		}
+	}
+
+	response, err := p.client.Do(request)
+	if err != nil {
+		http.Error(w, "AGS Session upstream unavailable", http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+	if value := response.Header.Get("Content-Type"); value != "" {
+		w.Header().Set("Content-Type", value)
+	}
+	w.WriteHeader(response.StatusCode)
+	_, _ = io.Copy(w, io.LimitReader(response.Body, 4<<20))
 }
 
 // corsMiddleware answers CORS preflight (OPTIONS) requests directly — the

@@ -1,12 +1,87 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func TestAGSSessionProxy_ForwardsOnlyPublicSessionRequests(t *testing.T) {
+	var gotPath string
+	var gotAuthorization string
+	var gotBody string
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotPath = r.URL.RequestURI()
+		gotAuthorization = r.Header.Get("Authorization")
+		body, _ := io.ReadAll(r.Body)
+		gotBody = string(body)
+		return &http.Response{
+			StatusCode: http.StatusCreated,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"gameSessionId":"session-1"}`)),
+		}, nil
+	})}
+
+	proxy := newAGSSessionProxy("/ext-app", "https://ags.example.test", client)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/ext-app/ags/session/v1/public/namespaces/ns/gamesession?test=true",
+		strings.NewReader(`{"attributes":{}}`),
+	)
+	request.Header.Set("Authorization", "Bearer player-token")
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	proxy.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
+	}
+	if gotPath != "/session/v1/public/namespaces/ns/gamesession?test=true" {
+		t.Fatalf("upstream path = %q", gotPath)
+	}
+	if gotAuthorization != "Bearer player-token" {
+		t.Fatalf("Authorization = %q", gotAuthorization)
+	}
+	if gotBody != `{"attributes":{}}` {
+		t.Fatalf("body = %q", gotBody)
+	}
+	if got := recorder.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	if !proxy.matches("/ext-app/ags/session/v1/public/namespaces/ns/gamesession") {
+		t.Fatal("public Session route did not match")
+	}
+	if proxy.matches("/ext-app/ags/iam/v3/oauth/token") {
+		t.Fatal("non-Session route matched the Session relay")
+	}
+	if proxy.matches("/ext-app/ags/session/v1/admin/namespaces/ns/gamesession") {
+		t.Fatal("admin Session route matched the public Session relay")
+	}
+}
+
+func TestAGSSessionProxy_RejectsUnsupportedMethods(t *testing.T) {
+	proxy := newAGSSessionProxy("/ext-app", "https://example.test", http.DefaultClient)
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/ext-app/ags/session/v1/public/namespaces/ns/gamesession",
+		nil,
+	)
+	recorder := httptest.NewRecorder()
+	proxy.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusMethodNotAllowed)
+	}
+}
 
 func TestPostgresDSN_EncodesCredentialsAndTLSOptions(t *testing.T) {
 	dsn := postgresDSN(

@@ -50,6 +50,7 @@ jobs:
             echo "ACCELBYTE_BASE_URL=https://936895-314916.gamingservices.xsolla.com"
             echo "ACCELBYTE_NAMESPACE=936895-314916"
             echo "ACCELBYTE_CLIENT_ID=291237b16de94414b4ee07760af794d9"
+            echo "ACCELBYTE_SESSION_URL=https://936895-314916.gamingservices.xsolla.com/ext-936895-314916-mahjong-match-service/ags"
             echo "ACCELBYTE_MATCH_SERVICE_URL=https://936895-314916.gamingservices.xsolla.com/ext-936895-314916-mahjong-match-service"
             echo "ACCELBYTE_MATCH_POOL=mahjong-test-pool"
             echo "ACCELBYTE_SESSION_TEMPLATE=mahjong-test-none"

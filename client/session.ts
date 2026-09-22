@@ -83,6 +83,12 @@ interface AxiosLike {
   delete(url: string): Promise<SessionApiResponse>;
 }
 
+export interface SessionTransportOptions {
+  baseURL?: string;
+  getAccessToken?: () => string;
+  fetchImpl?: typeof fetch;
+}
+
 export interface SessionCreateConfig {
   configurationName: string;
   clientVersion: string;
@@ -284,13 +290,40 @@ export function createSessionClient(
   sdk: AccelByteSDK,
   namespace: string,
   config?: SessionCreateConfig,
+  transport: SessionTransportOptions = {},
 ): SessionClient {
-  const axiosInstance = sdk.assembly().axiosInstance as unknown as AxiosLike;
+  const sdkAxios = sdk.assembly().axiosInstance as unknown as AxiosLike;
+  const fetchImpl = transport.fetchImpl ?? globalThis.fetch?.bind(globalThis);
+  const request = async (method: string, path: string, body?: unknown): Promise<SessionApiResponse> => {
+    if (!transport.baseURL) {
+      if (method === "GET") return sdkAxios.get(path);
+      if (method === "POST") return sdkAxios.post(path, body);
+      return sdkAxios.delete(path);
+    }
+    if (!fetchImpl || !transport.getAccessToken) {
+      throw new SessionLookupError("configuration", "Session transport is incomplete.");
+    }
+    const response = await fetchImpl(`${transport.baseURL.replace(/\/+$/, "")}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${transport.getAccessToken()}`,
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (!response.ok) {
+      throw { response: { status: response.status } };
+    }
+    if (response.status === 204) {
+      return { data: {} };
+    }
+    return { data: await response.json() };
+  };
 
   return {
     async listMySessions() {
       try {
-        const response = await axiosInstance.get(endpoint(namespace));
+        const response = await request("GET", endpoint(namespace));
         return mapSessionList(response.data);
       } catch (error) {
         throw mapSessionError(error);
@@ -299,7 +332,7 @@ export function createSessionClient(
 
     async getSession(sessionId) {
       try {
-        const response = await axiosInstance.get(endpoint(namespace, sessionId));
+        const response = await request("GET", endpoint(namespace, sessionId));
         return mapSessionDetail(response.data);
       } catch (error) {
         throw mapSessionError(error);
@@ -308,7 +341,8 @@ export function createSessionClient(
 
     async createSession(attributes) {
       try {
-        const response = await axiosInstance.post(
+        const response = await request(
+          "POST",
           createEndpoint(namespace),
           createRequestBody(config, attributes),
         );
@@ -320,7 +354,7 @@ export function createSessionClient(
 
     async joinSession(sessionId) {
       try {
-        await axiosInstance.post(joinEndpoint(namespace, sessionId));
+        await request("POST", joinEndpoint(namespace, sessionId));
       } catch (error) {
         throw mapSessionError(error);
       }
@@ -328,7 +362,7 @@ export function createSessionClient(
 
     async leaveSession(sessionId) {
       try {
-        await axiosInstance.delete(leaveEndpoint(namespace, sessionId));
+        await request("DELETE", leaveEndpoint(namespace, sessionId));
       } catch (error) {
         throw mapSessionError(error);
       }

@@ -2,6 +2,7 @@ export interface AccelByteWebConfig {
   baseURL: string;
   namespace: string;
   clientId: string;
+  sessionURL?: string;
   matchServiceURL?: string;
   matchPool?: string;
   // §8.4 Full Rotation queues into its own pool. It cannot share Quick Play's:
@@ -46,11 +47,16 @@ const matchServiceURL = resolveBrowserBaseURL(
   import.meta.env.ACCELBYTE_MATCH_SERVICE_URL,
   window.location.origin,
 );
+const sessionURL = resolveBrowserBaseURL(
+  import.meta.env.ACCELBYTE_SESSION_URL,
+  window.location.origin,
+);
 
 export const accelByteConfig: AccelByteWebConfig = {
   baseURL,
   namespace: import.meta.env.ACCELBYTE_NAMESPACE,
   clientId: import.meta.env.ACCELBYTE_CLIENT_ID,
+  sessionURL,
   matchServiceURL,
   matchPool: import.meta.env.ACCELBYTE_MATCH_POOL,
   rotationMatchPool: import.meta.env.ACCELBYTE_ROTATION_MATCH_POOL,

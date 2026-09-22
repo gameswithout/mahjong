@@ -2083,6 +2083,11 @@ export function App(
       const client = createSessionClient(
         stableIam.getAuthenticatedSdk(),
         accelByteConfig.namespace,
+        undefined,
+        {
+          baseURL: accelByteConfig.sessionURL,
+          getAccessToken: () => stableIam.getAccessToken(),
+        },
       );
       const sessions = await client.listMySessions();
       if (requestId !== sessionRequestRef.current) {
@@ -2134,6 +2139,10 @@ export function App(
       stableIam.getAuthenticatedSdk(),
       accelByteConfig.namespace,
       sessionCreateConfig(),
+      {
+        baseURL: accelByteConfig.sessionURL,
+        getAccessToken: () => stableIam.getAccessToken(),
+      },
     );
   }
 

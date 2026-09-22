@@ -15,6 +15,12 @@ describe("assertAccelByteConfig", () => {
     );
   });
 
+  it("resolves the local Session proxy against the active dev origin", () => {
+    expect(resolveBrowserBaseURL("/ags", "http://localhost:5173")).toBe(
+      "http://localhost:5173/ags",
+    );
+  });
+
   it("allows IAM to start when optional Session-create settings are absent", () => {
     expect(() =>
       assertAccelByteConfig({

@@ -108,6 +108,9 @@ export default defineConfig(({ mode, command }) => {
       ),
       "import.meta.env.ACCELBYTE_NAMESPACE": JSON.stringify(env.ACCELBYTE_NAMESPACE),
       "import.meta.env.ACCELBYTE_CLIENT_ID": JSON.stringify(env.ACCELBYTE_CLIENT_ID),
+      "import.meta.env.ACCELBYTE_SESSION_URL": JSON.stringify(
+        command === "serve" ? localAgsProxyPath : env.ACCELBYTE_SESSION_URL,
+      ),
       "import.meta.env.ACCELBYTE_MATCH_SERVICE_URL": JSON.stringify(
         command === "serve" ? localMatchServiceProxyPath : env.ACCELBYTE_MATCH_SERVICE_URL,
       ),
