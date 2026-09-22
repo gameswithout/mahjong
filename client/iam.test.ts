@@ -1,6 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BrowserIam, IamAuthError, mapAuthError, type IamTransport } from "./iam";
+import {
+  BrowserIam,
+  IamAuthError,
+  loginWithXsollaDeviceId,
+  mapAuthError,
+  type IamTransport,
+} from "./iam";
 import { DEVICE_ID_STORAGE_KEY } from "./device-id";
 import { setLocale } from "./i18n";
 
@@ -512,6 +518,59 @@ describe("BrowserIam", () => {
       await expect(iam.refreshAccessToken()).resolves.toBe(true);
       await expect(iam.refreshAccessToken()).resolves.toBe(false);
       expect(exchanges).toBe(1);
+    });
+  });
+});
+
+describe("Xsolla device login", () => {
+  it("requests a guest JWT without exposing an OAuth client secret", async () => {
+    let capturedUrl = "";
+    let capturedInit: RequestInit | undefined;
+    const request = vi.fn(async (url: URL | RequestInfo, init?: RequestInit) => {
+      capturedUrl = String(url);
+      capturedInit = init;
+      return new Response(JSON.stringify({ token: "xsolla-user-jwt" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    await expect(
+      loginWithXsollaDeviceId(
+        "72879996-0c41-4ee5-9938-f889639390e5",
+        { projectId: "login-project-id", oauthClientId: "18508" },
+        request,
+      ),
+    ).resolves.toBe("xsolla-user-jwt");
+
+    expect(capturedUrl).toContain("https://login.xsolla.com/api/login/device/");
+    expect(capturedUrl).toContain("projectId=login-project-id");
+    expect(capturedInit?.body).toBe(
+      JSON.stringify({
+        device: navigator.userAgent.slice(0, 100),
+        device_id: "72879996-0c41-4ee5-9938-f889639390e5",
+      }),
+    );
+    expect(JSON.stringify(capturedInit)).not.toContain("secret");
+  });
+
+  it("maps a disabled Xsolla device flow to the existing player-safe error", async () => {
+    const request = vi.fn(async () =>
+      new Response(JSON.stringify({ error: { code: "MethodNotFound" } }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      loginWithXsollaDeviceId(
+        "72879996-0c41-4ee5-9938-f889639390e5",
+        { projectId: "login-project-id", oauthClientId: "18508" },
+        request,
+      ),
+    ).rejects.toMatchObject({
+      code: "device_login_disabled",
+      message: "Device ID guest login is not enabled for this project.",
     });
   });
 });

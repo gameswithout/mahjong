@@ -56,6 +56,8 @@ jobs:
             echo "ACCELBYTE_ROTATION_MATCH_POOL=mahjong-full-rotation-pool"
             echo "ACCELBYTE_SESSION_CLIENT_VERSION=web-0.0.0"
             echo "ACCELBYTE_PARTY_TEMPLATE=mahjong-party"
+            echo "XSOLLA_LOGIN_PROJECT_ID=a32b1c64-9071-4bfb-bdf0-ceabebacd1ef"
+            echo "XSOLLA_OAUTH_CLIENT_ID=18508"
           } >> .env.production
 
       - run: npm run build

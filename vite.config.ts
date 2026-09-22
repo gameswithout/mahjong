@@ -49,6 +49,8 @@ function preconnectPlugin(env: Record<string, string>) {
 
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, ".", "");
+  const localAgsProxyPath = "/ags";
+  const localMatchServiceProxyPath = "/match-service";
 
   return {
     // GitHub Pages serves this as a project site at
@@ -56,6 +58,36 @@ export default defineConfig(({ mode, command }) => {
     // rooted there. The dev server still serves from "/".
     base: command === "build" ? "/mahjong/" : "/",
     plugins: [react(), preconnectPlugin(env)],
+    server: {
+      // AGS's public Session API does not answer browser OPTIONS preflights.
+      // During local development, keep those calls same-origin and let Vite
+      // forward them server-side. Production continues to use the configured
+      // HTTPS origin until its edge CORS policy is enabled.
+      proxy:
+        env.ACCELBYTE_BASE_URL || env.ACCELBYTE_MATCH_SERVICE_URL
+          ? {
+              ...(env.ACCELBYTE_BASE_URL
+                ? {
+                    [localAgsProxyPath]: {
+                      target: env.ACCELBYTE_BASE_URL,
+                      changeOrigin: true,
+                      ws: true,
+                      rewrite: (path) => path.replace(/^\/ags/, ""),
+                    },
+                  }
+                : {}),
+              ...(env.ACCELBYTE_MATCH_SERVICE_URL
+                ? {
+                    [localMatchServiceProxyPath]: {
+                      target: env.ACCELBYTE_MATCH_SERVICE_URL,
+                      changeOrigin: true,
+                      rewrite: (path) => path.replace(/^\/match-service/, ""),
+                    },
+                  }
+                : {}),
+            }
+          : undefined,
+    },
     build: {
       rollupOptions: {
         // Vite resolves these relative to the project root by default; no
@@ -71,10 +103,14 @@ export default defineConfig(({ mode, command }) => {
       },
     },
     define: {
-      "import.meta.env.ACCELBYTE_BASE_URL": JSON.stringify(env.ACCELBYTE_BASE_URL),
+      "import.meta.env.ACCELBYTE_BASE_URL": JSON.stringify(
+        command === "serve" ? localAgsProxyPath : env.ACCELBYTE_BASE_URL,
+      ),
       "import.meta.env.ACCELBYTE_NAMESPACE": JSON.stringify(env.ACCELBYTE_NAMESPACE),
       "import.meta.env.ACCELBYTE_CLIENT_ID": JSON.stringify(env.ACCELBYTE_CLIENT_ID),
-      "import.meta.env.ACCELBYTE_MATCH_SERVICE_URL": JSON.stringify(env.ACCELBYTE_MATCH_SERVICE_URL),
+      "import.meta.env.ACCELBYTE_MATCH_SERVICE_URL": JSON.stringify(
+        command === "serve" ? localMatchServiceProxyPath : env.ACCELBYTE_MATCH_SERVICE_URL,
+      ),
       "import.meta.env.ACCELBYTE_ICE_CONFIG_URL": JSON.stringify(env.ACCELBYTE_ICE_CONFIG_URL),
       "import.meta.env.ACCELBYTE_MATCH_POOL": JSON.stringify(env.ACCELBYTE_MATCH_POOL),
       // §8.4 Full Rotation queues into its own pool; sharing Quick Play's is
@@ -85,6 +121,12 @@ export default defineConfig(({ mode, command }) => {
       "import.meta.env.ACCELBYTE_SESSION_TEMPLATE": JSON.stringify(env.ACCELBYTE_SESSION_TEMPLATE),
       "import.meta.env.ACCELBYTE_SESSION_CLIENT_VERSION": JSON.stringify(
         env.ACCELBYTE_SESSION_CLIENT_VERSION,
+      ),
+      "import.meta.env.XSOLLA_LOGIN_PROJECT_ID": JSON.stringify(
+        env.XSOLLA_LOGIN_PROJECT_ID,
+      ),
+      "import.meta.env.XSOLLA_OAUTH_CLIENT_ID": JSON.stringify(
+        env.XSOLLA_OAUTH_CLIENT_ID,
       ),
     },
   };

@@ -22,13 +22,36 @@ export interface AccelByteWebConfig {
   iceConfigURL?: string;
 }
 
-const baseURL = import.meta.env.ACCELBYTE_BASE_URL;
+export interface XsollaLoginConfig {
+  // Public Xsolla Login project identifier (also called the Login ID).
+  projectId: string;
+  // Public browser OAuth client identifier. Its secret must never be bundled.
+  oauthClientId: string;
+}
+
+// The AccelByte SDK requires an absolute URL. Vite's local reverse proxy is
+// intentionally configured as a relative path so it follows either localhost
+// or 127.0.0.1; resolve that path against the page origin before SDK creation.
+export function resolveBrowserBaseURL(configured: string, origin: string): string {
+  return configured?.startsWith("/")
+    ? new URL(configured, origin).toString().replace(/\/$/, "")
+    : configured;
+}
+
+const baseURL = resolveBrowserBaseURL(
+  import.meta.env.ACCELBYTE_BASE_URL,
+  window.location.origin,
+);
+const matchServiceURL = resolveBrowserBaseURL(
+  import.meta.env.ACCELBYTE_MATCH_SERVICE_URL,
+  window.location.origin,
+);
 
 export const accelByteConfig: AccelByteWebConfig = {
   baseURL,
   namespace: import.meta.env.ACCELBYTE_NAMESPACE,
   clientId: import.meta.env.ACCELBYTE_CLIENT_ID,
-  matchServiceURL: import.meta.env.ACCELBYTE_MATCH_SERVICE_URL,
+  matchServiceURL,
   matchPool: import.meta.env.ACCELBYTE_MATCH_POOL,
   rotationMatchPool: import.meta.env.ACCELBYTE_ROTATION_MATCH_POOL,
   sessionTemplate: import.meta.env.ACCELBYTE_SESSION_TEMPLATE,
@@ -38,8 +61,21 @@ export const accelByteConfig: AccelByteWebConfig = {
     import.meta.env.ACCELBYTE_ICE_CONFIG_URL || (baseURL ? `${baseURL}/turnmanager/turn` : undefined),
 };
 
+export const xsollaLoginConfig: XsollaLoginConfig = {
+  projectId: import.meta.env.XSOLLA_LOGIN_PROJECT_ID,
+  oauthClientId: import.meta.env.XSOLLA_OAUTH_CLIENT_ID,
+};
+
 export function assertAccelByteConfig(config: AccelByteWebConfig = accelByteConfig): void {
   if (!config.baseURL || !config.namespace || !config.clientId) {
     throw new Error("AGS browser configuration is incomplete.");
+  }
+}
+
+export function assertXsollaLoginConfig(
+  config: XsollaLoginConfig = xsollaLoginConfig,
+): void {
+  if (!config.projectId) {
+    throw new Error("Xsolla Login configuration is incomplete.");
   }
 }

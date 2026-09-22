@@ -1,7 +1,14 @@
 import { AccelByte } from "@accelbyte/sdk";
 import { OAuth20Api, OAuth20V4Api, UsersApi, UsersV4Api } from "@accelbyte/sdk-iam";
 
-import { accelByteConfig, assertAccelByteConfig, type AccelByteWebConfig } from "./config";
+import {
+  accelByteConfig,
+  assertAccelByteConfig,
+  assertXsollaLoginConfig,
+  xsollaLoginConfig,
+  type AccelByteWebConfig,
+  type XsollaLoginConfig,
+} from "./config";
 import { browserDeviceIdStore, type DeviceIdStore } from "./device-id";
 import { getAgsLanguageTag } from "./i18n";
 
@@ -80,6 +87,10 @@ interface TokenResponse {
   refresh_token?: unknown;
 }
 
+interface XsollaDeviceTokenResponse {
+  token?: unknown;
+}
+
 interface UserResponse {
   userId?: unknown;
   // Present only once an email identity is attached, which is exactly what
@@ -103,6 +114,52 @@ export type AccelByteWebSdk = ReturnType<typeof AccelByte.SDK>;
 
 function basicClientHeader(clientId: string): string {
   return `Basic ${btoa(`${clientId}:`)}`;
+}
+
+function xsollaDeviceType(): "android" | "ios" | "macos" | "windows" {
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes("android")) return "android";
+  if (/iphone|ipad|ipod/.test(userAgent)) return "ios";
+  if (userAgent.includes("mac")) return "macos";
+  return "windows";
+}
+
+export async function loginWithXsollaDeviceId(
+  deviceId: string,
+  config: XsollaLoginConfig = xsollaLoginConfig,
+  request: typeof fetch = fetch,
+): Promise<string> {
+  assertXsollaLoginConfig(config);
+  const url = new URL(
+    `https://login.xsolla.com/api/login/device/${xsollaDeviceType()}`,
+  );
+  url.searchParams.set("projectId", config.projectId);
+  url.searchParams.set("with_logout", "0");
+
+  const response = await request(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      device: navigator.userAgent.slice(0, 100),
+      device_id: deviceId,
+    }),
+  });
+  const body = (await response.json().catch(() => ({}))) as XsollaDeviceTokenResponse;
+  if (!response.ok || typeof body.token !== "string" || body.token.length === 0) {
+    throw new IamAuthError(
+      response.status === 400 || response.status === 404
+        ? "device_login_disabled"
+        : response.status === 401 || response.status === 403
+          ? "invalid_client"
+          : response.status === 0 || response.status >= 500
+            ? "network"
+            : "unknown",
+      response.status === 400 || response.status === 404
+        ? "Device ID guest login is not enabled for this project."
+        : "Xsolla guest sign-in failed. Please retry.",
+    );
+  }
+  return body.token;
 }
 
 function createSdk(
@@ -317,20 +374,24 @@ export function mapAuthError(error: unknown, operation: IamOperation): IamAuthEr
   return new IamAuthError("unknown", UNKNOWN_MESSAGE_BY_OPERATION[operation], { cause: error });
 }
 
-export function createSdkIamTransport(config: AccelByteWebConfig = accelByteConfig): IamTransport {
+export function createSdkIamTransport(
+  config: AccelByteWebConfig = accelByteConfig,
+  loginConfig: XsollaLoginConfig = xsollaLoginConfig,
+): IamTransport {
   assertAccelByteConfig(config);
+  assertXsollaLoginConfig(loginConfig);
 
   return {
     async loginWithDeviceId(deviceId) {
       try {
+        const xsollaToken = await loginWithXsollaDeviceId(deviceId, loginConfig);
         const sdk = createSdk(config, {
           Authorization: basicClientHeader(config.clientId),
-          "Device-Id": deviceId,
         });
-        const response = await OAuth20V4Api(sdk).postTokenOauth_ByPlatformId_v4("device", {
+        const response = await OAuth20V4Api(sdk).postTokenOauth_ByPlatformId_v4("xsolla", {
           client_id: config.clientId,
           createHeadless: true,
-          device_id: deviceId,
+          platform_token: xsollaToken,
           skipSetCookie: true,
         });
         return response.data as TokenResponse;
