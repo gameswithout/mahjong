@@ -1,5 +1,7 @@
 # Mahjong Product Specification
 
+> Engagement update (2026-10-19): [User Engagement Model](user-engagement-model.md) is the authoritative replacement for engagement and progression. Existing engagement implementations are placeholders. Consult it for modes, Jade settlement, progression, profiles, sharing, and monetization; core Mahjong rules remain governed here.
+
 - Status: Planning-authoritative product baseline
 - Version: 1.2
 - Decision date: 2026-07-17 (v1.1: 2026-07-17; v1.0 baseline: 2026-07-13)

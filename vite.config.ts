@@ -98,6 +98,9 @@ export default defineConfig(({ mode, command }) => {
           essentialLayout: "essential-layout.html",
           resultWireframe: "result-wireframe.html",
           progressionWireframe: "progression-wireframe.html",
+          neoEvidence: "neo-evidence.html",
+          gameModesEvidence: "game-modes-evidence.html",
+          journeyEvidence: "journey-evidence.html",
           onboardingEvidence: "onboarding-evidence.html",
         },
       },
@@ -118,6 +121,7 @@ export default defineConfig(({ mode, command }) => {
       "import.meta.env.ACCELBYTE_MATCH_POOL": JSON.stringify(env.ACCELBYTE_MATCH_POOL),
       // §8.4 Full Rotation queues into its own pool; sharing Quick Play's is
       // not possible because that pool stakes Jade and plays a single hand.
+      "import.meta.env.ACCELBYTE_UNRANKED_MATCH_POOL": JSON.stringify(env.ACCELBYTE_UNRANKED_MATCH_POOL),
       "import.meta.env.ACCELBYTE_ROTATION_MATCH_POOL": JSON.stringify(
         env.ACCELBYTE_ROTATION_MATCH_POOL,
       ),

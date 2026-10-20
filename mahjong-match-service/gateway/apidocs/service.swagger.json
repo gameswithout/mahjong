@@ -1142,6 +1142,39 @@
         }
       }
     },
+    "serviceJourneyAnniversary": {
+      "type": "object",
+      "properties": {
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "earnedAt": {
+          "type": "string"
+        },
+        "material": {
+          "type": "string"
+        },
+        "cosmeticCode": {
+          "type": "string"
+        }
+      }
+    },
+    "serviceJourneyPrestigeStep": {
+      "type": "object",
+      "properties": {
+        "games": {
+          "type": "string",
+          "format": "int64"
+        },
+        "title": {
+          "type": "string"
+        },
+        "chapter": {
+          "type": "string"
+        }
+      }
+    },
     "serviceLevelReward": {
       "type": "object",
       "properties": {
@@ -1539,6 +1572,32 @@
         }
       }
     },
+    "servicePlayerJourney": {
+      "type": "object",
+      "properties": {
+        "completedRotations": {
+          "type": "string",
+          "format": "int64"
+        },
+        "firstCompletedAt": {
+          "type": "string"
+        },
+        "anniversaries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceJourneyAnniversary"
+          }
+        },
+        "prestige": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/serviceJourneyPrestigeStep"
+          }
+        }
+      }
+    },
     "servicePlayerProgression": {
       "type": "object",
       "properties": {
@@ -1573,6 +1632,9 @@
         },
         "onboarding": {
           "$ref": "#/definitions/serviceOnboardingState"
+        },
+        "journey": {
+          "$ref": "#/definitions/servicePlayerJourney"
         }
       }
     },
@@ -1732,7 +1794,7 @@
         "continuations": {
           "type": "integer",
           "format": "int32",
-          "description": "§5.11 continuations standing behind the current hand, which set Dealer Tai."
+          "description": "§5.11 continuations standing behind the current hand; payout doubling remains flat."
         },
         "dealerUserId": {
           "type": "string"

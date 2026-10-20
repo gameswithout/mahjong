@@ -27,6 +27,8 @@ export function aiPracticeSessionAttributes(personaIds: readonly string[] = []):
 // Used when a table is created directly. A matchmade rotation gets the same
 // attribute from its pool's session template instead, which is why the pool
 // cannot be shared with Quick Play.
+export const UNRANKED_BOT_SESSION_ATTRIBUTES = { game_mode: "unranked", full_rotation: "true", ai_practice: "true" };
+
 export const FULL_ROTATION_SESSION_ATTRIBUTES: Record<string, unknown> = { full_rotation: "true" };
 
 export type SessionErrorCode =

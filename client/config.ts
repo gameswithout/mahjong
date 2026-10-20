@@ -5,6 +5,7 @@ export interface AccelByteWebConfig {
   sessionURL?: string;
   matchServiceURL?: string;
   matchPool?: string;
+  unrankedMatchPool?: string;
   // §8.4 Full Rotation queues into its own pool. It cannot share Quick Play's:
   // that pool's session template stakes Jade and produces a single-hand match,
   // and Full Rotation is ranked, unstaked, and several hands long. The pool's
@@ -59,6 +60,7 @@ export const accelByteConfig: AccelByteWebConfig = {
   sessionURL,
   matchServiceURL,
   matchPool: import.meta.env.ACCELBYTE_MATCH_POOL,
+  unrankedMatchPool: import.meta.env.ACCELBYTE_UNRANKED_MATCH_POOL,
   rotationMatchPool: import.meta.env.ACCELBYTE_ROTATION_MATCH_POOL,
   sessionTemplate: import.meta.env.ACCELBYTE_SESSION_TEMPLATE,
   sessionClientVersion: import.meta.env.ACCELBYTE_SESSION_CLIENT_VERSION,

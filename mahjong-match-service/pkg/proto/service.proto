@@ -595,6 +595,26 @@ message OnboardingState {
   string recorded_at = 2;
 }
 
+message JourneyAnniversary {
+ int32 year = 1;
+ string earned_at = 2;
+ string material = 3;
+ string cosmetic_code = 4;
+}
+
+message JourneyPrestigeStep {
+ int64 games = 1;
+ string title = 2;
+ string chapter = 3;
+}
+
+message PlayerJourney {
+ int64 completed_rotations = 1;
+ string first_completed_at = 2;
+ repeated JourneyAnniversary anniversaries = 3;
+ repeated JourneyPrestigeStep prestige = 4;
+}
+
 message PlayerProgression {
   int32 level = 1;
   int64 lifetime_xp = 2;
@@ -604,6 +624,7 @@ message PlayerProgression {
   repeated LevelReward earned = 6;
   LevelReward next = 7;
   OnboardingState onboarding = 8;
+  PlayerJourney journey = 9;
 }
 
 message TileIDSet {

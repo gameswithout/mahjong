@@ -197,6 +197,9 @@ func (r AGSResolver) Mode(ctx context.Context, namespace, sessionID string) (Mod
 }
 
 func modeFromAttributes(attributes interface{}) Mode {
+	if values, ok := attributes.(map[string]interface{}); ok && values["game_mode"] == "unranked" {
+		return ModeUnranked
+	}
 	if aiPracticeAttribute(attributes) {
 		return ModeQuickPlay
 	}

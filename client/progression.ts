@@ -5,6 +5,7 @@ import type {
   OnboardingOutcome,
   PlayerAchievement,
   PlayerProgression,
+  PlayerJourney,
   XPComponent,
 } from "../protocol/envelope";
 
@@ -123,6 +124,28 @@ function field(raw: Record<string, unknown>, protoName: string, jsonName: string
   return raw[protoName] !== undefined ? raw[protoName] : raw[jsonName];
 }
 
+export function normalizeJourney(value: unknown): PlayerJourney | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const rows = (value: unknown): Record<string, unknown>[] =>
+    Array.isArray(value) ? value.filter((row) => row && typeof row === "object") : [];
+  const string = (value: unknown) => typeof value === "string" ? value : undefined;
+  return {
+    completed_rotations: Math.max(0, Math.floor(numericValue(field(raw, "completed_rotations", "completedRotations")))),
+    first_completed_at: string(field(raw, "first_completed_at", "firstCompletedAt")),
+    anniversaries: rows(raw.anniversaries).flatMap((row) => {
+      const year = numericValue(row.year);
+      const earned = string(field(row, "earned_at", "earnedAt"));
+      return year > 0 && earned ? [{ year, earned_at: earned, material: string(row.material), cosmetic_code: string(field(row, "cosmetic_code", "cosmeticCode")) }] : [];
+    }),
+    prestige: rows(raw.prestige).flatMap((row) => {
+      const games = numericValue(row.games);
+      return games > 0 && typeof row.title === "string" && typeof row.chapter === "string"
+        ? [{ games, title: row.title, chapter: row.chapter }] : [];
+    }).sort((a, b) => a.games - b.games),
+  };
+}
+
 export function normalizePlayerProgression(value: unknown): PlayerProgression {
   if (!value || typeof value !== "object") {
     // protojson omits zero values, so an entirely absent progression object is
@@ -143,6 +166,7 @@ export function normalizePlayerProgression(value: unknown): PlayerProgression {
       ? (raw.onboarding as Record<string, unknown>)
       : null;
   return {
+    journey: normalizeJourney(raw.journey),
     level: numericValue(raw.level, 1),
     lifetime_xp: numericValue(field(raw, "lifetime_xp", "lifetimeXp")),
     xp_into_level: numericValue(field(raw, "xp_into_level", "xpIntoLevel")),

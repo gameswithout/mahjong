@@ -86,6 +86,7 @@ describe("App social feature access", () => {
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     window.localStorage.clear();
+    for (const id of ["guest-1", "player-1"]) window.localStorage.setItem(`mahjong.neo.v1:${id}`, JSON.stringify({ path: "experienced", step: "home", dismissed: true }));
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -158,7 +159,7 @@ describe("App social feature access", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
   }
 
   it("does not render or request friends and party features for a guest", async () => {
@@ -183,48 +184,31 @@ describe("App social feature access", () => {
     expect(container.textContent).toContain("Add a friend by player ID");
   });
 
-  it("opens account achievement progress from the progression screen", async () => {
+  it("opens verified rotation progress from the lobby Journey entry", async () => {
     dependencies.createProgressionClient.mockReturnValue({
       get: vi.fn().mockResolvedValue({
         progression: {
-          level: 2,
-          lifetime_xp: 500,
-          xp_into_level: 0,
-          xp_for_next_level: 600,
+          journey: { completed_rotations: 12, anniversaries: [], prestige: [
+            { games: 10, title: "Table Regular", chapter: "Familiar Table" },
+            { games: 50, title: "Familiar Face", chapter: "A Place of Your Own" },
+          ] },
         },
         curve: [],
       }),
-      getAchievements: vi.fn().mockResolvedValue([
-        {
-          code: "first-hand",
-          name: "First Hand",
-          description: "Complete your first public hand.",
-          current: 1,
-          goal: 1,
-          xp_reward: 100,
-          eligible: true,
-          unlocked: true,
-        },
-      ]),
     });
     await enterLobby(false);
-
-    const progressionButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label^="Open progression"]',
-    );
+    await vi.waitFor(() => expect(container.textContent).toContain("12 completed games"));
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="Open My Mahjong Journey"]');
+    expect(button).not.toBeNull();
+    await act(async () => { button!.click(); await Promise.resolve(); });
+    await vi.waitFor(() => expect(container.querySelector("#journey-title")?.textContent).toBe("My Mahjong Journey"));
+    expect(container.textContent).toContain("Table Regular");
+    expect(container.textContent).toContain("38 rotations to go");
+    expect(container.querySelectorAll(".journey-chapters button:disabled")).toHaveLength(1);
     await act(async () => {
-      progressionButton?.click();
+      container.querySelector<HTMLButtonElement>(".journey-header button")!.click();
       await Promise.resolve();
     });
-    await vi.waitFor(() => expect(container.querySelector(".achievement-entry")).not.toBeNull());
-
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>(".achievement-entry")?.click();
-      await Promise.resolve();
-    });
-    await vi.waitFor(() => expect(container.textContent).toContain("First Hand"));
-
-    expect(container.textContent).toContain("Only completed Online Play hands advance levels and achievements");
-    expect(container.textContent).toContain("Back to Progress");
+    expect(container.querySelector(".lobby-header")).not.toBeNull();
   });
 });

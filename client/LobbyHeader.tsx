@@ -2,7 +2,7 @@ import type { JadeAccount, PlayerProgression } from "../protocol/envelope";
 import { PlayerProfileBadge, PlayerProfileEditor } from "./PlayerProfile";
 import { defaultPlayerProfile, type PlayerProfileConfig } from "./player-profile";
 import type { PlayerStatSummary } from "./player-stats";
-import { formatNumber, t } from "./i18n";
+import { formatNumber, t, translateSource as tr } from "./i18n";
 
 export interface LobbyHeaderProps {
   guest: boolean;
@@ -41,13 +41,10 @@ export function LobbyHeader({
   onCreateAccount = () => undefined,
   founderTileUnlocked = false,
 }: LobbyHeaderProps) {
-  const level = progression?.level ?? 1;
-  const xpIntoLevel = progression?.xp_into_level ?? 0;
-  const xpForNextLevel = progression?.xp_for_next_level ?? 500;
-  const levelPercent =
-    xpForNextLevel > 0
-      ? Math.min(100, Math.round((xpIntoLevel / xpForNextLevel) * 100))
-      : 0;
+  const journey = progression?.journey;
+  const games = journey?.completed_rotations ?? 0;
+  const prestige = journey?.prestige.filter((step) => step.games <= games).at(-1);
+  const next = journey?.prestige.find((step) => step.games > games);
 
   return (
     <header className="lobby-header">
@@ -124,50 +121,15 @@ export function LobbyHeader({
           </div>
         ) : null}
         <div className="lobby-fact lobby-progress-fact">
-          <dt>{t("header.progress")}</dt>
+          <dt>{tr("My Mahjong Journey")}</dt>
           <dd>
-            <button
-              type="button"
-              className="lobby-progress-trigger"
-              onClick={onOpenProgress}
-              disabled={(progression?.lifetime_xp ?? 0) <= 0}
-              aria-label={
-                progressionStatus === "ready"
-                  ? t("header.openProgressLevel", { level })
-                  : t("header.openProgress")
-              }
-            >
-              <strong>
-                {progressionStatus === "ready"
-                  ? (progression?.lifetime_xp ?? 0) > 0
-                    ? t("header.level", { level })
-                    : t("header.noProgress")
-                  : progressionStatus === "loading"
-                    ? t("common.loading")
-                    : t("header.viewProgress")}{" "}
-                {progressionStatus !== "loading" &&
-                  (progression?.lifetime_xp ?? 0) > 0 &&
-                  <span aria-hidden="true">›</span>}
-              </strong>
-              {progressionStatus !== "loading" && (
-                <span className="lobby-fact-note">
-                  {progressionStatus === "ready" && progression?.at_cap
-                    ? t("header.maximumLevel")
-                    : `${formatNumber(xpIntoLevel)} / ${formatNumber(xpForNextLevel)} XP`}
-                </span>
-              )}
-              {progressionStatus !== "loading" && !progression?.at_cap && (
-                <span
-                  className="lobby-progress-bar"
-                  role="progressbar"
-                  aria-label={t("header.levelProgress", { level })}
-                  aria-valuemin={0}
-                  aria-valuemax={xpForNextLevel}
-                  aria-valuenow={xpIntoLevel}
-                >
-                  <span style={{ width: `${levelPercent}%` }} />
-                </span>
-              )}
+            <button type="button" className="lobby-progress-trigger" onClick={onOpenProgress}
+              disabled={progressionStatus === "loading"} aria-label={tr("Open My Mahjong Journey")}>
+              <strong>{progressionStatus === "loading" ? t("common.loading") : tr(prestige?.title ?? "Your first seat awaits")} <span aria-hidden="true">›</span></strong>
+              <span className="lobby-fact-note">{journey ? `${formatNumber(games)} ${tr("completed games")}` : tr("View your Journey")}</span>
+              {journey && next && <span className="lobby-progress-bar" role="progressbar" aria-label={tr("Completed rotations toward next Prestige")} aria-valuemin={0} aria-valuemax={next.games} aria-valuenow={games}>
+                <span style={{ width: `${Math.min(100, games / next.games * 100)}%` }} />
+              </span>}
             </button>
           </dd>
         </div>

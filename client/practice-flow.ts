@@ -40,13 +40,14 @@ export async function createFreshPracticeSession(
   previousSessionId?: string,
   onPreviousSessionLeft?: () => void,
   personaIds: readonly string[] = [],
+  attributes?: Record<string, unknown>,
 ): Promise<GameSessionSummary> {
   if (previousSessionId) {
     await leaveSessionIfPresent(client, previousSessionId);
     onPreviousSessionLeft?.();
   }
 
-  return client.createSession(aiPracticeSessionAttributes(personaIds));
+  return client.createSession(attributes ?? aiPracticeSessionAttributes(personaIds));
 }
 
 /**

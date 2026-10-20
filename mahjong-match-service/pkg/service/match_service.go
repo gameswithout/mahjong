@@ -464,6 +464,18 @@ func projectProgression(player progression.Player) *pb.PlayerProgression {
 		AtCap:          player.Level.AtCap,
 		Earned:         earned,
 	}
+	if player.Journey != nil {
+		journey := player.Journey
+		projected.Journey = &pb.PlayerJourney{CompletedRotations: journey.CompletedRotations, FirstCompletedAt: journey.FirstCompletedAt}
+		for _, step := range journey.Prestige {
+			projected.Journey.Prestige = append(projected.Journey.Prestige, &pb.JourneyPrestigeStep{Games: step.Games, Title: step.Title, Chapter: step.Chapter})
+		}
+		for _, anniversary := range journey.Anniversaries {
+			projected.Journey.Anniversaries = append(projected.Journey.Anniversaries, &pb.JourneyAnniversary{
+				Year: int32(anniversary.Year), EarnedAt: anniversary.EarnedAt, Material: anniversary.Material, CosmeticCode: anniversary.CosmeticCode,
+			})
+		}
+	}
 	if player.Next != nil {
 		projected.Next = projectLevelReward(*player.Next)
 	}

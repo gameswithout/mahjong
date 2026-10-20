@@ -434,7 +434,15 @@ export interface OnboardingState {
   recorded_at?: string;
 }
 
+export interface PlayerJourney {
+  completed_rotations: number;
+  first_completed_at?: string;
+  anniversaries: { year: number; earned_at: string; material?: string; cosmetic_code?: string }[];
+  prestige: { games: number; title: string; chapter: string }[];
+}
+
 export interface PlayerProgression {
+  journey?: PlayerJourney;
   level?: number;
   lifetime_xp?: number;
   xp_into_level?: number;

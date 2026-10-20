@@ -79,7 +79,7 @@ describe("P1 onboarding evidence surfaces", () => {
       "Play a hand with friends",
     );
     expect(container.textContent).toContain("12,480");
-    expect(container.textContent).toContain("Level 4");
+    expect(container.textContent).toContain("My Mahjong Journey");
     expect(container.textContent).toContain("Start the tutorial");
     expect(container.textContent).toContain("Practice vs Bots");
     expect(container.textContent).toContain("Find a table");

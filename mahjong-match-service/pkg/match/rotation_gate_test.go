@@ -125,3 +125,10 @@ func TestLinkedAccountIsAdmittedToARotation(t *testing.T) {
 		t.Fatal("a linked account was refused by the §10.1 gate")
 	}
 }
+
+func TestUnrankedRotationAllowsGuestsWithoutRankedIdentityCheck(t *testing.T) {
+	runtime := NewRuntime(session.StaticResolver{SessionMode: session.ModeUnranked}, &fakeMatchRepository{}, rulesengine.NewMemoryEventStore(), time.Now)
+	if err := runtime.requireRotationAccount(context.Background(), storage.MatchKey{}); err != nil {
+		t.Fatalf("Unranked guest check: %v", err)
+	}
+}

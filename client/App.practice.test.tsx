@@ -212,6 +212,7 @@ describe("App Practice journey", () => {
     // clear it between tests so one test's live match cannot make the next
     // test's App mount try to resume it.
     window.localStorage.clear();
+    for (const id of ["guest-1", "player-1"]) window.localStorage.setItem(`mahjong.neo.v1:${id}`, JSON.stringify({ path: "experienced", step: "home", dismissed: true }));
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -356,7 +357,8 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Level 2"));
+    await vi.waitFor(() => expect(container.textContent).toContain("My Mahjong Journey"));
+    expect(button(container, "Start the tutorial").hidden).toBe(true);
     await clickAndFlush(container, "Start the tutorial");
     await clickAndFlush(container, "Skip the tutorial");
 
@@ -366,7 +368,7 @@ describe("App Practice journey", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("Continue the tutorial"));
   });
 
-  it("refreshes an expired restored token before hydrating first-login history and XP", async () => {
+  it("refreshes an expired restored token before hydrating first-login history and Journey", async () => {
     const progressionGet = vi
       .fn()
       .mockRejectedValueOnce(new ProgressionError("unauthenticated", "expired"))
@@ -409,7 +411,7 @@ describe("App Practice journey", () => {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
 
-    await vi.waitFor(() => expect(container.textContent).toContain("125 / 500 XP"));
+    await vi.waitFor(() => expect(progressionGet.mock.calls.length).toBeGreaterThanOrEqual(2));
     await vi.waitFor(() => expect(container.textContent).toContain("1 Wins / 5 Games Played"));
     expect(refreshAccessToken).toHaveBeenCalled();
   });
@@ -425,13 +427,13 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
 
-    await clickAndFlush(container, "Practice vs Bots");
+    await clickAndFlush(container, "Play Unranked");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
     expect(savedMatchReviewIds("guest-1").has("practice-1")).toBe(true);
     expect(calls).toEqual([
-      'create:{"ai_practice":"true"}',
+      'create:{"game_mode":"unranked","full_rotation":"true","ai_practice":"true"}',
       "connect:practice-1",
     ]);
 
@@ -439,10 +441,10 @@ describe("App Practice journey", () => {
     await vi.waitFor(() => expect(calls).toContain("connect:practice-2"));
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
     expect(calls).toEqual([
-      'create:{"ai_practice":"true"}',
+      'create:{"game_mode":"unranked","full_rotation":"true","ai_practice":"true"}',
       "connect:practice-1",
       "leave:practice-1",
-      'create:{"ai_practice":"true"}',
+      'create:{"game_mode":"unranked","full_rotation":"true","ai_practice":"true"}',
       "connect:practice-2",
     ]);
 
@@ -453,7 +455,7 @@ describe("App Practice journey", () => {
       new JadeError("unauthenticated", "Jade service request failed with HTTP 401."),
     );
     await clickAndFlush(container, "Return to Lobby");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
     expect(calls.at(-1)).toBe("leave:practice-2");
     expect(refreshAccessToken).toHaveBeenCalledOnce();
     // Sign-in hydrates once immediately and once more when Lobby confirms the
@@ -464,7 +466,7 @@ describe("App Practice journey", () => {
     expect(container.querySelector('[aria-label="Hand result"]')).toBeNull();
   });
 
-  it("reserves Guided Practice for a future mode and offers only Practice vs Bots", async () => {
+  it("offers one direct Unranked action without a guided-play choice", async () => {
     const iam = {
       loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
       getAuthenticatedSdk: vi.fn().mockReturnValue({}),
@@ -473,7 +475,7 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Practice vs Bots"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
     expect(container.textContent).not.toContain("Guided Practice");
   });
 
@@ -486,8 +488,8 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
-    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await clickAndFlush(container, "Play Unranked");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
 
     // The live four-human stall: the service answered a routine poll with a
@@ -551,8 +553,8 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
-    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await clickAndFlush(container, "Play Unranked");
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 360));
     });
@@ -600,8 +602,8 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
-    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await clickAndFlush(container, "Play Unranked");
     const discardTile = await vi.waitFor(() => {
       const candidate = container.querySelector<HTMLButtonElement>(
         '.essential-hand button[aria-label^="Inspect 1 of characters"]',
@@ -658,8 +660,8 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
-    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await clickAndFlush(container, "Play Unranked");
     await vi.waitFor(() => expect(container.textContent).toContain("Draw now"));
     await clickAndFlush(container, "Draw now");
     await act(async () => {
@@ -723,8 +725,8 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
-    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await clickAndFlush(container, "Play Unranked");
     await vi.waitFor(() => expect(container.textContent).toContain("Chow"));
     await clickAndFlush(container, "Pass");
     await act(async () => {
@@ -753,27 +755,27 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
-    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await clickAndFlush(container, "Play Unranked");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
 
     vi.mocked(sessionClient.leaveSession).mockRejectedValueOnce(
       new SessionLookupError("network", "Could not leave the old table."),
     );
     await clickAndFlush(container, "Play Again");
-    await vi.waitFor(() => expect(container.textContent).toContain("Retry Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Retry Unranked"));
 
     expect(sessionClient.createSession).toHaveBeenCalledOnce();
     expect(sessionClient.leaveSession).toHaveBeenCalledOnce();
 
-    await clickAndFlush(container, "Retry Practice");
+    await clickAndFlush(container, "Retry Unranked");
     await vi.waitFor(() => expect(calls).toContain("connect:practice-2"));
 
     expect(sessionClient.leaveSession).toHaveBeenCalledTimes(2);
     expect(sessionClient.createSession).toHaveBeenCalledTimes(2);
     expect(calls.slice(-3)).toEqual([
       "leave:practice-1",
-      'create:{"ai_practice":"true"}',
+      'create:{"game_mode":"unranked","full_rotation":"true","ai_practice":"true"}',
       "connect:practice-2",
     ]);
   });
@@ -787,8 +789,8 @@ describe("App Practice journey", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
-    await clickAndFlush(container, "Practice vs Bots");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await clickAndFlush(container, "Play Unranked");
     await vi.waitFor(() => expect(container.textContent).toContain("Practice result"));
 
     vi.mocked(sessionClient.leaveSession)
@@ -796,18 +798,18 @@ describe("App Practice journey", () => {
       .mockRejectedValueOnce(new SessionLookupError("network", "Second leave failed."));
 
     await clickAndFlush(container, "Play Again");
-    await vi.waitFor(() => expect(container.textContent).toContain("Retry Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Retry Unranked"));
     await clickAndFlush(container, "Leave match");
     await vi.waitFor(() =>
-      expect(container.textContent).toContain("couldn't leave your previous table"),
+      expect(container.textContent).toContain("Second leave failed."),
     );
 
-    expect(button(container, "Practice vs Bots").disabled).toBe(true);
+    expect(button(container, "Play Unranked").disabled).toBe(true);
     expect(button(container, "Find a table").disabled).toBe(true);
     expect(sessionClient.createSession).toHaveBeenCalledOnce();
 
     await clickAndFlush(container, "Retry leaving table");
-    await vi.waitFor(() => expect(button(container, "Practice vs Bots").disabled).toBe(false));
+    await vi.waitFor(() => expect(button(container, "Play Unranked").disabled).toBe(false));
     expect(button(container, "Find a table").disabled).toBe(false);
     expect(sessionClient.leaveSession).toHaveBeenCalledTimes(3);
   });

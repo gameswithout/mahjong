@@ -111,6 +111,7 @@ describe("live-table resilience to failed match-state polls", () => {
       }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     window.localStorage.clear();
+    for (const id of ["guest-1", "player-1"]) window.localStorage.setItem(`mahjong.neo.v1:${id}`, JSON.stringify({ path: "experienced", step: "home", dismissed: true }));
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -211,12 +212,12 @@ describe("live-table resilience to failed match-state polls", () => {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush("Continue as Guest");
     await vi.waitFor(() =>
-      expect(container.textContent).toContain("Solo Practice"),
+      expect(container.textContent).toContain("Play Unranked"),
     );
     await vi.waitFor(() =>
       expect(container.textContent).toContain("5,000 Jade available"),
     );
-    await clickAndFlush("Practice vs Bots");
+    await clickAndFlush("Play Unranked");
     await vi.waitFor(() =>
       expect(container.querySelector('[data-testid="live-match"]')).not.toBeNull(),
     );

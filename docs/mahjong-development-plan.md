@@ -1,5 +1,7 @@
 # Mahjong — Development Plan
 
+> Planning update (2026-10-19): The engagement and progression portions of this plan are superseded by the [User Engagement Model](user-engagement-model.md). Implement in source chapter order, starting with [Chapter 2 — Game Modes](chapter-02-game-modes.md). This older plan does not yet implement that direction.
+
 - Source of truth: [`mahjong-product-specification.md`](mahjong-product-specification.md) **v1.2** (2026-07-17). Section references (§) below point at that document.
 - Plan status: v1.1 — all planning assumptions and ambiguities resolved via Product Owner interview (Section 1.2)
 - Plan date: 2026-07-17

@@ -15,6 +15,7 @@ describe("App telemetry flow", () => {
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     localStorage.clear();
+    for (const id of ["guest-1", "player-1"]) localStorage.setItem(`mahjong.neo.v1:${id}`, JSON.stringify({ path: "experienced", step: "home", dismissed: true }));
     sessionStorage.clear();
     vi.useFakeTimers();
     container = document.createElement("div");

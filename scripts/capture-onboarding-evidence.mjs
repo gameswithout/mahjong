@@ -61,7 +61,7 @@ const captures = [
     id: "lobby-desktop",
     scenario: "lobby",
     viewport: DESKTOP,
-    expectations: ["12,480", "Level 4", "Bamboo Courtyard"],
+    expectations: ["12,480", "My Mahjong Journey", "Bamboo Courtyard"],
   },
   {
     id: "queue-p50",

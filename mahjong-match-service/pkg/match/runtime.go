@@ -409,6 +409,18 @@ func (r *Runtime) Join(
 	return r.settleAndView(ctx, current)
 }
 
+// Unranked permits guests. Keep the older ranked gate for legacy rotations.
+func (r *Runtime) requireRotationAccount(ctx context.Context, key storage.MatchKey) error {
+	mode, err := r.rosters.Mode(ctx, key.Namespace, key.SessionID)
+	if err != nil {
+		return err
+	}
+	if mode == session.ModeUnranked {
+		return nil
+	}
+	return r.requireLinkedAccount(ctx)
+}
+
 // joinLocked resolves the table a joining player belongs to, creating the
 // match on first contact.
 //
@@ -424,7 +436,7 @@ func (r *Runtime) joinLocked(
 		// §10.1: ranked play belongs to a durable account. Checked on the way
 		// in, before a seat is bound, so a guest is refused rather than seated
 		// and then removed.
-		if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+		if gateErr := r.requireRotationAccount(ctx, key); gateErr != nil {
 			return nil, gateErr
 		}
 		return r.seatInRotation(ctx, rotation, userID)
@@ -446,8 +458,8 @@ func (r *Runtime) joinLocked(
 		if modeErr != nil {
 			return nil, modeErr
 		}
-		if mode == session.ModeFullRotation {
-			if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+		if mode == session.ModeFullRotation || mode == session.ModeUnranked {
+			if gateErr := r.requireRotationAccount(ctx, key); gateErr != nil {
 				return nil, gateErr
 			}
 			opened, openErr := r.openRotation(ctx, key, roster)
@@ -501,7 +513,7 @@ func (r *Runtime) loadTable(
 		// §10.1: ranked play belongs to a durable account. Checked on the way
 		// in, before a seat is bound, so a guest is refused rather than seated
 		// and then removed.
-		if gateErr := r.requireLinkedAccount(ctx); gateErr != nil {
+		if gateErr := r.requireRotationAccount(ctx, key); gateErr != nil {
 			return nil, gateErr
 		}
 		return r.seatInRotation(ctx, rotation, userID)

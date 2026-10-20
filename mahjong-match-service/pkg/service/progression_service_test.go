@@ -289,3 +289,34 @@ func TestMatchServiceProjectsXPWithoutJadeCoordinator(t *testing.T) {
 		)
 	}
 }
+
+type journeyServiceRepository struct {
+	fakeProgressionRepository
+	journey progression.Journey
+}
+
+func (f *journeyServiceRepository) PlayerJourney(context.Context, string) (progression.Journey, error) {
+	return f.journey, nil
+}
+
+func TestGetProgressionIncludesAuthoritativeJourney(t *testing.T) {
+	repository := &journeyServiceRepository{journey: progression.Journey{
+		CompletedRotations: 12, FirstCompletedAt: "2020-07-01T12:00:00Z",
+		Prestige:      progression.PrestigeCatalog(),
+		Anniversaries: []progression.Anniversary{{Year: 5, EarnedAt: "2025-07-01", Material: "Wood", CosmeticCode: "anniversary-5"}},
+	}}
+	matchService := NewMatchService("gameswithout-mahjong", &fakeRuntime{})
+	matchService.SetProgression(progression.NewCoordinator(repository))
+	ctx := common.ContextWithPrincipal(context.Background(), common.Principal{UserID: "player-1"})
+	response, err := matchService.GetProgression(ctx, &pb.GetProgressionRequest{Namespace: "gameswithout-mahjong"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	journey := response.GetProgression().GetJourney()
+	if journey.GetCompletedRotations() != 12 || journey.GetFirstCompletedAt() != "2020-07-01T12:00:00Z" || len(journey.GetPrestige()) != 7 {
+		t.Fatalf("journey = %+v", journey)
+	}
+	if len(journey.GetAnniversaries()) != 1 || journey.GetAnniversaries()[0].GetCosmeticCode() != "anniversary-5" {
+		t.Fatalf("anniversaries = %+v", journey.GetAnniversaries())
+	}
+}

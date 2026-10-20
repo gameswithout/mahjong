@@ -33,6 +33,7 @@ func IsBotUserID(userID string) bool {
 type Mode string
 
 const (
+	ModeUnranked     Mode = "unranked"
 	ModeQuickPlay    Mode = "quick_play"
 	ModeFullRotation Mode = "full_rotation"
 )

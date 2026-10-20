@@ -209,6 +209,7 @@ describe("App online matchmaking and requeue", () => {
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     window.localStorage.clear();
+    for (const id of ["guest-1", "player-1"]) window.localStorage.setItem(`mahjong.neo.v1:${id}`, JSON.stringify({ path: "experienced", step: "home", dismissed: true }));
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -333,51 +334,29 @@ describe("App online matchmaking and requeue", () => {
   async function reachCompletedStakedHand(): Promise<void> {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull());
   }
 
-  it("shows Full Rotation while keeping account-required entry gated", async () => {
+  it("keeps Ranked unavailable for guests", async () => {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Online"));
-
-    expect(container.textContent).toContain("Full Rotation");
-    expect(container.textContent).toContain("Four dealerships");
-    expect(container.textContent).toContain("A full account is required");
-    expect(
-      Array.from(container.querySelectorAll("button")).some(
-        (candidate) => candidate.textContent === "Find a rotation",
-      ),
-    ).toBe(false);
-    expect(
-      Array.from(container.querySelectorAll("button")).some(
-        (candidate) => candidate.textContent === "Unlock Full Rotation",
-      ),
-    ).toBe(true);
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Ranked"));
+    expect(button(container, "Play Ranked").disabled).toBe(true);
+    await clickAndFlush(container, "Play Ranked");
+    expect(container.textContent).not.toContain("Before your first Ranked game");
+    expect(createTicket).not.toHaveBeenCalled();
   });
 
-  it("offers the existing Full Rotation matchmaking pool to full accounts", async () => {
-    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({
-      userId: "guest-1",
-      deviceId: "device-1",
-      isGuest: false,
-    });
-
+  it("also keeps Ranked unavailable for full accounts", async () => {
+    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({userId:"guest-1",deviceId:"device-1",isGuest:false});
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Full Rotation"));
-
-    expect(button(container, "Find a rotation")).toBeInstanceOf(HTMLButtonElement);
-    expect(container.textContent).not.toContain("A full account is required");
-    await clickAndFlush(container, "Find a rotation");
-    await vi.waitFor(() => expect(createTicket).toHaveBeenCalledOnce());
-    expect(dependencies.createMatchmakingClient).toHaveBeenCalledWith(
-      expect.anything(),
-      "mahjong-test",
-      expect.objectContaining({ matchPool: "rotation" }),
-    );
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Ranked"));
+    expect(button(container, "Play Ranked").disabled).toBe(true);
+    expect(container.textContent).toContain("Ranked is not available yet.");
+    expect(createTicket).not.toHaveBeenCalled();
   });
 
   it("offers a way out of a queue that has passed 90 seconds, releasing the reservation", async () => {
@@ -408,13 +387,13 @@ describe("App online matchmaking and requeue", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
 
     // Under 90 seconds the wait is reported without an escape hatch.
     expect(container.textContent).not.toContain("Practice instead");
-    expect(button(container, "Practice vs Bots").disabled).toBe(true);
+    expect(button(container, "Play Unranked").disabled).toBe(true);
 
     const realNow = Date.now;
     try {
@@ -467,7 +446,7 @@ describe("App online matchmaking and requeue", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
 
@@ -487,13 +466,13 @@ describe("App online matchmaking and requeue", () => {
     );
     expect(cancelTicket).toHaveBeenCalledWith("ticket-1");
     expect(sessionClient.createSession).not.toHaveBeenCalled();
-    expect(button(container, "Practice vs Bots").disabled).toBe(true);
+    expect(button(container, "Play Unranked").disabled).toBe(true);
     expect(button(container, "Create test table").disabled).toBe(true);
     expect(button(container, "Retry releasing Jade")).toBeInstanceOf(HTMLButtonElement);
     expect(container.textContent).not.toContain("Retry matchmaking");
 
     await clickAndFlush(container, "Retry releasing Jade");
-    await vi.waitFor(() => expect(button(container, "Practice vs Bots").disabled).toBe(false));
+    await vi.waitFor(() => expect(button(container, "Play Unranked").disabled).toBe(false));
     expect(release).toHaveBeenCalledTimes(2);
   });
 
@@ -520,7 +499,7 @@ describe("App online matchmaking and requeue", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
     await clickAndFlush(container, "Cancel");
@@ -530,12 +509,12 @@ describe("App online matchmaking and requeue", () => {
     );
     expect(createTicket).toHaveBeenCalledTimes(1);
     expect(release).not.toHaveBeenCalled();
-    expect(button(container, "Practice vs Bots").disabled).toBe(true);
+    expect(button(container, "Play Unranked").disabled).toBe(true);
     expect(button(container, "Retry leaving queue")).toBeInstanceOf(HTMLButtonElement);
     expect(container.textContent).not.toContain("Retry matchmaking");
 
     await clickAndFlush(container, "Retry leaving queue");
-    await vi.waitFor(() => expect(button(container, "Practice vs Bots").disabled).toBe(false));
+    await vi.waitFor(() => expect(button(container, "Play Unranked").disabled).toBe(false));
     expect(cancelTicket).toHaveBeenCalledTimes(2);
     expect(cancelTicket).toHaveBeenNthCalledWith(1, "ticket-1");
     expect(cancelTicket).toHaveBeenNthCalledWith(2, "ticket-1");
@@ -657,7 +636,7 @@ describe("App online matchmaking and requeue", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
     await clickAndFlush(container, "Create test table");
     await vi.waitFor(() => expect(container.textContent).toContain("Session found"));
     await clickAndFlush(container, "Enter table");

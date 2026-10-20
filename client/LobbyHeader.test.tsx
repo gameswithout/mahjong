@@ -26,7 +26,7 @@ describe("LobbyHeader", () => {
     expect(markup).not.toContain("Rules");
   });
 
-  it("shows authoritative level progress as the route to the full curve", () => {
+  it("shows rotation Prestige as the route to My Mahjong Journey", () => {
     const markup = renderToStaticMarkup(
       <LobbyHeader
         guest={false}
@@ -36,6 +36,7 @@ describe("LobbyHeader", () => {
         progressionStatus="ready"
         progression={{
           level: 3,
+          journey: { completed_rotations: 12, anniversaries: [], prestige: [{ games: 10, title: "Table Regular", chapter: "Familiar Table" }, { games: 50, title: "Familiar Face", chapter: "A Place of Your Own" }] },
           lifetime_xp: 1_400,
           xp_into_level: 300,
           xp_for_next_level: 700,
@@ -43,14 +44,15 @@ describe("LobbyHeader", () => {
       />,
     );
 
-    expect(markup).toContain("Level 3");
-    expect(markup).toContain("300 / 700 XP");
+    expect(markup).toContain("Table Regular");
+    expect(markup).toContain("12 completed games");
+    expect(markup).not.toContain("XP");
     expect(markup).toContain('role="progressbar"');
-    expect(markup).toContain('aria-label="Open progression, level 3"');
+    expect(markup).toContain('aria-label="Open My Mahjong Journey"');
     expect(markup).not.toContain("Level 0");
   });
 
-  it("shows a new account without enabling empty progression", () => {
+  it("lets new accounts open their Journey before earning XP", () => {
     const markup = renderToStaticMarkup(
       <LobbyHeader
         guest={false}
@@ -62,10 +64,12 @@ describe("LobbyHeader", () => {
       />,
     );
 
-    expect(markup).toContain("No progress yet");
-    expect(markup).toContain("0 / 500 XP");
+    expect(markup).toContain("Your first seat awaits");
+    expect(markup).toContain("View your Journey");
     expect(markup).not.toContain("0 experience");
-    expect(markup).toContain("disabled");
+    const node = document.createElement("div");
+    node.innerHTML = markup;
+    expect(node.querySelector('[aria-label="Open My Mahjong Journey"]')?.hasAttribute("disabled")).toBe(false);
     expect(markup).not.toContain(">Unavailable<");
   });
 
@@ -114,8 +118,7 @@ describe("LobbyHeader", () => {
       <LobbyHeader guest={false} jadeStatus="error" connection="connected" />,
     );
 
-    expect(markup).toContain("View Progress");
-    expect(markup).toContain("disabled");
+    expect(markup).toContain("View your Journey");
     expect(markup).toContain("Unavailable");
     expect(markup).not.toContain("Tael");
   });

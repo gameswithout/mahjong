@@ -17,6 +17,7 @@ var ErrNotInitialized = errors.New("progression is not initialized")
 // than stored, so §12.2's "recompute level from lifetime XP if the curve
 // changes" needs no migration.
 type Player struct {
+	Journey    *Journey
 	UserID     string
 	LifetimeXP int
 	Level      Level
@@ -485,7 +486,18 @@ func (c *Coordinator) Player(ctx context.Context, userID string) (Player, error)
 	if userID == "" {
 		return Player{}, fmt.Errorf("%w: user ID is required", ErrNotInitialized)
 	}
-	return c.repository.PlayerProgression(ctx, userID)
+	player, err := c.repository.PlayerProgression(ctx, userID)
+	if err != nil {
+		return Player{}, err
+	}
+	if repository, ok := c.repository.(JourneyRepository); ok {
+		journey, err := repository.PlayerJourney(ctx, userID)
+		if err != nil {
+			return Player{}, err
+		}
+		player.Journey = &journey
+	}
+	return player, nil
 }
 
 // PlayerAchievements returns the complete visible §12.3 launch catalog.

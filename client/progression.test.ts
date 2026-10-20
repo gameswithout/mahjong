@@ -289,3 +289,17 @@ describe("Progression client", () => {
     ]);
   });
 });
+
+describe("Journey wire contract", () => {
+  it("normalizes protojson integers and casing without manufacturing progress", () => {
+    const player = normalizePlayerProgression({ journey: {
+      completedRotations: "12", firstCompletedAt: "2020-02-29T00:00:00Z",
+      prestige: [{ games: "10", title: "Table Regular", chapter: "Familiar Table" }],
+      anniversaries: [{ year: 5, earnedAt: "2025-02-28", material: "Wood", cosmeticCode: "anniversary-5" }],
+    } });
+    expect(player.journey?.completed_rotations).toBe(12);
+    expect(player.journey?.prestige[0].games).toBe(10);
+    expect(player.journey?.anniversaries[0].cosmetic_code).toBe("anniversary-5");
+    expect(normalizePlayerProgression({}).journey).toBeUndefined();
+  });
+});

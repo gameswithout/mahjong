@@ -80,6 +80,7 @@ describe("App optional-analytics consent ask", () => {
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     window.localStorage.clear();
+    for (const id of ["guest-1", "player-1"]) window.localStorage.setItem(`mahjong.neo.v1:${id}`, JSON.stringify({ path: "experienced", step: "home", dismissed: true }));
     window.sessionStorage.clear();
     container = document.createElement("div");
     document.body.append(container);
@@ -146,7 +147,7 @@ describe("App optional-analytics consent ask", () => {
         await Promise.resolve();
       }
     });
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
   }
 
   it("asks a player who has never answered, and takes yes for an answer", async () => {
@@ -222,7 +223,7 @@ describe("App optional-analytics consent ask", () => {
       analyticsConsentDecided: true,
     });
 
-    await vi.waitFor(() => expect(container.textContent).toContain("Solo Practice"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
     expect(container.querySelector(".analytics-consent-card")).toBeNull();
     // Restoring a stored preference is not a decision and must not be counted
     // as one, or the consent rate becomes a count of page loads.

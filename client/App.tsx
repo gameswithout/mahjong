@@ -16,6 +16,7 @@ import {
 } from "./lobby";
 import {
   createSessionClient,
+  UNRANKED_BOT_SESSION_ATTRIBUTES,
   SessionLookupError,
   type GameSessionSummary,
   type SessionMember,
@@ -35,7 +36,9 @@ import { createJadeClient, JadeError } from "./jade";
 import { jadeEntryRequirementMessage, stakeSummary } from "./jade-entry";
 import { JadeRecoveryCard, type JadeRecoveryState } from "./JadeRecoveryCard";
 import { LobbyHeader } from "./LobbyHeader";
-import { LockedTiers } from "./LockedTiers";
+import { findUnrankedMatch } from "./unranked-matchmaking";
+import { NeoExperience } from "./NeoExperience";
+import { GameModeMenu } from "./GameModeMenu";
 import { playableTier, tierName, tierSummary } from "./lobby-tiers";
 import { queueElapsedLabel, queueHealth, queueHealthMessage } from "./queue-health";
 import { TutorialScreen } from "./tutorial/TutorialScreen";
@@ -49,7 +52,8 @@ import {
   ProgressionError,
   type ProgressionSnapshot,
 } from "./progression";
-import { AchievementScreen, ProgressionScreen } from "./ProgressionScreen";
+import { AchievementScreen } from "./ProgressionScreen";
+import { JourneyScreen } from "./JourneyScreen";
 import {
   createPlayerStatsClient,
   PlayerStatsError,
@@ -244,7 +248,7 @@ type MatchRuntimeState =
       status: "error";
       code: string;
       message: string;
-      retry?: "runtime" | "practice";
+      retry?: "runtime" | "practice" | "unranked";
       retryPreviousSessionId?: string;
     };
 
@@ -285,7 +289,7 @@ type AchievementState =
 type SettingsSyncStatus = "idle" | "loading" | "ready" | "saving" | "error";
 
 type OnlineSessionEntryMode = "manual" | "matchmaking";
-type OnlineMatchmakingMode = "bamboo_quick_play" | "full_rotation";
+type OnlineMatchmakingMode = "bamboo_quick_play" | "full_rotation" | "unranked";
 
 export function shouldAutomaticallyEnterHumanMatch(
   mode: OnlineSessionEntryMode,
@@ -601,6 +605,11 @@ export function App(
   // MatchmakingState deliberately stays about lifecycle only. This ref keeps
   // the product mode beside that lifecycle so polling, cancellation, joining,
   // and requeueing all use the same pool and only Quick Play touches Jade.
+  const [unrankedState, setUnrankedState] = useState<{busy: boolean; message?: string}>({ busy: false });
+  const unrankedTicketRef = useRef<MatchmakingTicket | null>(null);
+  const unrankedTableRef = useRef(false);
+  const unrankedRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => unrankedRequestRef.current?.abort(), [state.status === "signed_in" ? state.userId : null]);
   const matchmakingModeRef = useRef<OnlineMatchmakingMode>("bamboo_quick_play");
   const handTelemetryKeyRef = useRef<string | null>(null);
   const rotationTelemetryKeyRef = useRef<string | null>(null);
@@ -1241,6 +1250,7 @@ export function App(
   const matchmakingRecoveryRequired =
     matchmakingState.status === "error" && Boolean(matchmakingState.recovery);
   const matchmakingBlocksSessionActions =
+    unrankedState.busy ||
     queueing ||
     matchmakingState.status === "releasing" ||
     matchmakingState.status === "matched" ||
@@ -2147,6 +2157,7 @@ export function App(
   }
 
   function matchPoolForMode(mode: OnlineMatchmakingMode): string | undefined {
+    if (mode === "unranked") return accelByteConfig.unrankedMatchPool;
     return mode === "full_rotation"
       ? accelByteConfig.rotationMatchPool
       : accelByteConfig.matchPool;
@@ -2290,7 +2301,7 @@ export function App(
       }
       if (options?.retryEmpty) {
         for (const delayMs of [500, 1_000]) {
-          if ((snapshot.progression.lifetime_xp ?? 0) > 0) break;
+          if (snapshot.progression.journey || (snapshot.progression.lifetime_xp ?? 0) > 0) break;
           await new Promise((resolve) => window.setTimeout(resolve, delayMs));
           if (requestId !== progressionRequestRef.current) return;
           snapshot = await createAuthenticatedProgressionClient().get();
@@ -3351,7 +3362,7 @@ export function App(
   // AI Practice is a complete one-hand product flow: create a bot-padded AGS
   // Session, then join its authoritative match immediately. Play Again first
   // leaves the completed Session so every hand gets a fresh identity and wall.
-  async function startPracticeHand(previousSessionId?: string) {
+  async function startPracticeHand(previousSessionId?: string, unranked = false) {
     const requestId = ++sessionRequestRef.current;
     let previousSessionLeft = false;
     setOnlineSessionEntryMode("manual");
@@ -3361,7 +3372,7 @@ export function App(
     setSessionState({ status: "loading" });
     setMatchRuntimeState({
       status: "preparing",
-      message: previousSessionId
+      message: unranked ? "Preparing your Unranked table…" : previousSessionId
         ? "Preparing another Practice hand…"
         : "Preparing your Practice hand…",
     });
@@ -3374,7 +3385,8 @@ export function App(
         () => {
           previousSessionLeft = true;
         },
-        selectedPersonaIds,
+        unranked ? [] : selectedPersonaIds,
+        unranked ? UNRANKED_BOT_SESSION_ATTRIBUTES : undefined,
       );
       if (requestId !== sessionRequestRef.current) {
         // A newer action or unmount won the race after AGS created this
@@ -3399,13 +3411,66 @@ export function App(
         status: "error",
         code: `practice_${safeError.code}`,
         message: safeError.message,
-        retry: "practice",
+        retry: unranked ? "unranked" : "practice",
         retryPreviousSessionId: retryLeaveSessionId,
       });
     }
   }
 
+  async function playUnranked() {
+    unrankedTableRef.current = true;
+    if (unrankedRequestRef.current || hasActiveOrStrandedSession || matchmakingBlocksSessionActions) return;
+    const controller = new AbortController();
+    unrankedRequestRef.current = controller;
+    setUnrankedState({ busy: true, message: "Looking for players…" });
+    try {
+      const transport = accelByteConfig.unrankedMatchPool
+        ? createAuthenticatedMatchmakingClient(undefined, accelByteConfig.unrankedMatchPool) : undefined;
+      const ticket = await findUnrankedMatch({
+        client: transport ? {
+          // A failed cancellation retains its ticket. Retrying resumes that
+          // search rather than placing the same player in a second queue.
+          createTicket: async () => {
+            if (unrankedTicketRef.current) return unrankedTicketRef.current;
+            const created = await transport.createTicket();
+            unrankedTicketRef.current = created;
+            return created;
+          },
+          getTicket: async (id) => {
+            const current = await transport.getTicket(id);
+            unrankedTicketRef.current = current;
+            return current;
+          },
+          cancelTicket: async (id) => {
+            await transport.cancelTicket(id);
+            unrankedTicketRef.current = null;
+          },
+        } : undefined,
+        signal: controller.signal,
+      });
+      unrankedTicketRef.current = null;
+      if (controller.signal.aborted) {
+        if (ticket?.sessionId) await leaveSessionIfPresent(createAuthenticatedSessionClient(), ticket.sessionId);
+        return;
+      }
+      if (ticket) {
+        matchmakingModeRef.current = "unranked";
+        setMatchmakingState({ status: "matched", ticket });
+      } else {
+        setUnrankedState({ busy: true, message: "Starting your table with bots…" });
+        setGuidedPractice(false);
+        await startPracticeHand(undefined, true);
+      }
+      setUnrankedState({ busy: false });
+    } catch (error) {
+      setUnrankedState({ busy: false, message: error instanceof DOMException && error.name === "AbortError" ? undefined : error instanceof Error ? error.message : "Your table could not be started. Try again." });
+    } finally {
+      if (unrankedRequestRef.current === controller) unrankedRequestRef.current = null;
+    }
+  }
+
   function practiceVsBots(guided = false) {
+    unrankedTableRef.current = false;
     setGuidedPractice(guided);
     gameTelemetry.track("mode_selected", {
       dimensions: {
@@ -3425,7 +3490,7 @@ export function App(
     });
     const previousSessionId =
       sessionState.status === "loaded" ? sessionState.session.sessionId : undefined;
-    return startPracticeHand(previousSessionId);
+    return startPracticeHand(previousSessionId, unrankedTableRef.current);
   }
 
   // §P1.3 session closure. Practice's Play Again only has to deal a new wall.
@@ -3712,18 +3777,11 @@ export function App(
   if (progressionOpen && progressionState.status === "ready") {
     return (
       <div className="game-screen">
-        <ProgressionScreen
-          progression={progressionState.snapshot.progression}
-          curve={progressionState.snapshot.curve}
+        <JourneyScreen
+          journey={progressionState.snapshot.progression.journey}
           onClose={() => {
             setAchievementsOpen(false);
             setProgressionOpen(false);
-          }}
-          onOpenAchievements={() => {
-            setAchievementsOpen(true);
-            if (achievementState.status !== "ready") {
-              void loadAchievements();
-            }
           }}
         />
       </div>
@@ -4107,14 +4165,14 @@ export function App(
                 className="secondary-action"
                 type="button"
                 onClick={() => {
-                  if (matchRuntimeState.retry === "practice") {
-                    void startPracticeHand(matchRuntimeState.retryPreviousSessionId);
+                  if (matchRuntimeState.retry === "practice" || matchRuntimeState.retry === "unranked") {
+                    void startPracticeHand(matchRuntimeState.retryPreviousSessionId, matchRuntimeState.retry === "unranked");
                   } else {
                     void connectMatchRuntime();
                   }
                 }}
               >
-                {matchRuntimeState.retry === "practice" ? t("game.retryPractice") : t("game.reconnect")}
+                {matchRuntimeState.retry === "unranked" ? translateSource("Retry Unranked") : matchRuntimeState.retry === "practice" ? t("game.retryPractice") : t("game.reconnect")}
               </button>
               <button
                 className="leave-match-button"
@@ -4394,7 +4452,10 @@ export function App(
         )}
 
         {state.status === "signed_in" && (
-          <div className="success-panel">
+          <NeoExperience key={state.userId} userId={state.userId}
+            onPlayUnranked={() => void playUnranked()}
+            onEvent={(event, path) => gameTelemetry.track("feature_engaged", { dimensions: { feature: event, value: path ?? "unknown", surface: "neo_preview" } })}>
+          {({ openRanked, playUnranked: startUnrankedFromMenu }) => <div className="success-panel">
             <LobbyHeader
               guest={isGuestAccount}
               account={jadeState.status === "ready" ? jadeState.account : undefined}
@@ -4414,7 +4475,7 @@ export function App(
                 setProgressionOpen(true);
                 if (
                   progressionState.status !== "ready" ||
-                  progressionState.snapshot.curve.length === 0
+                  !progressionState.snapshot.progression.journey
                 ) {
                   void loadProgression();
                 }
@@ -4502,189 +4563,22 @@ export function App(
                   </section>
                 )}
 
-                {playerSettings.showTutorial && (
-                <section className="tutorial-card" aria-labelledby="tutorial-title">
-                  <h2 id="tutorial-title" className="tutorial-heading">{t("lobby.learnTitle")}</h2>
-                  <p className="practice-description">
-                    {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
-                      ? t("lobby.learnReplay")
-                      : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
-                        ? t("lobby.learnResume")
-                        : t("lobby.learnNew")}
-                  </p>
-                  <button
-                    className="secondary-action session-action"
-                    type="button"
-                    onClick={() => {
-                      gameTelemetry.track("mode_selected", {
-                        dimensions: {
-                          entry_point: "lobby_tutorial",
-                          mode: "tutorial",
-                        },
-                      });
-                      setTutorialOpen(true);
-                    }}
-                  >
-                    {onboardingOutcome === "ONBOARDING_OUTCOME_COMPLETED"
-                      ? t("lobby.replayTutorial")
-                      : onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED"
-                        ? t("lobby.continueTutorial")
-                        : t("lobby.startTutorial")}
-                  </button>
-                  <button
-                    className="text-action tutorial-hide-action"
-                    type="button"
-                    aria-label={t("common.hide")}
-                    onClick={() =>
-                      void updatePlayerSettings({
-                        ...playerSettings,
-                        showTutorial: false,
-                      })
-                    }
-                  >
-                    {t("common.hide")}
-                  </button>
-                </section>
-                )}
+                <GameModeMenu
+                  onPlayUnranked={startUnrankedFromMenu}
+                  unrankedBusy={unrankedState.busy}
+                  unrankedUnavailable={sessionState.status === "loading" || hasActiveOrStrandedSession || matchmakingBlocksSessionActions}
+                  unrankedStatus={unrankedState.message}
+                  onCancelUnranked={unrankedState.message === "Looking for players…" ? () => unrankedRequestRef.current?.abort() : undefined}
+                  onPlayRanked={openRanked}
+                  rankedBusy={matchmakingModeRef.current === "full_rotation" && matchmakingBlocksSessionActions}
+                  rankedUnavailable
+                  rankedStatus="Ranked is not available yet."
 
-                <PracticeLaunchCard
-                  busy={
-                    sessionState.status === "loading" || matchmakingBlocksSessionActions
-                  }
-                  hasSelectedSession={hasActiveOrStrandedSession}
-                  cleanupRequired={
-                    sessionState.status === "error" &&
-                    Boolean(sessionState.retryLeaveSessionId)
-                  }
-                  matchServiceAvailable={Boolean(accelByteConfig.matchServiceURL)}
-                  onStart={() => void practiceVsBots()}
-                  onLeaveSelectedSession={() => void leaveTable()}
-                  personaPicker={{
-                    personas: botPersonaCatalogState.personas,
-                    loading: botPersonaCatalogState.status === "loading",
-                    error:
-                      botPersonaCatalogState.status === "error"
-                        ? botPersonaCatalogState.message
-                        : null,
-                    selectedIds: selectedPersonaIds,
-                    onToggle: togglePersonaPick,
-                    onSelectForMe: () => setSelectedPersonaIds([]),
-                    onOpen: () => void loadBotPersonaCatalog(),
-                  }}
                 />
 
-                <div className="match-format-grid" aria-label={t("lobby.matchFormats")}>
-                <section className="practice-card online-play-card" aria-labelledby="online-title">
-                  <p className="status-label">{t("lobby.playOnline")}</p>
-                  <h2 id="online-title">
-                    {t("lobby.playAtTier", { tier: tierName(playableTier()) })}
-                  </h2>
-                  <p className="practice-description">{t("lobby.onlineDescription")}</p>
-                  <p className="practice-description">{tierSummary(playableTier())}</p>
-
-                  {jadeState.status === "loading" && (
-                    <p className="matchmaking-result" aria-live="polite">
-                      {t("lobby.loadingJade")}
-                    </p>
-                  )}
-
-                  {jadeState.status === "error" && (
-                    <div className="matchmaking-result" role="alert">
-                      <p>{jadeState.message}</p>
-                      <button
-                        className="secondary-action session-action"
-                        type="button"
-                        onClick={() => void loadJadeAccount()}
-                      >
-                        {t("lobby.retryBalance")}
-                      </button>
-                    </div>
-                  )}
-
-                  {jadeState.status === "ready" && (
-                    <div className="jade-balance" data-testid="jade-balance">
-                      <p>{t("lobby.jadeAvailable", { count: formatNumber(jadeState.account.available) })}</p>
-                      {jadeState.account.reserved > 0 && (
-                        <p className="session-detail">
-                          {t("lobby.jadeReserved", { count: formatNumber(jadeState.account.reserved) })}
-                        </p>
-                      )}
-                      {!jadeState.account.eligible && (
-                        <p className="session-detail">
-                          {jadeEntryRequirementMessage(jadeState.account)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {jadeState.status === "ready" && (
-                    <JadeRecoveryCard
-                      account={jadeState.account}
-                      state={jadeRecoveryState}
-                      onClaim={() => void claimJadeWelfare()}
-                    />
-                  )}
-
-                  {!accelByteConfig.matchPool && matchmakingState.status === "idle" && (
-                    <p className="matchmaking-result" role="status" aria-live="polite">
-                      {t("lobby.poolUnavailable")}
-                    </p>
-                  )}
-
-                  {accelByteConfig.matchPool && matchmakingState.status === "idle" && (
-                    <button
-                      className="primary-action session-action"
-                      type="button"
-                      onClick={findTable}
-                      disabled={
-                        sessionState.status === "loading" ||
-                        hasActiveOrStrandedSession ||
-                        jadeState.status !== "ready" ||
-                        !jadeState.account.eligible
-                      }
-                    >
-                      {t("lobby.findTable")}
-                    </button>
-                  )}
-                </section>
-
-                <section className="practice-card rotation-launch-card" aria-labelledby="rotation-launch-title">
-                  <p className="status-label">{t("lobby.competitiveFormat")}</p>
-                  <h2 id="rotation-launch-title">{t("lobby.fullRotation")}</h2>
-                  <p className="practice-description">{t("lobby.rotationDescription")}</p>
-                  <p className="rotation-launch-rewards">{t("lobby.rotationRewards")}</p>
-
-                  {!accelByteConfig.rotationMatchPool ? (
-                    <p className="practice-unavailable" role="status">
-                      {t("lobby.rotationUnavailable")}
-                    </p>
-                  ) : isGuestAccount ? (
-                    <>
-                      <p className="practice-unavailable">{t("lobby.rotationAccountRequired")}</p>
-                      <button
-                        className="secondary-action session-action"
-                        type="button"
-                        onClick={() => setAccountUpgradeOpen(true)}
-                      >
-                        {t("lobby.unlockRotation")}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="primary-action session-action"
-                      type="button"
-                      onClick={() => void findRotationTable()}
-                      disabled={
-                        sessionState.status === "loading" ||
-                        hasActiveOrStrandedSession ||
-                        matchmakingState.status !== "idle"
-                      }
-                    >
-                      {t("lobby.findRotation")}
-                    </button>
-                  )}
-                </section>
-                </div>
+                {playerSettings.showTutorial && <button hidden type="button" className="text-action" disabled={unrankedState.busy} onClick={() => setTutorialOpen(true)}>
+                  {onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED" ? t("lobby.continueTutorial") : t("lobby.startTutorial")}
+                </button>}
 
                 {matchmakingState.status !== "idle" && (
                   <section
@@ -4824,7 +4718,6 @@ export function App(
                   </section>
                 )}
 
-                <LockedTiers />
 
                 {!isGuestAccount && (
                   <>
@@ -4907,6 +4800,81 @@ export function App(
                 <details className="developer-tools">
                   <summary>Developer session tools</summary>
                   <div className="developer-tools-body">
+                <section className="practice-card online-play-card" aria-labelledby="online-title">
+                  <p className="status-label">{t("lobby.playOnline")}</p>
+                  <h2 id="online-title">
+                    {t("lobby.playAtTier", { tier: tierName(playableTier()) })}
+                  </h2>
+                  <p className="practice-description">{t("lobby.onlineDescription")}</p>
+                  <p className="practice-description">{tierSummary(playableTier())}</p>
+
+                  {jadeState.status === "loading" && (
+                    <p className="matchmaking-result" aria-live="polite">
+                      {t("lobby.loadingJade")}
+                    </p>
+                  )}
+
+                  {jadeState.status === "error" && (
+                    <div className="matchmaking-result" role="alert">
+                      <p>{jadeState.message}</p>
+                      <button
+                        className="secondary-action session-action"
+                        type="button"
+                        onClick={() => void loadJadeAccount()}
+                      >
+                        {t("lobby.retryBalance")}
+                      </button>
+                    </div>
+                  )}
+
+                  {jadeState.status === "ready" && (
+                    <div className="jade-balance" data-testid="jade-balance">
+                      <p>{t("lobby.jadeAvailable", { count: formatNumber(jadeState.account.available) })}</p>
+                      {jadeState.account.reserved > 0 && (
+                        <p className="session-detail">
+                          {t("lobby.jadeReserved", { count: formatNumber(jadeState.account.reserved) })}
+                        </p>
+                      )}
+                      {!jadeState.account.eligible && (
+                        <p className="session-detail">
+                          {jadeEntryRequirementMessage(jadeState.account)}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {jadeState.status === "ready" && (
+                    <JadeRecoveryCard
+                      account={jadeState.account}
+                      state={jadeRecoveryState}
+                      onClaim={() => void claimJadeWelfare()}
+                    />
+                  )}
+
+                  {!accelByteConfig.matchPool && matchmakingState.status === "idle" && (
+                    <p className="matchmaking-result" role="status" aria-live="polite">
+                      {t("lobby.poolUnavailable")}
+                    </p>
+                  )}
+
+                  {accelByteConfig.matchPool && matchmakingState.status === "idle" && (
+                    <button
+                      className="primary-action session-action"
+                      type="button"
+                      onClick={findTable}
+                      disabled={
+                        sessionState.status === "loading" ||
+                        hasActiveOrStrandedSession ||
+                        jadeState.status !== "ready" ||
+                        !jadeState.account.eligible
+                      }
+                    >
+                      {t("lobby.findTable")}
+                    </button>
+                  )}
+                </section>
+
+
                     {/* The raw account ID is support and debugging data, not
                         lobby furniture. It stays reachable, one click down. */}
                     <p className="session-detail session-id-value">
@@ -5068,7 +5036,8 @@ export function App(
                 </details>
               </div>
             )}
-          </div>
+          </div>}
+          </NeoExperience>
         )}
 
         {state.status === "error" && (

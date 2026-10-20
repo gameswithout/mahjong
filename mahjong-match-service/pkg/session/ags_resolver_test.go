@@ -354,3 +354,10 @@ func TestBotPersonaPicks(t *testing.T) {
 func sessionMember(userID, status string) *sessionclientmodels.ApimodelsUserResponse {
 	return &sessionclientmodels.ApimodelsUserResponse{ID: &userID, StatusV2: &status}
 }
+
+func TestUnrankedModeTakesPrecedenceOverLegacyPracticeFlag(t *testing.T) {
+	attributes := map[string]interface{}{"game_mode": "unranked", "ai_practice": "true", "full_rotation": "true"}
+	if got := modeFromAttributes(attributes); got != ModeUnranked {
+		t.Fatalf("mode = %q", got)
+	}
+}
