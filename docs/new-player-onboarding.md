@@ -35,3 +35,15 @@ Activation metrics must count real completed hands and full rotations. The widge
 ## Artwork
 
 The current widget and blank tutorial page require no final artwork. Earlier instructional tile and guided-table artwork entries remain reserved in the [Artwork Register](artwork-register.md), marked inactive rather than treated as active commissions.
+
+## Main menu layout — 2026-10-20
+
+A compact identity/utility header sits above the flexible CTA slot. NEO is the first use of that slot; completion or “Not now” removes it and its space, including on later visits. Dismissal records `neo_dismissed` and does not count as tutorial completion. The same position is reserved for future dismissible announcements; no season system is implied.
+
+Unranked and the currently disabled Ranked action sit beneath the banner, with Jade icon and available balance above the cards. My Journey is the default tab of the lower shared content panel; Friends / Party and Store replace its visible content. On narrow screens the mode cards stack and the section tabs form a horizontal row. Existing social and Store services retain their current capabilities; notifications are explicitly a placeholder.
+
+### Shared temporary CTA treatment — 2026-10-20
+
+`TemporaryCta` is the common banner for NEO and the optional analytics privacy question. Only one banner appears at a time: NEO first, then privacy when NEO is completed or dismissed. Privacy answers retain their existing persistence and consent behavior; closing its banner records a decline. The language settings announcement has been removed from the main menu. Language selection remains available in Settings.
+
+The header is titled “Mahjong,” uses the existing three-tile/nickname profile badge with a separate edit icon and modal editor, and shows gear and envelope controls. The unread count is zero until a notification service is implemented; it is not a simulated count.

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { TemporaryCta } from "./TemporaryCta";
 import { translateSource as tr } from "./i18n";
 
 export type NeoPath = "new" | "casual" | "experienced";
@@ -13,6 +14,7 @@ const isPath = (value: unknown): value is NeoPath => value === "new" || value ==
 export function readNeo(userId: string): NeoRecord {
   try {
     const value = JSON.parse(localStorage.getItem(neoStorageKey(userId)) ?? "null");
+    if (value?.step === "home" && !value.path) return { step: "home" };
     if (value && isPath(value.path)) {
       // Completed choices from the earlier prototype stay completed. Its
       // unfinished multi-step lessons return to the simpler menu widget.
@@ -28,8 +30,10 @@ const descriptions = {
   experienced: "You're ready to compete. Start with Ranked for a full dealer rotation against other human players. Unranked is always available too.",
 };
 
-export function NeoExperience({ userId, onPlayUnranked, onEvent, children }: {
+export function NeoExperience({ userId, onPlayUnranked, onEvent, header, nextCta, children }: {
   userId: string;
+  header?: ReactNode;
+  nextCta?: ReactNode;
   onPlayUnranked: () => void;
   onEvent?: (event: string, path?: NeoPath) => void;
   children: (controls: { openRanked: () => void; playUnranked: () => void }) => ReactNode;
@@ -64,8 +68,9 @@ export function NeoExperience({ userId, onPlayUnranked, onEvent, children }: {
   if (rankedOpen) return <RankedPreview introSeen={record.rankedIntroSeen === true}
     onConfirm={() => save({ ...record, rankedIntroSeen: true })} onClose={() => setRankedOpen(false)} />;
   return <div ref={menuRef} className="neo-menu" data-neo-highlight={highlight ?? undefined}>
-    {record.step !== "home" && <aside className="neo-familiarity" aria-labelledby="neo-question">
-      <h2 id="neo-question">{tr("What is your familiarity with Mahjong?")}</h2>
+    {header}
+    {record.step !== "home" ? <TemporaryCta className="neo-familiarity" titleId="neo-question" title={tr("What is your familiarity with Mahjong?")}
+      action={<button className="text-action" onClick={() => { save({ ...record, step: "home" }); setHighlight(null); onEvent?.("neo_dismissed", record.path); }}>{tr("Not now")}</button>}>
       <div className="neo-path-actions">
         {(["new", "casual", "experienced"] as const).map((path) => <button key={path} className="secondary-action" aria-pressed={record.path === path} onClick={() => choose(path)}>
           {tr(path === "new" ? "New Player" : path === "casual" ? "Casual Player" : "Experienced Player")}
@@ -75,7 +80,7 @@ export function NeoExperience({ userId, onPlayUnranked, onEvent, children }: {
         <p>{tr(descriptions[record.path])}</p>
         <button className="text-action" onClick={complete}>{tr("Got it")}</button>
       </div>}
-    </aside>}
+    </TemporaryCta> : nextCta}
     {children({
       playUnranked: () => { complete(); setHighlight(null); onPlayUnranked(); },
       openRanked: () => { complete(); setHighlight(null); setRankedOpen(true); },

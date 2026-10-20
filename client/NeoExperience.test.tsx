@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NeoExperience, neoStorageKey, readNeo } from "./NeoExperience";
@@ -7,10 +7,10 @@ import { GameModeMenu } from "./GameModeMenu";
 let cleanup = () => {};
 beforeEach(() => localStorage.clear());
 afterEach(() => cleanup());
-function mount(id = "guest-neo") {
+function mount(id = "guest-neo", nextCta?: ReactNode) {
   const node = document.createElement("div"); document.body.append(node);
   const root = createRoot(node); const play = vi.fn();
-  act(() => root.render(<NeoExperience userId={id} onPlayUnranked={play}>{({openRanked,playUnranked}) => <><h1>Main menu</h1><GameModeMenu onPlayUnranked={playUnranked} onPlayRanked={openRanked} /></>}</NeoExperience>));
+  act(() => root.render(<NeoExperience userId={id} onPlayUnranked={play} nextCta={nextCta}>{({openRanked,playUnranked}) => <><h1>Main menu</h1><GameModeMenu onPlayUnranked={playUnranked} onPlayRanked={openRanked} /></>}</NeoExperience>));
   cleanup = () => { act(() => root.unmount()); node.remove(); };
   const click = (label: string) => {
     const button = [...node.querySelectorAll("button")].find((button) => button.textContent === label);
@@ -61,6 +61,22 @@ describe("simple main-menu NEO widget", () => {
     localStorage.setItem(neoStorageKey("guest-neo"), JSON.stringify({path:"casual",step:"home"}));
     const {node}=mount(); expect(node.querySelector(".neo-familiarity")).toBeNull();
     expect(node.querySelector(".neo-menu")?.getAttribute("data-neo-highlight")).toBeNull();
+  });
+  it("dismisses the flexible banner without choosing a path and remembers it", () => {
+    const { node, click, play } = mount(); click("Not now");
+    expect(node.querySelector(".neo-familiarity")).toBeNull();
+    expect(readNeo("guest-neo")).toEqual({ step: "home" });
+    expect(play).not.toHaveBeenCalled();
+    cleanup();
+    expect(mount().node.querySelector(".neo-familiarity")).toBeNull();
+  });
+  it("uses one temporary CTA slot, showing privacy only after NEO", () => {
+    const { node, click } = mount("guest-neo", <p>Privacy prompt</p>);
+    expect(node.textContent).not.toContain("Privacy prompt");
+    expect(node.querySelectorAll(".temporary-cta")).toHaveLength(1);
+    click("Not now");
+    expect(node.querySelector(".neo-familiarity")).toBeNull();
+    expect(node.textContent).toContain("Privacy prompt");
   });
   it("safely migrates old prototype state and isolates accounts", () => {
     localStorage.setItem(neoStorageKey("a"), JSON.stringify({path:"new",step:"guided"}));

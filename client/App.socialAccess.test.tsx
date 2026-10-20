@@ -184,7 +184,7 @@ describe("App social feature access", () => {
     expect(container.textContent).toContain("Add a friend by player ID");
   });
 
-  it("opens verified rotation progress from the lobby Journey entry", async () => {
+  it("shows verified rotation progress in the default Journey tab", async () => {
     dependencies.createProgressionClient.mockReturnValue({
       get: vi.fn().mockResolvedValue({
         progression: {
@@ -198,17 +198,16 @@ describe("App social feature access", () => {
     });
     await enterLobby(false);
     await vi.waitFor(() => expect(container.textContent).toContain("12 completed games"));
-    const button = container.querySelector<HTMLButtonElement>('button[aria-label="Open My Mahjong Journey"]');
-    expect(button).not.toBeNull();
-    await act(async () => { button!.click(); await Promise.resolve(); });
-    await vi.waitFor(() => expect(container.querySelector("#journey-title")?.textContent).toBe("My Mahjong Journey"));
+    expect(container.querySelector('#menu-tab-journey[aria-selected="true"]')?.textContent).toContain("My Journey");
+    expect(container.querySelector("#journey-title")?.textContent).toBe("My Mahjong Journey");
     expect(container.textContent).toContain("Table Regular");
     expect(container.textContent).toContain("38 rotations to go");
     expect(container.querySelectorAll(".journey-chapters button:disabled")).toHaveLength(1);
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>(".journey-header button")!.click();
-      await Promise.resolve();
-    });
-    expect(container.querySelector(".lobby-header")).not.toBeNull();
+    expect(container.querySelector(".journey-header button")).toBeNull();
+    await act(async () => { container.querySelector<HTMLButtonElement>("#menu-tab-social")!.click(); });
+    expect(container.querySelector<HTMLElement>("#menu-panel-journey")!.hidden).toBe(true);
+    expect(container.querySelector<HTMLElement>("#menu-panel-social")!.hidden).toBe(false);
+    await act(async () => { container.querySelector<HTMLButtonElement>("#menu-tab-journey")!.click(); });
+    expect(container.querySelector<HTMLElement>("#menu-panel-journey")!.hidden).toBe(false);
   });
 });

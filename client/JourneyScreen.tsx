@@ -2,8 +2,9 @@ import { useState } from "react";
 import type { PlayerJourney } from "../protocol/envelope";
 import { formatNumber, t, translateSource as tr } from "./i18n";
 
-export function JourneyScreen({ journey, onClose }: {
+export function JourneyScreen({ journey, onClose, embedded = false }: {
   journey?: PlayerJourney;
+  embedded?: boolean;
   onClose: () => void;
 }) {
   const [chapter, setChapter] = useState<number | null>(null);
@@ -15,18 +16,19 @@ export function JourneyScreen({ journey, onClose }: {
   const selected = earned.find((step) => step.games === chapter) ?? current;
   const stage = selected ? earned.indexOf(selected) + 1 : 0;
   const percent = next ? Math.min(100, games / next.games * 100) : 100;
+  const Root = embedded ? "section" : "main";
   return (
-    <main className="journey-screen" aria-labelledby="journey-title">
+    <Root className={`journey-screen${embedded ? " journey-embedded" : ""}`} aria-labelledby="journey-title">
       <header className="journey-header">
         <div><p className="status-label">{tr("Your place at the table")}</p><h1 id="journey-title">{tr("My Mahjong Journey")}</h1></div>
-        <button className="secondary-action" onClick={onClose}>{t("progression.back")}</button>
+        {!embedded && <button className="secondary-action" onClick={onClose}>{t("progression.back")}</button>}
       </header>
       <div className="journey-dimensions" aria-label={tr("Journey dimensions")}>
         <span><strong>{tr("Legacy")}</strong> · {tr("Dedication & belonging")}</span>
         <span><strong>{tr("Skill")}</strong> · {tr("Competitive performance")}</span>
         <span><strong>{tr("Highlights")}</strong> · {tr("Extraordinary moments")}</span>
       </div>
-      {!journey ? <p role="status">{tr("Your Journey is unavailable. Return to the lobby and try again.")}</p> : <>
+      {!journey ? <p role="status">{tr(embedded ? "Your Journey is unavailable. Try refreshing your progress." : "Your Journey is unavailable. Return to the lobby and try again.")}</p> : <>
         <section className="journey-hero" aria-label={tr("Legacy progress")}>
           <div><p className="status-label">{tr("Progressive Prestige")}</p><h2>{tr(current?.title ?? "Your first seat awaits")}</h2>
             <p>{tr("Every completed rotation becomes part of your story.")}</p>
@@ -67,6 +69,6 @@ export function JourneyScreen({ journey, onClose }: {
           {journey.anniversaries.length > 0 && <ul>{journey.anniversaries.map((anniversary) => <li key={anniversary.year}><strong>{tr("Year")} {anniversary.year}</strong> · {tr("Anniversary badge")}{anniversary.material ? ` · ${tr(anniversary.material)}` : ""}<time dateTime={anniversary.earned_at}>{anniversary.earned_at}</time></li>)}</ul>}
         </section>
       </>}
-    </main>
+    </Root>
   );
 }

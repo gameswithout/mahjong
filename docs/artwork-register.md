@@ -116,3 +116,9 @@ The familiarity choices, orientation panels, and recaps currently use text-only 
 ### NEO simplification — 2026-10-19
 
 The active familiarity experience is now a text-only widget on the main menu. New Player opens a deliberately blank tutorial page with one return button. `neo-tutorial-tile-placeholder` and `neo-guided-table-placeholder` are inactive future reservations; their previous CSS samples are removed. Do not commission assets for those examples. No new artwork is required by this simplified widget or blank page. `neo-ranked-table-placeholder` belongs to the separate Ranked preview and remains active there.
+
+### Responsive main menu — 2026-10-20
+
+The new layout reuses the existing Living Chronicle placeholders and profile tiles. The temporary brand mark in `client/MainMenu.tsx` is a CSS tile with the character 中 (`menu-brand-mark`); replace it with the approved game logo (SVG preferred, transparent background, legible at 32–44 CSS pixels). Jade currently uses the existing ◆ currency placeholder; replace it with the approved Jade icon (`menu-jade-icon`, transparent SVG, legible at 16–20 CSS pixels). No new promotional illustrations have been added. Future announcements should receive individual asset IDs and briefs here when designed.
+
+Header utility controls (gear, envelope, edit pencil) use inline SVG UI icons in `client/MainMenu.tsx`. They require no commissioned raster assets. Profile display reuses the existing game tile assets. The provisional brand tile and Jade icon reservations above remain unchanged.

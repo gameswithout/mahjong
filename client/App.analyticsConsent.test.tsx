@@ -162,6 +162,8 @@ describe("App optional-analytics consent ask", () => {
     });
     // Both answers are one click and neither is preselected — the card is a
     // question, so a checkbox defaulted either way would be the wrong shape.
+    expect(card.classList.contains("temporary-cta")).toBe(true);
+    expect(container.querySelector(".language-settings-notice")).toBeNull();
     expect(card.querySelectorAll("input")).toHaveLength(0);
     expect(card.textContent).toContain("Share analytics");
     expect(card.textContent).toContain("No thanks");

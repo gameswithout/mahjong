@@ -9,6 +9,7 @@
 // preselected or visually favoured, declining is not made to look like a
 // mistake, and the card is shown once and then never again whichever way it
 // is answered. The default without an answer stays "no".
+import { TemporaryCta } from "./TemporaryCta";
 import { t } from "./i18n";
 
 export interface AnalyticsConsentCardProps {
@@ -17,9 +18,9 @@ export interface AnalyticsConsentCardProps {
 
 export function AnalyticsConsentCard({ onAnswer }: AnalyticsConsentCardProps) {
   return (
-    <section className="analytics-consent-card" aria-labelledby="analytics-consent-title">
+    <TemporaryCta className="analytics-consent-card" titleId="analytics-consent-title" title={t("consent.title")}
+      action={<button className="text-action" type="button" aria-label={t("consent.decline")} onClick={() => onAnswer(false)}>×</button>}>
       <p className="status-label">{t("settings.privacy")}</p>
-      <h3 id="analytics-consent-title">{t("consent.title")}</h3>
       <p className="analytics-consent-body">{t("consent.body")}</p>
       <p className="analytics-consent-detail">{t("consent.detail")}</p>
       <div className="analytics-consent-actions">
@@ -39,6 +40,6 @@ export function AnalyticsConsentCard({ onAnswer }: AnalyticsConsentCardProps) {
         </button>
       </div>
       <p className="analytics-consent-detail">{t("consent.change")}</p>
-    </section>
+    </TemporaryCta>
   );
 }

@@ -7,7 +7,8 @@ export type StoreScreenState =
   | { status: "ready"; pack: FounderPackStatus }
   | { status: "error"; message: string };
 
-export function StoreScreen({ state, purchasing, onPurchase, onRefresh, onClose }: {
+export function StoreScreen({ state, purchasing, onPurchase, onRefresh, onClose, embedded = false }: {
+  embedded?: boolean;
   state: StoreScreenState;
   purchasing: boolean;
   onPurchase(): void;
@@ -15,11 +16,12 @@ export function StoreScreen({ state, purchasing, onPurchase, onRefresh, onClose 
   onClose(): void;
 }) {
   const pack = state.status === "ready" ? state.pack : undefined;
+  const Root = embedded ? "section" : "main";
   return (
-    <main className="store-screen" aria-labelledby="store-title">
+    <Root className="store-screen" aria-labelledby="store-title">
       <header className="store-heading">
         <div><p className="status-label">{t("header.store")}</p><h1 id="store-title">{t("store.title")}</h1></div>
-        <button type="button" className="secondary-action" onClick={onClose}>{t("common.backToLobby")}</button>
+        {!embedded && <button type="button" className="secondary-action" onClick={onClose}>{t("common.backToLobby")}</button>}
       </header>
       <article className="founder-pack-card">
         <div className="founder-pack-art" aria-hidden="true"><TileFace id="founder-og" size="lg" /></div>
@@ -40,6 +42,6 @@ export function StoreScreen({ state, purchasing, onPurchase, onRefresh, onClose 
           {pack && !pack.owned ? <button type="button" className="store-refresh" onClick={onRefresh}>{t("store.checkPurchase")}</button> : null}
         </div>
       </article>
-    </main>
+    </Root>
   );
 }

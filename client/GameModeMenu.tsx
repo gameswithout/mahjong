@@ -21,7 +21,7 @@ export function GameModeMenu({ onPlayRanked, rankedBusy = false, rankedUnavailab
           <button className="primary-action" type="button" onClick={onPlayUnranked} disabled={unrankedBusy || unrankedUnavailable}>
             {tr(unrankedBusy ? "Finding a table…" : "Play Unranked")}
           </button>
-          {unrankedStatus && <p role="status" aria-live="polite">{tr(unrankedStatus)}</p>}
+          <p className="game-mode-status" role={unrankedStatus ? "status" : undefined} aria-live="polite">{unrankedStatus ? tr(unrankedStatus) : ""}</p>
           {unrankedBusy && onCancelUnranked && <button className="text-action" type="button" onClick={onCancelUnranked}>{tr("Cancel")}</button>}
         </section>
         <section className="game-mode-card game-mode-direct" aria-labelledby="ranked-title">
@@ -31,7 +31,7 @@ export function GameModeMenu({ onPlayRanked, rankedBusy = false, rankedUnavailab
           <button className="primary-action" type="button" onClick={onPlayRanked} disabled={rankedBusy || rankedUnavailable}>
             {tr(rankedBusy ? "Finding a table…" : "Play Ranked")}
           </button>
-          {rankedStatus && <p className="game-mode-status" role="status">{tr(rankedStatus)}</p>}
+          <p className="game-mode-status" role={rankedStatus ? "status" : undefined}>{rankedStatus ? tr(rankedStatus) : ""}</p>
         </section>
       </div>
     </section>

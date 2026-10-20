@@ -5120,3 +5120,122 @@ h1 {
   opacity: 1;
   box-shadow: none;
 }
+
+/* Main menu: fluid tablet composition, with a portrait phone layout. */
+.bootstrap-shell:has(.bootstrap-card-lobby) { align-items: flex-start; padding: clamp(12px, 2.5vw, 32px); }
+.bootstrap-card-lobby { max-width: 1280px; padding: clamp(16px, 2.5vw, 32px); background: #173d37; border-color: #a8b99a30; }
+.main-menu-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid #ffffff1c; }
+.main-menu-brand { display: flex; align-items: center; gap: 12px; }
+.main-menu-brand > span { display: grid; place-items: center; width: 44px; height: 52px; border-radius: 8px; background: #f4edda; color: #8d3a35; font: 30px Georgia, serif; box-shadow: 0 3px #bbb294; }
+.main-menu-brand strong { font: 700 clamp(18px, 2.2vw, 26px) Georgia, serif; }
+.main-menu-brand small { display: block; color: #b8c9bd; margin-top: 4px; }
+.main-menu-header nav { display: flex; align-items: center; gap: 8px; }
+.main-menu-header nav > button, .main-menu-header summary { min-height: 44px; padding: 10px 14px; font-size: .85rem; background: #ffffff09; border: 1px solid #ffffff20; border-radius: 12px; color: #f7f4ee; cursor: pointer; }
+.main-menu-header details { position: relative; }
+.main-menu-header summary { list-style: none; display: flex; align-items: center; gap: 8px; }
+.main-menu-header summary::-webkit-details-marker { display: none; }
+.main-menu-header details > div { position: absolute; right: 0; top: calc(100% + 10px); width: min(340px, calc(100vw - 48px)); background: #122e2a; border: 1px solid #bba77870; border-radius: 14px; padding: 20px; z-index: 10; box-shadow: 0 14px 40px #0006; }
+.main-menu-header summary .profile-icon-row { display: none; }
+.main-menu-header summary .player-profile-badge { width: auto; min-width: 0; }
+.main-menu-header summary .profile-nickname { font-size: .85rem; }
+.main-menu-header summary:focus-visible { outline: 3px solid #f2c66d; outline-offset: 3px; }
+.main-menu-header .menu-profile-body { max-height: 70vh; overflow-y: auto; }
+.main-menu-play { padding: 22px 0; }
+.main-menu-play-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.main-menu-play-heading h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .14em; color: #c1cfbf; margin: 0; }
+.main-menu-jade { border: 1px solid #ffffff25; border-radius: 999px; padding: 9px 15px; font-size: .85rem; white-space: nowrap; }
+.main-menu-jade > span { color: #74d3ad; margin-right: 4px; }
+.main-menu-play .game-mode-menu { margin: 16px 0 0; }
+.main-menu-play .game-mode-grid { align-items: stretch; gap: 18px; }
+.main-menu-play .game-mode-card { display: flex; flex-direction: column; padding: clamp(20px, 3vw, 32px); background: linear-gradient(140deg, #ffffff09, #ffffff02); }
+.main-menu-play .game-mode-card h2 { font-size: clamp(30px, 3.4vw, 42px); }
+.main-menu-play .game-mode-card > p:not(.game-mode-status) { margin: 12px 0 22px; font-size: .95rem; flex: 1; }
+.main-menu-play .game-mode-card .primary-action { width: 100%; }
+.main-menu-explore { display: grid; grid-template-columns: 180px minmax(0, 1fr); border: 1px solid #ffffff20; border-radius: 18px; overflow: hidden; background: #102e2938; margin-bottom: 18px; }
+.main-menu-tabs { display: flex; flex-direction: column; border-right: 1px solid #ffffff20; padding: 10px; gap: 6px; background: #00000012; }
+.main-menu-tabs button { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-radius: 10px; padding: 16px 12px; text-align: left; color: #c2cfc5; background: transparent; min-height: 48px; font-size: .9rem; }
+.main-menu-tabs button[aria-selected="true"] { background: #f2c66d; color: #202a26; }
+.main-menu-tab-content { min-width: 0; padding: clamp(18px, 2.5vw, 30px); }
+.main-menu-tab-content[hidden] { display: none; }
+.main-menu-tab-content > .journey-screen, .main-menu-tab-content > .store-screen { padding: 0; margin: 0; max-width: none; background: transparent; border: 0; box-shadow: none; }
+.journey-embedded .journey-header h1, .main-menu-tab-content .store-heading h1 { font-size: clamp(24px, 3vw, 34px); }
+.journey-embedded .journey-dimensions { font-size: .8rem; gap: 8px; }
+.journey-embedded .journey-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.journey-embedded .journey-hero h2 { font-size: 1.6rem; }
+.journey-embedded .journey-chapters { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.main-menu-tab-content .party-panel, .main-menu-tab-content .friends-panel { margin-top: 16px; }
+.neo-menu .neo-familiarity { margin: 20px 0 0; background: #f2c66d0b; }
+.bootstrap-card-lobby .session-panel { margin-top: 0; }
+.bootstrap-card-lobby .settings-link { padding: 12px 16px; background: transparent; border: 1px solid #ffffff16; font-size: .85rem; }
+@media (max-width: 760px) {
+  .main-menu-header { align-items: flex-start; flex-wrap: wrap; padding-bottom: 14px; }
+  .main-menu-header nav { margin-left: auto; flex-wrap: wrap; }
+  .main-menu-header summary .player-profile-badge { display: none; }
+  .main-menu-explore { grid-template-columns: minmax(0, 1fr); }
+  .main-menu-tabs { flex-direction: row; border-right: 0; border-bottom: 1px solid #ffffff20; }
+  .main-menu-tabs button { flex: 1; justify-content: center; text-align: center; padding: 12px 8px; }
+  .main-menu-tabs button > span { display: none; }
+  .journey-embedded .journey-hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .main-menu-brand > span { width: 32px; height: 38px; font-size: 24px; }
+  .main-menu-brand small { display: none; }
+  .main-menu-header nav { width: 100%; justify-content: space-between; }
+  .main-menu-header nav > * { flex: 1; }
+  .main-menu-header nav > button, .main-menu-header summary { justify-content: center; padding: 10px 8px; }
+  .main-menu-play { padding: 18px 0; }
+  .main-menu-play .game-mode-card { padding: 20px; }
+  .main-menu-play .game-mode-card h2 { font-size: 30px; margin-top: 6px; }
+  .main-menu-play .game-mode-card > p:not(.game-mode-status) { margin: 8px 0 16px; }
+  .main-menu-play .game-mode-card .status-label { font-size: .65rem; margin-bottom: 0; }
+  .neo-menu .neo-familiarity { padding: 18px; }
+  .neo-path-actions { display: grid; grid-template-columns: 1fr; }
+}
+.main-menu-play .game-mode-direct > .game-mode-status { flex: none; min-height: 24px; margin: 12px 0 0; font-size: .85rem; }
+.neo-banner-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.neo-banner-heading .text-action { padding: 8px; white-space: nowrap; }
+.neo-banner-heading h2 { margin-bottom: 16px; }
+.bootstrap-card-lobby .success-panel { background: transparent; padding: 0; }
+.neo-banner-heading .text-action { background: transparent; color: #d4ddcf; border: 1px solid #ffffff25; font-size: .8rem; }
+@media (max-width: 480px) { .neo-path-actions { gap: 8px; } .neo-path-actions .secondary-action { padding: 12px; } }
+.main-menu-header nav { position: relative; }
+.main-menu-header details { position: static; }
+.main-menu-brand small[role="status"] { display: block; }
+.neo-banner-heading .text-action { min-height: 44px; }
+
+/* Header utilities share a center line; the profile uses the in-game badge. */
+.main-menu-header nav { flex-wrap: nowrap; align-items: center; }
+.main-menu-header .menu-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 1px solid #ffffff25; border-radius: 12px; background: #ffffff09; color: #f7f4ee; position: relative; }
+.main-menu-header .menu-icon-button svg { flex: none; }
+.menu-unread-count { position: absolute; right: -5px; top: -6px; min-width: 20px; height: 20px; border-radius: 999px; display: grid; place-items: center; padding: 0 4px; background: #edc870; color: #162e27; font-size: .65rem; font-weight: 800; border: 2px solid #173d37; }
+.main-menu-profile { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.main-menu-profile > .player-profile-badge { inline-size: 220px; max-inline-size: none; height: 44px; aspect-ratio: auto; }
+.main-menu-profile .profile-icon-row { display: inline-flex; flex-shrink: 0; }
+.menu-profile-dialog { position: fixed; margin: auto; width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; background: #122e2a; border: 1px solid #bba77870; border-radius: 18px; padding: 24px; color: #f7f4ee; box-shadow: 0 20px 80px #0008; }
+.menu-profile-dialog::backdrop { background: #070e15b8; }
+.menu-profile-dialog .profile-overlay-close { display: flex; margin-left: auto; margin-bottom: 12px; font-size: 24px; }
+.temporary-cta { padding: 20px 24px; margin: 20px 0 0; border: 1px solid #d7bf7a50; border-radius: 16px; background: #f2c66d0b; }
+.temporary-cta-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.temporary-cta .temporary-cta-heading h2 { font-size: 1.25rem; line-height: 1.4; margin: 0; }
+.temporary-cta-heading .text-action { flex-shrink: 0; min-width: 44px; min-height: 44px; padding: 8px; background: transparent; color: #d4ddcf; border: 1px solid #ffffff25; font-size: .8rem; white-space: nowrap; }
+.temporary-cta .analytics-consent-actions button { min-height: 44px; }
+@media (max-width: 760px) {
+  .main-menu-header { align-items: center; }
+  .main-menu-header nav { margin-left: 0; }
+  .main-menu-profile > .player-profile-badge { inline-size: 180px; }
+}
+@media (max-width: 480px) {
+  .main-menu-header nav { width: 100%; }
+  .main-menu-header nav > .menu-notifications { flex: 0 0 44px; }
+  .main-menu-header nav > .main-menu-profile { flex: 1; }
+  .main-menu-profile > .player-profile-badge { flex: 1; inline-size: auto; min-width: 0; }
+  .temporary-cta, .neo-menu .neo-familiarity { padding: 18px; }
+}
+@media (max-width: 480px) {
+  .main-menu-header { display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px; gap: 12px 8px; }
+  .main-menu-header nav { display: contents; }
+  .main-menu-header .main-menu-profile { grid-column: 1 / -1; width: 100%; }
+  .main-menu-profile > .player-profile-badge { flex: 1; }
+  .main-menu-header .menu-notifications > div { top: 64px; right: 0; }
+  .main-menu-header { position: relative; }
+}

@@ -35,7 +35,8 @@ import {
 import { createJadeClient, JadeError } from "./jade";
 import { jadeEntryRequirementMessage, stakeSummary } from "./jade-entry";
 import { JadeRecoveryCard, type JadeRecoveryState } from "./JadeRecoveryCard";
-import { LobbyHeader } from "./LobbyHeader";
+import { MainMenuHeader, MainMenuProfile, MainMenuTabs } from "./MainMenu";
+import { PlayerProfileBadge, PlayerProfileEditor } from "./PlayerProfile";
 import { findUnrankedMatch } from "./unranked-matchmaking";
 import { NeoExperience } from "./NeoExperience";
 import { GameModeMenu } from "./GameModeMenu";
@@ -4194,7 +4195,7 @@ export function App(
         className={`bootstrap-card${state.status === "signed_in" ? " bootstrap-card-lobby" : ""}`}
         aria-labelledby="bootstrap-title"
       >
-        <h1 id="bootstrap-title" className="mahjong-online-title">
+        <h1 id="bootstrap-title" className={`mahjong-online-title${state.status === "signed_in" ? " sr-only" : ""}`}>
           {t("auth.title")} <small>{t("auth.alpha")}</small>
         </h1>
         {state.status === "idle" && (
@@ -4454,48 +4455,28 @@ export function App(
         {state.status === "signed_in" && (
           <NeoExperience key={state.userId} userId={state.userId}
             onPlayUnranked={() => void playUnranked()}
+            nextCta={analyticsConsentPending ? <AnalyticsConsentCard onAnswer={answerAnalyticsConsent} /> : null}
+            header={
+              <MainMenuHeader
+                connection={state.lobbyStatus}
+                onSettings={() => setSettingsOpen(true)}
+                profile={
+                  <MainMenuProfile badge={<PlayerProfileBadge profile={playerProfile} />} editor={<>
+                    <PlayerProfileEditor
+                      profile={playerProfile}
+                      guest={isGuestAccount}
+                      onChange={updatePlayerProfile}
+                      founderTileUnlocked={storeState.status === "ready" && storeState.pack.owned}
+                    />
+                    {isGuestAccount && <button className="secondary-action" onClick={() => setAccountUpgradeOpen(true)}>{t("header.createAccount")}</button>}
+                  </>} />
+                }
+              />
+            }
+
             onEvent={(event, path) => gameTelemetry.track("feature_engaged", { dimensions: { feature: event, value: path ?? "unknown", surface: "neo_preview" } })}>
           {({ openRanked, playUnranked: startUnrankedFromMenu }) => <div className="success-panel">
-            <LobbyHeader
-              guest={isGuestAccount}
-              account={jadeState.status === "ready" ? jadeState.account : undefined}
-              jadeStatus={jadeState.status}
-              connection={state.lobbyStatus}
-              progression={
-                progressionState.status === "ready"
-                  ? progressionState.snapshot.progression
-                  : undefined
-              }
-              progressionStatus={progressionState.status}
-              statistics={
-                statisticsState.status === "ready" ? statisticsState.summary : undefined
-              }
-              onOpenProgress={() => {
-                setAchievementsOpen(false);
-                setProgressionOpen(true);
-                if (
-                  progressionState.status !== "ready" ||
-                  !progressionState.snapshot.progression.journey
-                ) {
-                  void loadProgression();
-                }
-              }}
-              onOpenStatistics={() => {
-                setStatisticsOpen(true);
-                if (statisticsState.status !== "ready") {
-                  void loadStatistics();
-                }
-              }}
-              profile={playerProfile}
-              onProfileChange={updatePlayerProfile}
-              onOpenStore={() => { setStoreOpen(true); void loadStore(); }}
-              onCreateAccount={() => setAccountUpgradeOpen(true)}
-              founderTileUnlocked={storeState.status === "ready" && storeState.pack.owned}
-            />
 
-            {analyticsConsentPending ? (
-              <AnalyticsConsentCard onAnswer={answerAnalyticsConsent} />
-            ) : null}
 
             {isGuestAccount && accountUpgradeOpen ? (
               <div className="lobby-account-upgrade">
@@ -4529,40 +4510,8 @@ export function App(
 
             {state.lobbyStatus === "connected" && (
               <div className="session-panel">
-                {playerSettings.showLanguageNotice && (
-                  <section
-                    className="tutorial-card language-settings-notice"
-                    aria-labelledby="language-settings-notice-title"
-                  >
-                    <h2 id="language-settings-notice-title" className="tutorial-heading">
-                      {t("lobby.languageNoticeTitle")}
-                    </h2>
-                    <p className="practice-description">
-                      {t("lobby.languageNoticeBody")}
-                    </p>
-                    <button
-                      className="secondary-action session-action"
-                      type="button"
-                      onClick={() => setSettingsOpen(true)}
-                    >
-                      {t("lobby.openLanguageSettings")}
-                    </button>
-                    <button
-                      className="text-action tutorial-hide-action"
-                      type="button"
-                      aria-label={t("common.hide")}
-                      onClick={() =>
-                        void updatePlayerSettings({
-                          ...playerSettings,
-                          showLanguageNotice: false,
-                        })
-                      }
-                    >
-                      {t("common.hide")}
-                    </button>
-                  </section>
-                )}
-
+                <div className="main-menu-play">
+                  <div className="main-menu-play-heading"><h2>{translateSource("Play Mahjong")}</h2><div className="main-menu-jade" aria-label={t("header.walletLabel")}><span aria-hidden="true" data-artwork-id="menu-jade-icon">◆</span> <strong>{jadeState.status === "ready" ? formatNumber(jadeState.account.available) : jadeState.status === "loading" ? "…" : t("common.unavailable")}</strong> {t("common.jade")}</div></div>
                 <GameModeMenu
                   onPlayUnranked={startUnrankedFromMenu}
                   unrankedBusy={unrankedState.busy}
@@ -4575,6 +4524,8 @@ export function App(
                   rankedStatus="Ranked is not available yet."
 
                 />
+
+                </div>
 
                 {playerSettings.showTutorial && <button hidden type="button" className="text-action" disabled={unrankedState.busy} onClick={() => setTutorialOpen(true)}>
                   {onboardingOutcome === "ONBOARDING_OUTCOME_SKIPPED" ? t("lobby.continueTutorial") : t("lobby.startTutorial")}
@@ -4719,6 +4670,12 @@ export function App(
                 )}
 
 
+                <MainMenuTabs
+                  onSelect={(tab) => { if (tab === "store") void loadStore(); }}
+                  journey={<>{progressionState.status === "loading" || progressionState.status === "idle" ? <p role="status">{t("common.loading")}</p> : <JourneyScreen embedded journey={progressionState.status === "ready" ? progressionState.snapshot.progression.journey : undefined} onClose={() => undefined} />}
+                    {progressionState.status === "error" && <button className="secondary-action" onClick={() => void loadProgression()}>{t("progression.retry")}</button>}
+                    <button className="secondary-action" onClick={() => { setStatisticsOpen(true); void loadStatistics(); }}>{statisticsState.status === "ready" && statisticsState.summary.hasPlayed ? t("header.winsGames", { wins: formatNumber(statisticsState.summary.wins), games: formatNumber(statisticsState.summary.handsPlayed) }) : t("header.matchHistory")}</button></>}
+                  social={<><h2>{translateSource("Friends / Party")}</h2>{isGuestAccount && <p>{translateSource("Friends and party play are coming later. You can play Unranked now.")}</p>}
                 {!isGuestAccount && (
                   <>
                     <PartyPanel
@@ -4779,6 +4736,10 @@ export function App(
                   </>
                 )}
 
+                  </>}
+                  store={<StoreScreen embedded state={storeState} purchasing={storePurchasing} onPurchase={() => void purchaseFounderPack()} onRefresh={() => void loadStore()} onClose={() => undefined} />}
+                />
+
                 <button
                   type="button"
                   className="settings-link"
@@ -4788,14 +4749,7 @@ export function App(
                   <span>{t("lobby.feedbackHelp")}</span>
                 </button>
 
-                <button
-                  type="button"
-                  className="settings-link"
-                  onClick={() => setSettingsOpen(true)}
-                >
-                  {t("settings.title")}
-                  <span>{t("lobby.settingsHelp")}</span>
-                </button>
+
 
                 <details className="developer-tools">
                   <summary>Developer session tools</summary>
