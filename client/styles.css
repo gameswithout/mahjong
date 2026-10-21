@@ -5380,8 +5380,18 @@ h1 {
 @media (max-width: 600px) { .journey-scoreboard { grid-template-columns: minmax(0, 1fr); } }
 
 .journey-header { align-items: center; }
-.journey-refresh { margin-left: auto; font-size: 2rem; min-width: 44px; min-height: 44px; line-height: 1; }
 .journey-score-card { display: flex; flex-direction: column; }
 .journey-score-card > button { margin-top: auto; white-space: normal; }
 .achievement-tile-face { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 76px; padding: 5px; box-sizing: border-box; border: 2px solid #d0b76e; border-bottom: 6px solid #8e9e82; border-radius: 7px; background: #f8f0d9; color: #25443c; font-size: 11px; font-weight: 700; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
 .profile-tile-icon .achievement-tile-face { width: 100%; height: 100%; font-size: 8px; padding: 2px; }
+
+.journey-history-scroll { max-width: 100%; overflow-x: auto; }
+.journey-history-table { width: 100%; border-collapse: collapse; text-align: left; }
+.journey-history-table caption { text-align: left; margin-bottom: 12px; color: var(--muted, #bdcec6); }
+.journey-history-table th, .journey-history-table td { padding: 12px; border-bottom: 1px solid #ffffff24; }
+.journey-history-table tbody th { max-width: 220px; overflow-wrap: anywhere; }
+.journey-history-table .text-action { padding: 4px; white-space: normal; text-align: left; }
+.journey-match-detail { margin-top: 18px; padding: 18px; border: 1px solid #cfb46c; border-radius: 12px; }
+
+.journey-history-pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.journey-history-pagination button { min-width: 44px; min-height: 44px; }

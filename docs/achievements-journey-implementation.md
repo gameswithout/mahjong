@@ -99,3 +99,17 @@ The Journey overview now presents the three independent dimensions Legacy, Skill
 ### Random Highlight simulation
 
 The approved brief defines example categories but leaves the precise catalog, thresholds, and rarity undefined. The simulator now uses five provisional examples: Self Draw, Exceptional Tai, Personal Tai Best, Rare Winning Hand, and Special Taiwanese Pattern. Each simulated rotation has a 60% chance of one uniformly selected sample event; these probabilities are UI test tuning, not real rarity or eligibility. A rotation loss can still contain a winning hand. Events retain sample rotation number, mode, and explicitly simulated human/Bot composition. The overview counts distinct achievements; collection cards count repeated events. Each distinct sample achievement unlocks one named placeholder profile tile. Exit/reset clears all events and rewards; no verified match records, eligibility logic, or server grants are created.
+
+### Match History and menu naming
+
+The overview's Recent Milestones section is replaced by a responsive Match History table, sorted newest first and limited to ten rows. Account history uses the existing authenticated history endpoint; it may contain individual hands, so the UI explicitly distinguishes recorded matches from full rotations counted for Prestige. Loading and error states include a history-specific retry. The persistent refresh arrow is removed; Journey retrieval errors retain Retry.
+
+Every simulated Highlight now carries its exact sample match ID. Each event links to match details, including events older than the ten visible rows. Details retain outcome, mode, and associated sample Highlights. Simulated match Tai is not modeled. Authoritative Highlight records remain an API gap; no verified Highlight is fabricated.
+
+Main-menu tabs are Journey and Party (including existing friends management). The display name Casual replaces Unranked; protocol mode identifiers and matchmaking endpoints remain unchanged. Casual describes solo or party entry with Bot fallback; Ranked describes solo competition against three humans.
+
+### History paging and consistent simulation summaries
+
+Match History starts with the newest ten records, with labelled Newer/Older arrow buttons to browse ten at a time. Boundaries disable their arrows; a newly added latest record returns the table to page one. The counter states the number of loaded records. Real history currently fetches the latest 30 records from the existing service; this UI does not imply access to older records outside that response.
+
+The wins/games summary follows simulated match outcomes while simulation is active and restores the account summary on exit. Clicking the simulation summary returns to the local history rather than opening real account statistics. Simulated Tai now uses generated sample values from 1–16 (Exceptional Tai samples at least 12). This replaces the earlier zero-value placeholder; values represent an illustrative hand in a rotation and do not imply verified scoring, final Highlight thresholds, or the rotation's overall result.

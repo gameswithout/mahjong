@@ -212,12 +212,12 @@ describe("live-table resilience to failed match-state polls", () => {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush("Continue as Guest");
     await vi.waitFor(() =>
-      expect(container.textContent).toContain("Play Unranked"),
+      expect(container.textContent).toContain("Play Casual"),
     );
     await vi.waitFor(() =>
       expect(container.textContent).toContain("5,000 Jade available"),
     );
-    await clickAndFlush("Play Unranked");
+    await clickAndFlush("Play Casual");
     await vi.waitFor(() =>
       expect(container.querySelector('[data-testid="live-match"]')).not.toBeNull(),
     );

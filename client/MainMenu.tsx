@@ -4,10 +4,10 @@ import { translateSource as tr } from "./i18n";
 
 export type MenuTab = "journey" | "inventory" | "chronicle" | "social" | "store";
 const tabs: { id: MenuTab; label: string }[] = [
-  { id: "journey", label: "My Journey" },
+  { id: "journey", label: "Journey" },
   { id: "inventory", label: "Inventory" },
   { id: "chronicle", label: "Chronicle" },
-  { id: "social", label: "Friends / Party" },
+  { id: "social", label: "Party" },
   { id: "store", label: "Store" },
 ];
 

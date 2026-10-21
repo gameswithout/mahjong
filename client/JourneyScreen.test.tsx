@@ -68,7 +68,7 @@ describe("focused Journey sections", () => {
     expect(loading).toContain("Loading your Journey");
     expect(loading).not.toContain("Your first seat awaits");
     const error = renderToStaticMarkup(<JourneyScreen loadState="error" onRetry={vi.fn()} onClose={vi.fn()} />);
-    expect(error).toContain('role="alert"'); expect(error).toContain("Refresh Journey");
+    expect(error).toContain('role="alert"'); expect(error).toContain("Retry Journey");
     expect(error).toContain("Saved progress could not be loaded");
   });
 });

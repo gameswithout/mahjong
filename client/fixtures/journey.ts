@@ -22,6 +22,7 @@ export function journeyFixture(games = 325) {
   };
   const progression: PlayerProgression = { journey, level: completed ? 4 : 1, lifetime_xp: completed ? 1350 : 0, xp_into_level: completed ? 150 : 0, xp_for_next_level: 500 };
   return {
+    matches: Array.from({ length: Math.min(completed, 15) }, (_, index) => ({ matchId: `sample-history-${index + 1}`, completedAt: new Date(Date.UTC(2026, 9, 1, 12, index)).toISOString(), mode: index % 2 ? "ranked" : "unranked", result: index % 3 ? "Win" as const : "Loss" as const, winKind: "", winningTileId: "", rawTai: index % 8, xpAwarded: 100 })),
     journey, progression, profile: { ...defaultPlayerProfile(false), nickname: "Jade Sparrow" },
     // These are illustrative server-shaped values, not generated achievements.
     inventory: completed ? founderCosmetics(true) : [],

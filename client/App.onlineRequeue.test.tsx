@@ -334,7 +334,7 @@ describe("App online matchmaking and requeue", () => {
   async function reachCompletedStakedHand(): Promise<void> {
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull());
   }
@@ -387,13 +387,13 @@ describe("App online matchmaking and requeue", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
 
     // Under 90 seconds the wait is reported without an escape hatch.
     expect(container.textContent).not.toContain("Practice instead");
-    expect(button(container, "Play Unranked").disabled).toBe(true);
+    expect(button(container, "Play Casual").disabled).toBe(true);
 
     const realNow = Date.now;
     try {
@@ -446,7 +446,7 @@ describe("App online matchmaking and requeue", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
 
@@ -466,13 +466,13 @@ describe("App online matchmaking and requeue", () => {
     );
     expect(cancelTicket).toHaveBeenCalledWith("ticket-1");
     expect(sessionClient.createSession).not.toHaveBeenCalled();
-    expect(button(container, "Play Unranked").disabled).toBe(true);
+    expect(button(container, "Play Casual").disabled).toBe(true);
     expect(button(container, "Create test table").disabled).toBe(true);
     expect(button(container, "Retry releasing Jade")).toBeInstanceOf(HTMLButtonElement);
     expect(container.textContent).not.toContain("Retry matchmaking");
 
     await clickAndFlush(container, "Retry releasing Jade");
-    await vi.waitFor(() => expect(button(container, "Play Unranked").disabled).toBe(false));
+    await vi.waitFor(() => expect(button(container, "Play Casual").disabled).toBe(false));
     expect(release).toHaveBeenCalledTimes(2);
   });
 
@@ -499,7 +499,7 @@ describe("App online matchmaking and requeue", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
     await clickAndFlush(container, "Find a table");
     await vi.waitFor(() => expect(container.textContent).toContain("Searching for players."));
     await clickAndFlush(container, "Cancel");
@@ -509,12 +509,12 @@ describe("App online matchmaking and requeue", () => {
     );
     expect(createTicket).toHaveBeenCalledTimes(1);
     expect(release).not.toHaveBeenCalled();
-    expect(button(container, "Play Unranked").disabled).toBe(true);
+    expect(button(container, "Play Casual").disabled).toBe(true);
     expect(button(container, "Retry leaving queue")).toBeInstanceOf(HTMLButtonElement);
     expect(container.textContent).not.toContain("Retry matchmaking");
 
     await clickAndFlush(container, "Retry leaving queue");
-    await vi.waitFor(() => expect(button(container, "Play Unranked").disabled).toBe(false));
+    await vi.waitFor(() => expect(button(container, "Play Casual").disabled).toBe(false));
     expect(cancelTicket).toHaveBeenCalledTimes(2);
     expect(cancelTicket).toHaveBeenNthCalledWith(1, "ticket-1");
     expect(cancelTicket).toHaveBeenNthCalledWith(2, "ticket-1");
@@ -636,7 +636,7 @@ describe("App online matchmaking and requeue", () => {
 
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
     await clickAndFlush(container, "Create test table");
     await vi.waitFor(() => expect(container.textContent).toContain("Session found"));
     await clickAndFlush(container, "Enter table");

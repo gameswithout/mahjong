@@ -1,3 +1,5 @@
+import { MatchHistoryTable, displayMatchMode } from "./MatchHistoryTable";
+import type { MatchHistoryEntry } from "./match-history";
 import { SIMULATED_HIGHLIGHTS, simulationJourney, simulationTiles, useProgressionSimulation } from "./progression-simulator";
 import { useEffect, useRef, useState } from "react";
 import type { PlayerJourney, PlayerProgression } from "../protocol/envelope";
@@ -10,12 +12,15 @@ import { formatNumber, t, translateSource as tr } from "./i18n";
 import {
   CHRONICLE_STAGES, DEFAULT_SHOWCASE_CAPACITY,
   SKILL_CANDIDATES, chronicleStage, legacyAchievements,
-  prestigeProgress, publicProfilePreview, recentMilestones, selectShowcase,
+  prestigeProgress, publicProfilePreview, selectShowcase,
   type JourneyAchievement, type JourneyCollection, type JourneyCosmetic,
 } from "./journey-model";
 
 export interface JourneyScreenProps {
   journey?: PlayerJourney;
+  matches?: readonly MatchHistoryEntry[];
+  historyStatus?: "loading" | "ready" | "error";
+  onRetryHistory?: () => void;
   view?: "journey" | "inventory" | "chronicle";
   progression?: PlayerProgression;
   profile?: PlayerProfileConfig;
@@ -32,13 +37,19 @@ export interface JourneyScreenProps {
 
 const number = (value: number | undefined) => typeof value === "number" && Number.isFinite(value) ? formatNumber(value) : "—";
 
-export function JourneyScreen({ view = "journey", journey, profile, statistics, inventory, inventoryStatus = "ready", loadState = "ready", onRetry, onRefreshInventory, onCustomize, onClose, embedded = false }: JourneyScreenProps) {
+export function JourneyScreen({ view = "journey", journey, matches = [], historyStatus = "ready", onRetryHistory, profile, statistics, inventory, inventoryStatus = "ready", loadState = "ready", onRetry, onRefreshInventory, onCustomize, onClose, embedded = false }: JourneyScreenProps) {
   const simulation = useProgressionSimulation();
   if (simulation) {
     journey = simulationJourney(simulation);
     inventory = simulationTiles(simulation).map((tile) => ({ id: tile.id, name: tile.label, type: "profile_tile", source: "Achievement simulation", owned: true, compatibleDisplays: ["showcase"] }));
     loadState = "ready"; inventoryStatus = "ready";
+    matches = simulation.matches; historyStatus = "ready";
   }
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const selectedMatch = matches.find((match) => match.matchId === selectedMatchId);
+  useEffect(() => {
+    if (selectedMatch) document.getElementById("journey-match-detail")?.focus();
+  }, [selectedMatch]);
   const [chapter, setChapter] = useState<number | null>(null);
   const [collection, setCollection] = useState<JourneyCollection>("legacy");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -62,7 +73,6 @@ export function JourneyScreen({ view = "journey", journey, profile, statistics, 
   const currentStage = chronicleStage(earned.length - 1);
   const upcomingStage = CHRONICLE_STAGES.find((stage) => stage.milestoneIndex > earned.length - 1 && steps[stage.milestoneIndex]);
   const achievements = journey ? legacyAchievements(journey) : [];
-  const milestones = journey ? recentMilestones(journey).slice(0, 6) : [];
   const preview = journey ? publicProfilePreview(profile, journey, inventory ?? [], showcased) : undefined;
   const owned = (inventory ?? []).filter((item) => item.owned === true);
   const filtered = owned.filter((item) => (cosmeticType === "all" || item.type === cosmeticType) && (cosmeticSource === "all" || item.source === cosmeticSource));
@@ -79,14 +89,13 @@ export function JourneyScreen({ view = "journey", journey, profile, statistics, 
   return <Root className={`journey-screen${embedded ? " journey-embedded" : ""}`} aria-labelledby={titleId} data-journey-view={view} aria-busy={loadState === "loading" && view !== "inventory"}>
     <header className="journey-header">
       <div><p className="status-label">{tr("Your place at the table")}</p><h1 id={titleId}>{tr(title)}</h1></div>
-      {view === "journey" && onRetry && <button className="text-action journey-refresh" aria-label="Refresh Journey" title="Refresh Journey" onClick={onRetry}>↻</button>}
       {!embedded && <button className="secondary-action" onClick={onClose}>{t("progression.back")}</button>}
     </header>
     <p className="journey-intro">{tr(view === "inventory" ? "Your collection. Choose what you bring to the table." : view === "chronicle" ? "Your Mahjong home and the story you share." : "Your history, your achievements, your place in Mahjong. At your own pace.")}</p>
     {loadState === "loading" && view !== "inventory" ? <div className="journey-empty" role="status">{tr("Loading your Journey…")}</div> : <>
       {view === "journey" && <>
       {simulation && <p role="status">Local progression simulation · placeholder rewards and draft rating</p>}
-      {loadState === "error" && <p role="alert">Saved progress could not be loaded. Use refresh to try again.</p>}
+      {loadState === "error" && <p role="alert">Saved progress could not be loaded. {onRetry && <button className="text-action" onClick={onRetry}>Retry Journey</button>}</p>}
       <section className="journey-overview journey-scoreboard" aria-label={tr("Journey overview")}>
         <JourneyScoreCard title="Legacy" kpi={number(games)} unit="completed rotations"
           highlight={current?.title ?? "Your first seat awaits"}
@@ -120,7 +129,7 @@ export function JourneyScreen({ view = "journey", journey, profile, statistics, 
             <span>{number(step.games)} {tr("games")}</span><strong>{tr(step.title)}</strong><span>{tr(chronicleStage(steps.indexOf(step))?.title ?? step.chapter)}</span><small>{tr(journey && journey.completed_rotations >= step.games ? "Unlocked · view chapter" : "Chapter ahead")}</small>
           </button>
         </li>)}</ol>
-        <p className="journey-note">{tr("One game is a completed full dealer rotation. Ranked, Unranked, and bot-supported games count equally. Wins and losses both count; incomplete rotations and individual hands do not.")}</p>
+        <p className="journey-note">{tr("One game is a completed full dealer rotation. Ranked, Casual, and bot-supported games count equally. Wins and losses both count; incomplete rotations and individual hands do not.")}</p>
         <section className="journey-section" aria-labelledby="chronicle-showcase-title"><h2 id="chronicle-showcase-title">{tr("Customize your showcase")}</h2>
           <p>{tr("Choose owned cosmetics for your public-facing Mahjong home. These choices are independent of gameplay equipment.")}</p>
           {inventoryStatus === "loading" ? <p role="status">{tr("Loading your connected collection…")}</p> : inventoryStatus === "error" ? <p role="alert">{tr("Your collection could not be verified. Refresh Inventory to try again.")}</p> : <div className="journey-achievement-grid">{owned.filter((item) => item.compatibleDisplays.includes("showcase")).map((item) => <article className="journey-cosmetic" key={item.id}><h3>{tr(item.name)}</h3><p>{tr(item.source)}</p><button className="secondary-action" aria-pressed={preview?.showcasedCosmetics.some((selected) => selected.id === item.id) ?? false} onClick={() => toggleShowcase(item.id)}>{tr(preview?.showcasedCosmetics.some((selected) => selected.id === item.id) ? "Remove from preview" : "Showcase in preview")}</button></article>)}</div>}
@@ -153,7 +162,7 @@ export function JourneyScreen({ view = "journey", journey, profile, statistics, 
             const latest = events.at(-1);
             return <article className={`journey-achievement-card ${events.length ? "is-earned" : ""}`} key={definition.id}>
               <small>{events.length ? "Unlocked · simulation" : "Not yet simulated"}</small><h4>{definition.name}</h4><p>{definition.description}</p>
-              {latest && <><span className="achievement-tile-face">{definition.name}</span><p>{events.length} sample moments · latest rotation {latest.rotation} · {latest.mode} · {latest.humanSeats} humans · {latest.botSeats} Bots</p><p>Placeholder profile tile unlocked · equip it in your profile editor.</p></>}
+              {latest && <><span className="achievement-tile-face">{definition.name}</span><p>{events.length} sample moments · latest rotation {latest.rotation} · {displayMatchMode(latest.mode)} · {latest.humanSeats} humans · {latest.botSeats} Bots</p><p>Placeholder profile tile unlocked · equip it in your profile editor.</p><ul>{events.map((event) => <li key={event.matchId}><button className="text-action" onClick={() => setSelectedMatchId(event.matchId)}>View match · rotation {event.rotation}</button></li>)}</ul></>}
             </article>;
           })}</div></> : <div className="journey-empty"><strong>{tr("Memorable hands belong here")}</strong><p>{tr("Verified Highlights will include the hand, Tai, game mode, and human/Bot composition. Personal recognition can include bot-supported play.")}</p><p>{tr("No verified Highlight records are available from the connected service. Pattern eligibility and rarity are still being designed.")}</p></div>}
         </div>)}
@@ -164,9 +173,14 @@ export function JourneyScreen({ view = "journey", journey, profile, statistics, 
         <small>{tr("Only connected, authoritative records are shown. A dash means unavailable, not zero. Completed hands are tracked separately from full rotations.")}</small>
       </section>
 
-      <section className="journey-section" aria-labelledby="journey-milestones-title"><p className="status-label">{tr("Moments along the way")}</p><h2 id="journey-milestones-title">{tr("Recent milestones")}</h2>
-        {milestones.length ? <ol className="journey-timeline">{milestones.map((event) => <li key={event.id}><time dateTime={event.date}>{event.date.slice(0, 10)}</time><div><strong>{tr(event.name)}</strong><p>{tr(event.detail)}</p></div></li>)}</ol> : <p className="journey-empty">{tr("Your first completed rotation begins your timeline. Only milestones with recorded dates appear here.")}</p>}
-        <small>{tr("Older Prestige unlock dates and celebration delivery will appear when event history is connected.")}</small>
+      <section className="journey-section" aria-labelledby="journey-history-title"><h2 id="journey-history-title">{tr("Match History")}</h2>
+        {simulation && <p>Sample matches · simulation only. Tai is a generated sample hand value, independent of the rotation result.</p>}
+        {historyStatus === "loading" ? <p role="status">Loading match history…</p> : historyStatus === "error" ? <p role="alert">Match history could not be loaded. {onRetryHistory && <button className="text-action" onClick={onRetryHistory}>Retry match history</button>}</p> : <MatchHistoryTable matches={matches} onSelect={setSelectedMatchId} />}
+        {!simulation && <small>Recorded matches may include individual hands. Only completed full dealer rotations advance Prestige.</small>}
+        {selectedMatch && <article id="journey-match-detail" tabIndex={-1} className="journey-match-detail" aria-label="Match details"><h3>Match {selectedMatch.matchId}</h3><p>{displayMatchMode(selectedMatch.mode)} · {selectedMatch.result} · {selectedMatch.rawTai} Tai</p><time dateTime={selectedMatch.completedAt}>{new Date(selectedMatch.completedAt).toLocaleString()}</time>
+          {simulation && <><p>Sample completed rotation · simulation only</p><h4>Highlights from this match</h4><ul>{simulation.highlights.filter((event) => event.matchId === selectedMatch.matchId).map((event) => <li key={event.id}>{SIMULATED_HIGHLIGHTS.find((definition) => definition.id === event.id)?.name}</li>)}</ul></>}
+          <button className="text-action" onClick={() => setSelectedMatchId(null)}>Close match details</button>
+        </article>}
       </section>
 
       </>}

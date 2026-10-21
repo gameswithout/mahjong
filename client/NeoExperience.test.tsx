@@ -25,7 +25,7 @@ describe("simple main-menu NEO widget", () => {
     expect(node.querySelectorAll(".neo-path-actions button")).toHaveLength(3);
     expect(node.textContent).toContain("What is your familiarity with Mahjong?");
     expect(node.textContent).toContain("Main menu");
-    expect(node.textContent).toContain("Play Unranked");
+    expect(node.textContent).toContain("Play Casual");
     expect(node.textContent).toContain("Play Ranked");
   });
   it("opens only a blank tutorial placeholder and completes on return", () => {
@@ -40,7 +40,7 @@ describe("simple main-menu NEO widget", () => {
   });
   it("describes Casual and highlights Unranked without launching a game", () => {
     const {node,click,play}=mount(); click("Casual Player");
-    expect(node.textContent).toContain("Unranked is the best place to start");
+    expect(node.textContent).toContain("Casual is the best place to start");
     expect(node.querySelector(".neo-menu")?.getAttribute("data-neo-highlight")).toBe("unranked");
     expect(play).not.toHaveBeenCalled();
     click("Got it"); expect(node.querySelector(".neo-familiarity")).toBeNull();
@@ -53,7 +53,7 @@ describe("simple main-menu NEO widget", () => {
     click("Got it"); expect(readNeo("guest-neo")).toMatchObject({path:"experienced",step:"home"});
   });
   it("completes the chosen path when the recommended game is started", () => {
-    const {node,click,play}=mount(); click("Casual Player"); click("Play Unranked");
+    const {node,click,play}=mount(); click("Casual Player"); click("Play Casual");
     expect(play).toHaveBeenCalledOnce(); expect(node.querySelector(".neo-familiarity")).toBeNull();
     expect(readNeo("guest-neo").step).toBe("home");
   });

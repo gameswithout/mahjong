@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
+import { MatchHistorySummaryButton } from "./MatchHistoryTable";
 import { GameModeMenu } from "./GameModeMenu";
 import { JourneyScreen } from "./JourneyScreen";
 import { PlayerProfileBadge, PlayerProfileEditor } from "./PlayerProfile";
@@ -11,20 +12,24 @@ afterEach(() => resetSimulation());
 it("simulates both modes, unlocks and equips tiles, and restores account presentation on exit", () => {
   const node = document.createElement("div"); document.body.append(node);
   const root = createRoot(node); const change = vi.fn(); const profile = defaultPlayerProfile(false);
-  act(() => root.render(<><GameModeMenu onPlayRanked={vi.fn()} onPlayUnranked={vi.fn()} /><JourneyScreen view="journey" onClose={vi.fn()} /><JourneyScreen view="inventory" onClose={vi.fn()} /><PlayerProfileBadge profile={profile} /><PlayerProfileEditor profile={profile} guest={false} onChange={change} /></>));
+  act(() => root.render(<><GameModeMenu onPlayRanked={vi.fn()} onPlayUnranked={vi.fn()} /><JourneyScreen view="journey" onClose={vi.fn()} /><JourneyScreen view="inventory" onClose={vi.fn()} /><MatchHistorySummaryButton onClick={vi.fn()}>0 Wins / 0 Games Played</MatchHistorySummaryButton><PlayerProfileBadge profile={profile} /><PlayerProfileEditor profile={profile} guest={false} onChange={change} /></>));
   const click = (label: string) => { const button = [...node.querySelectorAll("button")].find((button) => button.textContent === label || button.getAttribute("aria-label") === label)!; expect(button).toBeTruthy(); act(() => button.click()); };
-  click("Simulate Unranked Loss");
+  click("Simulate Casual Loss");
+  expect(node.textContent).toContain("0 Wins / 1 Games Played · Simulation");
   expect(node.querySelector(".journey-score-legacy .journey-score-kpi strong")?.textContent).toBe("1");
   expect(node.querySelector(".journey-score-skill .journey-score-kpi strong")?.textContent).toBe("1,200");
   click("Equip Newcomer in slot 1");
   expect(node.querySelector(".player-profile-badge .achievement-tile-face")?.textContent).toBe("Newcomer");
   expect(change).not.toHaveBeenCalled();
   click("Simulate Ranked Win");
+  expect(node.textContent).toContain("1 Wins / 2 Games Played · Simulation");
+  expect([...node.querySelectorAll("tbody tr")].every((row) => Number(row.querySelector("td:last-child")?.textContent) >= 1)).toBe(true);
   expect(node.textContent).toContain("First Ranked Victory");
   expect(node.querySelector(".journey-score-skill .journey-score-kpi strong")?.textContent).toBe("1,225");
   click("Simulate Ranked Loss");
   expect(node.querySelector(".journey-score-skill .journey-score-kpi strong")?.textContent).toBe("1,200");
   click("Exit and reset simulation");
+  expect(node.textContent).toContain("0 Wins / 0 Games Played");
   expect(node.querySelector(".player-profile-badge .achievement-tile-face")).toBeNull();
   expect(node.querySelector(".journey-score-legacy .journey-score-kpi strong")?.textContent).toBe("—");
   act(() => root.unmount()); node.remove();
@@ -48,4 +53,21 @@ it("collects random sample Highlights, deduplicates rewards, and clears them on 
   act(() => resetSimulation());
   expect(node.querySelector(".journey-score-highlights .journey-score-kpi strong")?.textContent).toBe("—");
   act(() => root.unmount());
+});
+
+it("opens a Highlight's source match even outside the ten latest games", () => {
+  const node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
+  act(() => root.render(<JourneyScreen onClose={vi.fn()} />));
+  act(() => simulateRotation("Unranked", true, () => 0));
+  for (let i = 0; i < 11; i++) act(() => simulateRotation("Ranked", false, () => 0.99));
+  expect(node.querySelectorAll("tbody tr")).toHaveLength(10);
+  expect([...node.querySelectorAll("tbody button")].map((button) => button.textContent)).not.toContain("sample-match-1");
+  const source = [...node.querySelectorAll("button")].find((button) => button.textContent === "View match · rotation 1")!;
+  expect(source).toBeTruthy(); act(() => source.click());
+  const detail = node.querySelector("#journey-match-detail");
+  expect(detail?.textContent).toContain("sample-match-1");
+  expect(detail?.textContent).toContain("Self Draw");
+  expect(detail?.textContent).toContain("Casual · Win");
+  expect(document.activeElement).toBe(detail);
+  act(() => root.unmount()); node.remove();
 });

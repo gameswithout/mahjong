@@ -1,3 +1,4 @@
+import { MatchHistorySummaryButton } from "./MatchHistoryTable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -3376,7 +3377,7 @@ export function App(
     setSessionState({ status: "loading" });
     setMatchRuntimeState({
       status: "preparing",
-      message: unranked ? "Preparing your Unranked table…" : previousSessionId
+      message: unranked ? "Preparing your Casual table…" : previousSessionId
         ? "Preparing another Practice hand…"
         : "Preparing your Practice hand…",
     });
@@ -3786,6 +3787,9 @@ export function App(
           progression={progressionState.snapshot.progression}
           profile={playerProfile}
           statistics={statisticsState.status === "ready" ? statisticsState.summary : undefined}
+    matches={statisticsState.status === "ready" ? statisticsState.history : []}
+    historyStatus={statisticsState.status === "idle" ? "loading" : statisticsState.status}
+    onRetryHistory={() => void loadStatistics()}
           inventory={storeState.status === "ready" ? founderCosmetics(storeState.pack.owned) : undefined}
           inventoryStatus={storeState.status}
           onRefreshInventory={() => void loadStore()}
@@ -4183,7 +4187,7 @@ export function App(
                   }
                 }}
               >
-                {matchRuntimeState.retry === "unranked" ? translateSource("Retry Unranked") : matchRuntimeState.retry === "practice" ? t("game.retryPractice") : t("game.reconnect")}
+                {matchRuntimeState.retry === "unranked" ? translateSource("Retry Casual") : matchRuntimeState.retry === "practice" ? t("game.retryPractice") : t("game.reconnect")}
               </button>
               <button
                 className="leave-match-button"
@@ -4206,6 +4210,9 @@ export function App(
     progression={progressionState.status === "ready" ? progressionState.snapshot.progression : undefined}
     profile={playerProfile}
     statistics={statisticsState.status === "ready" ? statisticsState.summary : undefined}
+    matches={statisticsState.status === "ready" ? statisticsState.history : []}
+    historyStatus={statisticsState.status === "idle" ? "loading" : statisticsState.status}
+    onRetryHistory={() => void loadStatistics()}
     inventory={storeState.status === "ready" ? founderCosmetics(storeState.pack.owned) : undefined}
     inventoryStatus={storeState.status}
     loadState={progressionState.status === "idle" ? "loading" : progressionState.status}
@@ -4700,11 +4707,11 @@ export function App(
                   onSelect={(tab) => { if (tab === "store" || tab === "inventory") void loadStore(); }}
                   journey={<>
                     {menuJourney("journey")}
-                    <button className="secondary-action" onClick={() => { setStatisticsOpen(true); void loadStatistics(); }}>{statisticsState.status === "ready" && statisticsState.summary.hasPlayed ? t("header.winsGames", { wins: formatNumber(statisticsState.summary.wins), games: formatNumber(statisticsState.summary.handsPlayed) }) : t("header.matchHistory")}</button>
+                    <MatchHistorySummaryButton onClick={() => { setStatisticsOpen(true); void loadStatistics(); }}>{statisticsState.status === "ready" && statisticsState.summary.hasPlayed ? t("header.winsGames", { wins: formatNumber(statisticsState.summary.wins), games: formatNumber(statisticsState.summary.handsPlayed) }) : t("header.matchHistory")}</MatchHistorySummaryButton>
                   </>}
                   inventory={menuJourney("inventory")}
                   chronicle={menuJourney("chronicle")}
-                  social={<><h2>{translateSource("Friends / Party")}</h2>{isGuestAccount && <p>{translateSource("Friends and party play are coming later. You can play Unranked now.")}</p>}
+                  social={<><h2>{translateSource("Party")}</h2>{isGuestAccount && <p>{translateSource("Friends and party play are coming later. You can play Casual now.")}</p>}
                 {!isGuestAccount && (
                   <>
                     <PartyPanel

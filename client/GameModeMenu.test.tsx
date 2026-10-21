@@ -17,7 +17,7 @@ describe("two-mode main menu", () => {
   it("starts Unranked directly with one click and no submenu", () => {
     const { container, play } = renderMenu();
     const button = container.querySelector<HTMLButtonElement>(".game-mode-direct button")!;
-    expect(button.textContent).toBe("Play Unranked");
+    expect(button.textContent).toBe("Play Casual");
     act(() => button.click()); expect(play).toHaveBeenCalledOnce();
     expect(container.textContent).not.toContain("Choose your opponents");
     expect(container.textContent).not.toContain("Solo Practice");

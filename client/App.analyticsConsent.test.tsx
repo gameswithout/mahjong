@@ -147,7 +147,7 @@ describe("App optional-analytics consent ask", () => {
         await Promise.resolve();
       }
     });
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
   }
 
   it("asks a player who has never answered, and takes yes for an answer", async () => {
@@ -225,7 +225,7 @@ describe("App optional-analytics consent ask", () => {
       analyticsConsentDecided: true,
     });
 
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Unranked"));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
     expect(container.querySelector(".analytics-consent-card")).toBeNull();
     // Restoring a stored preference is not a decision and must not be counted
     // as one, or the consent rate becomes a count of page loads.

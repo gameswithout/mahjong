@@ -1,3 +1,4 @@
+import type { MatchHistoryEntry } from "./match-history";
 import { useSyncExternalStore } from "react";
 import type { PlayerJourney } from "../protocol/envelope";
 
@@ -11,18 +12,21 @@ export const SIMULATED_HIGHLIGHTS = [
   { id: "rare-hand", name: "Rare Winning Hand", description: "A sample rare hand. Patterns and rarity are not finalized." },
   { id: "taiwanese-pattern", name: "Special Taiwanese Pattern", description: "A sample unusual Taiwanese pattern. The pattern catalog is not finalized." },
 ] as const;
-export type SimulatedHighlight = { id: string; rotation: number; mode: "Unranked" | "Ranked"; humanSeats: number; botSeats: number };
-export type Simulation = { rotations: number; xp: number; rankedWins: number; rankedLosses: number; elo: number; equipment: Record<number, string>; highlights: SimulatedHighlight[] };
+export type SimulatedHighlight = { id: string; matchId: string; rotation: number; mode: "Unranked" | "Ranked"; humanSeats: number; botSeats: number };
+export type Simulation = { rotations: number; xp: number; rankedWins: number; rankedLosses: number; elo: number; equipment: Record<number, string>; highlights: SimulatedHighlight[]; matches: MatchHistoryEntry[] };
 let snapshot: Simulation | undefined;
 const listeners = new Set<() => void>();
 function emit() { listeners.forEach((listener) => listener()); }
 export function simulateRotation(mode: "Unranked" | "Ranked", win: boolean, random: () => number = Math.random) {
-  const previous = snapshot ?? { rotations: 0, xp: 0, rankedWins: 0, rankedLosses: 0, elo: 1200, equipment: {}, highlights: [] };
+  const previous = snapshot ?? { rotations: 0, xp: 0, rankedWins: 0, rankedLosses: 0, elo: 1200, equipment: {}, highlights: [], matches: [] };
+  const matchId = `sample-match-${previous.rotations + 1}`;
   const event: SimulatedHighlight[] = random() < 0.6 ? [{
     id: SIMULATED_HIGHLIGHTS[Math.min(SIMULATED_HIGHLIGHTS.length - 1, Math.max(0, Math.floor(random() * SIMULATED_HIGHLIGHTS.length)))].id,
-    rotation: previous.rotations + 1, mode, humanSeats: mode === "Ranked" ? 4 : 1, botSeats: mode === "Ranked" ? 0 : 3,
+    matchId, rotation: previous.rotations + 1, mode, humanSeats: mode === "Ranked" ? 4 : 1, botSeats: mode === "Ranked" ? 0 : 3,
   }] : [];
-  snapshot = { ...previous, highlights: [...previous.highlights, ...event], rotations: previous.rotations + 1, xp: previous.xp + 100,
+  const taiRoll = random();
+  const rawTai = Math.max(event.some((item) => item.id === "exceptional-tai") ? 12 : 1, Math.min(16, 1 + Math.floor((Number.isFinite(taiRoll) ? taiRoll : 0) * 16)));
+  snapshot = { ...previous, matches: [...previous.matches, { matchId, completedAt: new Date(Date.now() + previous.rotations).toISOString(), mode, result: win ? "Win" : "Loss", winKind: "", winningTileId: "", rawTai, xpAwarded: 100 }], highlights: [...previous.highlights, ...event], rotations: previous.rotations + 1, xp: previous.xp + 100,
     rankedWins: previous.rankedWins + Number(mode === "Ranked" && win), rankedLosses: previous.rankedLosses + Number(mode === "Ranked" && !win),
     elo: previous.elo + (mode === "Ranked" ? win ? 25 : -25 : 0) };
   emit();
