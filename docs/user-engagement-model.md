@@ -1,5 +1,7 @@
 > Canonical import from [2026.10 Mahjong User Engagement Spec](https://docs.google.com/document/d/116kWUljlxc5Nt99L4XGTzCJUjr-EvbDA4xZoL5NbjQE/edit), retrieved 2026-10-19. Original chapter order and draft decision labels are preserved below. Per the Product Owner, this is the replacement engagement direction; core Mahjong gameplay remains the foundation. Implement in chapter order, beginning with Chapter 2. Preserve existing work.
 >
+> Latest Journey supplement: [Achievements & My Mahjong Journey brief](achievements-journey-brief.md), approved 2026-10-20; [phase implementation record](achievements-journey-implementation.md). This explicitly resumes downstream Journey work.
+>
 > Latest Chapter 5 supplement: [New Player Onboarding](new-player-onboarding.md), approved 2026-10-19; main-menu familiarity widget plus a blank tutorial placeholder.
 >
 > [Supplemental decisions and implementation record](engagement-decisions-and-implementation.md) · [Chapter 2 implementation](chapter-02-game-modes.md) · [Artwork Register](artwork-register.md)
@@ -1062,3 +1064,7 @@ The most successful outcome is not simply more time spent in the game.
 ---
 
 **Document status:** Working specification for peer review. Approved decisions, illustrative values, deferred features, and open questions are identified throughout. This document supplements the existing game product specification and does not replace the detailed Mahjong rules or implementation requirements.
+
+### Journey dimension clarification — October 20, 2026
+
+The three independent dimensions are Legacy (dedication and longevity), Skill (competitive performance), and Highlights (extraordinary Mahjong moments). Prestige is milestone-based identity within the Games Played category of Legacy, alongside the Living Chronicle. Anniversaries and Community are the other Legacy categories. Do not present Prestige as a separate overview dimension or XP-based Legacy Level as a fourth progression system. Existing draft Prestige milestones remain editable defaults pending final titles, thresholds, and chapter artwork.

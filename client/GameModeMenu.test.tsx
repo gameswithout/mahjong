@@ -21,7 +21,7 @@ describe("two-mode main menu", () => {
     act(() => button.click()); expect(play).toHaveBeenCalledOnce();
     expect(container.textContent).not.toContain("Choose your opponents");
     expect(container.textContent).not.toContain("Solo Practice");
-    expect(container.querySelectorAll("details")).toHaveLength(0);
+    expect(container.querySelectorAll(".game-mode-card details")).toHaveLength(0);
   });
   it("blocks duplicate starts while finding a table", () => {
     const { container, play } = renderMenu(true);
@@ -33,7 +33,7 @@ describe("two-mode main menu", () => {
     const button = container.querySelector<HTMLButtonElement>('[aria-labelledby="ranked-title"] button')!;
     expect(button.textContent).toBe("Play Ranked");
     act(() => button.click()); expect(ranked).toHaveBeenCalledOnce();
-    expect(container.querySelector("details")).toBeNull();
+    expect(container.querySelector(".game-mode-card details")).toBeNull();
     expect(container.textContent).not.toContain("Bamboo Courtyard");
     expect(container.textContent).not.toContain("Choose Ranked");
   });

@@ -165,6 +165,7 @@ describe("App social feature access", () => {
   it("does not render or request friends and party features for a guest", async () => {
     await enterLobby(true);
 
+    expect(container.querySelector(".main-menu-ad-footer")).not.toBeNull();
     expect(container.querySelector(".friends-panel")).toBeNull();
     expect(container.querySelector(".party-panel")).toBeNull();
     expect(dependencies.createFriendsClient).not.toHaveBeenCalled();
@@ -197,17 +198,21 @@ describe("App social feature access", () => {
       }),
     });
     await enterLobby(false);
-    await vi.waitFor(() => expect(container.textContent).toContain("12 completed games"));
+    await vi.waitFor(() => expect(container.textContent).toContain("12 completed rotations"));
     expect(container.querySelector('#menu-tab-journey[aria-selected="true"]')?.textContent).toContain("My Journey");
     expect(container.querySelector("#journey-title")?.textContent).toBe("My Mahjong Journey");
     expect(container.textContent).toContain("Table Regular");
     expect(container.textContent).toContain("38 rotations to go");
     expect(container.querySelectorAll(".journey-chapters button:disabled")).toHaveLength(1);
-    expect(container.querySelector(".journey-header button")).toBeNull();
+    expect(container.querySelector(".journey-header button")?.getAttribute("aria-label")).toBe("Refresh Journey");
     await act(async () => { container.querySelector<HTMLButtonElement>("#menu-tab-social")!.click(); });
     expect(container.querySelector<HTMLElement>("#menu-panel-journey")!.hidden).toBe(true);
     expect(container.querySelector<HTMLElement>("#menu-panel-social")!.hidden).toBe(false);
     await act(async () => { container.querySelector<HTMLButtonElement>("#menu-tab-journey")!.click(); });
     expect(container.querySelector<HTMLElement>("#menu-panel-journey")!.hidden).toBe(false);
+    await act(async () => { container.querySelector<HTMLButtonElement>("#menu-tab-chronicle")!.click(); });
+    await act(async () => { button(container, "Customize identity").click(); });
+    expect(container.querySelector("dialog.menu-profile-dialog")?.hasAttribute("open")).toBe(true);
+    expect(container.querySelector("dialog.menu-profile-dialog")?.textContent).toContain("Personalize your player profile");
   });
 });

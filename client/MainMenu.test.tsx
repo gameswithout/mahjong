@@ -10,12 +10,17 @@ afterEach(() => cleanup());
 it("defaults to Journey and switches a single shared panel by pointer and keyboard", () => {
   const host = document.createElement("div"); document.body.append(host);
   const root = createRoot(host); const select = vi.fn();
-  act(() => root.render(<MainMenuTabs journey="Your progress" social="Your party" store="Your store" onSelect={select} />));
+  act(() => root.render(<MainMenuTabs journey="Your progress" inventory="Your inventory" chronicle="Your home" social="Your party" store="Your store" onSelect={select} />));
   cleanup = () => { act(() => root.unmount()); host.remove(); };
   const tab = (id: string) => host.querySelector<HTMLButtonElement>(`#menu-tab-${id}`)!;
   const panel = (id: string) => host.querySelector<HTMLElement>(`#menu-panel-${id}`)!;
   expect(tab("journey").getAttribute("aria-selected")).toBe("true");
   expect(panel("journey").hidden).toBe(false); expect(panel("social").hidden).toBe(true);
+  expect(host.querySelectorAll('.main-menu-tabs [role="tab"]')).toHaveLength(5);
+  act(() => tab("inventory").click()); expect(panel("inventory").hidden).toBe(false);
+  expect(panel("inventory").textContent).toBe("Your inventory");
+  act(() => tab("chronicle").click()); expect(panel("chronicle").hidden).toBe(false);
+  expect(panel("inventory").hidden).toBe(true);
   act(() => tab("social").click());
   expect(panel("social").hidden).toBe(false); expect(panel("journey").hidden).toBe(true);
   act(() => tab("social").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));

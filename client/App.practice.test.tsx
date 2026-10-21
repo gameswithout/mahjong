@@ -611,6 +611,7 @@ describe("App Practice journey", () => {
       expect(candidate).not.toBeNull();
       return candidate!;
     });
+    expect(container.querySelector(".main-menu-ad-footer")).toBeNull();
     await act(async () => discardTile.click());
     expect(command).not.toHaveBeenCalled();
     expect(discardTile.getAttribute("aria-pressed")).toBe("true");

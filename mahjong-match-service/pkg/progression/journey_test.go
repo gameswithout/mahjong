@@ -55,3 +55,36 @@ func TestJourneyCalendarUsesUTCAndPermanentHistory(t *testing.T) {
 		t.Fatal("draft Prestige catalog missing")
 	}
 }
+
+func TestJourneyAllAnniversaryMilestonesWithoutActivity(t *testing.T) {
+	first := time.Date(2000, 2, 29, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2060, 2, 29, 12, 0, 0, 0, time.UTC)
+	journey := JourneyFromRotations(1, first, now)
+	if journey.CompletedRotations != 1 || len(journey.Anniversaries) != 60 {
+		t.Fatalf("inactive player journey = %+v", journey)
+	}
+	want := map[int]string{5: "Wood", 10: "Tin", 15: "Crystal", 20: "Porcelain", 25: "Silver", 30: "Pearl", 40: "Ruby", 50: "Gold", 60: "Diamond"}
+	for _, badge := range journey.Anniversaries {
+		if badge.Material != want[badge.Year] {
+			t.Fatalf("year %d material = %q, want %q", badge.Year, badge.Material, want[badge.Year])
+		}
+		if (badge.CosmeticCode != "") != (want[badge.Year] != "") {
+			t.Fatalf("year %d eligibility code = %q", badge.Year, badge.CosmeticCode)
+		}
+	}
+	// Repeated visits do not advance rotations or create duplicate badges.
+	again := JourneyFromRotations(1, first, now)
+	if again.CompletedRotations != journey.CompletedRotations || len(again.Anniversaries) != len(journey.Anniversaries) {
+		t.Fatalf("repeat projection changed progress: %+v", again)
+	}
+}
+
+func TestJourneyPrestigeDefaultsCannotBeMutatedAcrossPlayers(t *testing.T) {
+	one := PrestigeCatalog()
+	one[0].Games = 999
+	one[0].Title = "changed"
+	other := PrestigeCatalog()
+	if other[0].Games != 1 || other[0].Title != "Newcomer" {
+		t.Fatalf("shared mutable defaults: %+v", other)
+	}
+}

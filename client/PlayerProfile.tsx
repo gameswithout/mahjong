@@ -1,3 +1,4 @@
+import { clearSimulationSlot, equipSimulationTile, simulationTileLabel, simulationTiles, useProgressionSimulation } from "./progression-simulator";
 import { useState } from "react";
 
 import { TileFace } from "./TileFace";
@@ -16,6 +17,7 @@ export function PlayerProfileBadge({
   profile: PlayerProfileConfig;
   className?: string;
 }) {
+  const simulation = useProgressionSimulation();
   return (
     <div className={`player-profile-badge ${className}`.trim()}>
       <span className="profile-icon-row">
@@ -25,7 +27,7 @@ export function PlayerProfileBadge({
             key={`${tileId}-${index}`}
             aria-label={t("profile.badgeSlot", { slot: index + 1 })}
           >
-            <TileFace id={tileId} size="sm" />
+            <ProfileTile id={simulation?.equipment[index] ?? tileId} />
           </span>
         ))}
       </span>
@@ -61,6 +63,7 @@ export function PlayerProfileEditor({
   onChange: (profile: PlayerProfileConfig) => void;
   founderTileUnlocked?: boolean;
 }) {
+  const simulation = useProgressionSimulation();
   const [activeSlot, setActiveSlot] = useState<ProfileSlot>(0);
   const slots: { id: ProfileSlot; label: string }[] = [
     { id: 0, label: t("profile.slot", { slot: 1 }) },
@@ -99,13 +102,15 @@ export function PlayerProfileEditor({
             onClick={() => setActiveSlot(slot.id)}
           >
             <span className="profile-tile-icon" aria-hidden="true">
-              <TileFace id={tileForSlot(profile, slot.id)} size="sm" />
+              <ProfileTile id={simulation?.equipment[slot.id] ?? tileForSlot(profile, slot.id)} />
             </span>
             {slot.label}
           </button>
         ))}
       </div>
 
+      {simulation && <button className="text-action" onClick={() => clearSimulationSlot(activeSlot)}>Restore saved tile in slot {activeSlot + 1}</button>}
+      {simulation && <div className="profile-tile-picker" aria-label="Unlocked achievement tiles">{simulationTiles(simulation).map((tile) => <button key={tile.id} aria-label={`Equip ${tile.label} in slot ${activeSlot + 1}`} onClick={() => equipSimulationTile(activeSlot, tile.id)}><ProfileTile id={tile.id} /></button>)}</div>}
       <div className="profile-tile-picker" aria-label={t("profile.chooseTile", { slot: activeSlot + 1 })}>
         {(founderTileUnlocked ? [...PROFILE_TILE_OPTIONS, FOUNDER_PROFILE_TILE_OPTION] : PROFILE_TILE_OPTIONS).map((option) => {
           const selected = tileForSlot(profile, activeSlot) === option.id;
@@ -126,4 +131,9 @@ export function PlayerProfileEditor({
       </div>
     </section>
   );
+}
+
+function ProfileTile({ id }: { id: string }) {
+  const label = simulationTileLabel(id);
+  return label ? <span className="achievement-tile-face" role="img" aria-label={label}>{label}</span> : <TileFace id={id} size="sm" />;
 }

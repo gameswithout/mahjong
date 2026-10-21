@@ -122,3 +122,31 @@ The active familiarity experience is now a text-only widget on the main menu. Ne
 The new layout reuses the existing Living Chronicle placeholders and profile tiles. The temporary brand mark in `client/MainMenu.tsx` is a CSS tile with the character 中 (`menu-brand-mark`); replace it with the approved game logo (SVG preferred, transparent background, legible at 32–44 CSS pixels). Jade currently uses the existing ◆ currency placeholder; replace it with the approved Jade icon (`menu-jade-icon`, transparent SVG, legible at 16–20 CSS pixels). No new promotional illustrations have been added. Future announcements should receive individual asset IDs and briefs here when designed.
 
 Header utility controls (gear, envelope, edit pencil) use inline SVG UI icons in `client/MainMenu.tsx`. They require no commissioned raster assets. Profile display reuses the existing game tile assets. The provisional brand tile and Jade icon reservations above remain unchanged.
+
+### Achievements & Journey foundation — 2026-10-20
+
+No new final illustrations were commissioned. The four-stage Chronicle maps existing placeholders `chronicle-01` (First Seat), `chronicle-02` (Familiar Table), `chronicle-04` (Veteran’s Room), and `chronicle-07` (Living Legend); `chronicle-00` is the pre-first-rotation room. Other old stage placeholders remain reserved and inactive under the provisional mapping.
+
+| Asset IDs / family | Brief | Current hook / delivery | Status |
+| --- | --- | --- | --- |
+| `prestige-emblem-00` through `prestige-emblem-07` | Eight states: awaiting first rotation plus seven evolving dedication emblems, unrelated to competitive tiers | `JourneyScreen.tsx`; CSS/text emblems, SVG preferred at 42–64 px | Placeholder; titles/thresholds provisional |
+| `achievement-prestige-1`, `-10`, `-50`, `-100`, `-500`, `-1000`, `-5000` | Participation achievement icons matching evolving Prestige | `AchievementCard`, `data-artwork-id`; geometric glyphs | Placeholder |
+| `achievement-anniversary-{year}` | Consistent numbered badge system for every calendar year | `AchievementCard`; parametric SVG with year, not 60 separate paintings | Placeholder |
+| `anniversary-material-{5,10,15,20,25,30,40,50,60}` | Wood, Tin, Crystal, Porcelain, Silver, Pearl, Ruby, Gold, Diamond cosmetic milestone treatments | Material cards and future owned cosmetic previews; transparent SVG/small illustration | Eligibility preview only; exact cosmetic art TBD |
+| `achievement-friend-of-mahjong` | Community badge and exclusive Friend Tile motif, visually distinct from purchased tiles | Community card glyph; final tile requires approved project tile dimensions | Placeholder; referral service pending |
+| `achievement-{first-ranked-victory,first-tier-promotion,reach-gold,reach-platinum,reach-diamond,reach-master,personal-elo-record}` | Reserved candidate Skill badges | Candidate disclosure only | Proposed; do not commission until catalog approval |
+| `cosmetic-{id}` | Collection preview fallback for connected owned cosmetics | Cosmetic card glyph; prefer existing inventory asset when available | Placeholder; currently Founder profile tile entitlement only |
+
+The owner-only Public Profile preview reuses the same Chronicle/identity assets. Highlight artwork is not commissioned because the pattern catalog and qualification rules remain undefined.
+
+### Simplified Journey layout revision — 2026-10-20
+
+`lifetime-membership-tag` is a compact text/infinity-symbol treatment inspired by the owner's supplied membership reference. It currently requires no new illustration; an optional final anniversary insignia can replace the glyph later. The three equal scorecards use typography only. `prestige-emblem-00`–`07` are no longer rendered in the scoreboard and remain reserved rather than active art commissions. Chronicle assets are reused in the new Chronicle tab, and collection assets move to Inventory. No additional artwork is required for the tab labels.
+
+### Achievement profile tile placeholders
+
+The progression simulator generates cream Mahjong tiles with the achievement name printed on the face. These are code-rendered placeholders for profile slots, not final artwork. Replace with individual tile-face assets for Newcomer, Table Regular, Familiar Face, Mahjong Veteran, Table Elder, Mahjong Luminary, Living Legend, Legacy level recognition, and First Ranked Victory. Skill and level rewards remain provisional simulation content. Keep a legible name and accessible label for every replacement.
+
+Revision: Legacy Level tile rewards are withdrawn from the current Journey design and simulation. Prestige milestone tiles and provisional Skill preview tiles remain; Highlights artwork awaits defined achievements.
+
+Highlight simulation tile faces (provisional, not final approved achievements): Self Draw; Exceptional Tai; Personal Tai Best; Rare Winning Hand; Special Taiwanese Pattern. All currently use the achievement name printed on the standard placeholder tile face. Exact pattern art, thresholds, and rarity treatments await catalog approval.

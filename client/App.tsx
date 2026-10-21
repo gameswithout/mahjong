@@ -35,7 +35,7 @@ import {
 import { createJadeClient, JadeError } from "./jade";
 import { jadeEntryRequirementMessage, stakeSummary } from "./jade-entry";
 import { JadeRecoveryCard, type JadeRecoveryState } from "./JadeRecoveryCard";
-import { MainMenuHeader, MainMenuProfile, MainMenuTabs } from "./MainMenu";
+import { MainMenuAdPlaceholder, MainMenuHeader, MainMenuProfile, MainMenuTabs } from "./MainMenu";
 import { PlayerProfileBadge, PlayerProfileEditor } from "./PlayerProfile";
 import { findUnrankedMatch } from "./unranked-matchmaking";
 import { NeoExperience } from "./NeoExperience";
@@ -54,6 +54,7 @@ import {
   type ProgressionSnapshot,
 } from "./progression";
 import { AchievementScreen } from "./ProgressionScreen";
+import { founderCosmetics } from "./journey-model";
 import { JourneyScreen } from "./JourneyScreen";
 import {
   createPlayerStatsClient,
@@ -540,6 +541,7 @@ export function App(
   );
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [guidedPractice, setGuidedPractice] = useState(false);
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
   const [storeState, setStoreState] = useState<StoreScreenState>({ status: "loading" });
@@ -1860,6 +1862,7 @@ export function App(
     setJadeRecoveryState({ status: "idle" });
     setProgressionState({ status: "idle" });
     setProgressionOpen(false);
+    setProfileEditorOpen(false);
     setAchievementState({ status: "idle" });
     setAchievementsOpen(false);
     setStatisticsState({ status: "idle" });
@@ -3780,6 +3783,13 @@ export function App(
       <div className="game-screen">
         <JourneyScreen
           journey={progressionState.snapshot.progression.journey}
+          progression={progressionState.snapshot.progression}
+          profile={playerProfile}
+          statistics={statisticsState.status === "ready" ? statisticsState.summary : undefined}
+          inventory={storeState.status === "ready" ? founderCosmetics(storeState.pack.owned) : undefined}
+          inventoryStatus={storeState.status}
+          onRefreshInventory={() => void loadStore()}
+          onCustomize={() => { setProgressionOpen(false); setProfileEditorOpen(true); }}
           onClose={() => {
             setAchievementsOpen(false);
             setProgressionOpen(false);
@@ -4189,6 +4199,22 @@ export function App(
     );
   }
 
+  const menuJourney = (view: "journey" | "inventory" | "chronicle") => <JourneyScreen
+    view={view}
+    embedded
+    journey={progressionState.status === "ready" ? progressionState.snapshot.progression.journey : undefined}
+    progression={progressionState.status === "ready" ? progressionState.snapshot.progression : undefined}
+    profile={playerProfile}
+    statistics={statisticsState.status === "ready" ? statisticsState.summary : undefined}
+    inventory={storeState.status === "ready" ? founderCosmetics(storeState.pack.owned) : undefined}
+    inventoryStatus={storeState.status}
+    loadState={progressionState.status === "idle" ? "loading" : progressionState.status}
+    onRetry={() => void loadProgression()}
+    onRefreshInventory={() => void loadStore()}
+    onCustomize={() => setProfileEditorOpen(true)}
+    onClose={() => undefined}
+  />;
+
   return (
     <main className="bootstrap-shell">
       <section
@@ -4461,7 +4487,7 @@ export function App(
                 connection={state.lobbyStatus}
                 onSettings={() => setSettingsOpen(true)}
                 profile={
-                  <MainMenuProfile badge={<PlayerProfileBadge profile={playerProfile} />} editor={<>
+                  <MainMenuProfile open={profileEditorOpen} onOpenChange={setProfileEditorOpen} badge={<PlayerProfileBadge profile={playerProfile} />} editor={<>
                     <PlayerProfileEditor
                       profile={playerProfile}
                       guest={isGuestAccount}
@@ -4671,10 +4697,13 @@ export function App(
 
 
                 <MainMenuTabs
-                  onSelect={(tab) => { if (tab === "store") void loadStore(); }}
-                  journey={<>{progressionState.status === "loading" || progressionState.status === "idle" ? <p role="status">{t("common.loading")}</p> : <JourneyScreen embedded journey={progressionState.status === "ready" ? progressionState.snapshot.progression.journey : undefined} onClose={() => undefined} />}
-                    {progressionState.status === "error" && <button className="secondary-action" onClick={() => void loadProgression()}>{t("progression.retry")}</button>}
-                    <button className="secondary-action" onClick={() => { setStatisticsOpen(true); void loadStatistics(); }}>{statisticsState.status === "ready" && statisticsState.summary.hasPlayed ? t("header.winsGames", { wins: formatNumber(statisticsState.summary.wins), games: formatNumber(statisticsState.summary.handsPlayed) }) : t("header.matchHistory")}</button></>}
+                  onSelect={(tab) => { if (tab === "store" || tab === "inventory") void loadStore(); }}
+                  journey={<>
+                    {menuJourney("journey")}
+                    <button className="secondary-action" onClick={() => { setStatisticsOpen(true); void loadStatistics(); }}>{statisticsState.status === "ready" && statisticsState.summary.hasPlayed ? t("header.winsGames", { wins: formatNumber(statisticsState.summary.wins), games: formatNumber(statisticsState.summary.handsPlayed) }) : t("header.matchHistory")}</button>
+                  </>}
+                  inventory={menuJourney("inventory")}
+                  chronicle={menuJourney("chronicle")}
                   social={<><h2>{translateSource("Friends / Party")}</h2>{isGuestAccount && <p>{translateSource("Friends and party play are coming later. You can play Unranked now.")}</p>}
                 {!isGuestAccount && (
                   <>
@@ -4990,6 +5019,7 @@ export function App(
                 </details>
               </div>
             )}
+            <MainMenuAdPlaceholder />
           </div>}
           </NeoExperience>
         )}

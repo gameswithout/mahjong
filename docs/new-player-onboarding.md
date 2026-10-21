@@ -40,10 +40,14 @@ The current widget and blank tutorial page require no final artwork. Earlier ins
 
 A compact identity/utility header sits above the flexible CTA slot. NEO is the first use of that slot; completion or “Not now” removes it and its space, including on later visits. Dismissal records `neo_dismissed` and does not count as tutorial completion. The same position is reserved for future dismissible announcements; no season system is implied.
 
-Unranked and the currently disabled Ranked action sit beneath the banner, with Jade icon and available balance above the cards. My Journey is the default tab of the lower shared content panel; Friends / Party and Store replace its visible content. On narrow screens the mode cards stack and the section tabs form a horizontal row. Existing social and Store services retain their current capabilities; notifications are explicitly a placeholder.
+Unranked and the currently disabled Ranked action sit beneath the banner, with Jade icon and available balance above the cards. My Journey is the default tab of the lower shared content panel; Friends / Party and Store replace its visible content. The section tabs form a folder-style horizontal row above a full-width content panel on all devices. On narrow screens the mode cards stack. Existing social and Store services retain their current capabilities; notifications are explicitly a placeholder.
 
 ### Shared temporary CTA treatment — 2026-10-20
 
 `TemporaryCta` is the common banner for NEO and the optional analytics privacy question. Only one banner appears at a time: NEO first, then privacy when NEO is completed or dismissed. Privacy answers retain their existing persistence and consent behavior; closing its banner records a decline. The language settings announcement has been removed from the main menu. Language selection remains available in Settings.
 
 The header is titled “Mahjong,” uses the existing three-tile/nickname profile badge with a separate edit icon and modal editor, and shows gear and envelope controls. The unread count is zero until a notification service is implemented; it is not a simulated count.
+
+### Footer advertising preview — 2026-10-20
+
+A non-interactive, labelled advertisement placeholder sits at the bottom of the main menu, after the shared content panel and utility links. Desktop uses a 728 × 90 reference; narrow layouts use 320 × 100, shrinking to fit very small viewports. The preview includes no ad network scripts or tracking. Active Mahjong tables remain ad-free; the footer is rendered only by the main-menu branch and its isolated preview. This is separate from the temporary CTA slot.

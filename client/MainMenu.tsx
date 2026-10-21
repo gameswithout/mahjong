@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { JourneyPreviewProvider } from "./journey-preview-context";
 import { translateSource as tr } from "./i18n";
 
-export type MenuTab = "journey" | "social" | "store";
+export type MenuTab = "journey" | "inventory" | "chronicle" | "social" | "store";
 const tabs: { id: MenuTab; label: string }[] = [
   { id: "journey", label: "My Journey" },
+  { id: "inventory", label: "Inventory" },
+  { id: "chronicle", label: "Chronicle" },
   { id: "social", label: "Friends / Party" },
   { id: "store", label: "Store" },
 ];
 
-export function MainMenuTabs({ journey, social, store, onSelect }: {
+export function MainMenuTabs({ journey, inventory, chronicle, social, store, onSelect }: {
   journey: ReactNode;
+  inventory?: ReactNode;
+  chronicle?: ReactNode;
   social: ReactNode;
   store: ReactNode;
   onSelect?: (tab: MenuTab) => void;
@@ -17,8 +22,8 @@ export function MainMenuTabs({ journey, social, store, onSelect }: {
   const [selected, setSelected] = useState<MenuTab>("journey");
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const select = (id: MenuTab) => { setSelected(id); onSelect?.(id); };
-  return <section className="main-menu-explore" aria-label={tr("Explore Mahjong")}>
-    <div className="main-menu-tabs" role="tablist" aria-label={tr("Main menu sections")}>
+  return <JourneyPreviewProvider><section className="main-menu-explore" aria-label={tr("Explore Mahjong")}>
+    <div className="main-menu-tabs" role="tablist" aria-orientation="horizontal" aria-label={tr("Main menu sections")}>
       {tabs.map((tab, index) => <button key={tab.id} ref={(node) => { refs.current[index] = node; }} type="button" role="tab"
         id={`menu-tab-${tab.id}`} aria-controls={`menu-panel-${tab.id}`} aria-selected={selected === tab.id}
         tabIndex={selected === tab.id ? 0 : -1} onClick={() => select(tab.id)}
@@ -27,13 +32,13 @@ export function MainMenuTabs({ journey, social, store, onSelect }: {
           const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : delta ? (index + delta + tabs.length) % tabs.length : -1;
           if (next < 0) return;
           event.preventDefault(); select(tabs[next].id); refs.current[next]?.focus();
-        }}>{tr(tab.label)}<span aria-hidden="true">›</span></button>)}
+        }}>{tr(tab.label)}</button>)}
     </div>
     {tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`menu-panel-${tab.id}`} aria-labelledby={`menu-tab-${tab.id}`}
       hidden={selected !== tab.id} tabIndex={0} className="main-menu-tab-content">
-      {{ journey, social, store }[tab.id]}
+      {{ journey, inventory, chronicle, social, store }[tab.id]}
     </div>)}
-  </section>;
+  </section></JourneyPreviewProvider>;
 }
 
 export function MenuIcon({ name }: { name: "settings" | "mail" | "edit" }) {
@@ -42,8 +47,10 @@ export function MenuIcon({ name }: { name: "settings" | "mail" | "edit" }) {
   </svg>;
 }
 
-export function MainMenuProfile({ badge, editor }: { badge: ReactNode; editor: ReactNode }) {
-  const [open, setOpen] = useState(false);
+export function MainMenuProfile({ badge, editor, open: controlledOpen, onOpenChange }: { badge: ReactNode; editor: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = onOpenChange ?? setLocalOpen;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -79,4 +86,15 @@ export function MainMenuHeader({ profile, onSettings, connection = "connected", 
       {profile}
     </nav>
   </header>;
+}
+
+export function MainMenuAdPlaceholder() {
+  return <footer className="main-menu-ad-footer" aria-label={tr("Advertisement placeholder")}>
+    <p className="main-menu-ad-label">{tr("Advertisement")}</p>
+    <div className="main-menu-ad-frame">
+      <span>{tr("Ad space placeholder")}</span>
+      <small className="ad-size-desktop">728 × 90</small>
+      <small className="ad-size-mobile">320 × 100</small>
+    </div>
+  </footer>;
 }

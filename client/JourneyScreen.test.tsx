@@ -1,41 +1,74 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { JourneyScreen } from "./JourneyScreen";
-import type { PlayerJourney } from "../protocol/envelope";
+import { journeyFixture } from "./fixtures/journey";
 
-const journey: PlayerJourney = {
-  completed_rotations: 12,
-  first_completed_at: "2020-02-29T00:00:00Z",
-  prestige: [
-    { games: 1, title: "Newcomer", chapter: "First Seat" },
-    { games: 10, title: "Table Regular", chapter: "Familiar Table" },
-    { games: 50, title: "Familiar Face", chapter: "A Place of Your Own" },
-  ],
-  anniversaries: [{ year: 5, earned_at: "2025-02-28", material: "Wood", cosmetic_code: "anniversary-5" }],
-};
-
-describe("My Mahjong Journey", () => {
-  it("uses verified rotations for Prestige and locks future chapters", () => {
-    const node = document.createElement("div");
-    node.innerHTML = renderToStaticMarkup(<JourneyScreen journey={journey} onClose={vi.fn()} />);
-    expect(node.querySelector("h1")?.textContent).toBe("My Mahjong Journey");
-    expect(node.querySelector("h2")?.textContent).toBe("Table Regular");
-    expect(node.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("12");
-    expect(node.querySelector('[role="progressbar"]')?.getAttribute("aria-valuemax")).toBe("50");
-    expect(node.querySelectorAll("ol button:disabled")).toHaveLength(1);
+const fixture = journeyFixture(12);
+function render(view: "journey" | "chronicle" | "inventory" = "journey") {
+  const node = document.createElement("div");
+  node.innerHTML = renderToStaticMarkup(<JourneyScreen {...fixture} view={view} onClose={vi.fn()} />);
+  return node;
+}
+describe("focused Journey sections", () => {
+  it("gives Legacy, Skill, and Highlights the same four information slots and no name badge", () => {
+    const node = render();
+    const cards = [...node.querySelectorAll(".journey-score-card")];
+    expect(cards.map((card) => card.querySelector("h2")?.textContent)).toEqual(["Legacy", "Skill", "Highlights"]);
+    for (const card of cards) {
+      expect(card.querySelector(".journey-score-kpi strong")).not.toBeNull();
+      expect(card.querySelector(".journey-score-highlight")).not.toBeNull();
+      expect(card.querySelector(".journey-score-explanation")).not.toBeNull();
+    }
+    expect(node.querySelector(".player-profile-badge")).toBeNull();
+    expect(node.textContent).toContain("12 completed rotations");
+    expect(node.textContent).toContain("Table Regular");
     expect(node.textContent).toContain("38 rotations to go");
-    expect(node.textContent).toContain("Anniversary badge · Wood");
-    expect(node.textContent).not.toContain("XP");
+    expect(node.querySelector(".journey-score-skill .journey-score-kpi strong")?.textContent).toBe("—");
+    expect(node.querySelector("#journey-chronicle-title")).toBeNull();
+    expect(node.querySelector("#journey-cosmetics-title")).toBeNull();
   });
-  it("does not invent earned progress when the server has no Journey support", () => {
+  it("keeps earned stage selection in Chronicle and locks future chapters", () => {
+    const node = render("chronicle");
+    expect(node.querySelector("h1")?.textContent).toBe("Chronicle");
+    expect(node.querySelectorAll(".journey-chapters button:disabled")).toHaveLength(5);
+    expect(node.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("Living Chronicle: Familiar Table");
+    expect(node.querySelector(".journey-scoreboard")).toBeNull();
+    expect(node.textContent).toContain("Customize your showcase");
+  });
+  it("moves owned collection management into Inventory without public customization controls", () => {
+    const node = render("inventory");
+    expect(node.querySelector("h1")?.textContent).toBe("Inventory");
+    expect(node.querySelector("#journey-cosmetics-title")).not.toBeNull();
+    expect(node.textContent).toContain("OG Founder profile tile");
+    expect(node.textContent).not.toContain("Showcase in preview");
+    expect(node.querySelector(".journey-scoreboard")).toBeNull();
+  });
+  it("welcomes first-time and unconnected players without inventing saved progress", () => {
     const html = renderToStaticMarkup(<JourneyScreen onClose={vi.fn()} />);
-    expect(html).toContain("Your Journey is unavailable");
-    expect(html).not.toContain("completed games");
+    expect(html).not.toContain("Your Journey is just beginning");
+    expect(html).toContain("Next: First Ranked Victory");
+    expect(html).not.toContain("Your Journey is unavailable");
+    const node = document.createElement("div"); node.innerHTML = html;
+    expect(node.querySelector(".journey-score-legacy .journey-score-kpi strong")?.textContent).toBe("—");
+    const empty = renderToStaticMarkup(<JourneyScreen {...journeyFixture(0)} onClose={vi.fn()} />);
+    expect(empty).not.toContain("Your Journey is just beginning");
+    expect(empty).toContain("Your first seat awaits");
   });
-  it("starts the anniversary clock only after the first full rotation", () => {
-    const html = renderToStaticMarkup(<JourneyScreen journey={{ ...journey, completed_rotations: 0, first_completed_at: undefined, anniversaries: [] }} onClose={vi.fn()} />);
-    expect(html).toContain("Your first seat awaits");
-    expect(html).toContain("starts your anniversary clock");
-    expect(html).not.toContain("Anniversary badge · Wood");
+  it("uses a compact earned lifetime tag, not a sixty-year milestone ladder", () => {
+    const node = render();
+    expect(node.querySelector(".journey-membership-tag")).toBeNull();
+    expect(node.textContent).not.toContain("Years at the table");
+    expect(node.querySelector(".journey-materials")).toBeNull();
+    expect(node.textContent).not.toContain("Year 60");
+    expect(node.textContent).not.toContain("Lifetime Gold");
+
+  });
+  it("keeps loading and retrieval errors distinct from a new player's zero progress", () => {
+    const loading = renderToStaticMarkup(<JourneyScreen loadState="loading" onClose={vi.fn()} />);
+    expect(loading).toContain("Loading your Journey");
+    expect(loading).not.toContain("Your first seat awaits");
+    const error = renderToStaticMarkup(<JourneyScreen loadState="error" onRetry={vi.fn()} onClose={vi.fn()} />);
+    expect(error).toContain('role="alert"'); expect(error).toContain("Refresh Journey");
+    expect(error).toContain("Saved progress could not be loaded");
   });
 });
