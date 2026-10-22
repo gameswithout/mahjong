@@ -1,3 +1,4 @@
+import { EmailCodeSignIn } from "./EmailCodeSignIn";
 import { MatchHistorySummaryButton } from "./MatchHistoryTable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -8,7 +9,6 @@ import {
   type GuestIdentity,
   type GuestUpgradeInput,
 } from "./iam";
-import { CLOSED_BETA_COUNTRIES, DEFAULT_COUNTRY_CODE } from "./countries";
 import { accelByteConfig } from "./config";
 import {
   LobbyConnectionError,
@@ -102,7 +102,6 @@ import {
 } from "./HandResultScreen";
 import { AccountUpgradeCard } from "./AccountUpgradeCard";
 import { AnalyticsConsentCard } from "./AnalyticsConsentCard";
-import { MINIMUM_ACCOUNT_AGE, ageInYears } from "./age-gate";
 import { PracticeLaunchCard } from "./PracticeLaunchCard";
 import { MAX_PERSONA_PICKS } from "./BotPersonaPicker";
 import { seatViewToMatchTableState } from "./matchTableAdapter";
@@ -190,25 +189,6 @@ type ViewState =
   | { status: "signing_in" }
   | { status: "signed_in"; userId: string; lobbyStatus: LobbyStatus }
   | { status: "error"; phase: "iam" | "lobby"; code: string; message: string };
-
-// §10.2/§10.3, D8 (revised 2026-07-19): email/password via AGS IAM's native
-// EMAILPASSWD auth, alongside Guest. Registration is two steps — request a
-// verification code, then submit it with the account details — so the
-// account is created already-verified rather than needing a separate
-// post-registration verify step.
-type EmailAuthTab = "signin" | "register";
-
-type EmailAuthState =
-  | { status: "idle" }
-  | { status: "working" }
-  | { status: "error"; message: string };
-
-function emailAuthErrorMessage(error: unknown): string {
-  if (error instanceof IamAuthError) {
-    return error.message;
-  }
-  return "Something went wrong. Please retry.";
-}
 
 type SessionState =
   | { status: "idle" }
@@ -579,22 +559,6 @@ export function App(
   const botPersonaCatalogRequestRef = useRef(0);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
   const [historyReview, setHistoryReview] = useState<SeatView | null>(null);
-  const [emailAuthTab, setEmailAuthTab] = useState<EmailAuthTab>("signin");
-  const [emailAuthState, setEmailAuthState] = useState<EmailAuthState>({ status: "idle" });
-  // Tracks the registration wizard step independent of emailAuthState's
-  // transient working/error status, which also flips true->false->true
-  // while the "code" step's own submit (registerWithEmail) is in flight.
-  const [emailCodeRequested, setEmailCodeRequested] = useState(false);
-  const [emailForm, setEmailForm] = useState({
-    email: "",
-    password: "",
-    username: "",
-    country: DEFAULT_COUNTRY_CODE,
-    birthYear: "",
-    birthMonth: "",
-    ageConfirmed: false,
-    code: "",
-  });
   const wasTakenOverRef = useRef(false);
   // How the current AGS identity was established. Only a "guest" match is
   // written to the resume store, because guest is the one identity the client
@@ -2016,77 +1980,6 @@ export function App(
     setJoinSessionId(session.sessionId);
     setSessionState({ status: "loaded", session });
     await connectMatchRuntime(session);
-  }
-
-  function updateEmailForm(patch: Partial<typeof emailForm>) {
-    setEmailForm((current) => ({ ...current, ...patch }));
-  }
-
-  async function signInWithEmail() {
-    setEmailAuthState({ status: "working" });
-    try {
-      const identity = await stableIam.loginWithEmail(emailForm.email.trim(), emailForm.password);
-      resetForNewSignIn();
-      setIsGuestAccount(false);
-      authMethodRef.current = "email";
-      setEmailAuthState({ status: "idle" });
-      connectLobbyAfterSignIn(identity.userId);
-    } catch (error) {
-      setEmailAuthState({ status: "error", message: emailAuthErrorMessage(error) });
-    }
-  }
-
-  async function requestEmailVerificationCode() {
-    setEmailAuthState({ status: "working" });
-    try {
-      await stableIam.requestEmailVerificationCode(emailForm.email.trim());
-      setEmailCodeRequested(true);
-      setEmailAuthState({ status: "idle" });
-    } catch (error) {
-      setEmailAuthState({ status: "error", message: emailAuthErrorMessage(error) });
-    }
-  }
-
-  async function registerWithEmail() {
-    const birthYear = Number(emailForm.birthYear);
-    const birthMonth = Number(emailForm.birthMonth);
-
-    if (!emailForm.ageConfirmed) {
-      setEmailAuthState({ status: "error", message: "Confirm your age to continue." });
-      return;
-    }
-    if (!Number.isInteger(birthYear) || !Number.isInteger(birthMonth)) {
-      setEmailAuthState({ status: "error", message: "Enter your birth month and year." });
-      return;
-    }
-    if (ageInYears(birthYear, birthMonth) < MINIMUM_ACCOUNT_AGE) {
-      setEmailAuthState({
-        status: "error",
-        message: `You must be at least ${MINIMUM_ACCOUNT_AGE} years old to create an account.`,
-      });
-      return;
-    }
-
-    setEmailAuthState({ status: "working" });
-    try {
-      await stableIam.registerWithEmail({
-        email: emailForm.email.trim(),
-        username: emailForm.username.trim(),
-        password: emailForm.password,
-        country: emailForm.country,
-        birthYear,
-        birthMonth,
-        code: emailForm.code.trim(),
-      });
-      const identity = await stableIam.loginWithEmail(emailForm.email.trim(), emailForm.password);
-      resetForNewSignIn();
-      setIsGuestAccount(false);
-      authMethodRef.current = "email";
-      setEmailAuthState({ status: "idle" });
-      connectLobbyAfterSignIn(identity.userId);
-    } catch (error) {
-      setEmailAuthState({ status: "error", message: emailAuthErrorMessage(error) });
-    }
   }
 
   async function viewMySessions() {
@@ -3722,7 +3615,6 @@ export function App(
     window.setTimeout(() => setFullscreenHelp(false), 8_000);
   }
 
-  const birthYearOptions = Array.from({ length: 100 }, (_, index) => new Date().getFullYear() - index);
   const hasActiveOrStrandedSession =
     sessionState.status === "loaded" ||
     (sessionState.status === "error" && Boolean(sessionState.retryLeaveSessionId));
@@ -4249,233 +4141,13 @@ export function App(
               <p>{t("auth.analyticsDetail")}</p>
             </div>
 
-            <div className="email-auth-panel">
-              <div className="email-auth-tabs" role="tablist" aria-label={t("auth.methodLabel")}>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={emailAuthTab === "signin"}
-                  className={`email-auth-tab${emailAuthTab === "signin" ? " email-auth-tab-active" : ""}`}
-                  onClick={() => {
-                    setEmailAuthTab("signin");
-                    setEmailAuthState({ status: "idle" });
-                    setEmailCodeRequested(false);
-                  }}
-                >
-                  {t("auth.signIn")}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={emailAuthTab === "register"}
-                  className={`email-auth-tab${emailAuthTab === "register" ? " email-auth-tab-active" : ""}`}
-                  onClick={() => {
-                    setEmailAuthTab("register");
-                    setEmailAuthState({ status: "idle" });
-                    setEmailCodeRequested(false);
-                  }}
-                >
-                  {t("auth.createAccount")}
-                </button>
-              </div>
-
-              {emailAuthTab === "signin" && (
-                <form
-                  className="email-auth-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void signInWithEmail();
-                  }}
-                >
-                  <label className="session-input-label" htmlFor="signin-email">
-                    {t("auth.email")}
-                  </label>
-                  <input
-                    id="signin-email"
-                    className="session-input"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={emailForm.email}
-                    onChange={(event) => updateEmailForm({ email: event.target.value })}
-                  />
-                  <label className="session-input-label" htmlFor="signin-password">
-                    {t("auth.password")}
-                  </label>
-                  <input
-                    id="signin-password"
-                    className="session-input"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={emailForm.password}
-                    onChange={(event) => updateEmailForm({ password: event.target.value })}
-                  />
-                  <button
-                    type="submit"
-                    className="secondary-action session-action"
-                    disabled={emailAuthState.status === "working"}
-                  >
-                    {emailAuthState.status === "working" ? t("auth.signingIn") : t("auth.signInEmail")}
-                  </button>
-                </form>
-              )}
-
-              {emailAuthTab === "register" && (
-                <form
-                  className="email-auth-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (emailCodeRequested) {
-                      void registerWithEmail();
-                    } else {
-                      void requestEmailVerificationCode();
-                    }
-                  }}
-                >
-                  <label className="session-input-label" htmlFor="register-email">
-                    {t("auth.email")}
-                  </label>
-                  <input
-                    id="register-email"
-                    className="session-input"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    disabled={emailCodeRequested}
-                    value={emailForm.email}
-                    onChange={(event) => updateEmailForm({ email: event.target.value })}
-                  />
-
-                  {!emailCodeRequested ? (
-                    <button
-                      type="submit"
-                      className="secondary-action session-action"
-                      disabled={emailAuthState.status === "working" || !emailForm.email}
-                    >
-                      {emailAuthState.status === "working" ? t("auth.sendingCode") : t("auth.sendCode")}
-                    </button>
-                  ) : (
-                    <>
-                      <label className="session-input-label" htmlFor="register-code">
-                        {t("auth.verificationCode")}
-                      </label>
-                      <input
-                        id="register-code"
-                        className="session-input"
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        required
-                        value={emailForm.code}
-                        onChange={(event) => updateEmailForm({ code: event.target.value })}
-                      />
-
-                      <label className="session-input-label" htmlFor="register-username">
-                        {t("auth.username")}
-                      </label>
-                      <input
-                        id="register-username"
-                        className="session-input"
-                        type="text"
-                        autoComplete="username"
-                        required
-                        value={emailForm.username}
-                        onChange={(event) => updateEmailForm({ username: event.target.value })}
-                      />
-
-                      <label className="session-input-label" htmlFor="register-password">
-                        {t("auth.password")}
-                      </label>
-                      <input
-                        id="register-password"
-                        className="session-input"
-                        type="password"
-                        autoComplete="new-password"
-                        required
-                        value={emailForm.password}
-                        onChange={(event) => updateEmailForm({ password: event.target.value })}
-                      />
-
-                      <label className="session-input-label" htmlFor="register-country">
-                        {t("auth.country")}
-                      </label>
-                      <select
-                        id="register-country"
-                        className="session-input"
-                        value={emailForm.country}
-                        onChange={(event) => updateEmailForm({ country: event.target.value })}
-                      >
-                        {CLOSED_BETA_COUNTRIES.map((country) => (
-                          <option key={country.code} value={country.code}>
-                            {displayCountryName(country.code, country.name)}
-                          </option>
-                        ))}
-                      </select>
-
-                      <span className="session-input-label">{t("auth.birthMonthYear")}</span>
-                      <div className="email-auth-row">
-                        <select
-                          aria-label={t("auth.birthMonthLabel")}
-                          className="session-input"
-                          required
-                          value={emailForm.birthMonth}
-                          onChange={(event) => updateEmailForm({ birthMonth: event.target.value })}
-                        >
-                          <option value="" disabled>
-                            {t("auth.month")}
-                          </option>
-                          {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                            <option key={month} value={month}>
-                              {month}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          aria-label={t("auth.birthYearLabel")}
-                          className="session-input"
-                          required
-                          value={emailForm.birthYear}
-                          onChange={(event) => updateEmailForm({ birthYear: event.target.value })}
-                        >
-                          <option value="" disabled>
-                            {t("auth.year")}
-                          </option>
-                          {birthYearOptions.map((year) => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <label className="email-auth-checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={emailForm.ageConfirmed}
-                          onChange={(event) => updateEmailForm({ ageConfirmed: event.target.checked })}
-                        />
-                        {t("auth.ageConfirm")}
-                      </label>
-
-                      <button
-                        type="submit"
-                        className="secondary-action session-action"
-                        disabled={emailAuthState.status === "working"}
-                      >
-                        {emailAuthState.status === "working" ? t("auth.creatingAccount") : t("auth.createAccount")}
-                      </button>
-                    </>
-                  )}
-                </form>
-              )}
-
-              {emailAuthState.status === "error" && (
-                <div className="session-error" role="alert">
-                  <p>{emailAuthState.message}</p>
-                </div>
-              )}
-            </div>
+            <EmailCodeSignIn onRequestCode={(email) => stableIam.requestEmailCode(email)} onConfirm={async (email, code, operationId) => {
+              const identity = await stableIam.loginWithEmailCode(email, code, operationId);
+              resetForNewSignIn();
+              setIsGuestAccount(false);
+              authMethodRef.current = "email";
+              connectLobbyAfterSignIn(identity.userId);
+            }} />
           </>
         )}
 

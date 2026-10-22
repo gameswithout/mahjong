@@ -574,3 +574,18 @@ describe("Xsolla device login", () => {
     });
   });
 });
+
+it("exchanges an email code session for a verified game identity without password registration", async () => {
+  const transport: IamTransport = {
+    loginWithDeviceId: vi.fn(),
+    requestEmailCode: vi.fn().mockResolvedValue("operation-1"),
+    loginWithEmailCode: vi.fn().mockResolvedValue({ access_token: "game-access-token", refresh_token: "game-refresh-token" }),
+    getCurrentUser: vi.fn().mockResolvedValue({ userId: "game-player-1" }),
+  };
+  const iam = new BrowserIam(transport);
+  expect(await iam.requestEmailCode("player@example.com")).toBe("operation-1");
+  expect(await iam.loginWithEmailCode("player@example.com", "123456", "operation-1")).toEqual({ userId: "game-player-1" });
+  expect(transport.loginWithEmailCode).toHaveBeenCalledWith("player@example.com", "123456", "operation-1");
+  expect(transport.getCurrentUser).toHaveBeenCalledWith("game-access-token");
+  expect(iam.getAccessToken()).toBe("game-access-token"); expect(iam.isGuest()).toBe(false);
+});

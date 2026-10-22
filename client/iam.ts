@@ -1,5 +1,6 @@
+import { requestXsollaEmailCode, confirmXsollaEmailCode } from "./xsolla-email";
 import { AccelByte } from "@accelbyte/sdk";
-import { OAuth20Api, OAuth20V4Api, UsersApi, UsersV4Api } from "@accelbyte/sdk-iam";
+import { OAuth20Api, OAuth20V4Api, UsersApi } from "@accelbyte/sdk-iam";
 
 import {
   accelByteConfig,
@@ -100,6 +101,8 @@ interface UserResponse {
 
 export interface IamTransport {
   loginWithDeviceId(deviceId: string): Promise<TokenResponse>;
+  requestEmailCode?(email: string): Promise<string>;
+  loginWithEmailCode?(email: string, code: string, operationId: string): Promise<TokenResponse>;
   getCurrentUser(accessToken: string): Promise<UserResponse>;
   refreshAccessToken?(refreshToken: string): Promise<TokenResponse>;
   createAuthenticatedSdk?(accessToken: string): AccelByteWebSdk;
@@ -381,23 +384,28 @@ export function createSdkIamTransport(
   assertAccelByteConfig(config);
   assertXsollaLoginConfig(loginConfig);
 
+  async function exchangeXsollaToken(xsollaToken: string): Promise<TokenResponse> {
+    const sdk = createSdk(config, { Authorization: basicClientHeader(config.clientId) });
+    const response = await OAuth20V4Api(sdk).postTokenOauth_ByPlatformId_v4("xsolla", {
+      client_id: config.clientId, createHeadless: true, platform_token: xsollaToken, skipSetCookie: true,
+    });
+    return response.data as TokenResponse;
+  }
   return {
     async loginWithDeviceId(deviceId) {
       try {
         const xsollaToken = await loginWithXsollaDeviceId(deviceId, loginConfig);
-        const sdk = createSdk(config, {
-          Authorization: basicClientHeader(config.clientId),
-        });
-        const response = await OAuth20V4Api(sdk).postTokenOauth_ByPlatformId_v4("xsolla", {
-          client_id: config.clientId,
-          createHeadless: true,
-          platform_token: xsollaToken,
-          skipSetCookie: true,
-        });
-        return response.data as TokenResponse;
+        return await exchangeXsollaToken(xsollaToken);
       } catch (error) {
         throw mapAuthError(error, "login");
       }
+    },
+
+    requestEmailCode(email) { return requestXsollaEmailCode(email, loginConfig); },
+    async loginWithEmailCode(email, code, operationId) {
+      const token = await confirmXsollaEmailCode(email, code, operationId, loginConfig);
+      try { return await exchangeXsollaToken(token); }
+      catch (error) { throw mapAuthError(error, "email_login"); }
     },
 
     async getCurrentUser(accessToken) {
@@ -411,9 +419,8 @@ export function createSdkIamTransport(
       }
     },
 
-    // Same endpoint and same explicit Basic-auth construction as the password
-    // login above, only with the refresh grant. The public client has no
-    // secret, so the header carries the client id and an empty password.
+    // Refresh the game-service session obtained through the Xsolla platform exchange.
+    // The public client has no secret.
     async refreshAccessToken(refreshToken) {
       try {
         const sdk = createSdk(config, {
@@ -436,92 +443,12 @@ export function createSdkIamTransport(
       return sdk;
     },
 
-    async requestEmailVerificationCode(email, languageTag) {
-      try {
-        const sdk = createSdk(config);
-        await UsersApi(sdk).createUserCodeRequest_v3({ emailAddress: email, languageTag });
-      } catch (error) {
-        throw mapAuthError(error, "request_code");
-      }
-    },
+    async requestEmailVerificationCode() { throw new IamAuthError("configuration", "Use Xsolla email-code sign-in."); },
+    async registerWithEmailPassword() { throw new IamAuthError("configuration", "Use Xsolla email-code sign-in."); },
+    async loginWithEmailPassword() { throw new IamAuthError("configuration", "Use Xsolla email-code sign-in."); },
+    async requestGuestUpgradeCode() { throw new IamAuthError("configuration", "Guest-to-email linking is not available yet. Your guest progress is unchanged."); },
+    async upgradeGuestAccount() { throw new IamAuthError("configuration", "Guest-to-email linking is not available yet. Your guest progress is unchanged."); },
 
-    async registerWithEmailPassword(input) {
-      try {
-        const sdk = createSdk(config);
-        const dateOfBirth = `${input.birthYear}-${String(input.birthMonth).padStart(2, "0")}-01`;
-        await UsersV4Api(sdk).createUser_v4({
-          authType: "EMAILPASSWD",
-          emailAddress: input.email,
-          username: input.username,
-          password: input.password,
-          country: input.country,
-          dateOfBirth,
-          code: input.code,
-        });
-      } catch (error) {
-        throw mapAuthError(error, "register");
-      }
-    },
-
-    async loginWithEmailPassword(email, password) {
-      try {
-        // Deliberately not IamUserAuthorizationClient.loginWithPasswordAuthorization:
-        // that helper builds its Basic auth header from the bare Node
-        // `Buffer` global (only safe here because @accelbyte/sdk's browser
-        // entry happens to polyfill window.Buffer as an import side effect).
-        // postOauthToken_v3 with grant_type "password" is the same
-        // underlying call, built the same explicit, self-contained way
-        // loginWithDeviceId already uses (Basic auth header via btoa).
-        const sdk = createSdk(config, {
-          Authorization: basicClientHeader(config.clientId),
-        });
-        const response = await OAuth20Api(sdk).postOauthToken_v3({
-          grant_type: "password",
-          username: email,
-          password,
-          client_id: config.clientId,
-        });
-        return response.data as TokenResponse;
-      } catch (error) {
-        throw mapAuthError(error, "email_login");
-      }
-    },
-
-    // Unlike the registration code request, this one is authenticated as the
-    // guest and carries the "upgradeHeadlessAccount" context, so AGS issues a
-    // code that only the headless/code/verify endpoint below will accept.
-    async requestGuestUpgradeCode(accessToken, email, languageTag) {
-      try {
-        const sdk = createSdk(config);
-        sdk.setToken({ accessToken });
-        await UsersApi(sdk).createUserMeCodeRequest_v3({
-          emailAddress: email,
-          context: "upgradeHeadlessAccount",
-          languageTag,
-        });
-      } catch (error) {
-        throw mapAuthError(error, "request_upgrade_code");
-      }
-    },
-
-    async upgradeGuestAccount(accessToken, input) {
-      try {
-        const sdk = createSdk(config);
-        sdk.setToken({ accessToken });
-        const dateOfBirth = `${input.birthYear}-${String(input.birthMonth).padStart(2, "0")}-01`;
-        await UsersV4Api(sdk).createUserMeHeadlesCodeVerify_v4({
-          code: input.code,
-          emailAddress: input.email,
-          username: input.username,
-          password: input.password,
-          country: input.country,
-          dateOfBirth,
-          reachMinimumAge: true,
-        });
-      } catch (error) {
-        throw mapAuthError(error, "upgrade");
-      }
-    },
   };
 }
 
@@ -569,6 +496,23 @@ export class BrowserIam {
   // email identity attached yet. Only such an account can be upgraded.
   isGuest(): boolean {
     return this.identityKind === "guest";
+  }
+
+  async requestEmailCode(email: string): Promise<string> {
+    if (!this.transport.requestEmailCode) throw new IamAuthError("configuration", "Email-code sign-in is not available.");
+    return this.transport.requestEmailCode(email);
+  }
+
+  async loginWithEmailCode(email: string, code: string, operationId: string): Promise<EmailIdentity> {
+    if (!this.transport.loginWithEmailCode) throw new IamAuthError("configuration", "Email-code sign-in is not available.");
+    const token = await this.transport.loginWithEmailCode(email, code, operationId);
+    if (typeof token.access_token !== "string" || !token.access_token) throw new IamAuthError("unknown", "Invalid game session.");
+    const user = await this.transport.getCurrentUser(token.access_token);
+    if (typeof user.userId !== "string" || !user.userId) throw new IamAuthError("current_user", "Invalid player profile.");
+    this.accessToken = token.access_token;
+    this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
+    this.identityKind = "full";
+    return { userId: user.userId };
   }
 
   async requestEmailVerificationCode(email: string): Promise<void> {
