@@ -602,7 +602,7 @@ Additional mandatory examples are:
 
 ### 7.5 Account economy
 
-Every new account receives 3,000 Jade. Completing or intentionally skipping onboarding grants a one-time 2,000 Jade, leaving every new player with 5,000 and access to Bamboo.
+Every new account receives 1,000 Jade, with no additional onboarding Jade grant. This replaces the previous 3,000 + 2,000 model (November 6, 2026). Existing balances are preserved.
 
 Version 1 sources are:
 

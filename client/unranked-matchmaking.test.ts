@@ -34,3 +34,18 @@ describe("Unranked matchmaking", () => {
     expect(client.cancelTicket).toHaveBeenCalledWith("t");
   });
 });
+
+it("waits for the actual session ID after a match-found notification", async () => {
+  vi.useFakeTimers(); const client = makeClient();
+  client.createTicket.mockResolvedValue({ ticketId: "t", matchFound: true } as never);
+  client.getTicket.mockResolvedValue({ ticketId: "t", matchFound: true, sessionId: "table" } as never);
+  const pending = findUnrankedMatch({ client, signal: new AbortController().signal, serviceManagedBots: true });
+  await vi.advanceTimersByTimeAsync(1000);
+  await expect(pending).resolves.toMatchObject({ sessionId: "table" });
+  expect(client.cancelTicket).not.toHaveBeenCalled();
+});
+it("does not open private Bot tables when a service-managed queue times out", async () => {
+  const client = makeClient();
+  await expect(findUnrankedMatch({ client, signal: new AbortController().signal, serviceManagedBots: true, searchMs: 0 })).rejects.toThrow("timed out");
+  expect(client.cancelTicket).toHaveBeenCalledOnce();
+});

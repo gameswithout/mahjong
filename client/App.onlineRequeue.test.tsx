@@ -339,24 +339,14 @@ describe("App online matchmaking and requeue", () => {
     await vi.waitFor(() => expect(container.querySelector('[aria-label="Hand result"]')).not.toBeNull());
   }
 
-  it("keeps Ranked unavailable for guests", async () => {
+  it.each([true, false])("enables solo Ranked for guest=%s", async (isGuest) => {
+    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({userId:"guest-1",deviceId:"device-1",isGuest});
     act(() => root.render(<App iam={iam} />));
     await clickAndFlush(container, "Continue as Guest");
     await vi.waitFor(() => expect(container.textContent).toContain("Play Ranked"));
-    expect(button(container, "Play Ranked").disabled).toBe(true);
+    expect(button(container, "Play Ranked").disabled).toBe(false);
     await clickAndFlush(container, "Play Ranked");
-    expect(container.textContent).not.toContain("Before your first Ranked game");
-    expect(createTicket).not.toHaveBeenCalled();
-  });
-
-  it("also keeps Ranked unavailable for full accounts", async () => {
-    vi.mocked(iam.loginAsGuest).mockResolvedValueOnce({userId:"guest-1",deviceId:"device-1",isGuest:false});
-    act(() => root.render(<App iam={iam} />));
-    await clickAndFlush(container, "Continue as Guest");
-    await vi.waitFor(() => expect(container.textContent).toContain("Play Ranked"));
-    expect(button(container, "Play Ranked").disabled).toBe(true);
-    expect(container.textContent).toContain("Ranked is not available yet.");
-    expect(createTicket).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(createTicket).toHaveBeenCalledOnce());
   });
 
   it("offers a way out of a queue that has passed 90 seconds, releasing the reservation", async () => {

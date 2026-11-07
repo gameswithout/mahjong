@@ -5113,7 +5113,7 @@ h1 {
 .neo-menu[data-neo-highlight="ranked"] [aria-labelledby="ranked-title"] { outline: 3px solid #edc870; outline-offset: 4px; background: #edc87012; }
 .neo-blank { min-height: 65vh; display: flex; align-items: flex-end; justify-content: center; padding: 24px; }
 .bootstrap-card:has(.neo-blank) > .mahjong-online-title { display: none; }
-.game-mode-card[aria-labelledby="ranked-title"] .primary-action:disabled {
+.game-mode-card .primary-action:disabled {
   background: #727b77;
   color: #dce0de;
   cursor: not-allowed;
@@ -5395,3 +5395,13 @@ h1 {
 
 .journey-history-pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
 .journey-history-pagination button { min-width: 44px; min-height: 44px; }
+
+/* Reserve queue feedback in both cards so Play stays aligned in every state. */
+.game-mode-feedback { display: grid; grid-template-rows: 1.6em minmax(3.4em, auto) 44px; gap: 8px; margin-top: 12px; }
+.game-mode-feedback .game-mode-status { margin: 0; font-size: .85rem; line-height: 1.6; color: #c9c7bd; overflow-wrap: anywhere; }
+.game-mode-feedback .game-mode-cancel { min-height: 44px; margin: 0; }
+
+.game-mode-timer { margin: 0; color: #c9c7bd; font-size: .85rem; font-variant-numeric: tabular-nums; line-height: 1.6; }
+
+.ranked-card-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-height: 42px; }
+.game-mode-direct > .status-label { display: flex; align-items: center; min-height: 42px; }

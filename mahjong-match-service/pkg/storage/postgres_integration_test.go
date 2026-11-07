@@ -208,7 +208,7 @@ func TestPostgreSQLStorage_JadeReservationAndSettlementAreAtomicAndIdempotent(t 
 			t.Fatalf("EnsureJadeAccount(%s) error = %v", userID, err)
 		}
 		if account.Balance != economy.AccountGrant+economy.OnboardingGrant {
-			t.Fatalf("starting balance = %d, want 5000", account.Balance)
+			t.Fatalf("starting balance = %d, want 1000", account.Balance)
 		}
 		reserved, reservation, err := store.ReserveJade(context.Background(), userID)
 		if err != nil {
@@ -251,7 +251,7 @@ func TestPostgreSQLStorage_JadeReservationAndSettlementAreAtomicAndIdempotent(t 
 	for userID, player := range first {
 		total += player.BalanceAfter
 		wantDelta := settlement.Net[record.Seats[userID]]
-		if player.Delta != wantDelta || player.BalanceAfter != 5_000+wantDelta {
+		if player.Delta != wantDelta || player.BalanceAfter != 1_000+wantDelta {
 			t.Fatalf("player settlement = %#v, want delta %d", player, wantDelta)
 		}
 		account, err := store.EnsureJadeAccount(context.Background(), userID)
@@ -262,8 +262,8 @@ func TestPostgreSQLStorage_JadeReservationAndSettlementAreAtomicAndIdempotent(t 
 			t.Fatalf("post-settlement reserve = %d, want 0", account.Reserved)
 		}
 	}
-	if total != 20_000 {
-		t.Fatalf("total Jade = %d, want 20000", total)
+	if total != 4_000 {
+		t.Fatalf("total Jade = %d, want 4000", total)
 	}
 
 	// Clients keep polling match state after the hand ends, to read the

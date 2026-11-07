@@ -5,15 +5,34 @@ import { GameModeMenu } from "./GameModeMenu";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let cleanup = () => {};
-afterEach(() => cleanup());
-function renderMenu(busy = false, unavailable = false) {
+afterEach(() => { cleanup(); vi.useRealTimers(); });
+function renderMenu(busy = false, unavailable = false, rankedOnly = false) {
   const container = document.createElement("div"); document.body.append(container);
   const root = createRoot(container); const play = vi.fn(); const ranked = vi.fn();
-  act(() => root.render(<GameModeMenu onPlayUnranked={play} unrankedBusy={busy} onPlayRanked={ranked} rankedBusy={busy} rankedUnavailable={unavailable} />));
+  act(() => root.render(<GameModeMenu onPlayUnranked={play} unrankedBusy={busy && !rankedOnly} onPlayRanked={ranked} rankedBusy={rankedOnly || busy} rankedUnavailable={unavailable} />));
   cleanup = () => { act(() => root.unmount()); container.remove(); };
   return { container, play, ranked };
 }
 describe("two-mode main menu", () => {
+  it("shows elapsed queue time and the Ranked maximum", () => {
+    vi.useFakeTimers();
+    const { container } = renderMenu(true);
+    act(() => vi.advanceTimersByTime(65000));
+    const timers = container.querySelectorAll(".game-mode-timer");
+    expect(timers[0].textContent).toBe("1:05 elapsed");
+    expect(timers[1].textContent).toBe("1:05 elapsed · 2:00 maximum");
+  });
+
+  it("blocks Casual while only Ranked is searching and reserves feedback in both cards", () => {
+    const { container, play } = renderMenu(false, false, true);
+    const casual = container.querySelector<HTMLButtonElement>('[aria-labelledby="unranked-title"] .primary-action')!;
+    expect(casual.disabled).toBe(true);
+    act(() => casual.click());
+    expect(play).not.toHaveBeenCalled();
+    expect(container.querySelectorAll(".game-mode-feedback")).toHaveLength(2);
+    expect(container.querySelectorAll(".game-mode-cancel-slot")).toHaveLength(2);
+  });
+
   it("starts Unranked directly with one click and no submenu", () => {
     const { container, play } = renderMenu();
     const button = container.querySelector<HTMLButtonElement>(".game-mode-direct button")!;

@@ -15,8 +15,8 @@ const (
 	MinimumBalance     = int64(1_000)
 	StakePerTai        = int64(10)
 	DebitCap           = int64(300)
-	AccountGrant       = int64(3_000)
-	OnboardingGrant    = int64(2_000)
+	AccountGrant       = int64(1_000)
+	OnboardingGrant    = int64(0)
 	RulesVersion       = rulesengine.Taiwanese16V11RulesetID
 	ReservationMinutes = 10
 	walletSyncTimeout  = 15 * time.Second

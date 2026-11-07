@@ -483,15 +483,15 @@ describe("BrowserIam", () => {
       let exchanges = 0;
       const iam = signedInIam(async () => {
         exchanges += 1;
-        throw new IamAuthError("unknown", "refresh rejected");
+        throw new IamAuthError("invalid_credentials", "refresh rejected");
       });
       await iam.loginAsGuest();
 
       await expect(iam.refreshAccessToken()).resolves.toBe(false);
       await expect(iam.refreshAccessToken()).resolves.toBe(false);
       expect(exchanges).toBe(1);
-      // The token that was already working stays usable; only renewal is spent.
-      expect(iam.getAccessToken()).toBe("access-1");
+      // Definitively rejected sessions cannot continue making authenticated requests.
+      expect(() => iam.getAccessToken()).toThrow();
     });
 
     it("reports failure when the sign-in never returned a refresh token", async () => {
@@ -588,4 +588,21 @@ it("exchanges an email code session for a verified game identity without passwor
   expect(transport.loginWithEmailCode).toHaveBeenCalledWith("player@example.com", "123456", "operation-1");
   expect(transport.getCurrentUser).toHaveBeenCalledWith("game-access-token");
   expect(iam.getAccessToken()).toBe("game-access-token"); expect(iam.isGuest()).toBe(false);
+});
+
+it("renews near expiry and preserves renewal credentials during temporary failures", async () => {
+  const jwt = `header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 1 }))}.signature`;
+  const refresh = vi.fn().mockRejectedValueOnce(new IamAuthError("network", "offline")).mockResolvedValueOnce({ access_token: "fresh-access", refresh_token: "fresh-refresh" });
+  const iam = new BrowserIam({ loginWithDeviceId: async () => ({ access_token: jwt, refresh_token: "refresh" }), getCurrentUser: async () => ({ userId: "player" }), refreshAccessToken: refresh });
+  const expired = vi.fn(); iam.subscribeSessionExpired(expired);
+  await iam.loginAsGuest(); await iam.refreshSessionIfNeeded();
+  expect(iam.canRetrySessionRefresh()).toBe(true); expect(expired).not.toHaveBeenCalled();
+  await iam.refreshSessionIfNeeded(); expect(iam.getAccessToken()).toBe("fresh-access");
+  expect(refresh).toHaveBeenCalledTimes(2);
+});
+it("notifies expiration once when a refresh grant is rejected", async () => {
+  const iam = new BrowserIam({ loginWithDeviceId: async () => ({ access_token: "old", refresh_token: "refresh" }), getCurrentUser: async () => ({ userId: "player" }), refreshAccessToken: async () => { throw mapAuthError({ response: { status: 401 } }, "refresh"); } });
+  await iam.loginAsGuest(); const expired = vi.fn(); const unsubscribe = iam.subscribeSessionExpired(expired);
+  expect(await iam.refreshAccessToken()).toBe(false); expect(expired).toHaveBeenCalledOnce();
+  expect(() => iam.getAccessToken()).toThrow(); unsubscribe();
 });

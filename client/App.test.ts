@@ -176,3 +176,10 @@ describe("buildResultFriendsState", () => {
     });
   });
 });
+
+it("starts service-assigned Casual tables with one to four humans while retaining the Ranked gate", () => {
+  for (const count of [1, 2, 3, 4]) expect(shouldAutomaticallyEnterHumanMatch("matchmaking", count, "idle", true)).toBe(true);
+  expect(shouldAutomaticallyEnterHumanMatch("matchmaking", 3, "idle")).toBe(false);
+  expect(shouldAutomaticallyEnterHumanMatch("manual", 2, "idle", true)).toBe(false);
+  expect(shouldAutomaticallyEnterHumanMatch("matchmaking", 0, "idle", true)).toBe(false);
+});

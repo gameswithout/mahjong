@@ -327,3 +327,9 @@ func TestCoordinator_ClaimWelfare(t *testing.T) {
 		t.Fatal("ClaimWelfare() accepted a blank user ID")
 	}
 }
+
+func TestStartingJadeGrant(t *testing.T) {
+	if AccountGrant != 1000 || OnboardingGrant != 0 {
+		t.Fatalf("starting grants = %d + %d, want 1000 + 0", AccountGrant, OnboardingGrant)
+	}
+}

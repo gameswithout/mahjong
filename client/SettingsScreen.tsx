@@ -8,6 +8,7 @@ export interface SettingsScreenProps {
   syncStatus: "loading" | "ready" | "saving" | "error";
   onSettingsChange(settings: PlayerSettings): void;
   onClose(): void;
+  onSignOut?: () => void;
   onRetry(): void;
 }
 
@@ -17,6 +18,7 @@ export function SettingsScreen({
   onSettingsChange,
   onClose,
   onRetry,
+  onSignOut,
 }: SettingsScreenProps) {
   return (
     <section className="settings-screen" aria-labelledby="settings-title">
@@ -31,6 +33,7 @@ export function SettingsScreen({
         </button>
       </header>
 
+      {onSignOut && <button className="secondary-action" onClick={onSignOut}>Sign out of this browser</button>}
       <div className="settings-list">
         <section className="settings-card" aria-labelledby="settings-language-title">
           <p className="status-label">{t("language.label")}</p>

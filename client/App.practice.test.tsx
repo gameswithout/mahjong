@@ -15,6 +15,8 @@ import { SessionLookupError, type SessionClient } from "./session";
 
 const dependencies = vi.hoisted(() => ({
   createJadeClient: vi.fn(),
+  createMatchmakingClient: vi.fn(),
+  casualPool: undefined as string | undefined,
   createProgressionClient: vi.fn(),
   createPlayerStatsClient: vi.fn(),
   getMatchHistory: vi.fn(),
@@ -56,10 +58,16 @@ vi.mock("./config", async () => {
       clientId: "browser-client",
       matchServiceURL: "https://match.example.test",
       matchPool: "bamboo",
+      get unrankedMatchPool() { return dependencies.casualPool; },
       sessionTemplate: "mahjong",
       sessionClientVersion: "test",
     },
   };
+});
+
+vi.mock("./matchmaking", async () => {
+  const actual = await vi.importActual<typeof import("./matchmaking")>("./matchmaking");
+  return { ...actual, createMatchmakingClient: dependencies.createMatchmakingClient };
 });
 
 vi.mock("./lobby", async () => {
@@ -211,6 +219,7 @@ describe("App Practice journey", () => {
     // A joined guest match persists a reload-resume pointer (match-resume.ts);
     // clear it between tests so one test's live match cannot make the next
     // test's App mount try to resume it.
+    dependencies.casualPool = undefined;
     window.localStorage.clear();
     for (const id of ["guest-1", "player-1"]) window.localStorage.setItem(`mahjong.neo.v1:${id}`, JSON.stringify({ path: "experienced", step: "home", dismissed: true }));
     container = document.createElement("div");
@@ -324,6 +333,61 @@ describe("App Practice journey", () => {
     expect(shouldAutomaticallyRetryMatchRuntime("not_found", MAX_RECONNECT_ATTEMPTS - 1)).toBe(true);
     expect(shouldAutomaticallyRetryMatchRuntime("not_found", MAX_RECONNECT_ATTEMPTS)).toBe(false);
     expect(shouldAutomaticallyRetryMatchRuntime("protocol", 0)).toBe(false);
+  });
+
+  it("returns to login when a session expires and closes active connections", async () => {
+    let expire: (() => void) | undefined;
+    const renew = vi.fn().mockResolvedValue(undefined);
+    const iam = {
+      loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }),
+      getAuthenticatedSdk: vi.fn().mockReturnValue({}), getAccessToken: vi.fn().mockReturnValue("token"),
+      subscribeSessionExpired: vi.fn((listener: () => void) => { expire = listener; return () => { expire = undefined; }; }),
+      refreshSessionIfNeeded: renew,
+    } as unknown as BrowserIam;
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
+    expect(renew).toHaveBeenCalledOnce();
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(renew).toHaveBeenCalledTimes(2);
+    act(() => expire!());
+    await vi.waitFor(() => expect(container.textContent).toContain("Your session expired"));
+    expect(container.querySelector("#email-code-address")).not.toBeNull();
+    expect(container.textContent).not.toContain("Play Casual");
+    expect(expire).toBeUndefined();
+  });
+
+  it("restores an opted-in session on page load and signs out from Settings", async () => {
+    const clearSession = vi.fn();
+    const iam = {
+      restoreRememberedSession: vi.fn().mockResolvedValue({ userId: "same-player", isGuest: false }),
+      clearSession, getAuthenticatedSdk: vi.fn().mockReturnValue({}), getAccessToken: vi.fn().mockReturnValue("token"),
+    } as unknown as BrowserIam;
+    act(() => root.render(<App iam={iam} />));
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
+    expect(iam.restoreRememberedSession).toHaveBeenCalledOnce();
+    const settings = container.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!;
+    act(() => settings.click());
+    await clickAndFlush(container, "Sign out of this browser");
+    expect(clearSession).toHaveBeenCalledOnce();
+    expect(container.querySelector("#email-code-address")).not.toBeNull();
+  });
+
+  it("joins a service-assigned Casual table with two humans without creating a private Bot table", async () => {
+    dependencies.casualPool = "mahjong-casual-pool";
+    const createTicket = vi.fn().mockResolvedValue({ ticketId: "casual-ticket", sessionId: "casual-table", matchFound: true });
+    dependencies.createMatchmakingClient.mockReturnValue({ createTicket, getTicket: vi.fn(), cancelTicket: vi.fn() });
+    vi.mocked(sessionClient.getSession).mockResolvedValue({ sessionId: "casual-table", members: [{ userId: "guest-1" }, { userId: "human-2" }], attributes: { game_mode: "unranked", ai_practice: true, full_rotation: true } });
+    const iam = { loginAsGuest: vi.fn().mockResolvedValue({ userId: "guest-1", deviceId: "device-1" }), getAuthenticatedSdk: vi.fn().mockReturnValue({}), getAccessToken: vi.fn().mockReturnValue("token") } as unknown as BrowserIam;
+    act(() => root.render(<App iam={iam} />)); await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Casual"));
+    await clickAndFlush(container, "Play Casual");
+    await vi.waitFor(() => expect(calls).toContain("connect:casual-table"));
+    expect(createTicket).toHaveBeenCalledOnce();
+    expect(sessionClient.createSession).not.toHaveBeenCalled();
+    expect(sessionClient.joinSession).toHaveBeenCalledWith("casual-table");
+    expect(dependencies.createMatchmakingClient).toHaveBeenCalledWith(expect.anything(), "mahjong-test", expect.objectContaining({ matchPool: "mahjong-casual-pool" }));
+    expect(dependencies.createJadeClient().reserve).not.toHaveBeenCalled();
   });
 
   it("loads lobby progression and records an intentional tutorial skip", async () => {

@@ -58,6 +58,9 @@ export interface SessionMember {
 }
 
 export interface GameSessionSummary {
+  attributes?: Record<string, unknown>;
+  isActive?: boolean;
+  createdAt?: string;
   sessionId: string;
   status?: string;
   members: SessionMember[];
@@ -156,6 +159,9 @@ function mapSession(value: unknown): GameSessionSummary | null {
   return {
     sessionId,
     status: stringField(value, "status", "sessionStatus"),
+    attributes: isRecord(value.attributes) ? value.attributes : undefined,
+    isActive: typeof value.isActive === "boolean" ? value.isActive : undefined,
+    createdAt: stringField(value, "createdAt", "created_at"),
     members: arrayField(value, "members", "member", "roster")
       .map(mapMember)
       .filter((member): member is SessionMember => member !== null),

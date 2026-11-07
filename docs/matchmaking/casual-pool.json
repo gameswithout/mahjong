@@ -1,0 +1,10 @@
+{
+  "name": "mahjong-casual-pool",
+  "rule_set": "mahjong-casual-rules",
+  "session_template": "mahjong-casual",
+  "match_function": "default",
+  "ticket_expiration_seconds": 120,
+  "backfill_ticket_expiration_seconds": 120,
+  "backfill_proposal_expiration_seconds": 30,
+  "auto_accept_backfill_proposal": false
+}

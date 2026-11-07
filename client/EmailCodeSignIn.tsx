@@ -4,8 +4,9 @@ import { IamAuthError } from "./iam";
 
 export function EmailCodeSignIn({ onRequestCode, onConfirm }: {
   onRequestCode: (email: string) => Promise<string>;
-  onConfirm: (email: string, code: string, operationId: string) => Promise<void>;
+  onConfirm: (email: string, code: string, operationId: string, keepLoggedIn: boolean) => Promise<void>;
 }) {
+  const [keepLoggedIn, setKeepLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [operationId, setOperationId] = useState<string | null>(null);
@@ -19,7 +20,7 @@ export function EmailCodeSignIn({ onRequestCode, onConfirm }: {
       if (!operationId || resend) {
         setOperationId(null); setCode("");
         setOperationId(await onRequestCode(email.trim()));
-      } else await onConfirm(email.trim(), code.trim(), operationId);
+      } else await onConfirm(email.trim(), code.trim(), operationId, keepLoggedIn);
     } catch (failure) { setError(failure instanceof XsollaEmailError || failure instanceof IamAuthError ? failure.message : "Email sign-in failed. Please try again."); }
     finally { working.current = false; setBusy(false); }
   }
@@ -28,6 +29,8 @@ export function EmailCodeSignIn({ onRequestCode, onConfirm }: {
     <form className="email-auth-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <label htmlFor="email-code-address">Email</label><input className="session-input" id="email-code-address" type="email" autoComplete="email" required disabled={busy || !!operationId} value={email} onChange={(event) => setEmail(event.target.value)} />
       {operationId && <><p role="status">Code requested. Check your email and enter the code below.</p><label htmlFor="email-one-time-code">Verification code</label><input className="session-input" id="email-one-time-code" type="text" inputMode="numeric" autoComplete="one-time-code" required disabled={busy} value={code} onChange={(event) => setCode(event.target.value)} /></>}
+      <label className="email-auth-checkbox-label"><input type="checkbox" checked={keepLoggedIn} disabled={busy} onChange={(event) => setKeepLoggedIn(event.target.checked)} /> Keep me logged in</label>
+      <small>Remember this browser for up to 30 days, subject to session renewal.</small>
       <button className="secondary-action" type="submit" disabled={busy}>{busy ? "Please wait…" : operationId ? "Verify and continue" : "Send email code"}</button>
       {operationId && <><button className="text-action" type="button" disabled={busy} onClick={() => { void submit(true); }}>Request a new code</button><button className="text-action" type="button" disabled={busy} onClick={() => { setOperationId(null); setCode(""); setError(""); }}>Use another email</button></>}
       {error && <p className="session-error" role="alert">{error}</p>}

@@ -189,10 +189,25 @@ function cacheKey(userId: string): string {
   return `${PLAYER_SETTINGS_CACHE_PREFIX}${userId}`;
 }
 
+const ANALYTICS_CHOICE_KEY = "mahjong.analytics-choice.v1";
+
+// The prompt is a browser choice as well as an account setting: guest identity
+// changes and an unavailable Cloud Save must not repeatedly ask the same person.
+export function restoreAnalyticsChoice(settings: PlayerSettings): PlayerSettings {
+  if (settings.analyticsConsentDecided) return settings;
+  try {
+    const choice = globalThis.localStorage?.getItem(ANALYTICS_CHOICE_KEY);
+    if (choice === "accepted" || choice === "declined") return {
+      ...settings, analyticsConsentDecided: true, optionalAnalyticsConsent: choice === "accepted",
+    };
+  } catch { /* Storage may be unavailable. */ }
+  return settings;
+}
+
 export function loadCachedPlayerSettings(userId: string): PlayerSettings | null {
   try {
     const value = globalThis.localStorage?.getItem(cacheKey(userId));
-    return value ? normalizePlayerSettings(JSON.parse(value)) : null;
+    return value ? restoreAnalyticsChoice(normalizePlayerSettings(JSON.parse(value))) : null;
   } catch {
     return null;
   }
@@ -200,6 +215,7 @@ export function loadCachedPlayerSettings(userId: string): PlayerSettings | null 
 
 export function saveCachedPlayerSettings(userId: string, settings: PlayerSettings): void {
   try {
+    if (settings.analyticsConsentDecided) globalThis.localStorage?.setItem(ANALYTICS_CHOICE_KEY, settings.optionalAnalyticsConsent ? "accepted" : "declined");
     globalThis.localStorage?.setItem(cacheKey(userId), JSON.stringify(normalizePlayerSettings(settings)));
   } catch {
     // Private browsing and storage quotas must not block settings changes.

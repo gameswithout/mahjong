@@ -1,3 +1,6 @@
+import { restoreAnalyticsChoice } from "./settings";
+import { pollRankedTicket, RANKED_TIMEOUT_MESSAGE } from "./ranked-matchmaking";
+import { casualPartySessionId, isCasualBotTable, newCasualPartyMatch } from "./casual-party";
 import { EmailCodeSignIn } from "./EmailCodeSignIn";
 import { MatchHistorySummaryButton } from "./MatchHistoryTable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -278,8 +281,10 @@ export function shouldAutomaticallyEnterHumanMatch(
   mode: OnlineSessionEntryMode,
   memberCount: number,
   runtimeStatus: MatchRuntimeState["status"],
+  casualBotsAllowed = false,
 ): boolean {
-  return mode === "matchmaking" && memberCount >= HUMAN_MATCH_SIZE && runtimeStatus === "idle";
+  const requiredHumans = casualBotsAllowed ? 1 : HUMAN_MATCH_SIZE;
+  return mode === "matchmaking" && memberCount >= requiredHumans && memberCount <= HUMAN_MATCH_SIZE && runtimeStatus === "idle";
 }
 
 function resultOpponents(members: SessionMember[], ownUserId: string): ResultFriendOpponent[] {
@@ -714,13 +719,18 @@ export function App(
         state.userId,
       ).getStored();
       if (requestId !== settingsRequestRef.current) return;
-      const settings = stored ?? cached ?? DEFAULT_PLAYER_SETTINGS;
+      const settings = restoreAnalyticsChoice(stored && !stored.analyticsConsentDecided && cached?.analyticsConsentDecided
+        ? { ...stored, analyticsConsentDecided: true, optionalAnalyticsConsent: cached.optionalAnalyticsConsent }
+        : stored ?? cached ?? DEFAULT_PLAYER_SETTINGS);
       setPlayerSettings(settings);
       saveCachedPlayerSettings(state.userId, settings);
       updateOptionalAnalyticsConsent(settings.optionalAnalyticsConsent, "restore");
       setSettingsSyncStatus("ready");
     } catch {
       if (requestId !== settingsRequestRef.current) return;
+      const fallback = restoreAnalyticsChoice(cached ?? DEFAULT_PLAYER_SETTINGS);
+      setPlayerSettings(fallback);
+      updateOptionalAnalyticsConsent(fallback.optionalAnalyticsConsent, "restore");
       setSettingsSyncStatus("error");
     }
   }
@@ -994,7 +1004,11 @@ export function App(
   const matchRuntimeCredentials = useMemo(
     () => ({
       getAccessToken: () => stableIam.getAccessToken(),
-      refreshAccessToken: () => stableIam.refreshAccessToken(),
+      refreshAccessToken: async () => {
+        const renewed = await stableIam.refreshAccessToken();
+        if (!renewed && stableIam.canRetrySessionRefresh?.()) throw new MatchRuntimeError("network", "Session renewal is temporarily unavailable. Reconnecting…");
+        return renewed;
+      },
     }),
     [stableIam],
   );
@@ -1051,6 +1065,14 @@ export function App(
     const pointer = browserMatchResumeStore.load();
     if (pointer) {
       void resumeMatch(pointer);
+    } else if (stableIam.restoreRememberedSession) {
+      setState({ status: "signing_in" });
+      void stableIam.restoreRememberedSession().then((identity) => {
+        if (!identity) { setState({ status: "idle" }); return; }
+        setIsGuestAccount(identity.isGuest);
+        authMethodRef.current = identity.isGuest ? "guest" : "email";
+        connectLobbyAfterSignIn(identity.userId);
+      }).catch(() => setState({ status: "idle" }));
     }
     // resumeMatch is a stable component-scoped closure; this runs once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1122,6 +1144,34 @@ export function App(
     };
   }, [activeSessionId]);
 
+  // Party followers never create competing tickets. Discover only a newly
+  // created, active Casual table containing every connected party member.
+  const casualParty = partyState.status === "ready" ? partyState.party : null;
+  const casualFollowerBlocked = sessionState.status !== "idle" || matchRuntimeState.status !== "idle" || matchmakingState.status !== "idle";
+  const casualPartyRosterKey = casualParty?.members.map((member) => `${member.userId}:${member.status}`).sort().join("|");
+  useEffect(() => {
+    if (state.status !== "signed_in" || !casualParty || casualParty.leaderId === state.userId || casualFollowerBlocked || !accelByteConfig.unrankedMatchPool) return;
+    const since = Date.now() - 2_000;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const sessions = await createAuthenticatedSessionClient().listMySessions();
+        if (cancelled) return;
+        const session = newCasualPartyMatch(sessions, casualParty, state.userId, since);
+        if (session) {
+          matchmakingModeRef.current = "unranked";
+          unrankedTableRef.current = true;
+          setMatchmakingState({ status: "matched", ticket: { ticketId: `party:${casualParty.partyId}`, matchFound: true, sessionId: session.sessionId } });
+          return;
+        }
+      } catch { /* A missed roster read must not open a private bot table. */ }
+      if (!cancelled) timer = setTimeout(() => { void poll(); }, 2_000);
+    };
+    void poll();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [state.status, state.status === "signed_in" ? state.userId : null, casualParty?.partyId, casualParty?.leaderId, casualPartyRosterKey, casualFollowerBlocked]);
+
   const activeTicketId =
     matchmakingState.status === "searching" || matchmakingState.status === "canceling"
       ? matchmakingState.ticket.ticketId
@@ -1141,11 +1191,10 @@ export function App(
 
     async function refreshTicketInBackground() {
       try {
-        const ticket = createAuthenticatedMatchmakingClient(
-          undefined,
-          matchPoolForMode(matchmakingMode),
-        ).getTicket(ticketId);
-        const nextTicket = await ticket;
+        const client = createAuthenticatedMatchmakingClient(undefined, matchPoolForMode(matchmakingMode));
+        const nextTicket = await (matchmakingMode === "full_rotation"
+          ? pollRankedTicket(client, ticketId, Date.now() - (queueStartedAt ?? Date.now()))
+          : client.getTicket(ticketId));
         if (cancelled || requestId !== matchmakingRequestRef.current) {
           return;
         }
@@ -1170,7 +1219,9 @@ export function App(
           setMatchmakingState({
             status: "error",
             code: "inactive",
-            message: "AGS closed this matchmaking ticket before a table was found.",
+            message: matchmakingMode === "full_rotation"
+              ? RANKED_TIMEOUT_MESSAGE
+              : "AGS closed this matchmaking ticket before a table was found.",
           });
           return;
         }
@@ -1191,7 +1242,9 @@ export function App(
         }
 
         const safeError = matchmakingErrorView(error);
-        setMatchmakingState({ status: "error", ...safeError });
+        setMatchmakingState(matchmakingMode === "full_rotation"
+          ? { status: "error", ...safeError, recovery: "cancel_ticket", ticket: matchmakingState.status === "searching" ? matchmakingState.ticket : { ticketId } }
+          : { status: "error", ...safeError });
       }
     }
 
@@ -1320,6 +1373,7 @@ export function App(
         onlineSessionEntryMode,
         sessionState.session.members.length,
         matchRuntimeState.status,
+        isCasualBotTable(sessionState.session),
       )
     ) {
       return;
@@ -1805,6 +1859,34 @@ export function App(
     }
   }, [matchRuntimeState, state]);
 
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState(false);
+  useEffect(() => {
+    if (state.status !== "signed_in") return;
+    const unsubscribe = stableIam.subscribeSessionExpired?.(() => {
+      resetForNewSignIn();
+      authMethodRef.current = null;
+      setSessionExpiredNotice(true);
+      setState({ status: "idle" });
+    });
+    const renew = () => { if (document.visibilityState !== "hidden") void stableIam.refreshSessionIfNeeded?.(); };
+    renew();
+    const timer = window.setInterval(renew, 60_000);
+    window.addEventListener("focus", renew);
+    window.addEventListener("online", renew);
+    document.addEventListener("visibilitychange", renew);
+    return () => { unsubscribe?.(); window.clearInterval(timer); window.removeEventListener("focus", renew); window.removeEventListener("online", renew); document.removeEventListener("visibilitychange", renew); };
+  }, [stableIam, state.status]);
+
+  useEffect(() => {
+    if (state.status === "signed_in" && matchRuntimeState.status === "error" && /(?:unauthorized|unauthenticated)$/.test(matchRuntimeState.code)) {
+      resetForNewSignIn();
+      stableIam.clearSession?.();
+      authMethodRef.current = null;
+      setSessionExpiredNotice(true);
+      setState({ status: "idle" });
+    }
+  }, [stableIam, state.status, matchRuntimeState]);
+
   function resetForNewSignIn() {
     // A new sign-in supersedes any match the previous identity was in, so its
     // resume pointer must not survive to be replayed under a different user.
@@ -1828,6 +1910,7 @@ export function App(
     setProgressionState({ status: "idle" });
     setProgressionOpen(false);
     setProfileEditorOpen(false);
+    setSettingsOpen(false);
     setAchievementState({ status: "idle" });
     setAchievementsOpen(false);
     setStatisticsState({ status: "idle" });
@@ -1849,6 +1932,7 @@ export function App(
   // identity has been established — the Lobby connection itself doesn't
   // care how the player authenticated.
   function connectLobbyAfterSignIn(userId: string) {
+    setSessionExpiredNotice(false);
     setState({ status: "signed_in", userId, lobbyStatus: "connecting" });
     void loadJadeAccount();
     void loadProgression();
@@ -1918,6 +2002,7 @@ export function App(
   }
 
   async function signInAsGuest() {
+    stableIam.setKeepLoggedIn?.(false);
     resetForNewSignIn();
     authMethodRef.current = "guest";
     setState({ status: "signing_in" });
@@ -2652,14 +2737,10 @@ export function App(
     matchmakingModeRef.current = "full_rotation";
     const pool = accelByteConfig.rotationMatchPool;
     if (!pool) return;
-    // Ranked play belongs to a durable account. The lobby hides this action
-    // for guests, but the guard also protects programmatic/replayed clicks.
-    if (isGuestAccount) {
-      setMatchmakingState({
-        status: "error",
-        code: "linked_account_required",
-        message: "Create or sign in to a full account before entering Full Rotation.",
-      });
+    if (hasActiveOrStrandedSession || matchmakingBlocksSessionActions || unrankedState.busy) return;
+    const party = partyState.status === "ready" ? partyState.party : null;
+    if (party && party.members.length > 1) {
+      setMatchmakingState({ status: "error", code: "solo_required", message: "Ranked is solo only. Leave your party before joining Ranked." });
       return;
     }
     const requestId = ++matchmakingRequestRef.current;
@@ -2675,21 +2756,9 @@ export function App(
       dimensions: { entry_point: "lobby_full_rotation", mode: "full_rotation" },
     });
 
-    const ownUserId = state.status === "signed_in" ? state.userId : undefined;
-    const party = partyState.status === "ready" ? partyState.party : null;
-    const partySessionId = party && party.leaderId === ownUserId ? party.partyId : undefined;
-    if (party && party.leaderId !== ownUserId) {
-      setMatchmakingState({
-        status: "error",
-        code: "party_member",
-        message: "Your party leader starts the queue for everyone.",
-      });
-      return;
-    }
-
     try {
       const ticket = await createAuthenticatedMatchmakingClient(
-        partySessionId,
+        undefined,
         pool,
       ).createTicket();
       if (requestId !== matchmakingRequestRef.current) {
@@ -3315,9 +3384,24 @@ export function App(
     }
   }
 
+  async function withCasualAuthRetry<T>(request: () => Promise<T>): Promise<T> {
+    try { return await request(); }
+    catch (error) {
+      if (!(error instanceof MatchmakingError) || error.code !== "unauthorized" || !(await stableIam.refreshAccessToken())) throw error;
+      return request();
+    }
+  }
+
   async function playUnranked() {
     unrankedTableRef.current = true;
     if (unrankedRequestRef.current || hasActiveOrStrandedSession || matchmakingBlocksSessionActions) return;
+    const party = partyState.status === "ready" ? partyState.party : null;
+    let partySessionId: string | undefined;
+    try {
+      partySessionId = casualPartySessionId(party, state.status === "signed_in" ? state.userId : "");
+      if (partySessionId && !accelByteConfig.unrankedMatchPool) throw new Error("Casual party matchmaking is not configured yet.");
+    } catch (error) { setUnrankedState({ busy: false, message: error instanceof Error ? error.message : "Your party cannot queue yet." }); return; }
+    matchmakingModeRef.current = "unranked";
     const controller = new AbortController();
     unrankedRequestRef.current = controller;
     setUnrankedState({ busy: true, message: "Looking for players…" });
@@ -3330,21 +3414,22 @@ export function App(
           // search rather than placing the same player in a second queue.
           createTicket: async () => {
             if (unrankedTicketRef.current) return unrankedTicketRef.current;
-            const created = await transport.createTicket();
+            const created = await withCasualAuthRetry(() => createAuthenticatedMatchmakingClient(partySessionId, accelByteConfig.unrankedMatchPool).createTicket());
             unrankedTicketRef.current = created;
             return created;
           },
           getTicket: async (id) => {
-            const current = await transport.getTicket(id);
-            unrankedTicketRef.current = current;
+            const current = await withCasualAuthRetry(() => createAuthenticatedMatchmakingClient(undefined, accelByteConfig.unrankedMatchPool).getTicket(id));
+            unrankedTicketRef.current = current.isActive === false && !current.matchFound && !current.sessionId ? null : current;
             return current;
           },
           cancelTicket: async (id) => {
-            await transport.cancelTicket(id);
+            await withCasualAuthRetry(() => createAuthenticatedMatchmakingClient(undefined, accelByteConfig.unrankedMatchPool).cancelTicket(id));
             unrankedTicketRef.current = null;
           },
         } : undefined,
         signal: controller.signal,
+        serviceManagedBots: Boolean(transport),
       });
       unrankedTicketRef.current = null;
       if (controller.signal.aborted) {
@@ -3767,6 +3852,7 @@ export function App(
         <SettingsScreen
           settings={playerSettings}
           syncStatus={settingsSyncStatus === "idle" ? "loading" : settingsSyncStatus}
+          onSignOut={() => { resetForNewSignIn(); stableIam.clearSession?.(); authMethodRef.current = null; setSessionExpiredNotice(false); setState({ status: "idle" }); }}
           onSettingsChange={(settings) => void updatePlayerSettings(settings)}
           onClose={() => setSettingsOpen(false)}
           onRetry={() => void loadPlayerSettings()}
@@ -4141,7 +4227,9 @@ export function App(
               <p>{t("auth.analyticsDetail")}</p>
             </div>
 
-            <EmailCodeSignIn onRequestCode={(email) => stableIam.requestEmailCode(email)} onConfirm={async (email, code, operationId) => {
+            {sessionExpiredNotice && <p role="status">Your session expired. Please sign in again to continue.</p>}
+            <EmailCodeSignIn onRequestCode={(email) => stableIam.requestEmailCode(email)} onConfirm={async (email, code, operationId, keepLoggedIn) => {
+              stableIam.setKeepLoggedIn(keepLoggedIn);
               const identity = await stableIam.loginWithEmailCode(email, code, operationId);
               resetForNewSignIn();
               setIsGuestAccount(false);
@@ -4216,17 +4304,19 @@ export function App(
             {state.lobbyStatus === "connected" && (
               <div className="session-panel">
                 <div className="main-menu-play">
-                  <div className="main-menu-play-heading"><h2>{translateSource("Play Mahjong")}</h2><div className="main-menu-jade" aria-label={t("header.walletLabel")}><span aria-hidden="true" data-artwork-id="menu-jade-icon">◆</span> <strong>{jadeState.status === "ready" ? formatNumber(jadeState.account.available) : jadeState.status === "loading" ? "…" : t("common.unavailable")}</strong> {t("common.jade")}</div></div>
+                  <div className="main-menu-play-heading"><h2>{translateSource("Play Mahjong")}</h2></div>
                 <GameModeMenu
                   onPlayUnranked={startUnrankedFromMenu}
                   unrankedBusy={unrankedState.busy}
                   unrankedUnavailable={sessionState.status === "loading" || hasActiveOrStrandedSession || matchmakingBlocksSessionActions}
                   unrankedStatus={unrankedState.message}
                   onCancelUnranked={unrankedState.message === "Looking for players…" ? () => unrankedRequestRef.current?.abort() : undefined}
-                  onPlayRanked={openRanked}
+                  rankedBalance={<div className="main-menu-jade" aria-label={t("header.walletLabel")}><span aria-hidden="true" data-artwork-id="menu-jade-icon">◆</span> <strong>{jadeState.status === "ready" ? formatNumber(jadeState.account.available) : jadeState.status === "loading" ? "…" : t("common.unavailable")}</strong> {t("common.jade")}</div>}
+                  onPlayRanked={() => void findRotationTable()}
                   rankedBusy={matchmakingModeRef.current === "full_rotation" && matchmakingBlocksSessionActions}
-                  rankedUnavailable
-                  rankedStatus="Ranked is not available yet."
+                  rankedUnavailable={!accelByteConfig.rotationMatchPool || unrankedState.busy || hasActiveOrStrandedSession || matchmakingBlocksSessionActions}
+                  rankedStatus={matchmakingModeRef.current === "full_rotation" && matchmakingState.status === "error" ? matchmakingState.message : matchmakingModeRef.current === "full_rotation" && matchmakingState.status === "searching" ? "Finding other players..." : undefined}
+                  onCancelRanked={matchmakingModeRef.current === "full_rotation" && matchmakingState.status === "searching" ? () => { void cancelMatchmaking(); } : undefined}
 
                 />
 

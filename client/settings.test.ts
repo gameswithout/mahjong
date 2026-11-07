@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  restoreAnalyticsChoice,
   DEFAULT_PLAYER_SETTINGS,
   createPlayerSettingsClient,
   loadCachedPlayerSettings,
@@ -172,5 +173,22 @@ describe("player settings", () => {
       showTutorial: false,
       optionalAnalyticsConsent: false,
     });
+  });
+});
+
+describe("analytics choice persistence", () => {
+  it.each([true, false])("retains choice %s across guest identities and old cloud records", (enabled) => {
+    localStorage.clear();
+    saveCachedPlayerSettings("old-guest", { ...DEFAULT_PLAYER_SETTINGS, analyticsConsentDecided: true, optionalAnalyticsConsent: enabled });
+    const restored = restoreAnalyticsChoice({ ...DEFAULT_PLAYER_SETTINGS });
+    expect(restored.analyticsConsentDecided).toBe(true);
+    expect(restored.optionalAnalyticsConsent).toBe(enabled);
+    localStorage.clear();
+  });
+  it("respects an explicitly recorded account decision", () => {
+    localStorage.clear();
+    saveCachedPlayerSettings("guest", { ...DEFAULT_PLAYER_SETTINGS, analyticsConsentDecided: true, optionalAnalyticsConsent: true });
+    expect(restoreAnalyticsChoice({ ...DEFAULT_PLAYER_SETTINGS, analyticsConsentDecided: true, optionalAnalyticsConsent: false }).optionalAnalyticsConsent).toBe(false);
+    localStorage.clear();
   });
 });

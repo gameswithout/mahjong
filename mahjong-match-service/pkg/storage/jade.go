@@ -61,12 +61,7 @@ func (p *PostgreSQLStorage) EnsureJadeAccount(
 	); err != nil {
 		return economy.Account{}, err
 	}
-	if err := postJadeGrant(
-		ctx, tx, "grant:onboarding:"+userID, "onboarding_grant", userID,
-		economy.OnboardingGrant,
-	); err != nil {
-		return economy.Account{}, err
-	}
+
 	account, err := jadeAccountTx(ctx, tx, userID)
 	if err != nil {
 		return economy.Account{}, err

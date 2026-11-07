@@ -176,6 +176,8 @@ Ranked seasons and Elo resets are not planned for MVP.
 
 Ranked introduces meaningful stakes through Jade, the game's virtual currency.
 
+New players receive **1,000 Jade** as a one-time starting grant. There is no additional onboarding Jade grant. Approved November 6, 2026; existing balances are preserved.
+
 Each player contributes 100 Jade.
 
 The total match pool is 400 Jade.

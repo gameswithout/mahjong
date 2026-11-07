@@ -1,3 +1,5 @@
+import { forgetSession, readRememberedSession, saveRememberedSession, REMEMBERED_SESSION_MS } from "./remembered-session";
+import { tokenExpiresAt } from "./token-expiry";
 import { requestXsollaEmailCode, confirmXsollaEmailCode } from "./xsolla-email";
 import { AccelByte } from "@accelbyte/sdk";
 import { OAuth20Api, OAuth20V4Api, UsersApi } from "@accelbyte/sdk-iam";
@@ -320,6 +322,10 @@ export function mapAuthError(error: unknown, operation: IamOperation): IamAuthEr
     });
   }
 
+  if (operation === "refresh" && (status === 400 || status === 401 || status === 403)) {
+    return new IamAuthError("invalid_credentials", "Your session expired. Please sign in again.", { cause: error });
+  }
+
   if (operation === "email_login" && (status === 400 || status === 401 || status === 403)) {
     return new IamAuthError(
       "invalid_credentials",
@@ -456,6 +462,49 @@ type IdentityKind = "guest" | "full";
 
 export class BrowserIam {
   private accessToken: string | null = null;
+  private rememberUntil: number | null = null;
+  private sessionGeneration = 0;
+  setKeepLoggedIn(enabled: boolean): void {
+    this.rememberUntil = enabled ? Date.now() + REMEMBERED_SESSION_MS : null;
+    if (!enabled) forgetSession(); else this.persistSession();
+  }
+  private persistSession(): void {
+    if (!this.rememberUntil) return;
+    if (!this.refreshToken || !this.identityKind || this.rememberUntil <= Date.now()) { forgetSession(); return; }
+    saveRememberedSession({ refreshToken: this.refreshToken, kind: this.identityKind, expiresAt: this.rememberUntil });
+  }
+  async restoreRememberedSession(): Promise<{ userId: string; isGuest: boolean } | null> {
+    const generation = this.sessionGeneration;
+    const saved = readRememberedSession();
+    if (!saved) return null;
+    this.rememberUntil = saved.expiresAt; this.refreshToken = saved.refreshToken; this.identityKind = saved.kind;
+    if (!(await this.refreshAccessToken())) return null;
+    try {
+      const user = await this.transport.getCurrentUser(this.getAccessToken());
+      if (generation !== this.sessionGeneration) return null;
+      if (typeof user.userId !== "string" || !user.userId) { this.expireSession(); return null; }
+      return { userId: user.userId, isGuest: saved.kind === "guest" };
+    } catch { return null; }
+  }
+  private readonly expiryListeners = new Set<() => void>();
+  subscribeSessionExpired(listener: () => void): () => void {
+    this.expiryListeners.add(listener);
+    return () => { this.expiryListeners.delete(listener); };
+  }
+  clearSession(): void {
+    this.sessionGeneration += 1;
+    this.accessToken = null; this.refreshToken = null; this.identityKind = null; this.rememberUntil = null; forgetSession();
+  }
+  expireSession(): void {
+    this.clearSession();
+    this.expiryListeners.forEach((listener) => listener());
+  }
+  canRetrySessionRefresh(): boolean { return this.refreshToken !== null; }
+  async refreshSessionIfNeeded(): Promise<void> {
+    if (!this.accessToken) return;
+    const expiry = tokenExpiresAt(this.accessToken);
+    if (expiry !== undefined && expiry <= Date.now() + 60_000) await this.refreshAccessToken();
+  }
   private refreshToken: string | null = null;
   private identityKind: IdentityKind | null = null;
   // One in-flight refresh, shared. A match runtime, a Jade lookup and a
@@ -489,6 +538,7 @@ export class BrowserIam {
     this.accessToken = token.access_token;
     this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
     this.identityKind = hasEmailIdentity ? "full" : "guest";
+    this.persistSession();
     return { deviceId, userId: user.userId, isGuest: !hasEmailIdentity };
   }
 
@@ -512,6 +562,7 @@ export class BrowserIam {
     this.accessToken = token.access_token;
     this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
     this.identityKind = "full";
+    this.persistSession();
     return { userId: user.userId };
   }
 
@@ -548,6 +599,7 @@ export class BrowserIam {
     this.accessToken = token.access_token;
     this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
     this.identityKind = "full";
+    this.persistSession();
     return { userId: user.userId };
   }
 
@@ -572,13 +624,18 @@ export class BrowserIam {
     }
     const refreshToken = this.refreshToken;
     if (!refreshToken || !this.transport.refreshAccessToken) {
+      this.expireSession();
       return false;
     }
 
+    const currentAccessToken = this.accessToken;
+    const generation = this.sessionGeneration;
     this.refreshInFlight = (async () => {
       try {
         const token = await this.transport.refreshAccessToken!(refreshToken);
+        if (this.accessToken !== currentAccessToken || generation !== this.sessionGeneration) return false;
         if (typeof token.access_token !== "string" || token.access_token.length === 0) {
+          this.expireSession();
           return false;
         }
         this.accessToken = token.access_token;
@@ -587,13 +644,16 @@ export class BrowserIam {
         // response that omitted it would leave nothing to renew with again,
         // though AGS has not been observed to do that.
         this.refreshToken = typeof token.refresh_token === "string" ? token.refresh_token : null;
+        this.persistSession();
 
         return true;
-      } catch {
-        // A refresh token is rejected once and stays rejected — retrying it on
-        // the next 401 would just spend requests to be told the same thing.
-        this.refreshToken = null;
-
+      } catch (error) {
+        if (this.accessToken !== currentAccessToken || generation !== this.sessionGeneration) return false;
+        // Keep the renewal credential during outages. Only a rejected grant
+        // proves the session can no longer be renewed.
+        const status = apiStatus(error);
+        const rejected = error instanceof IamAuthError && error.code === "invalid_credentials";
+        if (rejected || status === 400 || status === 401 || status === 403) this.expireSession();
         return false;
       } finally {
         this.refreshInFlight = null;
@@ -640,8 +700,8 @@ export class BrowserIam {
     return this.transport.createAuthenticatedSdk(this.accessToken);
   }
 
-  // The token remains in memory and is exposed only to the local runtime
-  // transport boundary. Callers must never persist, render, or log it.
+  // Access tokens remain in memory. Only the opt-in renewal credential may
+  // be persisted by persistSession; callers must never render or log tokens.
   getAccessToken(): string {
     if (!this.accessToken) {
       throw new IamAuthError("configuration", "Guest sign-in is required before connecting the match runtime.");
