@@ -2161,6 +2161,8 @@ export function App(
     return createMatchmakingClient(stableIam.getAuthenticatedSdk(), accelByteConfig.namespace, {
       matchPool: pool,
       sessionId: partySessionId,
+      relayURL: accelByteConfig.sessionURL,
+      getAccessToken: () => stableIam.getAccessToken(),
     });
   }
 
@@ -2953,6 +2955,10 @@ export function App(
       autoJoiningSessionIdRef.current = null;
       const safeError = sessionErrorView(error);
       setSessionState({ status: "error", ...safeError });
+      setMatchmakingState({ status: "error", ...safeError });
+      if (matchmakingMode === "unranked") {
+        setUnrankedState({ busy: false, message: safeError.message });
+      }
       if (matchmakingMode === "bamboo_quick_play") {
         await releaseJadeReservation();
       }

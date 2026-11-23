@@ -34,6 +34,8 @@ export interface MatchmakingCreateConfig {
   sessionId?: string;
   attributes?: Record<string, unknown>;
   latencies?: Record<string, number>;
+  relayURL?: string;
+  getAccessToken?: () => string;
 }
 
 export interface MatchmakingClient {
@@ -216,10 +218,25 @@ export function createMatchmakingClient(
 ): MatchmakingClient {
   const axiosInstance = sdk.assembly().axiosInstance as unknown as AxiosLike;
 
+  async function request(method: string, path: string, body?: unknown): Promise<{ data: unknown }> {
+    if (!config.relayURL) {
+      if (method === "POST") return axiosInstance.post(path, body);
+      if (method === "DELETE") return axiosInstance.delete(path);
+      return axiosInstance.get(path);
+    }
+    const response = await fetch(`${config.relayURL.replace(/\/+$/, "")}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${config.getAccessToken?.() ?? ""}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!response.ok) throw { response: { status: response.status } };
+    return { data: response.status === 204 ? {} : await response.json() };
+  }
+
   return {
     async createTicket() {
       try {
-        const response = await axiosInstance.post(endpoint(namespace), createRequestBody(config));
+        const response = await request("POST", endpoint(namespace), createRequestBody(config));
         return mapCreatedTicket(response.data);
       } catch (error) {
         throw mapMatchmakingError(error);
@@ -228,7 +245,7 @@ export function createMatchmakingClient(
 
     async getTicket(ticketId) {
       try {
-        const response = await axiosInstance.get(endpoint(namespace, ticketId));
+        const response = await request("GET", endpoint(namespace, ticketId));
         return mapTicketDetail(ticketId, response.data);
       } catch (error) {
         throw mapMatchmakingError(error);
@@ -237,7 +254,7 @@ export function createMatchmakingClient(
 
     async cancelTicket(ticketId) {
       try {
-        await axiosInstance.delete(endpoint(namespace, ticketId));
+        await request("DELETE", endpoint(namespace, ticketId));
       } catch (error) {
         throw mapMatchmakingError(error);
       }

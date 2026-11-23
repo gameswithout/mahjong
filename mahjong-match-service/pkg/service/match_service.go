@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -142,6 +143,9 @@ func (s *MatchService) JoinMatch(
 	}
 	view, err := s.runtime.Join(ctx, key, principal.UserID)
 	if err != nil {
+		if status.Code(rpcError(err)) == codes.Internal {
+			slog.ErrorContext(ctx, "match join failed", "error", err)
+		}
 		return nil, rpcError(err)
 	}
 	if s.economy != nil && stakesJade(view) {

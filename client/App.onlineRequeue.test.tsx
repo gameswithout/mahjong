@@ -349,6 +349,17 @@ describe("App online matchmaking and requeue", () => {
     await vi.waitFor(() => expect(createTicket).toHaveBeenCalledOnce());
   });
 
+  it("shows a matched session join failure and stops the queue", async () => {
+    sessionClient.joinSession = vi.fn().mockRejectedValue(new Error("upstream failed"));
+    act(() => root.render(<App iam={iam} />));
+    await clickAndFlush(container, "Continue as Guest");
+    await vi.waitFor(() => expect(container.textContent).toContain("Play Ranked"));
+    await clickAndFlush(container, "Play Ranked");
+    await vi.waitFor(() => expect(container.textContent).toContain("Session lookup failed. Please retry."));
+    expect(button(container, "Play Ranked").disabled).toBe(false);
+    expect(container.textContent).not.toContain("Finding a table...");
+  });
+
   it("offers a way out of a queue that has passed 90 seconds, releasing the reservation", async () => {
     // A ticket that never matches: four humans are required and none arrive.
     const cancelTicket = vi.fn().mockResolvedValue(undefined);

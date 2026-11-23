@@ -172,7 +172,9 @@ func main() {
 
 	// Preparing the IAM authorization
 	var tokenRepo repository.TokenRepository = sdkAuth.DefaultTokenRepositoryImpl()
-	var configRepo repository.ConfigRepository = sdkAuth.DefaultConfigRepositoryImpl()
+	sdkConfig := sdkAuth.DefaultConfigRepositoryImpl()
+	sdkConfig.BaseUrl = agsAPIBaseURL(sdkConfig.BaseUrl)
+	var configRepo repository.ConfigRepository = sdkConfig
 	var refreshRepo repository.RefreshTokenRepository = &sdkAuth.RefreshTokenImpl{RefreshRate: 0.8, AutoRefresh: true}
 
 	oauthService := iam.OAuth20Service{
@@ -258,7 +260,7 @@ func main() {
 	// §10.1 ranked gating. The client hides Full Rotation from guests; this is
 	// the half that a client cannot bypass.
 	matchRuntime.SetIdentities(&matchsession.AGSIdentityResolver{
-		BaseURL: common.GetEnv("AB_BASE_URL", ""),
+		BaseURL: configRepo.GetJusticeBaseUrl(),
 	})
 	testUserID := strings.TrimSpace(common.GetEnv("MATCH_TEST_USER_ID", ""))
 	if testUserID != "" {
@@ -375,7 +377,7 @@ func main() {
 		}
 		sessionProxy := newAGSSessionProxy(
 			basePath,
-			common.GetEnv("AB_BASE_URL", ""),
+			configRepo.GetJusticeBaseUrl(),
 			http.DefaultClient,
 		)
 		grpcGatewayHTTPServer := newGRPCGatewayHTTPServer(
@@ -516,11 +518,27 @@ func newGRPCGatewayHTTPServer(
 	}
 }
 
-// agsSessionProxy is the static-hosting bridge for the browser Session API.
-// AGS's Session edge does not accept browser OPTIONS requests, so a GitHub
-// Pages client cannot call it directly. This relay is intentionally limited
-// to /session/v1/public: it forwards the player's bearer token but exposes no
-// admin or confidential-client surface.
+// Extend may inject its own routing hostname as AB_BASE_URL. AGS APIs use the
+// namespace API hostname; the extra .ext label is outside its TLS certificate.
+func agsAPIBaseURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || parsed.Port() != "" {
+		return raw
+	}
+	const suffix = ".ext.gamingservices.xsolla.com"
+	if strings.HasSuffix(parsed.Hostname(), suffix) {
+		namespace := strings.TrimSuffix(parsed.Hostname(), suffix)
+		if namespace != "" && !strings.Contains(namespace, ".") {
+			parsed.Host = namespace + ".gamingservices.xsolla.com"
+			return parsed.String()
+		}
+	}
+	return raw
+}
+
+// agsSessionProxy relays the browser Session API and public matchmaking tickets.
+// Their AGS edges reject browser preflights. Only player-facing routes are
+// allowed; the relay forwards the caller's bearer token, never service credentials.
 type agsSessionProxy struct {
 	prefix  string
 	baseURL string
@@ -528,7 +546,7 @@ type agsSessionProxy struct {
 }
 
 func newAGSSessionProxy(basePath, baseURL string, client *http.Client) *agsSessionProxy {
-	prefix := strings.TrimSuffix(basePath, "/") + "/ags/session/"
+	prefix := strings.TrimSuffix(basePath, "/") + "/ags/"
 	return &agsSessionProxy{
 		prefix:  prefix,
 		baseURL: strings.TrimSuffix(baseURL, "/"),
@@ -537,7 +555,14 @@ func newAGSSessionProxy(basePath, baseURL string, client *http.Client) *agsSessi
 }
 
 func (p *agsSessionProxy) matches(path string) bool {
-	return p != nil && strings.HasPrefix(path, p.prefix+"v1/public/")
+	if p == nil {
+		return false
+	}
+	if strings.HasPrefix(path, p.prefix+"session/v1/public/") {
+		return true
+	}
+	parts := strings.Split(strings.TrimPrefix(path, p.prefix), "/")
+	return strings.HasPrefix(path, p.prefix) && (len(parts) == 5 || len(parts) == 6) && parts[0] == "match2" && parts[1] == "v1" && parts[2] == "namespaces" && parts[3] != "" && parts[4] == "match-tickets"
 }
 
 func (p *agsSessionProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -551,7 +576,7 @@ func (p *agsSessionProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	suffix := strings.TrimPrefix(r.URL.Path, p.prefix)
-	target := p.baseURL + "/session/" + suffix
+	target := p.baseURL + "/" + suffix
 	if r.URL.RawQuery != "" {
 		target += "?" + r.URL.RawQuery
 	}

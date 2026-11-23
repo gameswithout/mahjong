@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AccelByteSDK } from "@accelbyte/sdk";
 
@@ -129,4 +129,29 @@ describe("createMatchmakingClient", () => {
       message: "AGS returned an invalid matchmaking ticket.",
     });
   });
+});
+
+it("uses the browser-safe relay for ticket creation, polling and cancellation", async () => {
+  const request = vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ matchTicketID: "t" }), { status: 201 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ isActive: true }), { status: 200 }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", request);
+  try {
+    const client = createMatchmakingClient(fakeSdk(vi.fn(), vi.fn()), "ns", {
+      matchPool: "casual",
+      relayURL: "https://runtime.test/ags/",
+      getAccessToken: () => "player-token",
+    });
+    await client.createTicket();
+    await client.getTicket("t");
+    await client.cancelTicket("t");
+    const collection = "https://runtime.test/ags/match2/v1/namespaces/ns/match-tickets";
+    expect(request.mock.calls.map(([url, options]) => [url, options.method])).toEqual([
+      [collection, "POST"], [collection + "/t", "GET"], [collection + "/t", "DELETE"],
+    ]);
+    expect(request.mock.calls[0][1].headers.Authorization).toBe("Bearer player-token");
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

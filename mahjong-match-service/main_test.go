@@ -11,6 +11,22 @@ import (
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
+func TestAGSAPIBaseURL(t *testing.T) {
+	for _, tc := range []struct{ input, want string }{
+		{"https://936895-314916.ext.gamingservices.xsolla.com", "https://936895-314916.gamingservices.xsolla.com"},
+		{"https://936895-314916.gamingservices.xsolla.com", "https://936895-314916.gamingservices.xsolla.com"},
+		{"http://localhost:8000", "http://localhost:8000"},
+		{"https://other.example.com", "https://other.example.com"},
+		{"https://a.b.ext.gamingservices.xsolla.com", "https://a.b.ext.gamingservices.xsolla.com"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			if got := agsAPIBaseURL(tc.input); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return fn(request)
 }
@@ -203,5 +219,31 @@ func TestCorsMiddleware_AddsOriginHeaderToRealRequests(t *testing.T) {
 	}
 	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "*" {
 		t.Fatalf("Access-Control-Allow-Origin = %q", got)
+	}
+}
+
+func TestAGSProxyMatchmakingTicketRoutes(t *testing.T) {
+	proxy := newAGSSessionProxy("/ext-app", "https://ags.example.test", &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/match2/v1/namespaces/ns/match-tickets/ticket" || r.Header.Get("Authorization") != "Bearer player" {
+			t.Fatalf("unexpected forwarded request")
+		}
+		return &http.Response{StatusCode: 204, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(""))}, nil
+	})})
+	for _, path := range []string{"/ext-app/ags/match2/v1/namespaces/ns/match-tickets", "/ext-app/ags/match2/v1/namespaces/ns/match-tickets/ticket"} {
+		if !proxy.matches(path) {
+			t.Fatalf("ticket route rejected: %s", path)
+		}
+	}
+	for _, path := range []string{"/ext-app/ags/match2/v1/admin/namespaces/ns/match-pools", "/ext-app/ags/match2/v1/namespaces/ns/match-pools", "/ext-app/ags/match2/v1/namespaces/ns/match-tickets/ticket/admin"} {
+		if proxy.matches(path) {
+			t.Fatalf("unexpected route allowed: %s", path)
+		}
+	}
+	r := httptest.NewRequest(http.MethodDelete, "/ext-app/ags/match2/v1/namespaces/ns/match-tickets/ticket", nil)
+	r.Header.Set("Authorization", "Bearer player")
+	w := httptest.NewRecorder()
+	proxy.ServeHTTP(w, r)
+	if w.Code != 204 {
+		t.Fatalf("status=%d", w.Code)
 	}
 }
