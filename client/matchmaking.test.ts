@@ -156,3 +156,18 @@ it("uses the browser-safe relay for ticket creation, polling and cancellation", 
     vi.unstubAllGlobals();
   }
 });
+
+it("preserves an existing ticket so a duplicate search can be cancelled", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    errorCode: 520324,
+    messageVariables: { ticketID: "existing" },
+  }), { status: 400 })));
+  try {
+    const client = createMatchmakingClient(fakeSdk(vi.fn(), vi.fn()), "ns", {
+      matchPool: "ranked", relayURL: "https://runtime.test/ags",
+    });
+    await expect(client.createTicket()).rejects.toMatchObject({ code: "conflict", ticketId: "existing" });
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

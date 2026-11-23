@@ -2783,7 +2783,9 @@ export function App(
         return;
       }
       const safeError = matchmakingErrorView(error);
-      setMatchmakingState({ status: "error", ...safeError });
+      setMatchmakingState(error instanceof MatchmakingError && error.ticketId
+        ? { status: "error", ...safeError, recovery: "cancel_ticket", ticket: { ticketId: error.ticketId } }
+        : { status: "error", ...safeError });
       gameTelemetry.track("queue_entry_result", {
         dimensions: {
           mode: "full_rotation",

@@ -11,13 +11,15 @@ export type MatchmakingErrorCode =
   | "unknown";
 
 export class MatchmakingError extends Error {
+  readonly ticketId?: string;
   constructor(
     readonly code: MatchmakingErrorCode,
     message: string,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; ticketId?: string },
   ) {
     super(message, options);
     this.name = "MatchmakingError";
+    this.ticketId = options?.ticketId;
   }
 }
 
@@ -152,6 +154,11 @@ function mapMatchmakingError(error: unknown): MatchmakingError {
   }
 
   const status = responseStatus(error);
+  const data = isRecord(error) && isRecord(error.response) ? error.response.data : undefined;
+  if (status === 400 && isRecord(data) && data.errorCode === 520324) {
+    const ticketId = isRecord(data.messageVariables) ? stringField(data.messageVariables, "ticketID") : undefined;
+    return new MatchmakingError("conflict", "An earlier matchmaking search is still active. Cancel it before starting another search.", { cause: error, ticketId });
+  }
   if (status === 401) {
     return new MatchmakingError(
       "unauthorized",
@@ -231,7 +238,10 @@ export function createMatchmakingClient(
       headers: { Authorization: `Bearer ${config.getAccessToken?.() ?? ""}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (!response.ok) throw { response: { status: response.status } };
+    if (!response.ok) {
+      const data = await response.json().catch(() => undefined);
+      throw { response: { status: response.status, data } };
+    }
     return { data: response.status === 204 ? {} : await response.json() };
   }
 
