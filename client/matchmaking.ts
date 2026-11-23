@@ -226,6 +226,8 @@ export function createMatchmakingClient(
     }
     const response = await fetch(`${config.relayURL.replace(/\/+$/, "")}${path}`, {
       method,
+      // Queue status must be fresh; cached empty responses abort an active search.
+      cache: "no-store",
       headers: { Authorization: `Bearer ${config.getAccessToken?.() ?? ""}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

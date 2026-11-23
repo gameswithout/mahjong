@@ -151,6 +151,7 @@ it("uses the browser-safe relay for ticket creation, polling and cancellation", 
       [collection, "POST"], [collection + "/t", "GET"], [collection + "/t", "DELETE"],
     ]);
     expect(request.mock.calls[0][1].headers.Authorization).toBe("Bearer player-token");
+    expect(request.mock.calls.every(([, options]) => options.cache === "no-store")).toBe(true);
   } finally {
     vi.unstubAllGlobals();
   }
