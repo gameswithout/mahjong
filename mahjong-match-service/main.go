@@ -522,13 +522,14 @@ func newGRPCGatewayHTTPServer(
 // namespace API hostname; the extra .ext label is outside its TLS certificate.
 func agsAPIBaseURL(raw string) string {
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme != "https" || parsed.Port() != "" {
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Port() != "" {
 		return raw
 	}
 	const suffix = ".ext.gamingservices.xsolla.com"
 	if strings.HasSuffix(parsed.Hostname(), suffix) {
 		namespace := strings.TrimSuffix(parsed.Hostname(), suffix)
 		if namespace != "" && !strings.Contains(namespace, ".") {
+			parsed.Scheme = "https"
 			parsed.Host = namespace + ".gamingservices.xsolla.com"
 			return parsed.String()
 		}

@@ -13,6 +13,7 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func TestAGSAPIBaseURL(t *testing.T) {
 	for _, tc := range []struct{ input, want string }{
+		{"http://936895-314916.ext.gamingservices.xsolla.com", "https://936895-314916.gamingservices.xsolla.com"},
 		{"https://936895-314916.ext.gamingservices.xsolla.com", "https://936895-314916.gamingservices.xsolla.com"},
 		{"https://936895-314916.gamingservices.xsolla.com", "https://936895-314916.gamingservices.xsolla.com"},
 		{"http://localhost:8000", "http://localhost:8000"},
